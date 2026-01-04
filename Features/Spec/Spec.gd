@@ -4,11 +4,13 @@ extends CharacterBody3D
 const SPEED = 5.0
 const JUMP_VELOCITY = 4.5
 var gravity = 12
-var speed = 10
+var speed = 3
 
 @export var camera: Camera3D
 @export var camera_pivot: CameraPivot
 @export var cue: RayCast3D
+@export var model: Node3D
+@export var cue_strength := 1.0
 
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
@@ -31,6 +33,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 func _process(_delta: float):
+	model.global_rotation.y = camera_pivot.global_rotation.y + camera_pivot.BASE_YAW
 	_strike_ball()
 
 func _get_cue_direction() -> Vector3:
@@ -47,4 +50,4 @@ func _strike_ball():
 			if collider.is_in_group(Groups.BALL):
 				var ball = collider as Ball
 				var cue_direction = _get_cue_direction()
-				ball.strike(cue_direction, 1)
+				ball.strike(cue_direction, cue_strength)
