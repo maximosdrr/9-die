@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Table" load_steps=3 format=3 uid="uid://cjpj3g13pwsk8"]
+
+[ext_resource type="Script" uid="uid://b4pdlk83oj37w" path="res://Features/Tables/Table.gd" id="1_tmv0l"]
+[ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Tables/Models/GreenTable.tscn" id="1_x4eab"]
+
+[resource]
+script = ExtResource("1_tmv0l")
+model = ExtResource("1_x4eab")
+metadata/_custom_type_script = "uid://b4pdlk83oj37w"

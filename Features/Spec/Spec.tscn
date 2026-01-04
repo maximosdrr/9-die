@@ -1,0 +1,35 @@
+[gd_scene load_steps=5 format=3 uid="uid://dq4mwkkjaq18o"]
+
+[ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Spec/Spec.gd" id="1_lmw26"]
+[ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Features/Spec/CameraPivot.gd" id="2_w4e6a"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
+radius = 0.3466797
+height = 1.3590698
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_qhdlv"]
+
+[node name="Spec" type="CharacterBody3D" node_paths=PackedStringArray("camera", "camera_pivot", "cue")]
+script = ExtResource("1_lmw26")
+camera = NodePath("Body/CameraPivot/Camera3D")
+camera_pivot = NodePath("Body/CameraPivot")
+cue = NodePath("Body/CameraPivot/Camera3D/RayCast3D")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005671978, 0)
+shape = SubResource("CapsuleShape3D_qhdlv")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.5625956, 0, 0, 0, 0.6584224, 0, 0, 0, 0.57506424, 0, 0, 0)
+mesh = SubResource("CapsuleMesh_qhdlv")
+
+[node name="CameraPivot" type="Node3D" parent="Body" node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2845168, 0)
+script = ExtResource("2_w4e6a")
+camera = NodePath("Camera3D")
+
+[node name="Camera3D" type="Camera3D" parent="Body/CameraPivot"]
+transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 0, 0, 0)
+
+[node name="RayCast3D" type="RayCast3D" parent="Body/CameraPivot/Camera3D"]
+transform = Transform3D(1.5000608, 0, 0, 0, -7.841632e-08, -0.99999994, 0, 1.7939563, -4.3711385e-08, 0, 0, -0.32302153)

@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://cpcgmxhx118au"]
+
+[ext_resource type="PackedScene" uid="uid://dvyejk17aixhq" path="res://Levels/PrototypeLevel/Prototype.tscn" id="1_glv2v"]
+
+[node name="Main" type="Node3D"]
+
+[node name="Prototype" parent="." instance=ExtResource("1_glv2v")]
