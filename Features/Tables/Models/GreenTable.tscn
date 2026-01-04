@@ -48,7 +48,7 @@ shadow_mesh = SubResource("ArrayMesh_aaeci")
 size = Vector3(1.1513519, 2.3651195, 0.24108887)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_uhai5"]
-size = Vector3(0.00982666, 0.055453368, 1.0328827)
+size = Vector3(0.00982666, 0.07455862, 1.1678267)
 
 [node name="GreenTable" type="StaticBody3D"]
 physics_material_override = SubResource("PhysicsMaterial_uhai5")
@@ -63,11 +63,11 @@ transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.0020980835, 0.63180697, 0.
 shape = SubResource("BoxShape3D_qq52u")
 
 [node name="Rail1" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5791928, 0.77922136, 0.5913162)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5791928, 0.77361095, 0.5588925)
 shape = SubResource("BoxShape3D_uhai5")
 
 [node name="Rail2" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.58229274, 0.7833228, -0.5975827)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5791928, 0.79441077, -0.58789015)
 shape = SubResource("BoxShape3D_uhai5")
 
 [node name="Rail3" type="CollisionShape3D" parent="."]
@@ -79,7 +79,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.57936364, 0.7829933, 0.5905
 shape = SubResource("BoxShape3D_uhai5")
 
 [node name="Rail5" type="CollisionShape3D" parent="."]
-transform = Transform3D(-4.3708987e-08, 4.577362e-10, -1, 0.010471783, 0.99994516, 0, 0.9999451, -0.010471784, -4.371139e-08, -0.001351729, 0.7829933, 1.1920936)
+transform = Transform3D(-4.3708987e-08, 4.577362e-10, -1, 0.010471783, 0.99994516, 0, 0.9999451, -0.010471784, -4.371139e-08, -0.013192132, 0.7829933, 1.1920936)
 shape = SubResource("BoxShape3D_uhai5")
 
 [node name="Rail6" type="CollisionShape3D" parent="."]
