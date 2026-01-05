@@ -1,7 +1,10 @@
 class_name Ball
 extends RigidBody3D
 
+@onready var poolstick_respawn_marker: Marker3D = $PoolstickRespawnPosition
+
 @export var data: BallResource
+@export var is_white_ball: bool = false
 @onready var label_3d: Label3D = $Label3D
 
 func _update_label():
