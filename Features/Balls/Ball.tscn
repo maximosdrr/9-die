@@ -24,3 +24,6 @@ transform = Transform3D(0.41786087, 0, 0, 0, 0.29796404, 0, 0, 0, 1, 0, 0.137288
 visible = false
 text = "XXXXXX
 XXXX"
+
+[node name="PoolstickRespawnPosition" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0077421963, 0.22034985)
