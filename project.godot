@@ -47,7 +47,15 @@ strike={
 ]
 }
 
+[layer_names]
+
+3d_physics/layer_1="Ground"
+3d_physics/layer_2="Player"
+3d_physics/layer_3="Object"
+
 [physics]
 
+common/physics_ticks_per_second=120
 common/physics_jitter_fix=1.0
+3d/solver/solver_iterations=24
 common/physics_interpolation=true

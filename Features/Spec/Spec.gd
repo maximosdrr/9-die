@@ -1,7 +1,6 @@
 extends CharacterBody3D
 
 
-const SPEED = 5.0
 const JUMP_VELOCITY = 4.5
 var gravity = 12
 var speed = 3
@@ -18,7 +17,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0
 
-	var input_dir := Input.get_vector( "move_backward", "move_forward", "move_left", "move_right")
+	var input_dir := Input.get_vector( "move_right", "move_left", "move_backward", "move_forward")
 
 	var _basis := camera_pivot.basis.orthonormalized()
 	var direction := (_basis * Vector3(-input_dir.x, 0, -input_dir.y)).normalized()
@@ -50,4 +49,6 @@ func _strike_ball():
 			if collider.is_in_group(Groups.BALL):
 				var ball = collider as Ball
 				var cue_direction = _get_cue_direction()
+				#PERFECT FRONTAL COLLISION
+				#var test = Vector3(-0.001102, -0.301967, 0.953318)
 				ball.strike(cue_direction, cue_strength)
