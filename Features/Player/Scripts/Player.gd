@@ -6,6 +6,10 @@ var speed = 3
 @export var camera_pivot: CameraPivot
 @export var model: Node3D
 @export var player_camera: Camera3D
+@export var table: Table
+@export var poolstick: Poolstick
+
+@onready var state_machine: StateMachine = $StateMachine
 
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
@@ -26,6 +30,3 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0, speed)
 
 	move_and_slide()
-
-func set_player_camera_current(value: bool):
-	player_camera.current = value
