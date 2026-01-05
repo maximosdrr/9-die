@@ -9,6 +9,7 @@ var speed = 3
 @export var table: Table
 @export var poolstick: Poolstick
 
+
 @onready var state_machine: StateMachine = $StateMachine
 
 func _physics_process(delta: float) -> void:

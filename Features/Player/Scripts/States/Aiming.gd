@@ -3,28 +3,31 @@ extends State
 class_name PlayerAimingState
 
 @export var player: Player
+var player_original_parent: Node3D = null
 
 func _init() -> void:
 	self.type = State.Type.AIMING
+	
+func _ready() -> void:
+	player_original_parent = player.get_parent()
 
 func enter(_metadata: Dictionary[Variant, Variant]):
-	var poolstick = player.poolstick
 	var table = player.table
 	
-	player.player_camera.current = false
-	poolstick.poolstick_camera.current = true
-	poolstick.set_camera_target(table.poolstick_respawn_marker)
+	player.reparent(table.poolstick_respawn_marker)
+	player.position = Vector3(0, 0, 0.5)
+	player.set_physics_process(false)
+	player.camera_pivot.rotation_x_enabled = false
+	player.camera_pivot.rotation_target = table.poolstick_respawn_marker
+
+func exit(_metadata: Dictionary[Variant, Variant]):
+	player.reparent(player_original_parent)
+	player.position = Vector3(0, 0, 2)
+	player.set_physics_process(true)
+	player.camera_pivot.rotation_x_enabled = true
+	player.camera_pivot.rotation_target = null
 	
-	#Change poolstick parent
-	if poolstick.get_parent() == player:
-		player.remove_child(poolstick)
-		table.poolstick_respawn_marker.add_child(poolstick)
-		
-		poolstick.position = Vector3(0, 0.25, 1.6)
-		poolstick.rotation_degrees = Vector3(-100, 0, 0)
-	
-		
-	
+
 func process(_delta: float) -> void:
 	if Input.is_action_just_pressed("aim"):
 		state_machine.change_state(State.Type.IDLE, {})
