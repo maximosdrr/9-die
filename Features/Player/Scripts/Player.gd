@@ -3,13 +3,14 @@ class_name Player extends CharacterBody3D
 var gravity = 12
 var speed = 3
 
-@export var camera_pivot: CameraPivot
-@export var model: Node3D
-@export var player_camera: Camera3D
 @export var table: Table
 @export var poolstick: Poolstick
 
 @onready var state_machine: StateMachine = $StateMachine
+@onready var player_camera: Camera3D = $Body/CameraPivot/PlayerCamera
+@onready var camera_pivot: CameraPivot = $Body/CameraPivot
+@onready var model: MeshInstance3D = $Body/CameraPivot/Model3D
+@onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
