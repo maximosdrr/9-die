@@ -1,8 +1,7 @@
-[gd_scene load_steps=15 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=14 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
-[ext_resource type="Script" uid="uid://bwxev0g3mhud1" path="res://Core/LevelCameraController/LevelCameraController.gd" id="1_rxpk7"]
-[ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Tables/Models/GreenTable.tscn" id="2_5rn6i"]
+[ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Tables/Table.tscn" id="2_5rn6i"]
 [ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Balls/Ball.tscn" id="3_4e5w7"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Balls/Resources/PrototypeBall.tres" id="5_rxpk7"]
 [ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_s6lm4"]
@@ -52,7 +51,8 @@ collision_mask = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="GreenTable" parent="." instance=ExtResource("2_5rn6i")]
+[node name="GreenTable" parent="." node_paths=PackedStringArray("reference_ball") instance=ExtResource("2_5rn6i")]
+reference_ball = NodePath("PrototypeBall")
 
 [node name="PrototypeBall" parent="GreenTable" instance=ExtResource("3_4e5w7")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0.8)
@@ -67,21 +67,13 @@ data = ExtResource("5_rxpk7")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0.1)
 data = ExtResource("5_rxpk7")
 
-[node name="Spec" parent="." instance=ExtResource("5_s6lm4")]
+[node name="Player" parent="." node_paths=PackedStringArray("table") instance=ExtResource("5_s6lm4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.047, 0.712, 3.0368714)
+table = NodePath("../GreenTable")
 
 [node name="Components" type="Node" parent="."]
-
-[node name="LevelCameraController" type="Node" parent="Components" node_paths=PackedStringArray("reference_ball", "player", "poolstick_respawn_controller")]
-script = ExtResource("1_rxpk7")
-reference_ball = NodePath("../../GreenTable/PrototypeBall")
-player = NodePath("../../Spec")
-poolstick_respawn_controller = NodePath("../PoolstickRespawnController")
-metadata/_custom_type_script = "uid://bwxev0g3mhud1"
 
 [node name="PoolstickRespawnController" type="Node" parent="Components"]
 script = ExtResource("7_wwpfk")
 poolstick_scene = ExtResource("8_obyne")
 metadata/_custom_type_script = "uid://dttra1tw7g3cq"
-
-[editable path="Spec"]

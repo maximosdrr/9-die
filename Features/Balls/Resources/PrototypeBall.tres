@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BallResource" load_steps=3 format=3 uid="uid://umg6l17oxgvf"]
 
 [ext_resource type="PackedScene" uid="uid://bmurvtfl5aw4" path="res://Assets/Balls/Prototype/BallExample.glb" id="1_cumvy"]
-[ext_resource type="Script" uid="uid://b18ax0wydcqg1" path="res://Features/Balls/BallResource.gd" id="2_cumvy"]
+[ext_resource type="Script" uid="uid://b18ax0wydcqg1" path="res://Features/Balls/Scripts/BallResource.gd" id="2_cumvy"]
 
 [resource]
 script = ExtResource("2_cumvy")

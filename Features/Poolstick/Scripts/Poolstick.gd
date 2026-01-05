@@ -1,14 +1,24 @@
 class_name Poolstick extends Node3D
 
 @export var poolstick_camera: Camera3D
-@export var camera_pivot: CameraPivot
+@export var camera_pivot: PollstickCameraPivot
+@export var poolstick_body: Node3D
+@export var player: Player
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_released("can_strike"):
+		_execute_strike()
 
-func add_camera_target(ball: Ball) -> void:
-	camera_pivot.set_rotation_target(ball)
+func _execute_strike() -> void:
+	var target_ball = player.table.reference_ball
+	
+	var _current_power = 0.6
+	if _current_power <= 0.1:
+		return
+		
+	var strike_direction = (target_ball.global_position - poolstick_body.global_position).normalized()
+	strike_direction.y = 0 
+	target_ball.strike(strike_direction, _current_power)
 
-func remove_camera_target() -> void:
-	camera_pivot.clear_rotation_target()
-
-func set_poolstick_camera_current(value: bool) -> void:
-	poolstick_camera.current = value
+func set_camera_target(node: Node3D) -> void:
+	camera_pivot.set_rotation_target(node)

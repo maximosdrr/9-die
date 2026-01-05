@@ -18,5 +18,6 @@ func exit(metadata: Dictionary[Variant, Variant]):
 
 enum Type {
 	IDLE,
-	AIMING
+	AIMING,
+	MOVING
 }

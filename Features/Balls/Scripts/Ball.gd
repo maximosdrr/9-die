@@ -1,14 +1,18 @@
 class_name Ball
 extends RigidBody3D
 
-@onready var poolstick_respawn_marker: Marker3D = $PoolstickRespawnPosition
 
 @export var data: BallResource
 @export var is_white_ball: bool = false
+
 @onready var label_3d: Label3D = $Label3D
+@onready var collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var poolstick_respawn_marker: Marker3D = $PoolstickRespawnPosition
+@onready var state_machine: StateMachine = $StateMachine
+
 
 func _update_label():
-	var message = "Ball bounce: %s\nBall Friction %s" % [physics_material_override.bounce, physics_material_override.friction]
+	var message = "State: %s" % [state_machine.current.name]
 	label_3d.text = message
 
 func _process(_delta: float) -> void:

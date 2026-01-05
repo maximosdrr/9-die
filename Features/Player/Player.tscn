@@ -1,8 +1,9 @@
-[gd_scene load_steps=8 format=3 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=9 format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Player/Scripts/Player.gd" id="1_imb0g"]
 [ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Core/CameraPivot/CameraPivot.gd" id="2_bd6kk"]
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="6_4uqpi"]
+[ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Poolstick/Poolstick.tscn" id="6_wlwl2"]
 [ext_resource type="Script" uid="uid://cheubfr7g8jw5" path="res://Features/Player/Scripts/States/Aiming.gd" id="7_yu112"]
 [ext_resource type="Script" uid="uid://dxb8qlkelpfdw" path="res://Features/Player/Scripts/States/Idle.gd" id="8_yu112"]
 
@@ -12,12 +13,13 @@ height = 1.2376049
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_qhdlv"]
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("camera_pivot", "model", "player_camera")]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("camera_pivot", "model", "player_camera", "poolstick")]
 collision_layer = 2
 script = ExtResource("1_imb0g")
 camera_pivot = NodePath("Body/CameraPivot")
 model = NodePath("Body/Model3D")
 player_camera = NodePath("Body/CameraPivot/PlayerCamera")
+poolstick = NodePath("Poolstick")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006961465, 0)
@@ -43,12 +45,17 @@ current = true
 script = ExtResource("6_4uqpi")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="PlayerIdleState" type="Node3D" parent="StateMachine"]
+[node name="PlayerIdleState" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("player")]
 transform = Transform3D(1.0000001, 0, 0, 0, 0.99999994, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("8_yu112")
+player = NodePath("../..")
 metadata/_custom_type_script = "uid://dxb8qlkelpfdw"
 
-[node name="PlayerAimingState" type="Node3D" parent="StateMachine"]
+[node name="PlayerAimingState" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("player")]
 transform = Transform3D(1.0000001, 0, 0, 0, 0.99999994, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("7_yu112")
+player = NodePath("../..")
 metadata/_custom_type_script = "uid://cheubfr7g8jw5"
+
+[node name="Poolstick" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_wlwl2")]
+player = NodePath("..")

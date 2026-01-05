@@ -1,6 +1,7 @@
-[gd_scene load_steps=8 format=4 uid="uid://clmvlocym2bdk"]
+[gd_scene load_steps=9 format=4 uid="uid://clmvlocym2bdk"]
 
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="1_uhai5"]
+[ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Tables/Table.gd" id="1_yw68k"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_uhai5"]
 friction = 0.5
@@ -54,6 +55,7 @@ size = Vector3(0.00982666, 0.07455862, 1.1678267)
 collision_layer = 4
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_uhai5")
+script = ExtResource("1_yw68k")
 
 [node name="Model3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
@@ -87,3 +89,6 @@ shape = SubResource("BoxShape3D_uhai5")
 [node name="Rail6" type="CollisionShape3D" parent="."]
 transform = Transform3D(-4.3708987e-08, 4.577362e-10, -1, 0.010471783, 0.99994516, 0, 0.9999451, -0.010471784, -4.371139e-08, -0.001351729, 0.7829933, -1.2038486)
 shape = SubResource("BoxShape3D_uhai5")
+
+[node name="PoolstickRespawnMarker" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7636592, 0)
