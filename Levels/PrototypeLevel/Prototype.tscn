@@ -1,12 +1,10 @@
-[gd_scene load_steps=14 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=12 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
 [ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Tables/Table.tscn" id="2_5rn6i"]
 [ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Balls/Ball.tscn" id="3_4e5w7"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Balls/Resources/PrototypeBall.tres" id="5_rxpk7"]
 [ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_s6lm4"]
-[ext_resource type="Script" uid="uid://dttra1tw7g3cq" path="res://Features/Poolstick/Scripts/PoolstickRespawnController.gd" id="7_wwpfk"]
-[ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Poolstick/Poolstick.tscn" id="8_obyne"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -70,10 +68,3 @@ data = ExtResource("5_rxpk7")
 [node name="Player" parent="." node_paths=PackedStringArray("table") instance=ExtResource("5_s6lm4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.047, 0.712, 3.0368714)
 table = NodePath("../GreenTable")
-
-[node name="Components" type="Node" parent="."]
-
-[node name="PoolstickRespawnController" type="Node" parent="Components"]
-script = ExtResource("7_wwpfk")
-poolstick_scene = ExtResource("8_obyne")
-metadata/_custom_type_script = "uid://dttra1tw7g3cq"
