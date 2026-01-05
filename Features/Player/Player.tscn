@@ -13,12 +13,9 @@ height = 1.2376049
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_qhdlv"]
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("camera_pivot", "model", "player_camera", "poolstick")]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("poolstick")]
 script = ExtResource("1_wlwl2")
-camera_pivot = NodePath("Body/CameraPivot")
-model = NodePath("Body/CameraPivot/Model3D")
-player_camera = NodePath("Body/CameraPivot/PlayerCamera")
-poolstick = NodePath("Body/Poolstick")
+poolstick = NodePath("Body/CameraPivot/PlayerCamera/Poolstick")
 metadata/_custom_type_script = "uid://def4sbadiuagc"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -33,18 +30,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5177065, -0.4314682)
 script = ExtResource("2_bd6kk")
 camera = NodePath("PlayerCamera")
 
-[node name="PlayerCamera" type="Camera3D" parent="Body/CameraPivot"]
-transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 0, 0, 0)
-current = true
-
 [node name="Model3D" type="MeshInstance3D" parent="Body/CameraPivot"]
 transform = Transform3D(1.0000001, 0, 0, 0, 0.99999994, 0, 0, 0, 1, 0, -0.51770645, 0.43146822)
 mesh = SubResource("CapsuleMesh_qhdlv")
 skeleton = NodePath("../../..")
 
-[node name="Poolstick" parent="Body" node_paths=PackedStringArray("player") instance=ExtResource("6_wlwl2")]
-transform = Transform3D(1.616196, 0, 0, 0, 1.6458532, 0, 0, 0, 2.2275264, 0, 0, 0)
-player = NodePath("")
+[node name="PlayerCamera" type="Camera3D" parent="Body/CameraPivot"]
+transform = Transform3D(1.616196, 0, 0, 0, 1.6458532, 0, 0, 0, 2.2275264, 0, -5.9604645e-08, 2.9802322e-08)
+current = true
+
+[node name="Poolstick" parent="Body/CameraPivot/PlayerCamera" node_paths=PackedStringArray("player") instance=ExtResource("6_wlwl2")]
+transform = Transform3D(1, 0, 0, 0, 0.087155834, 1.348266, 0, -0.7360593, 0.08715575, -0.34030536, -0.31455195, 0.60222334)
+player = NodePath("../../../..")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("6_4uqpi")

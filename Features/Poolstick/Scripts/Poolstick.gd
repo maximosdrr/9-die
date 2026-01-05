@@ -1,6 +1,5 @@
 class_name Poolstick extends Node3D
 
-@export var poolstick_camera: Camera3D
 @export var poolstick_body: Node3D
 @export var player: Player
 

@@ -45,9 +45,8 @@ shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_6slcf"]
 
-[node name="Poolstick" type="Node3D" node_paths=PackedStringArray("poolstick_camera", "poolstick_body")]
+[node name="Poolstick" type="Node3D" node_paths=PackedStringArray("poolstick_body")]
 script = ExtResource("1_fst4q")
-poolstick_camera = NodePath("")
 poolstick_body = NodePath("PoolstickBody")
 
 [node name="PoolstickBody" type="Node3D" parent="."]
