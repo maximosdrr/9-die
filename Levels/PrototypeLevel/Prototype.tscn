@@ -48,6 +48,7 @@ shadow_enabled = true
 mesh = SubResource("PlaneMesh_fnkl4")
 
 [node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D"]
+collision_mask = 2
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
@@ -56,16 +57,16 @@ shape = SubResource("BoxShape3D_b7m75")
 [node name="GreenTable" parent="." instance=ExtResource("2_5rn6i")]
 
 [node name="PrototypeBall" parent="GreenTable" instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.9697213, 0.81490916)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0.8)
 data = ExtResource("5_rxpk7")
 
 [node name="PrototypeBall1" parent="GreenTable" instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1942391, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1)
 data = ExtResource("5_rxpk7")
 
 [node name="PrototypeBall2" parent="GreenTable" instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.428616, -0.52511317)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0.1)
 data = ExtResource("5_rxpk7")
 
 [node name="Spec" parent="." instance=ExtResource("5_s6lm4")]
-transform = Transform3D(-0.047193676, 0, 0.99888575, 0, 1, 0, -0.99888575, 0, -0.047193676, 3.7670116, 0.71248436, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.047, 0.712, -0.43786854)

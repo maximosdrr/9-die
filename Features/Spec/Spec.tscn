@@ -5,11 +5,12 @@
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
 radius = 0.14160156
-height = 1.4960136
+height = 1.2376049
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_qhdlv"]
 
 [node name="Spec" type="CharacterBody3D" node_paths=PackedStringArray("camera", "camera_pivot", "cue", "model")]
+collision_layer = 2
 script = ExtResource("1_lmw26")
 camera = NodePath("Body/CameraPivot/Camera3D")
 camera_pivot = NodePath("Body/CameraPivot")
@@ -18,11 +19,11 @@ model = NodePath("Body/Model3D")
 cue_strength = 0.5
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0010771751, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006961465, 0)
 shape = SubResource("CapsuleShape3D_qhdlv")
 
 [node name="Body" type="Node3D" parent="."]
-transform = Transform3D(0.61873686, 0, 0, 0, 0.7268667, 0, 0, 0, 0.5315552, 0, 0, 0)
+transform = Transform3D(0.61873686, 0, 0, 0, 0.6075876, 0, 0, 0, 0.44892848, 0, 0, 0)
 
 [node name="Model3D" type="MeshInstance3D" parent="Body"]
 mesh = SubResource("CapsuleMesh_qhdlv")
@@ -38,3 +39,4 @@ transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, 0, 0, 0)
 
 [node name="RayCast3D" type="RayCast3D" parent="Body/CameraPivot/Camera3D"]
 transform = Transform3D(1.5000608, 0, 0, 0, -7.841632e-08, -0.99999994, 0, 1.7939563, -4.3711385e-08, 0, 0, -0.32302153)
+collision_mask = 4

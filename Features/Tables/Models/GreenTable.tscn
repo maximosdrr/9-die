@@ -51,6 +51,8 @@ size = Vector3(1.1513519, 2.3651195, 0.24108887)
 size = Vector3(0.00982666, 0.07455862, 1.1678267)
 
 [node name="GreenTable" type="StaticBody3D"]
+collision_layer = 4
+collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_uhai5")
 
 [node name="Model3D" type="MeshInstance3D" parent="."]
