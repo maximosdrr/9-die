@@ -25,9 +25,10 @@ func _ready() -> void:
 	linear_damp = data.linear_damp
 	angular_damp = data.angular_damp
 	
-	#Should be false. If you turn it into true, frontal collisions will start seem heavy
+	#Should be false. If you turn it true, frontal collisions will start seem heavy
 	continuous_cd = false
-	can_sleep = data.can_sleep
+	#Should be true. If you turn it  false ball will start doing micromovements instead of stop when his energy is ending
+	can_sleep = true
 	
 	physics_material_override.bounce = data.bounce
 	physics_material_override.friction = data.friction

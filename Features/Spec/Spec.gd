@@ -3,7 +3,7 @@ extends CharacterBody3D
 
 const JUMP_VELOCITY = 4.5
 var gravity = 12
-var speed = 1
+var speed = 3
 
 @export var camera: Camera3D
 @export var camera_pivot: CameraPivot

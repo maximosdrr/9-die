@@ -6,4 +6,5 @@
 [resource]
 script = ExtResource("1_tmv0l")
 model = ExtResource("1_x4eab")
+friction = 0.55
 metadata/_custom_type_script = "uid://b4pdlk83oj37w"
