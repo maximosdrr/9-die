@@ -5,3 +5,4 @@
 [node name="Main" type="Node3D"]
 
 [node name="Prototype" parent="." instance=ExtResource("1_glv2v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.0067612, -0.83347034, -0.27386117)
