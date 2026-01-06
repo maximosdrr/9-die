@@ -1,7 +1,9 @@
-[gd_scene load_steps=9 format=4 uid="uid://clmvlocym2bdk"]
+[gd_scene load_steps=11 format=4 uid="uid://clmvlocym2bdk"]
 
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="1_uhai5"]
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Tables/Table.gd" id="1_yw68k"]
+[ext_resource type="PackedScene" uid="uid://bmurvtfl5aw4" path="res://Assets/Balls/Prototype/BallExample.glb" id="4_755by"]
+[ext_resource type="PackedScene" uid="uid://dljdykw1pmeq7" path="res://Features/Aim/Aim.tscn" id="4_jmx65"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_uhai5"]
 friction = 0.5
@@ -90,5 +92,16 @@ shape = SubResource("BoxShape3D_uhai5")
 transform = Transform3D(-4.3708987e-08, 4.577362e-10, -1, 0.010471783, 0.99994516, 0, 0.9999451, -0.010471784, -4.371139e-08, -0.001351729, 0.7829933, -1.2038486)
 shape = SubResource("BoxShape3D_uhai5")
 
-[node name="PoolstickRespawnMarker" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7636592, 0)
+[node name="BallStopPosition" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.82224035, 0)
+
+[node name="Aim" parent="BallStopPosition" instance=ExtResource("4_jmx65")]
+transform = Transform3D(0.99999994, 0, 2.9802322e-08, 0, 1, -3.7252903e-09, 0, 0, 1, 0, 0.18511128, 0.51878214)
+
+[node name="Camera3D" parent="BallStopPosition/Aim/CameraPivot" index="0"]
+transform = Transform3D(1, 1.4503922e-08, -2.6034874e-08, 0, 0.9503964, 0.31104138, 0, -0.31104138, 0.9503964, 0, -0.102549195, -0.019933552)
+
+[node name="BallExample" parent="." instance=ExtResource("4_755by")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0020167232, 0.7946648, -0.65091634)
+
+[editable path="BallStopPosition/Aim"]

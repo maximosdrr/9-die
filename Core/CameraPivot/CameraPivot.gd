@@ -30,7 +30,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	
 	if not rotation_y_enabled:
 		return
-	
+		
 	if rotation_target != null:
 		var yaw_delta = -event.relative.x * yaw_sensitivity
 		_orbit_around_target(yaw_delta)

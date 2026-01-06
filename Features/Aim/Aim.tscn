@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3 uid="uid://dljdykw1pmeq7"]
+
+[ext_resource type="Script" uid="uid://dlcn4h42epso5" path="res://Features/Aim/Aim.gd" id="1_lfw7f"]
+[ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Core/CameraPivot/CameraPivot.gd" id="1_nyqnu"]
+[ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Poolstick/Poolstick.tscn" id="2_lfw7f"]
+
+[node name="Aim" type="Node3D"]
+script = ExtResource("1_lfw7f")
+metadata/_custom_type_script = "uid://dlcn4h42epso5"
+
+[node name="CameraPivot" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 0.98162717, 0.190809, 0, -0.190809, 0.98162717, 0, 0.069, 0)
+script = ExtResource("1_nyqnu")
+camera = NodePath("Camera3D")
+metadata/_custom_type_script = "uid://b2jkrngg2mldq"
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
+current = true
+
+[node name="Poolstick" parent="CameraPivot/Camera3D" instance=ExtResource("2_lfw7f")]
+transform = Transform3D(1, 0, 0, 0, 0.17605399, 0.9843804, 0, -0.9843804, 0.17605399, 0, -0.2655713, 1.0465544)

@@ -1,9 +1,8 @@
-[gd_scene load_steps=9 format=3 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=8 format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Player/Scripts/Player.gd" id="1_wlwl2"]
 [ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Core/CameraPivot/CameraPivot.gd" id="2_bd6kk"]
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="6_4uqpi"]
-[ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Poolstick/Poolstick.tscn" id="6_wlwl2"]
 [ext_resource type="Script" uid="uid://cheubfr7g8jw5" path="res://Features/Player/Scripts/States/Aiming.gd" id="7_yu112"]
 [ext_resource type="Script" uid="uid://dxb8qlkelpfdw" path="res://Features/Player/Scripts/States/Idle.gd" id="8_yu112"]
 
@@ -15,7 +14,7 @@ height = 1.2376049
 
 [node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("poolstick")]
 script = ExtResource("1_wlwl2")
-poolstick = NodePath("Body/CameraPivot/PlayerCamera/Poolstick")
+poolstick = NodePath("")
 metadata/_custom_type_script = "uid://def4sbadiuagc"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -38,10 +37,6 @@ skeleton = NodePath("../../..")
 [node name="PlayerCamera" type="Camera3D" parent="Body/CameraPivot"]
 transform = Transform3D(1.616196, 0, 0, 0, 1.6458532, 0, 0, 0, 2.2275264, 0, -5.9604645e-08, 2.9802322e-08)
 current = true
-
-[node name="Poolstick" parent="Body/CameraPivot/PlayerCamera" node_paths=PackedStringArray("player") instance=ExtResource("6_wlwl2")]
-transform = Transform3D(1, 0, 0, 0, 0.087155834, 1.348266, 0, -0.7360593, 0.08715575, -0.34030536, -0.31455195, 0.60222334)
-player = NodePath("../../../..")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("6_4uqpi")
