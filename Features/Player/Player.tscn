@@ -23,10 +23,9 @@ shape = SubResource("CapsuleShape3D_qhdlv")
 [node name="Body" type="Node3D" parent="."]
 transform = Transform3D(0.61873686, 0, 0, 0, 0.6075876, 0, 0, 0, 0.44892848, 0, 0, 0)
 
-[node name="HeadPivot" type="Node3D" parent="Body" node_paths=PackedStringArray("player_body")]
+[node name="HeadPivot" type="Node3D" parent="Body"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5177065, -0.4314682)
 script = ExtResource("2_bd6kk")
-player_body = NodePath("../..")
 metadata/_custom_type_script = "uid://b2jkrngg2mldq"
 
 [node name="Model3D" type="MeshInstance3D" parent="Body/HeadPivot"]

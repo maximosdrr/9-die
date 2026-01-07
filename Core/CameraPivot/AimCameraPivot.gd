@@ -1,34 +1,27 @@
 class_name AimCameraPivot
 extends Node3D
 
-# --- CONFIGURATION ---
-@export var target: Node3D
+# --- DEPENDENCIES ---
+@export var target: Ball
 @export var elevation_node: Node3D
 
-@export_group("Settings")
-@export var mouse_sensitivity := 0.005
-@export var min_pitch_deg := -65.0
-@export var max_pitch_deg := 60.0
-@export var distance_from_ball := 0.55
-@export var height_offset := 0.1
+# --- SETTINGS ---
+@export_group("Camera Settings")
+@export var mouse_sensitivity: float = 0.005
+@export var distance_from_ball: float = 0.55
+@export var height_offset: float = 0.1
+@export_subgroup("Limits")
+@export var min_pitch_deg: float = -25.0
+@export var max_pitch_deg: float = 0.0
 
-var _rotation_y: float = 0.0
-var _rotation_x: float = 0.0
+var _rot_y: float = 0.0
+var _rot_x: float = 0.0
 
 func _ready() -> void:
-	# Initialize rotation based on current state
-	_rotation_y = rotation.y
-	if elevation_node:
-		_rotation_x = elevation_node.rotation.x
-		# Apply initial distance to the Remote (or child)
-		# Assuming RemoteAim is the first child of Elevation
-		var remote = elevation_node.get_child(0)
-		if remote:
-			remote.position.z = distance_from_ball
-			remote.position.y = height_offset
+	set_as_top_level(true)
+	_initialize_rotation()
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Toggle Mouse Capture
 	if event is InputEventMouseButton:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	elif event.is_action_pressed("ui_cancel"):
@@ -38,16 +31,32 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseMotion:
-		# 1. Yaw (Left/Right) - Rotates THIS Node (The Pivot)
-		_rotation_y -= event.relative.x * mouse_sensitivity
-		rotation.y = _rotation_y
-		
-		# 2. Pitch (Up/Down) - Rotates the Child (Elevation)
-		if elevation_node:
-			_rotation_x -= event.relative.y * mouse_sensitivity
-			_rotation_x = clamp(_rotation_x, deg_to_rad(min_pitch_deg), deg_to_rad(max_pitch_deg))
-			elevation_node.rotation.x = _rotation_x
+		_rotate_camera(event.relative)
 
-func _physics_process(delta: float) -> void:
-	if target:
-		global_position = global_position.lerp(target.global_position, delta * 25.0)
+func _process(delta: float) -> void:
+	if target.state_machine.current.type == State.Type.MOVING:
+		return
+	
+	if not target:
+		return
+	
+	global_position = global_position.\
+		lerp(target.global_position, delta * 25.0)
+
+func _initialize_rotation() -> void:
+	_rot_y = rotation.y
+	if elevation_node:
+		_rot_x = elevation_node.rotation.x
+		var cam_child = elevation_node.get_child(0)
+		if cam_child:
+			cam_child.position.z = distance_from_ball
+			cam_child.position.y = height_offset
+
+func _rotate_camera(relative_motion: Vector2) -> void:
+	_rot_y -= relative_motion.x * mouse_sensitivity
+	rotation.y = _rot_y
+	
+	if elevation_node:
+		_rot_x -= relative_motion.y * mouse_sensitivity
+		_rot_x = clamp(_rot_x, deg_to_rad(min_pitch_deg), deg_to_rad(max_pitch_deg))
+		elevation_node.rotation.x = _rot_x

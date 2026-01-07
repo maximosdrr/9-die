@@ -53,10 +53,10 @@ shadow_mesh = SubResource("ArrayMesh_aaeci")
 size = Vector3(1.269, 2.448, 0)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_yw68k"]
-size = Vector3(0, 1.1450195, 2.657)
+size = Vector3(0.1, 1.611, 2.657)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_oxyc2"]
-size = Vector3(1.2358145, 0.5755098, 0)
+size = Vector3(1.526, 0.941, 0.1)
 
 [node name="Table" type="StaticBody3D"]
 collision_layer = 4
@@ -87,7 +87,7 @@ data = ExtResource("3_755by")
 is_cue_ball = true
 
 [node name="RailLeft" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.59094924, 0.41055262, -0.016422808)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.59094924, 0.64340174, -0.016422808)
 shape = SubResource("BoxShape3D_yw68k")
 
 [node name="RailRight" type="CollisionShape3D" parent="."]
@@ -95,7 +95,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6216703, 0.42495692, -0.01
 shape = SubResource("BoxShape3D_yw68k")
 
 [node name="RailTop" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.014820099, 0.72122157, 1.2365282)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0033105612, 0.9040043, 1.2365282)
 shape = SubResource("BoxShape3D_oxyc2")
 
 [node name="RailBottom" type="CollisionShape3D" parent="."]
