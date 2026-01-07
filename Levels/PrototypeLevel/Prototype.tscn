@@ -2,8 +2,8 @@
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
 [ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Tables/Table.tscn" id="2_5rn6i"]
-[ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Balls/Ball.tscn" id="3_4e5w7"]
-[ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Balls/Resources/PrototypeBall.tres" id="5_rxpk7"]
+[ext_resource type="Script" uid="uid://d3s7x3nx46872" path="res://Features/Camera/CameraManager.gd" id="4_y12w2"]
+[ext_resource type="PackedScene" uid="uid://dljdykw1pmeq7" path="res://Features/Aim/Aim.tscn" id="5_rxpk7"]
 [ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_s6lm4"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
@@ -49,22 +49,56 @@ collision_mask = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="GreenTable" parent="." node_paths=PackedStringArray("cue_ball") instance=ExtResource("2_5rn6i")]
-cue_ball = NodePath("PrototypeBall")
+[node name="Table" parent="." instance=ExtResource("2_5rn6i")]
 
-[node name="PrototypeBall" parent="GreenTable" instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0.8)
-data = ExtResource("5_rxpk7")
-is_white_ball = true
+[node name="RemoteTransform3D" parent="Table/Pivot" index="0"]
+remote_path = NodePath("../../../MainCamera")
 
-[node name="PrototypeBall1" parent="GreenTable" instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1)
-data = ExtResource("5_rxpk7")
-
-[node name="PrototypeBall2" parent="GreenTable" instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0.1)
-data = ExtResource("5_rxpk7")
-
-[node name="Player" parent="." node_paths=PackedStringArray("table") instance=ExtResource("5_s6lm4")]
+[node name="Player" parent="." instance=ExtResource("5_s6lm4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.047, 0.712, 3.0368714)
-table = NodePath("../GreenTable")
+
+[node name="HeadPivot" parent="Player/Body" index="0" node_paths=PackedStringArray("camera")]
+camera = NodePath("../../../MainCamera")
+
+[node name="RemoteFps" parent="Player/Body/HeadPivot" index="1"]
+remote_path = NodePath("../../../../MainCamera")
+
+[node name="Idle" parent="Player/StateMachine" index="0" node_paths=PackedStringArray("aim_toggleable", "table", "camera_manager")]
+aim_toggleable = NodePath("../../../Aim/Components/Toggleable")
+table = NodePath("../../../Table")
+camera_manager = NodePath("../../../Components/CameraManager")
+
+[node name="Aim" parent="." node_paths=PackedStringArray("table") instance=ExtResource("5_rxpk7")]
+table = NodePath("../Table")
+
+[node name="AimPivot" parent="Aim" index="0" node_paths=PackedStringArray("target", "elevation_node")]
+target = NodePath("../../Table/TableSurfaceCollission/BallsHolder/CueBall")
+elevation_node = NodePath("Elevation")
+
+[node name="RemoteAim" parent="Aim/AimPivot/Elevation" index="0"]
+remote_path = NodePath("../../../../MainCamera")
+
+[node name="Poolstick" parent="Aim/AimPivot/Elevation" index="1" node_paths=PackedStringArray("cue_ball")]
+cue_ball = NodePath("../../../../Table/TableSurfaceCollission/BallsHolder/CueBall")
+
+[node name="AimIdleState" parent="Aim/StateMachine" index="0" node_paths=PackedStringArray("player_toggleable", "table", "camera_manager")]
+player_toggleable = NodePath("../../../Player/Components/Toggleable")
+table = NodePath("../../../Table")
+camera_manager = NodePath("../../../Components/CameraManager")
+
+[node name="MainCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6868314, 0)
+
+[node name="Components" type="Node" parent="."]
+
+[node name="CameraManager" type="Node" parent="Components" node_paths=PackedStringArray("remote_fps", "remote_aim", "remote_free")]
+script = ExtResource("4_y12w2")
+remote_fps = NodePath("../../Player/Body/HeadPivot/RemoteFps")
+remote_aim = NodePath("../../Aim/AimPivot/Elevation/RemoteAim")
+remote_free = NodePath("../../Table/Pivot/RemoteTransform3D")
+metadata/_custom_type_script = "uid://d3s7x3nx46872"
+
+[editable path="Table"]
+[editable path="Table/TableSurfaceCollission/BallsHolder/CueBall"]
+[editable path="Player"]
+[editable path="Aim"]

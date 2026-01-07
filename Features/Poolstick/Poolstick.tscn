@@ -50,7 +50,7 @@ script = ExtResource("1_fst4q")
 poolstick_body = NodePath("PoolstickBody")
 
 [node name="PoolstickBody" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 7.450581e-09)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 
 [node name="Model3D" type="MeshInstance3D" parent="PoolstickBody"]
 transform = Transform3D(0.01, 0, 0, 0, 0, -0.01, 0, 0.01, 0, 0, 0, 0)

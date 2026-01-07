@@ -34,7 +34,7 @@ transform = Transform3D(1.0000001, 0, 0, 0, 0.99999994, 0, 0, 0, 1, 0, -0.517706
 mesh = SubResource("CapsuleMesh_qhdlv")
 skeleton = NodePath("../../..")
 
-[node name="RemoteFps" type="RemoteTransform3D" parent="Body/HeadPivot"]
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Body/HeadPivot"]
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("6_4uqpi")

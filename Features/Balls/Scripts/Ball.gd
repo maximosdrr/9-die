@@ -3,11 +3,10 @@ extends RigidBody3D
 
 
 @export var data: BallResource
-@export var is_white_ball: bool = false
+@export var is_cue_ball: bool = false
 
 @onready var label_3d: Label3D = $Label3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
-@onready var poolstick_respawn_marker: Marker3D = $PoolstickRespawnPosition
 @onready var state_machine: StateMachine = $StateMachine
 
 

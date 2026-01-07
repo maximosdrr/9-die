@@ -1,0 +1,41 @@
+[gd_scene load_steps=7 format=3 uid="uid://0un8ur15vq15"]
+
+[ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Balls/Scripts/Ball.gd" id="1_gma5c"]
+[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="2_ybyeg"]
+[ext_resource type="Script" uid="uid://dg6b2ab8k24x4" path="res://Features/Balls/Scripts/States/Idle.gd" id="3_2o1y6"]
+[ext_resource type="Script" uid="uid://d0l5psv6122rn" path="res://Features/Balls/Scripts/States/IsMoving.gd" id="4_1od1d"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_ybyeg"]
+friction = 0.4
+bounce = 0.85
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_peq0y"]
+radius = 0.028631873
+
+[node name="CueBall" type="RigidBody3D"]
+physics_material_override = SubResource("PhysicsMaterial_ybyeg")
+script = ExtResource("1_gma5c")
+metadata/_custom_type_script = "uid://crufycb4ylox5"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_peq0y")
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(0.41786087, 0, 0, 0, 0.29796404, 0, 0, 0, 1, 0, 0.13728881, 0)
+visible = false
+text = "XXXXXX
+XXXX"
+
+[node name="StateMachine" type="Node3D" parent="."]
+script = ExtResource("2_ybyeg")
+metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
+
+[node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]
+script = ExtResource("3_2o1y6")
+ball = NodePath("../..")
+metadata/_custom_type_script = "uid://dg6b2ab8k24x4"
+
+[node name="Moving" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]
+script = ExtResource("4_1od1d")
+ball = NodePath("../..")
+metadata/_custom_type_script = "uid://d0l5psv6122rn"

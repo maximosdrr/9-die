@@ -1,21 +1,44 @@
-[gd_scene load_steps=4 format=3 uid="uid://dljdykw1pmeq7"]
+[gd_scene load_steps=7 format=3 uid="uid://dljdykw1pmeq7"]
 
-[ext_resource type="Script" uid="uid://dlcn4h42epso5" path="res://Features/Aim/Aim.gd" id="1_lfw7f"]
-[ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Core/CameraPivot/CameraPivot.gd" id="1_nyqnu"]
+[ext_resource type="Script" uid="uid://dlcn4h42epso5" path="res://Features/Aim/Scripts/Aim.gd" id="1_lfw7f"]
 [ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Poolstick/Poolstick.tscn" id="2_lfw7f"]
+[ext_resource type="Script" uid="uid://ca7so7568ql4e" path="res://Core/CameraPivot/AimCameraPivot.gd" id="2_qgpd0"]
+[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="4_vt2no"]
+[ext_resource type="Script" uid="uid://bf4tbhk58pgub" path="res://Core/ToggleNode/Toggleable.gd" id="5_bukmx"]
+[ext_resource type="Script" uid="uid://dg2nrsurots61" path="res://Features/Aim/Scripts/States/Idle.gd" id="5_qgpd0"]
 
 [node name="Aim" type="Node3D"]
 script = ExtResource("1_lfw7f")
 metadata/_custom_type_script = "uid://dlcn4h42epso5"
 
-[node name="CameraPivot" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
-transform = Transform3D(1, 0, 0, 0, 0.98162717, 0.190809, 0, -0.190809, 0.98162717, 0, 0.069, 0)
-script = ExtResource("1_nyqnu")
-camera = NodePath("Camera3D")
-metadata/_custom_type_script = "uid://b2jkrngg2mldq"
+[node name="AimPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.98162717, 0.190809, 0, -0.190809, 0.98162717, 0, -0.05, 0)
+script = ExtResource("2_qgpd0")
+metadata/_custom_type_script = "uid://ca7so7568ql4e"
 
-[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-current = true
+[node name="Elevation" type="Node3D" parent="AimPivot"]
 
-[node name="Poolstick" parent="CameraPivot/Camera3D" instance=ExtResource("2_lfw7f")]
-transform = Transform3D(1, 0, 0, 0, 0.17605399, 0.9843804, 0, -0.9843804, 0.17605399, 0, -0.2655713, 1.0465544)
+[node name="RemoteAim" type="RemoteTransform3D" parent="AimPivot/Elevation"]
+transform = Transform3D(1, 0, 0, 0, 1.0000001, 0, 0, 0, 1.0000001, 0, 0, 0)
+
+[node name="Poolstick" parent="AimPivot/Elevation" instance=ExtResource("2_lfw7f")]
+transform = Transform3D(1, 0, 0, 0, 0.17364824, 0.98480785, 0, -0.98480785, 0.17364824, 0, -0.15, 1.1)
+
+[node name="StateMachine" type="Node3D" parent="."]
+script = ExtResource("4_vt2no")
+metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
+
+[node name="AimIdleState" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("toggleable")]
+script = ExtResource("5_qgpd0")
+toggleable = NodePath("../../Components/Toggleable")
+metadata/_custom_type_script = "uid://dg2nrsurots61"
+
+[node name="Components" type="Node" parent="."]
+
+[node name="Toggleable" type="Node" parent="Components"]
+script = ExtResource("5_bukmx")
+initial_state = 1
+targets = Array[NodePath]([NodePath("../..")])
+toggle_visible = true
+disable_cameras = true
+metadata/_custom_type_script = "uid://bf4tbhk58pgub"

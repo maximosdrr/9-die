@@ -3,6 +3,8 @@ class_name StateMachine extends Node3D
 var current: State
 var previous: State
 var states: Dictionary[State.Type, State]
+
+@export var enabled: bool = true
 @export var initial_state: State.Type
 
 func _ready() -> void:

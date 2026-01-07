@@ -1,12 +1,14 @@
-[gd_scene load_steps=11 format=4 uid="uid://clmvlocym2bdk"]
+[gd_scene load_steps=14 format=4 uid="uid://clmvlocym2bdk"]
 
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="1_uhai5"]
-[ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Tables/Table.gd" id="1_yw68k"]
-[ext_resource type="PackedScene" uid="uid://bmurvtfl5aw4" path="res://Assets/Balls/Prototype/BallExample.glb" id="4_755by"]
-[ext_resource type="PackedScene" uid="uid://dljdykw1pmeq7" path="res://Features/Aim/Aim.tscn" id="4_jmx65"]
+[ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Tables/Scripts/Table.gd" id="1_yw68k"]
+[ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Balls/Ball.tscn" id="2_jmx65"]
+[ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Balls/Resources/PrototypeBall.tres" id="3_755by"]
+[ext_resource type="Script" uid="uid://bfp5bw4ecmj6t" path="res://Features/Tables/Scripts/TableBallsMonitor.gd" id="3_oxyc2"]
+[ext_resource type="PackedScene" uid="uid://0un8ur15vq15" path="res://Features/Balls/CueBall.tscn" id="5_qmr4m"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_uhai5"]
-friction = 0.5
+friction = 0.4
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lt0pq"]
 resource_name = "table_base_color.001"
@@ -48,12 +50,15 @@ blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_aaeci")
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qq52u"]
-size = Vector3(1.1513519, 2.3651195, 0.24108887)
+size = Vector3(1.269, 2.448, 0)
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_uhai5"]
-size = Vector3(0.00982666, 0.07455862, 1.1678267)
+[sub_resource type="BoxShape3D" id="BoxShape3D_yw68k"]
+size = Vector3(0, 1.1450195, 2.657)
 
-[node name="GreenTable" type="StaticBody3D"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_oxyc2"]
+size = Vector3(1.2358145, 0.5755098, 0)
+
+[node name="Table" type="StaticBody3D"]
 collision_layer = 4
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_uhai5")
@@ -64,44 +69,47 @@ transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 mesh = SubResource("ArrayMesh_bett0")
 skeleton = NodePath("")
 
-[node name="TableSurface" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.0020980835, 0.63180697, 0.00045609474)
+[node name="TableSurfaceCollission" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.75, 0)
 shape = SubResource("BoxShape3D_qq52u")
 
-[node name="Rail1" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5791928, 0.77361095, 0.5588925)
-shape = SubResource("BoxShape3D_uhai5")
+[node name="BallsHolder" type="Node3D" parent="TableSurfaceCollission"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.01)
 
-[node name="Rail2" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5791928, 0.79441077, -0.58789015)
-shape = SubResource("BoxShape3D_uhai5")
+[node name="Ball" parent="TableSurfaceCollission/BallsHolder" instance=ExtResource("2_jmx65")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.19927055)
+data = ExtResource("3_755by")
 
-[node name="Rail3" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.57936364, 0.7829933, -0.6007893)
-shape = SubResource("BoxShape3D_uhai5")
+[node name="CueBall" parent="TableSurfaceCollission/BallsHolder" instance=ExtResource("5_qmr4m")]
+collision_layer = 4
+collision_mask = 5
+data = ExtResource("3_755by")
+is_cue_ball = true
 
-[node name="Rail4" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.57936364, 0.7829933, 0.59058976)
-shape = SubResource("BoxShape3D_uhai5")
+[node name="RailLeft" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.59094924, 0.41055262, -0.016422808)
+shape = SubResource("BoxShape3D_yw68k")
 
-[node name="Rail5" type="CollisionShape3D" parent="."]
-transform = Transform3D(-4.3708987e-08, 4.577362e-10, -1, 0.010471783, 0.99994516, 0, 0.9999451, -0.010471784, -4.371139e-08, -0.013192132, 0.7829933, 1.1920936)
-shape = SubResource("BoxShape3D_uhai5")
+[node name="RailRight" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6216703, 0.42495692, -0.016358733)
+shape = SubResource("BoxShape3D_yw68k")
 
-[node name="Rail6" type="CollisionShape3D" parent="."]
-transform = Transform3D(-4.3708987e-08, 4.577362e-10, -1, 0.010471783, 0.99994516, 0, 0.9999451, -0.010471784, -4.371139e-08, -0.001351729, 0.7829933, -1.2038486)
-shape = SubResource("BoxShape3D_uhai5")
+[node name="RailTop" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.014820099, 0.72122157, 1.2365282)
+shape = SubResource("BoxShape3D_oxyc2")
 
-[node name="BallStopPosition" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.82224035, 0)
+[node name="RailBottom" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.019591033, 0.73793375, -1.2714323)
+shape = SubResource("BoxShape3D_oxyc2")
 
-[node name="Aim" parent="BallStopPosition" instance=ExtResource("4_jmx65")]
-transform = Transform3D(0.99999994, 0, 2.9802322e-08, 0, 1, -3.7252903e-09, 0, 0, 1, 0, 0.18511128, 0.51878214)
+[node name="Components" type="Node" parent="."]
 
-[node name="Camera3D" parent="BallStopPosition/Aim/CameraPivot" index="0"]
-transform = Transform3D(1, 1.4503922e-08, -2.6034874e-08, 0, 0.9503964, 0.31104138, 0, -0.31104138, 0.9503964, 0, -0.102549195, -0.019933552)
+[node name="TableBallsMonitor" type="Node" parent="Components" node_paths=PackedStringArray("balls_holder")]
+script = ExtResource("3_oxyc2")
+balls_holder = NodePath("../../TableSurfaceCollission/BallsHolder")
+metadata/_custom_type_script = "uid://bfp5bw4ecmj6t"
 
-[node name="BallExample" parent="." instance=ExtResource("4_755by")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0020167232, 0.7946648, -0.65091634)
+[node name="Pivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6868314, 0)
 
-[editable path="BallStopPosition/Aim"]
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Pivot"]

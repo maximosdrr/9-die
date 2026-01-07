@@ -3,14 +3,12 @@ class_name Player extends CharacterBody3D
 var gravity = 12
 var speed = 3
 
-@export var table: Table
-@export var poolstick: Poolstick
-
 @onready var state_machine: StateMachine = $StateMachine
-@onready var player_camera: Camera3D = $Body/CameraPivot/PlayerCamera
-@onready var camera_pivot: CameraPivot = $Body/CameraPivot
-@onready var model: MeshInstance3D = $Body/CameraPivot/Model3D
+@onready var head_pivot: HeadPivot = $Body/HeadPivot
+
+@onready var model: MeshInstance3D = $Body/HeadPivot/Model3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var toggleable: Toggleable = $Components/Toggleable
 
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
@@ -18,9 +16,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0
 
-	var input_dir := Input.get_vector( "move_right", "move_left", "move_backward", "move_forward")
+	var input_dir := Input.get_vector("move_right", "move_left",  "move_backward", "move_forward")
 
-	var _basis := camera_pivot.basis.orthonormalized()
+	var _basis := head_pivot.basis.orthonormalized()
 	var direction := (_basis * Vector3(-input_dir.x, 0, -input_dir.y)).normalized()
 	
 	if direction != Vector3.ZERO:
