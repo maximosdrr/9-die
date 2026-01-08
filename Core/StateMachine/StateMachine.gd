@@ -3,6 +3,8 @@ class_name StateMachine extends Node3D
 var current: State
 var previous: State
 var states: Dictionary[State.Type, State]
+
+@export var enabled: bool = true
 @export var initial_state: State.Type
 
 func _ready() -> void:
@@ -33,9 +35,13 @@ func _physics_process(delta: float) -> void:
 		current.physics_process(delta)
 
 func _setup_states():
+	var parent = get_parent()
+	
 	for state in get_children():
 		if state is State:
 			state.state_machine = self
+			state.parent = parent
+			state.setup(parent)
 			states.set(state.type, state)
 
 func _setup_initial_state():
