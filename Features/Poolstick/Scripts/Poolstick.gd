@@ -17,7 +17,7 @@ class_name Poolstick extends Node3D
 
 @export_group("Spin Settings")
 @export var spin_sensitivity: float = 0.0005
-@export_range(0.0, 1.0) var max_spin_percentage: float = 0.85 
+@export_range(0.0, 1.0) var max_spin_percentage: float = 0.7 
 
 var ball_radius_offset: float = 0.04 # Será sobrescrito
 var max_spin_offset: float = 0.025   # Será sobrescrito
