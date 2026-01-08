@@ -7,7 +7,7 @@ class_name Poolstick extends Node3D
 @export var stroke_sensitivity: float = 0.005 
 @export var max_draw_distance: float = 0.8
 @export var ball_radius_offset: float = 0.04
-@export var max_speed_reference: float = 15
+@export var max_speed_reference: float = 13
 @export var force_multiplier: float = 1.2
 
 @export_group("Spin Settings")
