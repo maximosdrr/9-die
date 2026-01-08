@@ -87,6 +87,9 @@ func _handle_spin_input(relative: Vector2) -> void:
 func _start_charging() -> void:
 	_is_charging = true
 	_accumulated_mouse_y = 0.0
+	
+	_previous_z = position.z
+	_stick_velocity = 0.0
 
 func _cancel_charging() -> void:
 	_is_charging = false
