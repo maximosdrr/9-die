@@ -1,11 +1,8 @@
 class_name AimCameraPivot
 extends Node3D
 
-# --- DEPENDENCIES ---
-@export var target: Ball
-@export var elevation_node: Node3D
+@onready var elevation_node: Node3D = $Elevation
 
-# --- SETTINGS ---
 @export_group("Camera Settings")
 @export var mouse_sensitivity: float = 0.005
 @export var distance_from_ball: float = 0.55
@@ -16,6 +13,10 @@ extends Node3D
 
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
+var target: Ball
+
+func set_target_ball(ball: Ball):
+	target = ball
 
 func _ready() -> void:
 	set_as_top_level(true)

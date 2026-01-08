@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=4 uid="uid://clmvlocym2bdk"]
+[gd_scene load_steps=16 format=4 uid="uid://clmvlocym2bdk"]
 
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="1_uhai5"]
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Tables/Scripts/Table.gd" id="1_yw68k"]
@@ -6,6 +6,7 @@
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Balls/Resources/PrototypeBall.tres" id="3_755by"]
 [ext_resource type="Script" uid="uid://bfp5bw4ecmj6t" path="res://Features/Tables/Scripts/TableBallsMonitor.gd" id="3_oxyc2"]
 [ext_resource type="PackedScene" uid="uid://0un8ur15vq15" path="res://Features/Balls/CueBall.tscn" id="5_qmr4m"]
+[ext_resource type="Script" uid="uid://bfqewfnpyreqm" path="res://Features/Tables/Scripts/TableMatchInfluence.gd" id="7_irp4l"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_uhai5"]
 friction = 0.4
@@ -58,11 +59,15 @@ size = Vector3(0.1, 1.611, 2.657)
 [sub_resource type="BoxShape3D" id="BoxShape3D_oxyc2"]
 size = Vector3(1.526, 0.941, 0.1)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_qmr4m"]
+size = Vector3(4.11615, 2.4389648, 4.7143555)
+
 [node name="Table" type="StaticBody3D"]
 collision_layer = 4
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_uhai5")
 script = ExtResource("1_yw68k")
+metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
 
 [node name="Model3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
@@ -102,6 +107,18 @@ shape = SubResource("BoxShape3D_oxyc2")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.019591033, 0.73793375, -1.2714323)
 shape = SubResource("BoxShape3D_oxyc2")
 
+[node name="Pivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6868314, 0)
+
+[node name="RemoteTop" type="RemoteTransform3D" parent="Pivot"]
+remote_path = NodePath("../..")
+
+[node name="TableMatchInfluence" type="Area3D" parent="."]
+
+[node name="TableMatchInfluenceCollissionShape" type="CollisionShape3D" parent="TableMatchInfluence"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0630188, 0.7194824, -0.07055664)
+shape = SubResource("BoxShape3D_qmr4m")
+
 [node name="Components" type="Node" parent="."]
 
 [node name="TableBallsMonitor" type="Node" parent="Components" node_paths=PackedStringArray("balls_holder")]
@@ -109,7 +126,10 @@ script = ExtResource("3_oxyc2")
 balls_holder = NodePath("../../TableSurfaceCollission/BallsHolder")
 metadata/_custom_type_script = "uid://bfp5bw4ecmj6t"
 
-[node name="Pivot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6868314, 0)
+[node name="TableMatchInfluence" type="Node" parent="Components" node_paths=PackedStringArray("table")]
+script = ExtResource("7_irp4l")
+table = NodePath("../..")
+metadata/_custom_type_script = "uid://bfqewfnpyreqm"
 
-[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Pivot"]
+[connection signal="body_entered" from="TableMatchInfluence" to="Components/TableMatchInfluence" method="_on_table_match_influence_body_entered"]
+[connection signal="body_exited" from="TableMatchInfluence" to="Components/TableMatchInfluence" method="_on_table_match_influence_body_exited"]

@@ -1,8 +1,4 @@
-class_name Poolstick
-extends Node3D
-
-@export_group("References")
-@export var cue_ball: RigidBody3D
+class_name Poolstick extends Node3D
 
 @export_group("Stroke Settings")
 @export var stroke_sensitivity: float = 0.01 
@@ -14,6 +10,11 @@ var _is_charging: bool = false
 var _previous_z: float = 0.0
 var _stick_velocity: float = 0.0
 var _accumulated_mouse_y: float = 0.0
+
+var cue_ball: Ball
+
+func set_cue_ball(ball: Ball):
+	cue_ball = ball
 
 func _ready() -> void:
 	position.z = ball_radius_offset

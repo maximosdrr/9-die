@@ -1,5 +1,4 @@
-class_name Toggleable
-extends Node
+class_name Toggleable extends Node
 
 enum InitialState { ENABLED, DISABLED }
 
