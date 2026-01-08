@@ -1,8 +1,13 @@
-[gd_scene load_steps=2 format=3 uid="uid://cpcgmxhx118au"]
+[gd_scene load_steps=3 format=3 uid="uid://cpcgmxhx118au"]
 
 [ext_resource type="PackedScene" uid="uid://dvyejk17aixhq" path="res://Levels/PrototypeLevel/Prototype.tscn" id="1_glv2v"]
+[ext_resource type="Script" uid="uid://d3s7x3nx46872" path="res://Features/Camera/GlobalCamera.gd" id="1_uu6xs"]
 
 [node name="Main" type="Node3D"]
+
+[node name="GlobalCamera" type="Camera3D" parent="."]
+script = ExtResource("1_uu6xs")
+metadata/_custom_type_script = "uid://d3s7x3nx46872"
 
 [node name="Prototype" parent="." instance=ExtResource("1_glv2v")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.0067612, -0.83347034, -0.27386117)

@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
-[ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Poolstick/Scripts/Poolstick.gd" id="1_fst4q"]
+[ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -43,7 +43,7 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Poolstick" type="Node3D"]
+[node name="Cue" type="Node3D"]
 script = ExtResource("1_fst4q")
 
 [node name="PoolstickBody" type="Node3D" parent="."]

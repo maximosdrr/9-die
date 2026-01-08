@@ -35,10 +35,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_rotate_camera(event.relative)
 
 func _process(delta: float) -> void:
-	if target.state_machine.current.type == State.Type.MOVING:
+	if target == null:
 		return
-	
-	if not target:
+
+	if target.state_machine.current.type == State.Type.MOVING:
 		return
 	
 	global_position = global_position.\

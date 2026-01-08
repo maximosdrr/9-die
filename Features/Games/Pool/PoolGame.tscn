@@ -1,12 +1,12 @@
 [gd_scene load_steps=16 format=4 uid="uid://clmvlocym2bdk"]
 
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="1_uhai5"]
-[ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Tables/Scripts/Table.gd" id="1_yw68k"]
-[ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Balls/Ball.tscn" id="2_jmx65"]
-[ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Balls/Resources/PrototypeBall.tres" id="3_755by"]
-[ext_resource type="Script" uid="uid://bfp5bw4ecmj6t" path="res://Features/Tables/Scripts/TableBallsMonitor.gd" id="3_oxyc2"]
-[ext_resource type="PackedScene" uid="uid://0un8ur15vq15" path="res://Features/Balls/CueBall.tscn" id="5_qmr4m"]
-[ext_resource type="Script" uid="uid://bfqewfnpyreqm" path="res://Features/Tables/Scripts/TableMatchInfluence.gd" id="7_irp4l"]
+[ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_yw68k"]
+[ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Games/Pool/Components/Balls/Ball.tscn" id="2_jmx65"]
+[ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/PrototypeBall.tres" id="3_755by"]
+[ext_resource type="Script" uid="uid://bfp5bw4ecmj6t" path="res://Features/Games/Pool/Scripts/TableBallsMonitor.gd" id="3_oxyc2"]
+[ext_resource type="PackedScene" uid="uid://0un8ur15vq15" path="res://Features/Games/Pool/Components/Balls/CueBall.tscn" id="5_qmr4m"]
+[ext_resource type="Script" uid="uid://bfqewfnpyreqm" path="res://Features/Games/Pool/Scripts/TableMatchInfluence.gd" id="7_irp4l"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_uhai5"]
 friction = 0.4
@@ -62,7 +62,7 @@ size = Vector3(1.526, 0.941, 0.1)
 [sub_resource type="BoxShape3D" id="BoxShape3D_qmr4m"]
 size = Vector3(4.11615, 2.4389648, 4.7143555)
 
-[node name="Table" type="StaticBody3D"]
+[node name="PoolGame" type="StaticBody3D"]
 collision_layer = 4
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_uhai5")
@@ -126,9 +126,9 @@ script = ExtResource("3_oxyc2")
 balls_holder = NodePath("../../TableSurfaceCollission/BallsHolder")
 metadata/_custom_type_script = "uid://bfp5bw4ecmj6t"
 
-[node name="TableMatchInfluence" type="Node" parent="Components" node_paths=PackedStringArray("table")]
+[node name="TableMatchInfluence" type="Node" parent="Components" node_paths=PackedStringArray("pool_game")]
 script = ExtResource("7_irp4l")
-table = NodePath("../..")
+pool_game = NodePath("../..")
 metadata/_custom_type_script = "uid://bfqewfnpyreqm"
 
 [connection signal="body_entered" from="TableMatchInfluence" to="Components/TableMatchInfluence" method="_on_table_match_influence_body_entered"]

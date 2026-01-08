@@ -1,9 +1,9 @@
 [gd_scene load_steps=7 format=3 uid="uid://cqwu27wd0ddmr"]
 
-[ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Balls/Scripts/Ball.gd" id="1_eusg5"]
+[ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.gd" id="1_eusg5"]
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="2_eusg5"]
-[ext_resource type="Script" uid="uid://dg6b2ab8k24x4" path="res://Features/Balls/Scripts/States/Idle.gd" id="3_gowdo"]
-[ext_resource type="Script" uid="uid://d0l5psv6122rn" path="res://Features/Balls/Scripts/States/IsMoving.gd" id="4_fcbjq"]
+[ext_resource type="Script" uid="uid://dg6b2ab8k24x4" path="res://Features/Games/Pool/Components/Balls/Scripts/States/Idle.gd" id="3_gowdo"]
+[ext_resource type="Script" uid="uid://d0l5psv6122rn" path="res://Features/Games/Pool/Components/Balls/Scripts/States/IsMoving.gd" id="4_fcbjq"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_n5t01"]
 friction = 0.4

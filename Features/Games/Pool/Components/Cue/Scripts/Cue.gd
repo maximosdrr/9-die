@@ -1,7 +1,9 @@
-class_name Poolstick extends Node3D
+class_name Cue extends Node3D
 
 @export_group("References")
 @export var cue_ball: Ball:
+	get():
+		return cue_ball
 	set(value):
 		cue_ball = value
 		_recalculate_limits()
@@ -11,9 +13,7 @@ class_name Poolstick extends Node3D
 @export var max_draw_distance: float = 0.8
 @export var max_speed_reference: float = 13
 @export var force_multiplier: float = 1.2
-
-# NOVO: Distância visual extra entre a ponta do taco e a superfície da bola
-@export var visual_gap: float = 0.01 
+@export var visual_gap: float = 0.01 #Visual distance to the ball
 
 @export_group("Spin Settings")
 @export var spin_sensitivity: float = 0.0005
@@ -54,7 +54,7 @@ func _recalculate_limits() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("spin_modifier"):
-		_is_adjusting_spin = true
+		_is_adjusting_spin = true 
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	elif event.is_action_released("spin_modifier"):
 		_is_adjusting_spin = false

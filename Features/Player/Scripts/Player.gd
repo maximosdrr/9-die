@@ -4,28 +4,28 @@ var gravity = 12
 var speed = 3
 
 @onready var head_pivot: HeadPivot = $FirstPerson/HeadPivot
-
-@onready var remote_fps: RemoteTransform3D = $FirstPerson/HeadPivot/RemoteFps
-@onready var remote_aim: RemoteTransform3D = $Aim/AimPivot/Elevation/RemoteAim
-
-@onready var aim_toggleable: Toggleable = $Components/AimToggleable
-@onready var player_toggleable: Toggleable = $Components/PlayerToggleable
-
-@onready var poolstick: Poolstick = $Aim/AimPivot/Elevation/Poolstick
-@onready var aim_pivot: AimCameraPivot = $Aim/AimPivot
-
-@export_group("External References")
-@export var global_camera: GlobalCamera
-
-var current_table: Table = null:
-	get():
-		if current_table == null:
-			push_error("Current table is null!")
-		return current_table
+@onready var remote_fps: RemoteTransform3D = $FirstPerson/HeadPivot/RemoteFPS
+@onready var player_toggleable: Toggleable = $Scripts/PlayerToggleable
+@onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
+@onready var player_model: MeshInstance3D = $FirstPerson/Model3D
 
 func _ready():
-	remote_fps.remote_path = global_camera.get_path()
-	remote_aim.remote_path = global_camera.get_path()
+	take_control()
+
+func take_control():
+	player_model.show() #TODO review it later on
+	set_physics_process(true)
+	head_pivot.set_process_unhandled_input(true)
+	
+	Global.camera.transition_to(remote_fps)
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+func give_control():
+	player_model.hide() #TODO review it later on
+	set_physics_process(false)
+	velocity = Vector3.ZERO
+	
+	head_pivot.set_process_unhandled_input(false)
 
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
@@ -33,7 +33,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0
 
-	var input_dir := Input.get_vector("move_right", "move_left",  "move_backward", "move_forward")
+	var input_dir := Input.get_vector("move_left", "move_right",  "move_forward", "move_backward")
 
 	var _basis := head_pivot.basis.orthonormalized()
 	var direction := (_basis * Vector3(-input_dir.x, 0, -input_dir.y)).normalized()
@@ -46,13 +46,3 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0, speed)
 
 	move_and_slide()
-
-func set_current_table(table: Table):
-	current_table = table
-	poolstick.set_cue_ball(table.cue_ball)
-	aim_pivot.set_target_ball(table.cue_ball)
-
-func remove_current_table():
-	current_table = null
-	poolstick.set_cue_ball(null)
-	aim_pivot.set_target_ball(null)
