@@ -1,18 +1,26 @@
 class_name Poolstick extends Node3D
 
 @export_group("References")
-@export var cue_ball: Ball
+@export var cue_ball: Ball:
+	set(value):
+		cue_ball = value
+		_recalculate_limits()
 
 @export_group("Stroke Settings")
 @export var stroke_sensitivity: float = 0.005 
 @export var max_draw_distance: float = 0.8
-@export var ball_radius_offset: float = 0.04
 @export var max_speed_reference: float = 13
 @export var force_multiplier: float = 1.2
 
+# NOVO: Distância visual extra entre a ponta do taco e a superfície da bola
+@export var visual_gap: float = 0.01 
+
 @export_group("Spin Settings")
 @export var spin_sensitivity: float = 0.0005
-@export var max_spin_offset: float = 0.025
+@export_range(0.0, 1.0) var max_spin_percentage: float = 0.85 
+
+var ball_radius_offset: float = 0.04 # Será sobrescrito
+var max_spin_offset: float = 0.025   # Será sobrescrito
 
 var _is_charging: bool = false
 var _is_adjusting_spin: bool = false 
@@ -20,23 +28,31 @@ var _is_adjusting_spin: bool = false
 var _previous_z: float = 0.0
 var _stick_velocity: float = 0.0
 var _accumulated_mouse_y: float = 0.0
-
-# NOVO: Histórico para suavizar picos de velocidade
 var _velocity_buffer: Array[float] = []
-const BUFFER_SIZE: int = 5 # Média dos últimos 5 frames
-
+const BUFFER_SIZE: int = 5
 var _spin_offset: Vector2 = Vector2.ZERO 
 
 func set_cue_ball(ball: Ball):
 	cue_ball = ball
+	if is_inside_tree(): _recalculate_limits()
 
 func _ready() -> void:
+	_recalculate_limits()
 	position.z = ball_radius_offset
 	_previous_z = position.z
 
+func _recalculate_limits() -> void:
+	if cue_ball and cue_ball.is_inside_tree():
+		var r = cue_ball.radius
+		
+		ball_radius_offset = r + visual_gap
+		max_spin_offset = r * max_spin_percentage
+		
+		if not _is_charging:
+			position.z = ball_radius_offset
+			_previous_z = position.z
+
 func _unhandled_input(event: InputEvent) -> void:
-	# ... (Mantém sua lógica de input igual) ...
-	# Apenas replique o que já tem no seu script aqui
 	if event.is_action_pressed("spin_modifier"):
 		_is_adjusting_spin = true
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
@@ -64,41 +80,29 @@ func _process(delta: float) -> void:
 	position.y = _spin_offset.y
 
 	if not _is_charging:
+		if position.z != ball_radius_offset:
+			position.z = ball_radius_offset
 		return
 		
 	_apply_movement_logic()
 	
 	var current_z = position.z
-	
-	# --- CÁLCULO DE VELOCIDADE COM BUFFER ---
-	
-	# 1. Calcula a velocidade instantânea deste frame
 	var instant_velocity = (current_z - _previous_z) / delta
 	
-	# 2. Adiciona ao histórico
 	_velocity_buffer.push_front(instant_velocity)
 	if _velocity_buffer.size() > BUFFER_SIZE:
-		_velocity_buffer.pop_back() # Remove o mais antigo
+		_velocity_buffer.pop_back()
 	
-	# 3. Calcula a velocidade média (Suavizada)
 	_stick_velocity = _calculate_average_velocity()
-	
-	# ----------------------------------------
-	
 	_previous_z = current_z
 	
-	# Verifica impacto usando a velocidade média
 	if current_z <= (ball_radius_offset + 0.001) and _stick_velocity < -0.1:
 		_execute_strike()
 
-# NOVO: Função auxiliar para média
 func _calculate_average_velocity() -> float:
-	if _velocity_buffer.is_empty():
-		return 0.0
-	
+	if _velocity_buffer.is_empty(): return 0.0
 	var sum: float = 0.0
-	for v in _velocity_buffer:
-		sum += v
+	for v in _velocity_buffer: sum += v
 	return sum / _velocity_buffer.size()
 
 func _handle_spin_input(relative: Vector2) -> void:
@@ -110,11 +114,8 @@ func _handle_spin_input(relative: Vector2) -> void:
 func _start_charging() -> void:
 	_is_charging = true
 	_accumulated_mouse_y = 0.0
-	
 	_previous_z = position.z
 	_stick_velocity = 0.0
-	
-	# IMPORTANTE: Limpar o buffer ao começar para não pegar valores velhos
 	_velocity_buffer.clear()
 
 func _cancel_charging() -> void:
@@ -131,9 +132,7 @@ func _apply_movement_logic() -> void:
 func _execute_strike() -> void:
 	if not cue_ball: return
 
-	# Usa a velocidade média calculada no _process
 	var impact_speed = abs(_stick_velocity)
-	
 	var raw_power = clamp(impact_speed / max_speed_reference, 0.0, 1.0)
 	var curved_power = pow(raw_power, 2.0)
 	var final_force = curved_power * force_multiplier
