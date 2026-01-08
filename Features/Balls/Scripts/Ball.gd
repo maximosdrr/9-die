@@ -7,7 +7,7 @@ extends RigidBody3D
 @onready var label_3d: Label3D = $Label3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
-@export var squirt_factor: float = 15
+@export var squirt_factor: float = 10
 @export_range(0.0, 1.0) var spin_power_factor: float = 0.3
 
 func _update_label():

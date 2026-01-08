@@ -5,15 +5,15 @@ class_name Poolstick extends Node3D
 
 @export_group("Stroke Settings")
 @export var stroke_sensitivity: float = 0.01 
-@export var max_draw_distance: float = 1.5
-@export var ball_radius_offset: float = 0.06 
+@export var max_draw_distance: float = 0.8
+@export var ball_radius_offset: float = 0.04
 @export var max_speed_reference: float = 6.0
 # Add a force multiplier to convert 0-1 power into actual Physics Units (Newtons)
-@export var force_multiplier: float = 0.8
+@export var force_multiplier: float = 1.5
 
 @export_group("Spin Settings")
 @export var spin_sensitivity: float = 0.005
-@export var max_spin_offset: float = 0.05 # Limit how far from center we can hit (Ball radius approx)
+@export var max_spin_offset: float = 0.025 # Limit how far from center we can hit (Ball radius approx)
 
 var _is_charging: bool = false
 var _is_adjusting_spin: bool = false # Flag for spin mode
@@ -39,7 +39,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	elif event.is_action_released("spin_modifier"):
 		_is_adjusting_spin = false
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE) # Or keep captured if FPS style
+		#Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE) # Or keep captured if FPS style
 	
 	if _is_adjusting_spin and event is InputEventMouseMotion:
 		_handle_spin_input(event.relative)
