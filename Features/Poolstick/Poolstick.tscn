@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=4 uid="uid://dr4okuny0mqw0"]
+[gd_scene load_steps=6 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
 [ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Poolstick/Scripts/Poolstick.gd" id="1_fst4q"]
@@ -43,20 +43,13 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_6slcf"]
-
-[node name="Poolstick" type="Node3D" node_paths=PackedStringArray("poolstick_body")]
+[node name="Poolstick" type="Node3D"]
 script = ExtResource("1_fst4q")
-poolstick_body = NodePath("PoolstickBody")
 
 [node name="PoolstickBody" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 7.450581e-09)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.468)
 
 [node name="Model3D" type="MeshInstance3D" parent="PoolstickBody"]
-transform = Transform3D(0.01, 0, 0, 0, 0, -0.01, 0, 0.01, 0, 0, 0, 0)
+transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0)
 mesh = SubResource("ArrayMesh_m6ccd")
 skeleton = NodePath("")
-
-[node name="ShapeCast3D" type="ShapeCast3D" parent="PoolstickBody"]
-transform = Transform3D(0.009075632, 0, 0, 0, 0.008184366, 0, 0, 0, -0.010578077, 0, 1.474282, 0)
-shape = SubResource("BoxShape3D_6slcf")

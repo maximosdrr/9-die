@@ -6,6 +6,8 @@
 [resource]
 script = ExtResource("2_cumvy")
 name = "PrototypeBall"
+linear_damp = 0.04
+angular_damp = 0.3
 bounce = 0.93
 model = ExtResource("1_cumvy")
 metadata/_custom_type_script = "uid://b18ax0wydcqg1"

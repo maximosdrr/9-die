@@ -1,12 +1,14 @@
-class_name CameraPivot extends Node3D
+class_name HeadPivot extends Node3D
 
 @export var camera: Camera3D
 @export var rotation_x_enabled := true
 @export var rotation_y_enabled := true
 @export var yaw_sensitivity := 0.005
 
+@export var max_rotation_x: Vector2 = Vector2.LEFT
+
 const BASE_YAW := deg_to_rad(180)
-var rotation_target: Node3D = null
+var target: Node3D = null
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -19,7 +21,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is not InputEventMouseMotion:
 		return
-
+	
 	if rotation_x_enabled and camera:
 		camera.rotate_x(-event.relative.y * 0.005)
 		camera.rotation.x = clamp(
@@ -30,8 +32,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	
 	if not rotation_y_enabled:
 		return
-	
-	if rotation_target != null:
+		
+	if target != null:
 		var yaw_delta = -event.relative.x * yaw_sensitivity
 		_orbit_around_target(yaw_delta)
 		return
@@ -39,7 +41,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	rotate_y(-event.relative.x * 0.005)
 
 func _orbit_around_target(yaw_delta: float) -> void:
-	var target_pos := rotation_target.global_transform.origin
+	var target_pos := target.global_transform.origin
 	var offset := global_transform.origin - target_pos
 	
 	offset = offset.rotated(Vector3.UP, yaw_delta)
