@@ -11,7 +11,7 @@ class_name Cue extends Node3D
 @export_group("Stroke Settings")
 @export var stroke_sensitivity: float = 0.005 
 @export var max_draw_distance: float = 0.8
-@export var max_speed_reference: float = 13
+@export var max_speed_reference: float = 10
 @export var force_multiplier: float = 1.2
 @export var visual_gap: float = 0.01 #Visual distance to the ball
 

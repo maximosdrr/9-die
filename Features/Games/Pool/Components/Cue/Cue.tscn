@@ -45,6 +45,9 @@ shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
 [node name="Cue" type="Node3D"]
 script = ExtResource("1_fst4q")
+max_speed_reference = 10.0
+max_spin_percentage = 0.5
+metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
 [node name="PoolstickBody" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.468)

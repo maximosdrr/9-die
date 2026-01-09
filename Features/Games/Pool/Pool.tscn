@@ -1,11 +1,10 @@
-[gd_scene load_steps=14 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=12 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
 [ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Games/Pool/Components/Balls/Ball.tscn" id="3_74vu0"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/PrototypeBall.tres" id="4_7rd23"]
 [ext_resource type="PackedScene" uid="uid://0un8ur15vq15" path="res://Features/Games/Pool/Components/Balls/CueBall.tscn" id="5_43tya"]
-[ext_resource type="Script" uid="uid://bfp5bw4ecmj6t" path="res://Features/Games/Pool/Scripts/TableBallsMonitor.gd" id="6_il2s7"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
@@ -50,13 +49,10 @@ blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_7rd23")
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_nqm52"]
-size = Vector3(1.269, 2.448, 0)
+size = Vector3(1.1682367, 2.4296172, 0)
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_smn86"]
-size = Vector3(0.1, 1.611, 2.657)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_dt73b"]
-size = Vector3(1.526, 0.941, 0.1)
+[sub_resource type="BoxShape3D" id="BoxShape3D_5ugkb"]
+size = Vector3(1.0333252, 0.046020508, 0.057617188)
 
 [node name="PoolGame" type="Node3D"]
 script = ExtResource("1_jypsj")
@@ -72,48 +68,51 @@ transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 mesh = SubResource("ArrayMesh_qqr7a")
 skeleton = NodePath("")
 
-[node name="TableSurfaceCollission" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.75, 0)
-shape = SubResource("BoxShape3D_nqm52")
-
-[node name="BallsHolder" type="Node3D" parent="PoolTable/TableSurfaceCollission"]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.01)
-
-[node name="Ball" parent="PoolTable/TableSurfaceCollission/BallsHolder" instance=ExtResource("3_74vu0")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.19927055)
-data = ExtResource("4_7rd23")
-
-[node name="CueBall" parent="PoolTable/TableSurfaceCollission/BallsHolder" instance=ExtResource("5_43tya")]
-collision_layer = 4
-collision_mask = 5
-data = ExtResource("4_7rd23")
-is_cue_ball = true
-
-[node name="RailLeft" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.59094924, 0.64340174, -0.016422808)
-shape = SubResource("BoxShape3D_smn86")
-
-[node name="RailRight" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6216703, 0.42495692, -0.016358733)
-shape = SubResource("BoxShape3D_smn86")
-
-[node name="RailTop" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0033105612, 0.9040043, 1.2365282)
-shape = SubResource("BoxShape3D_dt73b")
-
-[node name="RailBottom" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.019591033, 0.73793375, -1.2714323)
-shape = SubResource("BoxShape3D_dt73b")
-
 [node name="Pivot" type="Node3D" parent="PoolTable"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6868314, 0)
 
 [node name="RemoteTop" type="RemoteTransform3D" parent="PoolTable/Pivot"]
 remote_path = NodePath("../..")
 
-[node name="Components" type="Node" parent="PoolTable"]
+[node name="BallsHolder" type="Node3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.76, -0.005)
 
-[node name="TableBallsMonitor" type="Node" parent="PoolTable/Components" node_paths=PackedStringArray("balls_holder")]
-script = ExtResource("6_il2s7")
-balls_holder = NodePath("../../TableSurfaceCollission/BallsHolder")
-metadata/_custom_type_script = "uid://bfp5bw4ecmj6t"
+[node name="Ball" parent="PoolTable/BallsHolder" instance=ExtResource("3_74vu0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09665847, 0, -0.0007437421)
+data = ExtResource("4_7rd23")
+max_squirt_angle_deg = 30.0
+
+[node name="CueBall" parent="PoolTable/BallsHolder" instance=ExtResource("5_43tya")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.30942792, 0, -0.050543725)
+collision_layer = 4
+collision_mask = 5
+data = ExtResource("4_7rd23")
+is_cue_ball = true
+
+[node name="Floor" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.0041469596, 0.75, -0.0037255334)
+shape = SubResource("BoxShape3D_nqm52")
+
+[node name="RailBottom" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0.798, -1.2374502)
+shape = SubResource("BoxShape3D_5ugkb")
+
+[node name="RailTop" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.79769397, 1.2290576)
+shape = SubResource("BoxShape3D_5ugkb")
+
+[node name="RailLeft1" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(-4.3711392e-08, -0.34202015, 0.9396926, 0, 0.93969274, 0.34202012, -1.0000001, 1.4950176e-08, -4.1075268e-08, 0.615, 0.798, 0.602)
+shape = SubResource("BoxShape3D_5ugkb")
+
+[node name="RailLeft2" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(-4.3711392e-08, -0.34202015, 0.9396926, 0, 0.93969274, 0.34202012, -1.0000001, 1.4950176e-08, -4.1075268e-08, 0.615, 0.798, -0.602)
+shape = SubResource("BoxShape3D_5ugkb")
+
+[node name="RailRight1" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, -0.602)
+shape = SubResource("BoxShape3D_5ugkb")
+
+[node name="RailRight2" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, 0.602)
+shape = SubResource("BoxShape3D_5ugkb")

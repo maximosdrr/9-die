@@ -5,7 +5,7 @@ extends RigidBody3D
 @export var is_cue_ball: bool = false
 
 @export_range(0.0, 45.0) var max_squirt_angle_deg: float = 15.0 
-@export_range(0.0, 1.0) var spin_power_factor: float = 0.3
+@export_range(0.0, 1.0) var spin_power_factor: float = 0.15
 
 @onready var label_3d: Label3D = $Label3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
