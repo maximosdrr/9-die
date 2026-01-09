@@ -1,11 +1,10 @@
-class_name Ball
-extends RigidBody3D
+class_name Ball extends RigidBody3D
 
 @export var data: BallResource
 @export var is_cue_ball: bool = false
 
 @export_range(0.0, 45.0) var max_squirt_angle_deg: float = 10.0 
-@export_range(0.0, 1.0) var spin_power_factor: float = 0.1
+@export_range(0.0, 1.0) var spin_power_factor: float = 0.02
 
 @onready var label_3d: Label3D = $Label3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
@@ -55,19 +54,13 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 
 	var raw_dir := Vector3(direction.x, 0.0, direction.z).normalized()
 	
-	# --- CÁLCULO DE DEFLEXÃO (GRAUS -> RADIANOS) ---
 	var offset_ratio = hit_offset_local.x / radius
 	
-	# AQUI ESTÁ A MUDANÇA:
-	# 1. Pegamos o valor em graus (ex: 15.0)
-	# 2. Convertemos para radianos com deg_to_rad()
-	# 3. Multiplicamos pela proporção do offset
 	var max_angle_rad = deg_to_rad(max_squirt_angle_deg)
 	var deflection_angle = offset_ratio * max_angle_rad
 	
 	var final_dir = raw_dir.rotated(Vector3.UP, deflection_angle)
 	
-	# --- RESTANTE DA FÍSICA (IGUAL) ---
 	var forward = -final_dir
 	var up = Vector3.UP
 	var right = forward.cross(up).normalized()
@@ -83,7 +76,6 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	apply_central_impulse(linear_impulse)
 	apply_torque_impulse(reduced_torque)
 
-# ADICIONE ESTA FUNÇÃO
 func respawn() -> void:
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
@@ -94,3 +86,13 @@ func respawn() -> void:
 	
 	visible = true
 	process_mode = Node.PROCESS_MODE_INHERIT
+
+func _physics_process(_delta: float) -> void:
+	# Lógica para frear a rotação excessiva quando a bola está quase parada
+	# Se a bola está muito lenta linearmente (quase parada no lugar)
+	if linear_velocity.length() < 0.1:
+		# Aumenta drasticamente o freio da rotação (simula o atrito do pano estático)
+		angular_damp = 1.0 
+	else:
+		# Volta para o valor normal configurado no recurso (ex: 1.0) para permitir que ela role bonito
+		angular_damp = data.angular_damp

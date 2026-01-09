@@ -43,7 +43,7 @@ func spawn_triangle_rack() -> void:
 	var rows = 5
 	
 	for row in range(rows):
-		var z_offset = row * (ball_diameter * 0.866) # Altura do triângulo (sin(60))
+		var z_offset = row * (ball_diameter * 0.866)
 		var start_x = -(row * ball_diameter) / 2.0
 		
 		for col in range(row + 1):
