@@ -52,11 +52,6 @@ shape = SubResource("BoxShape3D_b7m75")
 [node name="Player" parent="." instance=ExtResource("5_s6lm4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9449847, -3.4410024)
 
-[node name="Pool" parent="." instance=ExtResource("3_4e5w7")]
-game_controller_scene = ExtResource("4_y12w2")
-table_game_scene = ExtResource("5_rxpk7")
-
-[node name="Poker" parent="." instance=ExtResource("3_4e5w7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.09716, 0, 0)
+[node name="Table" parent="." instance=ExtResource("3_4e5w7")]
 game_controller_scene = ExtResource("4_y12w2")
 table_game_scene = ExtResource("5_rxpk7")

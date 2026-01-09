@@ -18,7 +18,6 @@ metadata/_custom_type_script = "uid://bv6q1nmd0jclt"
 [node name="TableInfluence" type="Area3D" parent="."]
 
 [node name="CollissionShape" type="CollisionShape3D" parent="TableInfluence"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0630188, 0.7194824, -0.07055664)
 shape = SubResource("BoxShape3D_i6bfp")
 
 [node name="Scripts" type="Node" parent="."]

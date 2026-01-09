@@ -4,14 +4,15 @@ extends RigidBody3D
 @export var data: BallResource
 @export var is_cue_ball: bool = false
 
-@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 15.0 
-@export_range(0.0, 1.0) var spin_power_factor: float = 0.15
+@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 10.0 
+@export_range(0.0, 1.0) var spin_power_factor: float = 0.1
 
 @onready var label_3d: Label3D = $Label3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
 
 var radius: float = 0.029 
+var _initial_transform: Transform3D
 
 func _ready() -> void:
 	if data == null:
@@ -38,6 +39,8 @@ func _ready() -> void:
 		radius = collision_shape.shape.radius
 	else:
 		push_error("Ball CollisionShape must be a SphereShape3D!")
+	
+	_initial_transform = global_transform
 
 func _process(_delta: float) -> void:
 	_update_label()
@@ -79,3 +82,15 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	
 	apply_central_impulse(linear_impulse)
 	apply_torque_impulse(reduced_torque)
+
+# ADICIONE ESTA FUNÇÃO
+func respawn() -> void:
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	
+	global_transform = _initial_transform
+	
+	sleeping = false
+	
+	visible = true
+	process_mode = Node.PROCESS_MODE_INHERIT

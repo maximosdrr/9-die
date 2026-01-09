@@ -1,10 +1,7 @@
-[gd_scene load_steps=12 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=9 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
-[ext_resource type="PackedScene" uid="uid://cqwu27wd0ddmr" path="res://Features/Games/Pool/Components/Balls/Ball.tscn" id="3_74vu0"]
-[ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/PrototypeBall.tres" id="4_7rd23"]
-[ext_resource type="PackedScene" uid="uid://0un8ur15vq15" path="res://Features/Games/Pool/Components/Balls/CueBall.tscn" id="5_43tya"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
@@ -64,30 +61,9 @@ collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_hqklk")
 
 [node name="Model3D" type="MeshInstance3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
 mesh = SubResource("ArrayMesh_qqr7a")
 skeleton = NodePath("")
-
-[node name="Pivot" type="Node3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6868314, 0)
-
-[node name="RemoteTop" type="RemoteTransform3D" parent="PoolTable/Pivot"]
-remote_path = NodePath("../..")
-
-[node name="BallsHolder" type="Node3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.76, -0.005)
-
-[node name="Ball" parent="PoolTable/BallsHolder" instance=ExtResource("3_74vu0")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09665847, 0, -0.0007437421)
-data = ExtResource("4_7rd23")
-max_squirt_angle_deg = 30.0
-
-[node name="CueBall" parent="PoolTable/BallsHolder" instance=ExtResource("5_43tya")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.30942792, 0, -0.050543725)
-collision_layer = 4
-collision_mask = 5
-data = ExtResource("4_7rd23")
-is_cue_ball = true
 
 [node name="Floor" type="CollisionShape3D" parent="PoolTable"]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.0041469596, 0.75, -0.0037255334)
@@ -98,7 +74,7 @@ transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.9396
 shape = SubResource("BoxShape3D_5ugkb")
 
 [node name="RailTop" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.79769397, 1.2290576)
+transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.79769385, 1.2290576)
 shape = SubResource("BoxShape3D_5ugkb")
 
 [node name="RailLeft1" type="CollisionShape3D" parent="PoolTable"]
@@ -116,3 +92,11 @@ shape = SubResource("BoxShape3D_5ugkb")
 [node name="RailRight2" type="CollisionShape3D" parent="PoolTable"]
 transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, 0.602)
 shape = SubResource("BoxShape3D_5ugkb")
+
+[node name="Pivot" type="Node3D" parent="."]
+
+[node name="RemoteTop" type="RemoteTransform3D" parent="Pivot"]
+remote_path = NodePath("../../PoolTable")
+
+[node name="BallsHolder" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
