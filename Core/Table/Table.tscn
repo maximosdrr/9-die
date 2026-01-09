@@ -1,0 +1,36 @@
+[gd_scene load_steps=5 format=3 uid="uid://km1p4vfi4o1w"]
+
+[ext_resource type="Script" uid="uid://bv6q1nmd0jclt" path="res://Core/Table/Scripts/Table.gd" id="1_iqaas"]
+[ext_resource type="Script" uid="uid://bfqewfnpyreqm" path="res://Core/Table/Scripts/EnterGame.gd" id="2_i6bfp"]
+[ext_resource type="Script" uid="uid://cuc7ok583xqwy" path="res://Core/Table/Scripts/ExitGame.gd" id="3_jynrt"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
+size = Vector3(5, 2, 5)
+
+[node name="Table" type="Node3D"]
+script = ExtResource("1_iqaas")
+metadata/_custom_type_script = "uid://bv6q1nmd0jclt"
+
+[node name="PlayerGameControllerHandler" type="Node3D" parent="."]
+
+[node name="TableGameHandler" type="Node3D" parent="."]
+
+[node name="TableInfluence" type="Area3D" parent="."]
+
+[node name="CollissionShape" type="CollisionShape3D" parent="TableInfluence"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0630188, 0.7194824, -0.07055664)
+shape = SubResource("BoxShape3D_i6bfp")
+
+[node name="Scripts" type="Node" parent="."]
+
+[node name="EnterTableGame" type="Node" parent="Scripts" node_paths=PackedStringArray("table")]
+script = ExtResource("2_i6bfp")
+table = NodePath("../..")
+metadata/_custom_type_script = "uid://bfqewfnpyreqm"
+
+[node name="ExitTableGame" type="Node" parent="Scripts"]
+script = ExtResource("3_jynrt")
+metadata/_custom_type_script = "uid://cuc7ok583xqwy"
+
+[connection signal="body_entered" from="TableInfluence" to="Scripts/EnterTableGame" method="_on_player_entered"]
+[connection signal="body_exited" from="TableInfluence" to="Scripts/ExitTableGame" method="_on_player_exited"]

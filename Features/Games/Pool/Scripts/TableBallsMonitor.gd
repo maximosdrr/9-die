@@ -1,3 +1,4 @@
+#TODO remove this script
 class_name BallSleepMonitor extends Node
 
 @export var balls_holder: Node3D

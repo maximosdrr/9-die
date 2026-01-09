@@ -1,7 +1,9 @@
-[gd_scene load_steps=10 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=12 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
-[ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Games/Pool/PoolGame.tscn" id="2_5rn6i"]
+[ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
+[ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
+[ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_s6lm4"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
@@ -47,7 +49,14 @@ collision_mask = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="PoolGame" parent="." instance=ExtResource("2_5rn6i")]
-
 [node name="Player" parent="." instance=ExtResource("5_s6lm4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9449847, -3.4410024)
+
+[node name="Pool" parent="." instance=ExtResource("3_4e5w7")]
+game_controller_scene = ExtResource("4_y12w2")
+table_game_scene = ExtResource("5_rxpk7")
+
+[node name="Poker" parent="." instance=ExtResource("3_4e5w7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.09716, 0, 0)
+game_controller_scene = ExtResource("4_y12w2")
+table_game_scene = ExtResource("5_rxpk7")

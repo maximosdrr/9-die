@@ -2,17 +2,18 @@ class_name PlayerGameHandler extends Node
 
 @export var context_slot: Node3D 
 
-var current_controller: GameController = null
+var current_controller: PlayerGameController = null
 
-func equip_game_controller(controller_scene: PackedScene, ...args):
+func equip_game_controller(controller_scene: PackedScene, table_game: TableGame):
 	unequip_current_controller()
 	
 	current_controller = controller_scene.instantiate()
-	current_controller.hide()
-	context_slot.add_child(current_controller)
+	assert(current_controller is PlayerGameController)
 	
-	if current_controller.has_method("setup"):
-		current_controller.setup(owner, args)
+	current_controller.hide()
+	
+	context_slot.add_child(current_controller)
+	current_controller.setup(owner, table_game)
 
 func unequip_current_controller():
 	if current_controller:
