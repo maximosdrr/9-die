@@ -1,10 +1,10 @@
 [gd_scene load_steps=9 format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Player/Scripts/Player.gd" id="1_wlwl2"]
-[ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Features/Player/Scripts/CameraPivot/HeadPivot.gd" id="2_bd6kk"]
-[ext_resource type="Script" uid="uid://ca7so7568ql4e" path="res://Features/Player/Scripts/CameraPivot/AimCameraPivot.gd" id="4_3oh57"]
-[ext_resource type="Script" uid="uid://b4lu1o726jvgt" path="res://Features/Player/Scripts/PlayerPovManager.gd" id="4_wlwl2"]
-[ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Poolstick/Poolstick.tscn" id="5_wtw8m"]
+[ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Features/Player/Scripts/HeadPivot.gd" id="2_bd6kk"]
+[ext_resource type="Script" uid="uid://dedgretocnokg" path="res://Core/GameController/GameController.gd" id="3_llsyq"]
+[ext_resource type="Script" uid="uid://ce01x24p570hc" path="res://Features/Player/Scripts/PlayerGameHandler.gd" id="5_llsyq"]
+[ext_resource type="Script" uid="uid://dw5st23gr02tm" path="res://Features/Player/Scripts/ControlSwitch.gd" id="6_4uqpi"]
 [ext_resource type="Script" uid="uid://bf4tbhk58pgub" path="res://Core/ToggleNode/Toggleable.gd" id="6_wlwl2"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
@@ -22,52 +22,40 @@ shape = SubResource("CapsuleShape3D_qhdlv")
 
 [node name="FirstPerson" type="Node3D" parent="."]
 
-[node name="HeadPivot" type="Node3D" parent="FirstPerson"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5020564, 0)
-script = ExtResource("2_bd6kk")
-metadata/_custom_type_script = "uid://b2jkrngg2mldq"
-
-[node name="RemoteFps" type="RemoteTransform3D" parent="FirstPerson/HeadPivot"]
-remote_path = NodePath("../../..")
-
 [node name="Model3D" type="MeshInstance3D" parent="FirstPerson"]
 transform = Transform3D(1.0000001, 0, 0, 0, 0.99999994, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("CapsuleMesh_qhdlv")
 skeleton = NodePath("../..")
 
-[node name="Aim" type="Node3D" parent="."]
+[node name="HeadPivot" type="Node3D" parent="FirstPerson" node_paths=PackedStringArray("camera_mount")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5020564, 0)
+script = ExtResource("2_bd6kk")
+camera_mount = NodePath("RemoteFPS")
+metadata/_custom_type_script = "uid://b2jkrngg2mldq"
 
-[node name="AimPivot" type="Node3D" parent="Aim"]
-transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
-script = ExtResource("4_3oh57")
-metadata/_custom_type_script = "uid://ca7so7568ql4e"
-
-[node name="Elevation" type="Node3D" parent="Aim/AimPivot"]
-
-[node name="RemoteAim" type="RemoteTransform3D" parent="Aim/AimPivot/Elevation"]
+[node name="RemoteFPS" type="RemoteTransform3D" parent="FirstPerson/HeadPivot"]
 remote_path = NodePath("../../..")
 
-[node name="Poolstick" parent="Aim/AimPivot/Elevation" instance=ExtResource("5_wtw8m")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005722277, -0.79999995)
+[node name="GameContextSlot" type="Node3D" parent="."]
+script = ExtResource("3_llsyq")
+metadata/_custom_type_script = "uid://dedgretocnokg"
 
-[node name="Components" type="Node" parent="."]
+[node name="Scripts" type="Node" parent="."]
 
-[node name="PlayerToggleable" type="Node" parent="Components"]
+[node name="PlayerToggleable" type="Node" parent="Scripts"]
 script = ExtResource("6_wlwl2")
 targets = Array[NodePath]([NodePath("../../FirstPerson"), NodePath("../../CollisionShape3D")])
 toggle_visible = true
 disable_cameras = true
 metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
-[node name="AimToggleable" type="Node" parent="Components"]
-script = ExtResource("6_wlwl2")
-initial_state = 1
-targets = Array[NodePath]([NodePath("../../Aim")])
-toggle_visible = true
-disable_cameras = true
-metadata/_custom_type_script = "uid://bf4tbhk58pgub"
+[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("context_slot")]
+script = ExtResource("5_llsyq")
+context_slot = NodePath("../../GameContextSlot")
+metadata/_custom_type_script = "uid://ce01x24p570hc"
 
-[node name="PlayerPovManager" type="Node" parent="Components" node_paths=PackedStringArray("player")]
-script = ExtResource("4_wlwl2")
+[node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("player", "game_context_slot")]
+script = ExtResource("6_4uqpi")
 player = NodePath("../..")
-metadata/_custom_type_script = "uid://b4lu1o726jvgt"
+game_context_slot = NodePath("../../GameContextSlot")
+metadata/_custom_type_script = "uid://dw5st23gr02tm"

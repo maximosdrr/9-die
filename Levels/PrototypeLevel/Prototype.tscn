@@ -1,8 +1,9 @@
-[gd_scene load_steps=11 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=12 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
-[ext_resource type="PackedScene" uid="uid://clmvlocym2bdk" path="res://Features/Tables/Table.tscn" id="2_5rn6i"]
-[ext_resource type="Script" uid="uid://d3s7x3nx46872" path="res://Features/Camera/CameraManager.gd" id="4_y12w2"]
+[ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
+[ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
+[ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_s6lm4"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
@@ -48,22 +49,9 @@ collision_mask = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="Table" parent="." node_paths=PackedStringArray("global_camera") instance=ExtResource("2_5rn6i")]
-global_camera = NodePath("../GlobalCamera")
+[node name="Player" parent="." instance=ExtResource("5_s6lm4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9449847, -3.4410024)
 
-[node name="Player" parent="." node_paths=PackedStringArray("global_camera") instance=ExtResource("5_s6lm4")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9449847, -1.962306)
-global_camera = NodePath("../GlobalCamera")
-
-[node name="FirstPerson" parent="Player" index="1"]
-visible = false
-
-[node name="GlobalCamera" type="Camera3D" parent="." node_paths=PackedStringArray("player", "table")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -1)
-script = ExtResource("4_y12w2")
-player = NodePath("../Player")
-table = NodePath("../Table")
-metadata/_custom_type_script = "uid://d3s7x3nx46872"
-
-[editable path="Table"]
-[editable path="Player"]
+[node name="Table" parent="." instance=ExtResource("3_4e5w7")]
+game_controller_scene = ExtResource("4_y12w2")
+table_game_scene = ExtResource("5_rxpk7")
