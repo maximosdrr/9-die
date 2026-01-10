@@ -11,16 +11,20 @@ extends Node3D
 @export var min_pitch_deg: float = -25.0
 @export var max_pitch_deg: float = 0.0
 
+var curren_max_pitch_deg = 0.0
+
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
 var target: Ball
 
-func set_target_ball(ball: Ball):
-	target = ball
+func setup(pool_game: PoolGame):
+	target = pool_game.cue_ball
 
 func _ready() -> void:
+	curren_max_pitch_deg = max_pitch_deg
 	set_as_top_level(true)
 	_initialize_rotation()
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -59,5 +63,5 @@ func _rotate_camera(relative_motion: Vector2) -> void:
 	
 	if elevation_node:
 		_rot_x -= relative_motion.y * mouse_sensitivity
-		_rot_x = clamp(_rot_x, deg_to_rad(min_pitch_deg), deg_to_rad(max_pitch_deg))
+		_rot_x = clamp(_rot_x, deg_to_rad(min_pitch_deg), deg_to_rad(curren_max_pitch_deg))
 		elevation_node.rotation.x = _rot_x

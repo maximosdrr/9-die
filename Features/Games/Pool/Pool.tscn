@@ -1,11 +1,10 @@
-[gd_scene load_steps=25 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=24 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
 [ext_resource type="Script" uid="uid://bmv1krpa1tpxy" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.gd" id="3_qmuqs"]
 [ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/BallGirl.gd" id="4_y227s"]
 [ext_resource type="Script" uid="uid://daxvpdvtj7m82" path="res://Features/Games/Pool/Scripts/PoolScoreGameManager.gd" id="5_5ugkb"]
-[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="6_20w0b"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
@@ -216,11 +215,6 @@ remote_path = NodePath("../../PoolTable")
 
 [node name="BallsHolder" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
-
-[node name="StateMachine" type="Node3D" parent="."]
-script = ExtResource("6_20w0b")
-initial_state = 4
-metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Scripts" type="Node" parent="."]
 

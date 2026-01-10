@@ -1,6 +1,15 @@
 class_name GlobalCamera extends Camera3D
 
+@export_category("Properties")
+@export var default_fov = 75.0
+
 var current_remote: RemoteTransform3D = null
+
+func set_global_camera_fov(new_fov: float):
+	fov = new_fov
+
+func reset_fov():
+	fov = default_fov
 
 func _enter_tree() -> void:
 	Global.camera = self

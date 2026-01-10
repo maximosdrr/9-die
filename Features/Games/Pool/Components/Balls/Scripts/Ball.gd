@@ -82,7 +82,6 @@ func respawn() -> void:
 	process_mode = Node.PROCESS_MODE_INHERIT
 
 func _physics_process(_delta: float) -> void:
-	# Increase ball angular dump to stop it if it's spinning in the same place
 	if linear_velocity.length() < 0.1:
 		angular_damp = 1.0 
 	else:

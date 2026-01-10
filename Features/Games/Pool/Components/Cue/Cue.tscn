@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=4 uid="uid://dr4okuny0mqw0"]
+[gd_scene load_steps=11 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
 [ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
 [ext_resource type="Script" uid="uid://drsnd4qwj3iko" path="res://Features/Games/Pool/Components/Cue/Scripts/StokeSystem.gd" id="3_0sbak"]
-[ext_resource type="Script" uid="uid://cgt6bj71wmaqr" path="res://Features/Games/Pool/Components/Cue/Scripts/CueInputSystem.gd" id="3_i0ne8"]
+[ext_resource type="Script" uid="uid://cgt6bj71wmaqr" path="res://Features/Games/Pool/Components/Cue/Scripts/InputSystem.gd" id="3_i0ne8"]
 [ext_resource type="Script" uid="uid://ddy7tkgkx1u8k" path="res://Features/Games/Pool/Components/Cue/Scripts/SpinSystem.gd" id="5_71dtw"]
+[ext_resource type="Script" uid="uid://iq0qh15un1eb" path="res://Features/Games/Pool/Components/Cue/Scripts/RotationLimitSystem.gd" id="6_hxwsn"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -46,11 +47,15 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system")]
+[sub_resource type="BoxShape3D" id="BoxShape3D_71dtw"]
+size = Vector3(0.025, 0.031, 0.47197264)
+
+[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system", "rotation_limit_system")]
 script = ExtResource("1_fst4q")
 stroke_system = NodePath("Scripts/CueStrokeSystem")
 spin_system = NodePath("Scripts/CueSpinSystem")
 input_system = NodePath("Scripts/CueInputSystem")
+rotation_limit_system = NodePath("Scripts/CueRotationLimitSystem")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
 [node name="PoolstickBody" type="Node3D" parent="."]
@@ -74,3 +79,15 @@ metadata/_custom_type_script = "uid://cgt6bj71wmaqr"
 [node name="CueSpinSystem" type="Node" parent="Scripts"]
 script = ExtResource("5_71dtw")
 metadata/_custom_type_script = "uid://ddy7tkgkx1u8k"
+
+[node name="CueRotationLimitSystem" type="Node" parent="Scripts"]
+script = ExtResource("6_hxwsn")
+metadata/_custom_type_script = "uid://iq0qh15un1eb"
+
+[node name="CueAreaBack" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 8
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CueAreaBack"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0010681152, 0.0012969971, 0.23927894)
+shape = SubResource("BoxShape3D_71dtw")

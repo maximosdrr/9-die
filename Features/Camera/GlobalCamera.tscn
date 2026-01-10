@@ -4,3 +4,4 @@
 
 [node name="GlobalCamera" type="Camera3D"]
 script = ExtResource("1_nwxvp")
+metadata/_custom_type_script = "uid://d3s7x3nx46872"
