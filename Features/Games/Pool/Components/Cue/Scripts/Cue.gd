@@ -11,7 +11,6 @@ class_name Cue extends Node3D
 @export var visual_gap: float = 0.01
 #Time that cue camera is locked after shot
 @export var post_shot_cooldown: float = 0.25
-@onready var collision_with_table_detector: ShapeCast3D = $CueBody/CollisionWithTableDetector
 
 var ball_radius_offset: float = 0.04
 var is_charging: bool = false
