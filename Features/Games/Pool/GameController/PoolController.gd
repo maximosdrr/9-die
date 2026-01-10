@@ -2,7 +2,7 @@ class_name PoolController extends PlayerGameController
 
 @onready var remote_aim: RemoteTransform3D = $AimPivot/Elevation/RemoteAim
 @onready var aim_pivot: AimCameraPivot = $AimPivot
-@onready var cue: Cue = $AimPivot/Cue
+@onready var cue: Cue = $AimPivot/Elevation/Cue
 
 func setup(_parent: Node3D, table_game: TableGame):
 	var pool_game = table_game as PoolGame

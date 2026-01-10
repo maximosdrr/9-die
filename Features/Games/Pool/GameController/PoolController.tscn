@@ -19,8 +19,8 @@ metadata/_custom_type_script = "uid://ca7so7568ql4e"
 [node name="RemoteAim" type="RemoteTransform3D" parent="AimPivot/Elevation"]
 remote_path = NodePath("../../..")
 
-[node name="Cue" parent="AimPivot" instance=ExtResource("2_fuwyn")]
-transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
+[node name="Cue" parent="AimPivot/Elevation" instance=ExtResource("2_fuwyn")]
+transform = Transform3D(1, 0, 0, 0, 0.99999976, 0, 0, 0, 0.99999976, 0, 0, 0)
 
 [node name="Scripts" type="Node" parent="."]
 

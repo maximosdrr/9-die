@@ -4,7 +4,6 @@ class_name Cue extends Node3D
 @export var stroke_system: CueStrokeSystem 
 @export var spin_system: CueSpinSystem
 @export var input_system: CueInputSystem
-@export var rotation_limit_system: CueRotationLimitSystem
 
 @export_group("Power Config")
 @export var max_speed_reference: float = 10.0
@@ -12,8 +11,7 @@ class_name Cue extends Node3D
 @export var visual_gap: float = 0.01
 #Time that cue camera is locked after shot
 @export var post_shot_cooldown: float = 0.25
-
-@onready var cue_area_back: Area3D = $CueAreaBack
+@onready var collision_with_table_detector: ShapeCast3D = $CueBody/CollisionWithTableDetector
 
 var ball_radius_offset: float = 0.04
 var is_charging: bool = false
@@ -27,7 +25,6 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	pool_game = _pool_game
 	camera_pivot = _camera_pivot
 	input_system.setup(self)
-	rotation_limit_system.setup(cue_area_back, camera_pivot)
 
 func _ready() -> void:
 	_update_system_limits()
