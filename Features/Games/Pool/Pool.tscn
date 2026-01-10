@@ -78,10 +78,10 @@ rough = true
 absorbent = true
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_aqhji"]
-size = Vector3(0.06201172, 0.24931335, 2.6795814)
+size = Vector3(0.09301758, 0.24931335, 2.6795814)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qmuqs"]
-size = Vector3(1.4373727, 0.2767217, 0.062)
+size = Vector3(1.437, 0.277, 0.093)
 
 [node name="PoolGame" type="Node3D"]
 script = ExtResource("1_jypsj")
@@ -173,17 +173,17 @@ collision_mask = 7
 physics_material_override = SubResource("PhysicsMaterial_aqhji")
 
 [node name="BorderLeft" type="CollisionShape3D" parent="PoolTable/Borders"]
-transform = Transform3D(0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0, 0, 1, 0.757, 0.754, -0.00014714897)
+transform = Transform3D(0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0, 0, 1, 0.7298369, 0.7486977, -0.00014714897)
 shape = SubResource("BoxShape3D_aqhji")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="BorderRight" type="CollisionShape3D" parent="PoolTable/Borders"]
-transform = Transform3D(0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0, 0, 1, -0.757, 0.739, 0.0002336055)
+transform = Transform3D(0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0, 0, 1, -0.744, 0.739, 0)
 shape = SubResource("BoxShape3D_aqhji")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="BorderTop" type="CollisionShape3D" parent="PoolTable/Borders"]
-transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.731, 1.35)
+transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.731, 1.3389821)
 shape = SubResource("BoxShape3D_qmuqs")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 

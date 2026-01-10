@@ -3,7 +3,7 @@ class_name Ball extends RigidBody3D
 @export var data: BallResource
 @export var continuos_cd: bool = false
 
-@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 10.0 
+@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 20.0 
 @export_range(0.0, 1.0) var spin_power_factor: float = 0.02
 
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
