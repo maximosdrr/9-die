@@ -20,7 +20,7 @@ const COLORED_BALL_MESHES = [
 @export var balls_holder: Node3D
 
 var ball_diameter: float = 0.029 
-var cue_ball: RigidBody3D = null 
+var cue_ball: Ball = null 
 
 func _ready() -> void:
 	spawn_cue_ball()

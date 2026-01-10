@@ -6,7 +6,7 @@ class_name PoolBallGirl extends Node
 var cue_ball: Ball
 var cue_ball_last_pos: Vector3
 
-func set_cue_ball(_cue_ball: Ball):
+func setup(_cue_ball: Ball):
 	cue_ball = _cue_ball
 	cue_ball_last_pos = _cue_ball.global_position
 	

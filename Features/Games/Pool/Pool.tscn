@@ -1,9 +1,11 @@
-[gd_scene load_steps=21 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=25 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
 [ext_resource type="Script" uid="uid://bmv1krpa1tpxy" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.gd" id="3_qmuqs"]
 [ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/BallGirl.gd" id="4_y227s"]
+[ext_resource type="Script" uid="uid://daxvpdvtj7m82" path="res://Features/Games/Pool/Scripts/PoolScoreGameManager.gd" id="5_5ugkb"]
+[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="6_20w0b"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
@@ -61,11 +63,14 @@ size = Vector3(1.6565552, 0.17565918, 2.86615)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_qmuqs"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_5ugkb"]
-size = Vector3(1.0290475, 0.046020508, 0.057617188)
+[sub_resource type="BoxShape3D" id="BoxShape3D_8ji62"]
+size = Vector3(1.051, 0.046, 0.058)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_exhwf"]
-size = Vector3(1.042109, 0.046020508, 0.057617188)
+size = Vector3(1.0509179, 0.046020508, 0.057617188)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5ugkb"]
+size = Vector3(1.0290475, 0.046020508, 0.057617188)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bojb6"]
 size = Vector3(1.0358834, 0.046020508, 0.057617188)
@@ -83,6 +88,9 @@ size = Vector3(0.09301758, 0.24931335, 2.6795814)
 [sub_resource type="BoxShape3D" id="BoxShape3D_qmuqs"]
 size = Vector3(1.437, 0.277, 0.093)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_nppf3"]
+size = Vector3(1.657, 0.176, 2.866)
+
 [node name="PoolGame" type="Node3D"]
 script = ExtResource("1_jypsj")
 metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
@@ -94,7 +102,6 @@ physics_material_override = SubResource("PhysicsMaterial_hqklk")
 
 [node name="BallGirlMonitor" type="Area3D" parent="PoolTable"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
-visible = false
 collision_layer = 0
 collision_mask = 4
 
@@ -131,6 +138,7 @@ debug_color = Color(0.73341113, 0.4715413, 7.70092e-07, 0.41960785)
 [node name="TableFloorBottom" type="CollisionShape3D" parent="PoolTable"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0012512207, 0.50749826, 0.0042419434)
 shape = SubResource("BoxShape3D_y227s")
+debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
 [node name="Rails" type="StaticBody3D" parent="PoolTable"]
 collision_layer = 8
@@ -139,11 +147,11 @@ physics_material_override = SubResource("PhysicsMaterial_qmuqs")
 
 [node name="RailTop" type="CollisionShape3D" parent="PoolTable/Rails"]
 transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.79769385, 1.2290576)
-shape = SubResource("BoxShape3D_5ugkb")
+shape = SubResource("BoxShape3D_8ji62")
 debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
 [node name="RailBottom" type="CollisionShape3D" parent="PoolTable/Rails"]
-transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0.0011637211, 0.798, -1.2476329)
+transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, -0.0015609264, 0.798, -1.2476329)
 shape = SubResource("BoxShape3D_exhwf")
 debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
@@ -192,6 +200,15 @@ transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.9396
 shape = SubResource("BoxShape3D_qmuqs")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
+[node name="ScoreMonitor" type="Area3D" parent="PoolTable"]
+collision_layer = 0
+collision_mask = 4
+
+[node name="ScoreCollision" type="CollisionShape3D" parent="PoolTable/ScoreMonitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55650234, 0)
+shape = SubResource("BoxShape3D_nppf3")
+debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
+
 [node name="Pivot" type="Node3D" parent="."]
 
 [node name="RemoteTop" type="RemoteTransform3D" parent="Pivot"]
@@ -199,6 +216,11 @@ remote_path = NodePath("../../PoolTable")
 
 [node name="BallsHolder" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
+
+[node name="StateMachine" type="Node3D" parent="."]
+script = ExtResource("6_20w0b")
+initial_state = 4
+metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Scripts" type="Node" parent="."]
 
@@ -213,4 +235,9 @@ ball_monitor = NodePath("../../PoolTable/BallGirlMonitor")
 balls_holder = NodePath("../../BallsHolder")
 metadata/_custom_type_script = "uid://b7qoe402kd725"
 
+[node name="PoolScoreManager" type="Node" parent="Scripts"]
+script = ExtResource("5_5ugkb")
+metadata/_custom_type_script = "uid://daxvpdvtj7m82"
+
 [connection signal="body_exited" from="PoolTable/BallGirlMonitor" to="Scripts/PoolBallGirl" method="_on_ball_monitor_body_exited"]
+[connection signal="body_entered" from="PoolTable/ScoreMonitor" to="Scripts/PoolScoreManager" method="_on_score_monitor_body_entered"]

@@ -3,6 +3,7 @@ class_name Table extends Node3D
 
 @onready var table_game_handler: Node3D = $TableGameHandler
 @onready var player_game_controller_handler: Node3D = $PlayerGameControllerHandler
+@onready var table_influence: Area3D = $TableInfluence
 
 @export_category("Scenes")
 ## This variable is used to player to instanciate the correct game controller
@@ -29,8 +30,8 @@ func _spawn_runtime_game() -> void:
 		return
 
 	var table_game_instance := table_game_scene.instantiate()
-	
 	assert(table_game_instance is TableGame)
+	(table_game_instance as TableGame).setup(table_influence)
 	
 	table_game_handler.add_child(table_game_instance)
 	current_table_game = table_game_instance

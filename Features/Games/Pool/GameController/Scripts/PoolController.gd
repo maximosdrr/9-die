@@ -11,7 +11,7 @@ func setup(_parent: Node3D, table_game: TableGame):
 	assert(pool_game is PoolGame)
 	
 	aim_pivot.set_target_ball(pool_game.cue_ball)
-	cue.set_cue_ball(pool_game.cue_ball)
+	cue.setup(pool_game)
 
 func take_control():
 	show()

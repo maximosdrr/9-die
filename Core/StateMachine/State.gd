@@ -23,5 +23,7 @@ func setup(parent_node: Node3D):
 enum Type {
 	IDLE,
 	AIMING,
-	MOVING
+	MOVING,
+	PHYSICS,
+	EVALUATION
 }

@@ -82,11 +82,8 @@ func respawn() -> void:
 	process_mode = Node.PROCESS_MODE_INHERIT
 
 func _physics_process(_delta: float) -> void:
-	# Lógica para frear a rotação excessiva quando a bola está quase parada
-	# Se a bola está muito lenta linearmente (quase parada no lugar)
+	# Increase ball angular dump to stop it if it's spinning in the same place
 	if linear_velocity.length() < 0.1:
-		# Aumenta drasticamente o freio da rotação (simula o atrito do pano estático)
 		angular_damp = 1.0 
 	else:
-		# Volta para o valor normal configurado no recurso (ex: 1.0) para permitir que ela role bonito
 		angular_damp = data.angular_damp

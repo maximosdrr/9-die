@@ -2,10 +2,12 @@ class_name PoolGame extends TableGame
 
 @onready var pool_ball_respawn: PoolBallRespawn = $Scripts/PoolBallRespawn
 @onready var pool_ball_girl: PoolBallGirl = $Scripts/PoolBallGirl
+@onready var pool_score_manager: PoolScoreManager = $Scripts/PoolScoreManager
 
 var cue_ball: Ball = null
 
 func _ready() -> void:
 	assert(pool_ball_respawn.cue_ball != null)
 	cue_ball = pool_ball_respawn.cue_ball
-	pool_ball_girl.set_cue_ball(pool_ball_respawn.cue_ball)
+	pool_ball_girl.setup(pool_ball_respawn.cue_ball)
+	pool_score_manager.setup(pool_ball_respawn.cue_ball)
