@@ -16,6 +16,8 @@ metadata/_custom_type_script = "uid://bv6q1nmd0jclt"
 [node name="TableGameHandler" type="Node3D" parent="."]
 
 [node name="TableInfluence" type="Area3D" parent="."]
+collision_layer = 16
+collision_mask = 2
 
 [node name="CollissionShape" type="CollisionShape3D" parent="TableInfluence"]
 shape = SubResource("BoxShape3D_i6bfp")

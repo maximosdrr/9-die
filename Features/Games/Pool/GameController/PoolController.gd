@@ -10,8 +10,8 @@ func setup(_parent: Node3D, table_game: TableGame):
 	assert(pool_game != null)
 	assert(pool_game is PoolGame)
 	
-	aim_pivot.set_target_ball(pool_game.cue_ball)
-	cue.set_cue_ball(pool_game.cue_ball)
+	aim_pivot.setup(pool_game)
+	cue.setup(pool_game, aim_pivot)
 
 func take_control():
 	show()
@@ -21,12 +21,13 @@ func take_control():
 	aim_pivot.set_process(true) 
 	aim_pivot.set_process_unhandled_input(true)
 	
+	Global.camera.set_global_camera_fov(60)
 	Global.camera.transition_to(remote_aim)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func give_control():
 	hide()
-	
+	Global.camera.set_global_camera_fov(75)
 	set_process_unhandled_input(false)
 	set_process(false)
 	

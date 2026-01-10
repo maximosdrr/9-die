@@ -20,11 +20,11 @@ metadata/_custom_type_script = "uid://ca7so7568ql4e"
 remote_path = NodePath("../../..")
 
 [node name="Cue" parent="AimPivot/Elevation" instance=ExtResource("2_fuwyn")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005722277, -0.79999995)
+transform = Transform3D(1, 0, 0, 0, 0.99999976, 0, 0, 0, 0.99999976, 0, 0, 0)
 
-[node name="Components" type="Node" parent="."]
+[node name="Scripts" type="Node" parent="."]
 
-[node name="AimToggleable" type="Node" parent="Components"]
+[node name="AimToggleable" type="Node" parent="Scripts"]
 script = ExtResource("3_fuwyn")
 initial_state = 1
 targets = Array[NodePath]([NodePath("../../Aim")])

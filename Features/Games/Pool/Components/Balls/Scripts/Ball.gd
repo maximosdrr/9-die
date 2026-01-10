@@ -1,14 +1,15 @@
 class_name Ball extends RigidBody3D
 
 @export var data: BallResource
-@export var is_cue_ball: bool = false
+@export var continuos_cd: bool = false
 
-@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 10.0 
+@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 20.0 
 @export_range(0.0, 1.0) var spin_power_factor: float = 0.02
 
-@onready var label_3d: Label3D = $Label3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
+
+signal stopped_moving
 
 var radius: float = 0.029 
 var _initial_transform: Transform3D
@@ -26,7 +27,7 @@ func _ready() -> void:
 	linear_damp = data.linear_damp
 	angular_damp = data.angular_damp
 	
-	continuous_cd = false
+	continuous_cd = continuos_cd
 	can_sleep = true
 	
 	physics_material_override.bounce = data.bounce
@@ -40,13 +41,6 @@ func _ready() -> void:
 		push_error("Ball CollisionShape must be a SphereShape3D!")
 	
 	_initial_transform = global_transform
-
-func _process(_delta: float) -> void:
-	_update_label()
-
-func _update_label():
-	if state_machine and state_machine.current:
-		label_3d.text = "State: %s" % [state_machine.current.name]
 
 func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = Vector3.ZERO) -> void:
 	if total_force <= 0.0:
@@ -88,11 +82,7 @@ func respawn() -> void:
 	process_mode = Node.PROCESS_MODE_INHERIT
 
 func _physics_process(_delta: float) -> void:
-	# Lógica para frear a rotação excessiva quando a bola está quase parada
-	# Se a bola está muito lenta linearmente (quase parada no lugar)
 	if linear_velocity.length() < 0.1:
-		# Aumenta drasticamente o freio da rotação (simula o atrito do pano estático)
 		angular_damp = 1.0 
 	else:
-		# Volta para o valor normal configurado no recurso (ex: 1.0) para permitir que ela role bonito
 		angular_damp = data.angular_damp

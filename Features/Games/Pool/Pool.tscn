@@ -1,10 +1,19 @@
-[gd_scene load_steps=9 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=24 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
+[ext_resource type="Script" uid="uid://bmv1krpa1tpxy" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.gd" id="3_qmuqs"]
+[ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/BallGirl.gd" id="4_y227s"]
+[ext_resource type="Script" uid="uid://daxvpdvtj7m82" path="res://Features/Games/Pool/Scripts/PoolScoreGameManager.gd" id="5_5ugkb"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_20w0b"]
+size = Vector3(1.8975927, 1.2071289, 0.10501954)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_rm535"]
+size = Vector3(0.11163795, 1.2071289, 3.1064038)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lt0pq"]
 resource_name = "table_base_color.001"
@@ -46,52 +55,158 @@ blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_7rd23")
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_nqm52"]
-size = Vector3(1.1682367, 2.4296172, 0)
+size = Vector3(1.168, 0, 2.43)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_y227s"]
+size = Vector3(1.6565552, 0.17565918, 2.86615)
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_qmuqs"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8ji62"]
+size = Vector3(1.051, 0.046, 0.058)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_exhwf"]
+size = Vector3(1.0509179, 0.046020508, 0.057617188)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_5ugkb"]
-size = Vector3(1.0333252, 0.046020508, 0.057617188)
+size = Vector3(1.0290475, 0.046020508, 0.057617188)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bojb6"]
+size = Vector3(1.0358834, 0.046020508, 0.057617188)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_yqm70"]
+size = Vector3(1.0286813, 0.046020508, 0.057617188)
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_aqhji"]
+rough = true
+absorbent = true
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_aqhji"]
+size = Vector3(0.09301758, 0.24931335, 2.6795814)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_qmuqs"]
+size = Vector3(1.437, 0.277, 0.093)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nppf3"]
+size = Vector3(1.657, 0.176, 2.866)
 
 [node name="PoolGame" type="Node3D"]
 script = ExtResource("1_jypsj")
 metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
 
 [node name="PoolTable" type="StaticBody3D" parent="."]
-collision_layer = 4
+collision_layer = 8
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_hqklk")
 
+[node name="BallGirlMonitor" type="Area3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+collision_layer = 0
+collision_mask = 4
+
+[node name="Bottom" type="CollisionShape3D" parent="PoolTable/BallGirlMonitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.4999259)
+shape = SubResource("BoxShape3D_20w0b")
+debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
+
+[node name="Left" type="CollisionShape3D" parent="PoolTable/BallGirlMonitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8967972, 0, 0)
+shape = SubResource("BoxShape3D_rm535")
+debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
+
+[node name="Right" type="CollisionShape3D" parent="PoolTable/BallGirlMonitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.89120173, 0, 0)
+shape = SubResource("BoxShape3D_rm535")
+debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
+
+[node name="Top" type="CollisionShape3D" parent="PoolTable/BallGirlMonitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.4978852)
+shape = SubResource("BoxShape3D_20w0b")
+debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
+
 [node name="Model3D" type="MeshInstance3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, -0.0015392303)
 mesh = SubResource("ArrayMesh_qqr7a")
 skeleton = NodePath("")
 
-[node name="Floor" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.0041469596, 0.75, -0.0037255334)
+[node name="TableFloor" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0041469596, 0.75, -0.0037255334)
 shape = SubResource("BoxShape3D_nqm52")
+debug_color = Color(0.73341113, 0.4715413, 7.70092e-07, 0.41960785)
 
-[node name="RailBottom" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0.798, -1.2374502)
-shape = SubResource("BoxShape3D_5ugkb")
+[node name="TableFloorBottom" type="CollisionShape3D" parent="PoolTable"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0012512207, 0.50749826, 0.0042419434)
+shape = SubResource("BoxShape3D_y227s")
+debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
-[node name="RailTop" type="CollisionShape3D" parent="PoolTable"]
+[node name="Rails" type="StaticBody3D" parent="PoolTable"]
+collision_layer = 8
+collision_mask = 5
+physics_material_override = SubResource("PhysicsMaterial_qmuqs")
+
+[node name="RailTop" type="CollisionShape3D" parent="PoolTable/Rails"]
 transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.79769385, 1.2290576)
-shape = SubResource("BoxShape3D_5ugkb")
+shape = SubResource("BoxShape3D_8ji62")
+debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
-[node name="RailLeft1" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(-4.3711392e-08, -0.34202015, 0.9396926, 0, 0.93969274, 0.34202012, -1.0000001, 1.4950176e-08, -4.1075268e-08, 0.615, 0.798, 0.602)
-shape = SubResource("BoxShape3D_5ugkb")
+[node name="RailBottom" type="CollisionShape3D" parent="PoolTable/Rails"]
+transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, -0.0015609264, 0.798, -1.2476329)
+shape = SubResource("BoxShape3D_exhwf")
+debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
-[node name="RailLeft2" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(-4.3711392e-08, -0.34202015, 0.9396926, 0, 0.93969274, 0.34202012, -1.0000001, 1.4950176e-08, -4.1075268e-08, 0.615, 0.798, -0.602)
+[node name="RailRight1" type="CollisionShape3D" parent="PoolTable/Rails"]
+transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, 0.5942321)
 shape = SubResource("BoxShape3D_5ugkb")
+debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
-[node name="RailRight1" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, -0.602)
+[node name="RailLeft1" type="CollisionShape3D" parent="PoolTable/Rails"]
+transform = Transform3D(-4.3711392e-08, -0.34202015, 0.9396926, 0, 0.93969274, 0.34202012, -1.0000001, 1.4950176e-08, -4.1075268e-08, 0.615, 0.798, 0.594)
 shape = SubResource("BoxShape3D_5ugkb")
+debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
-[node name="RailRight2" type="CollisionShape3D" parent="PoolTable"]
-transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, 0.602)
-shape = SubResource("BoxShape3D_5ugkb")
+[node name="RailRight2" type="CollisionShape3D" parent="PoolTable/Rails"]
+transform = Transform3D(-4.3711392e-08, 0.34202015, -0.93969256, 0, 0.93969274, 0.3420201, 1.0000001, 1.4950176e-08, -4.1075264e-08, -0.615, 0.798, -0.596)
+shape = SubResource("BoxShape3D_bojb6")
+debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
+
+[node name="RailLeft2" type="CollisionShape3D" parent="PoolTable/Rails"]
+transform = Transform3D(-4.3711392e-08, -0.34202015, 0.9396926, 0, 0.93969274, 0.34202012, -1.0000001, 1.4950176e-08, -4.1075268e-08, 0.615, 0.798, -0.5962148)
+shape = SubResource("BoxShape3D_yqm70")
+debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
+
+[node name="Borders" type="StaticBody3D" parent="PoolTable"]
+collision_layer = 8
+collision_mask = 7
+physics_material_override = SubResource("PhysicsMaterial_aqhji")
+
+[node name="BorderLeft" type="CollisionShape3D" parent="PoolTable/Borders"]
+transform = Transform3D(0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0, 0, 1, 0.7298369, 0.7486977, -0.00014714897)
+shape = SubResource("BoxShape3D_aqhji")
+debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
+
+[node name="BorderRight" type="CollisionShape3D" parent="PoolTable/Borders"]
+transform = Transform3D(0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0, 0, 1, -0.744, 0.739, 0)
+shape = SubResource("BoxShape3D_aqhji")
+debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
+
+[node name="BorderTop" type="CollisionShape3D" parent="PoolTable/Borders"]
+transform = Transform3D(1, 0, 0, 0, 0.9396926, 0.34202012, 0, -0.34202012, 0.9396926, 0, 0.731, 1.3389821)
+shape = SubResource("BoxShape3D_qmuqs")
+debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
+
+[node name="BorderBottom" type="CollisionShape3D" parent="PoolTable/Borders"]
+transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0.754, -1.35)
+shape = SubResource("BoxShape3D_qmuqs")
+debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
+
+[node name="ScoreMonitor" type="Area3D" parent="PoolTable"]
+collision_layer = 0
+collision_mask = 4
+
+[node name="ScoreCollision" type="CollisionShape3D" parent="PoolTable/ScoreMonitor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55650234, 0)
+shape = SubResource("BoxShape3D_nppf3")
+debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
 
 [node name="Pivot" type="Node3D" parent="."]
 
@@ -100,3 +215,23 @@ remote_path = NodePath("../../PoolTable")
 
 [node name="BallsHolder" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
+
+[node name="Scripts" type="Node" parent="."]
+
+[node name="PoolBallRespawn" type="Node" parent="Scripts" node_paths=PackedStringArray("balls_holder")]
+script = ExtResource("3_qmuqs")
+balls_holder = NodePath("../../BallsHolder")
+metadata/_custom_type_script = "uid://bmv1krpa1tpxy"
+
+[node name="PoolBallGirl" type="Node" parent="Scripts" node_paths=PackedStringArray("ball_monitor", "balls_holder")]
+script = ExtResource("4_y227s")
+ball_monitor = NodePath("../../PoolTable/BallGirlMonitor")
+balls_holder = NodePath("../../BallsHolder")
+metadata/_custom_type_script = "uid://b7qoe402kd725"
+
+[node name="PoolScoreManager" type="Node" parent="Scripts"]
+script = ExtResource("5_5ugkb")
+metadata/_custom_type_script = "uid://daxvpdvtj7m82"
+
+[connection signal="body_exited" from="PoolTable/BallGirlMonitor" to="Scripts/PoolBallGirl" method="_on_ball_monitor_body_exited"]
+[connection signal="body_entered" from="PoolTable/ScoreMonitor" to="Scripts/PoolScoreManager" method="_on_score_monitor_body_entered"]

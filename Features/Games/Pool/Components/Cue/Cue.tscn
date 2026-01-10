@@ -1,7 +1,10 @@
-[gd_scene load_steps=6 format=4 uid="uid://dr4okuny0mqw0"]
+[gd_scene load_steps=9 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
 [ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
+[ext_resource type="Script" uid="uid://drsnd4qwj3iko" path="res://Features/Games/Pool/Components/Cue/Scripts/StokeSystem.gd" id="3_0sbak"]
+[ext_resource type="Script" uid="uid://cgt6bj71wmaqr" path="res://Features/Games/Pool/Components/Cue/Scripts/InputSystem.gd" id="3_i0ne8"]
+[ext_resource type="Script" uid="uid://ddy7tkgkx1u8k" path="res://Features/Games/Pool/Components/Cue/Scripts/SpinSystem.gd" id="5_71dtw"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -43,18 +46,31 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D"]
+[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system")]
 script = ExtResource("1_fst4q")
-max_speed_reference = 10.0
-max_spin_percentage = 0.5
+stroke_system = NodePath("Scripts/CueStrokeSystem")
+spin_system = NodePath("Scripts/CueSpinSystem")
+input_system = NodePath("Scripts/CueInputSystem")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
-[node name="PoolstickBody" type="Node3D" parent="."]
+[node name="CueBody" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.468)
 
-[node name="Model3D" type="MeshInstance3D" parent="PoolstickBody"]
+[node name="Model3D" type="MeshInstance3D" parent="CueBody"]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0)
 mesh = SubResource("ArrayMesh_m6ccd")
 skeleton = NodePath("")
 
 [node name="Scripts" type="Node" parent="."]
+
+[node name="CueStrokeSystem" type="Node" parent="Scripts"]
+script = ExtResource("3_0sbak")
+metadata/_custom_type_script = "uid://drsnd4qwj3iko"
+
+[node name="CueInputSystem" type="Node" parent="Scripts"]
+script = ExtResource("3_i0ne8")
+metadata/_custom_type_script = "uid://cgt6bj71wmaqr"
+
+[node name="CueSpinSystem" type="Node" parent="Scripts"]
+script = ExtResource("5_71dtw")
+metadata/_custom_type_script = "uid://ddy7tkgkx1u8k"
