@@ -9,6 +9,8 @@ class_name Ball extends RigidBody3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
 
+signal stopped_moving
+
 var radius: float = 0.029 
 var _initial_transform: Transform3D
 
