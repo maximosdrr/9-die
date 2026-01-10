@@ -15,7 +15,7 @@ radius = 0.028631873
 
 [node name="Ball" type="RigidBody3D"]
 collision_layer = 4
-collision_mask = 5
+collision_mask = 13
 physics_material_override = SubResource("PhysicsMaterial_n5t01")
 script = ExtResource("1_eusg5")
 data = ExtResource("2_5qcrw")
@@ -23,12 +23,6 @@ metadata/_custom_type_script = "uid://crufycb4ylox5"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_bodf6")
-
-[node name="Label3D" type="Label3D" parent="."]
-transform = Transform3D(0.41786087, 0, 0, 0, 0.29796404, 0, 0, 0, 1, 0, 0.13728881, 0)
-visible = false
-text = "XXXXXX
-XXXX"
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("2_eusg5")
