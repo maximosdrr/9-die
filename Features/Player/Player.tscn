@@ -56,9 +56,10 @@ toggle_visible = true
 disable_cameras = true
 metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
-[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("context_slot")]
+[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("context_slot", "player")]
 script = ExtResource("5_llsyq")
 context_slot = NodePath("../../GameContextSlot")
+player = NodePath("../..")
 metadata/_custom_type_script = "uid://ce01x24p570hc"
 
 [node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("player", "game_context_slot")]

@@ -51,6 +51,8 @@ func process_spin_input(relative: Vector2) -> void:
 	spin_system.process_input(relative)
 
 func _process(_delta: float) -> void:
+	if not is_multiplayer_authority():
+		return
 	# Atualiza Spin visualmente
 	position.x = spin_system.current_offset.x
 	position.y = spin_system.current_offset.y
