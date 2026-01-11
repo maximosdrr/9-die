@@ -4,6 +4,7 @@ class_name Cue extends Node3D
 @export var stroke_system: CueStrokeSystem 
 @export var spin_system: CueSpinSystem
 @export var input_system: CueInputSystem
+@export var network_system: CueNetworkSystem
 
 @export_group("Power Config")
 @export var max_speed_reference: float = 10.0
@@ -11,6 +12,8 @@ class_name Cue extends Node3D
 @export var visual_gap: float = 0.01
 #Time that cue camera is locked after shot
 @export var post_shot_cooldown: float = 0.25
+
+signal strike_executed
 
 var ball_radius_offset: float = 0.04
 var is_charging: bool = false
@@ -24,12 +27,11 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	pool_game = _pool_game
 	camera_pivot = _camera_pivot
 	input_system.setup(self)
+	network_system.setup(self)
 
 func _ready() -> void:
 	_update_system_limits()
 	position.z = ball_radius_offset
-
-# --- Public API ---
 
 func start_charging() -> void:
 	if is_charging or is_locked: return # Não inicia se estiver travado
@@ -91,8 +93,15 @@ func _execute_strike(impact_speed: float) -> void:
 	var dir = -global_transform.basis.z.normalized()
 	dir.y = 0 
 	var hit_offset = Vector3(spin_system.current_offset.x, spin_system.current_offset.y, 0.0)
-	cue_ball.strike(dir, final_force, hit_offset)
 	
+	#Send signal to network stroke system
+	if multiplayer.is_server():
+		cue_ball.strike(dir, final_force, hit_offset)
+		#Call effects here
+	else:
+		print("Call effects here")
+
+	strike_executed.emit(dir, final_force, hit_offset)
 	# Reset visual
 	stroke_system.stop()
 	_animate_reset_spin()

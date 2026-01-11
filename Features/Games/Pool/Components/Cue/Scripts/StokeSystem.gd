@@ -1,8 +1,5 @@
 class_name CueStrokeSystem extends Node
 
-# Sinais para avisar o pai
-signal strike_detected(velocity: float)
-
 @export_group("Stroke Settings")
 @export var sensitivity: float = 0.005 
 @export var max_draw_distance: float = 0.8

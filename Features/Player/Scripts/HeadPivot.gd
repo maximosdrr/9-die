@@ -19,6 +19,15 @@ func _ready() -> void:
 		node = node.get_parent()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		return
+
+	if event is InputEventMouseButton and event.pressed:
+		if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+			return
+
 	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		return
 
