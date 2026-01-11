@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=10 format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Player/Scripts/Player.gd" id="1_wlwl2"]
 [ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Features/Player/Scripts/HeadPivot.gd" id="2_bd6kk"]
@@ -12,6 +12,11 @@ radius = 0.14160156
 height = 1.2376049
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_qhdlv"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_wlwl2"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D" groups=["player"]]
 collision_layer = 2
@@ -61,3 +66,6 @@ script = ExtResource("6_4uqpi")
 player = NodePath("../..")
 game_context_slot = NodePath("../../GameContextSlot")
 metadata/_custom_type_script = "uid://dw5st23gr02tm"
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_wlwl2")

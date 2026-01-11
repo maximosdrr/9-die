@@ -19,6 +19,8 @@ config/icon="res://icon.svg"
 
 Groups="*res://Autoload/Groups.gd"
 Global="*res://Autoload/Global.gd"
+NetworkManager="*res://Autoload/Network/NetworkManager.gd"
+SteamGlobals="*res://Autoload/Network/SteamGlobals.gd"
 
 [input]
 
