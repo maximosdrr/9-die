@@ -43,7 +43,9 @@ func _on_player_connected(peer_id: int) -> void:
 func _on_player_disconnected(peer_id: int) -> void:
 	print("Server: Despawning player %s" % peer_id)
 	if players_container.has_node(str(peer_id)):
-		players_container.get_node(str(peer_id)).queue_free()
+		var player = players_container.get_node(str(peer_id))
+		PlayersManager.remove_player(player)
+		player.queue_free()
 
 func _spawn_player(peer_id: int) -> void:
 	# Trigger the spawn. This sends a packet to all clients telling them:
@@ -73,5 +75,6 @@ func _initialize_player_node(data) -> Node:
 		spawn_pos = spawn_points[spawn_index].global_position
 		
 	player_instance.global_position = spawn_pos
+	PlayersManager.add_player(player_instance as Player)
 	
 	return player_instance

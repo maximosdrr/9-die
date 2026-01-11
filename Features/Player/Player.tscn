@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=11 format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Player/Scripts/Player.gd" id="1_wlwl2"]
 [ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Features/Player/Scripts/HeadPivot.gd" id="2_bd6kk"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://ce01x24p570hc" path="res://Features/Player/Scripts/PlayerGameHandler.gd" id="5_llsyq"]
 [ext_resource type="Script" uid="uid://dw5st23gr02tm" path="res://Features/Player/Scripts/ControlSwitch.gd" id="6_4uqpi"]
 [ext_resource type="Script" uid="uid://bf4tbhk58pgub" path="res://Core/ToggleNode/Toggleable.gd" id="6_wlwl2"]
+[ext_resource type="PackedScene" uid="uid://oeifsxwu2bfd" path="res://Features/Player/Components/UI/NotificationPopup.tscn" id="7_4uqpi"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
 radius = 0.14160156
@@ -70,3 +71,7 @@ metadata/_custom_type_script = "uid://dw5st23gr02tm"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 replication_config = SubResource("SceneReplicationConfig_wlwl2")
+
+[node name="UI" type="Node3D" parent="."]
+
+[node name="NotificationPopup" parent="UI" instance=ExtResource("7_4uqpi")]

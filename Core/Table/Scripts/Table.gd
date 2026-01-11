@@ -4,6 +4,7 @@ class_name Table extends Node3D
 @onready var table_game_handler: Node3D = $TableGameHandler
 @onready var player_game_controller_handler: Node3D = $PlayerGameControllerHandler
 @onready var table_influence: Area3D = $TableInfluence
+@onready var state_machine: StateMachine = $StateMachine
 
 @export_category("Scenes")
 ## This variable is used to player to instanciate the correct game controller

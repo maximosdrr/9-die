@@ -1,8 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://km1p4vfi4o1w"]
+[gd_scene load_steps=8 format=3 uid="uid://km1p4vfi4o1w"]
 
 [ext_resource type="Script" uid="uid://bv6q1nmd0jclt" path="res://Core/Table/Scripts/Table.gd" id="1_iqaas"]
-[ext_resource type="Script" uid="uid://bfqewfnpyreqm" path="res://Core/Table/Scripts/EnterGame.gd" id="2_i6bfp"]
-[ext_resource type="Script" uid="uid://cuc7ok583xqwy" path="res://Core/Table/Scripts/ExitGame.gd" id="3_jynrt"]
+[ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Table/Components/UI/StartGameUI.tscn" id="4_jynrt"]
+[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="5_7vxer"]
+[ext_resource type="Script" uid="uid://dq0i14kh66qsi" path="res://Core/Table/States/GameWaiting.gd" id="6_njalx"]
+[ext_resource type="Script" uid="uid://ci7kc3583eis2" path="res://Core/Table/States/GameStarted.gd" id="7_dge2g"]
+[ext_resource type="Script" uid="uid://dlox0xg6s8lr7" path="res://Core/Table/States/GameStarting.gd" id="7_hu1vg"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
 size = Vector3(5, 2, 5)
@@ -22,16 +25,34 @@ collision_mask = 2
 [node name="CollissionShape" type="CollisionShape3D" parent="TableInfluence"]
 shape = SubResource("BoxShape3D_i6bfp")
 
-[node name="Scripts" type="Node" parent="."]
+[node name="UI" type="Node3D" parent="."]
 
-[node name="EnterTableGame" type="Node" parent="Scripts" node_paths=PackedStringArray("table")]
-script = ExtResource("2_i6bfp")
+[node name="PoolStartGameUI" parent="UI" instance=ExtResource("4_jynrt")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1.3847563, 0)
+
+[node name="StateMachine" type="Node3D" parent="."]
+script = ExtResource("5_7vxer")
+initial_state = 3
+metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
+
+[node name="Waiting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("table_influence", "start_game_ui")]
+script = ExtResource("6_njalx")
+table_influence = NodePath("../../TableInfluence")
+start_game_ui = NodePath("../../UI/PoolStartGameUI")
+metadata/_custom_type_script = "uid://dq0i14kh66qsi"
+
+[node name="Starting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("start_game_timer", "start_game_ui")]
+script = ExtResource("7_hu1vg")
+start_game_timer = NodePath("../../Timers/StartGameTimer")
+start_game_ui = NodePath("../../UI/PoolStartGameUI")
+metadata/_custom_type_script = "uid://dlox0xg6s8lr7"
+
+[node name="Started" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("table")]
+script = ExtResource("7_dge2g")
 table = NodePath("../..")
-metadata/_custom_type_script = "uid://bfqewfnpyreqm"
+metadata/_custom_type_script = "uid://ci7kc3583eis2"
 
-[node name="ExitTableGame" type="Node" parent="Scripts"]
-script = ExtResource("3_jynrt")
-metadata/_custom_type_script = "uid://cuc7ok583xqwy"
+[node name="Timers" type="Node3D" parent="."]
 
-[connection signal="body_entered" from="TableInfluence" to="Scripts/EnterTableGame" method="_on_player_entered"]
-[connection signal="body_exited" from="TableInfluence" to="Scripts/ExitTableGame" method="_on_player_exited"]
+[node name="StartGameTimer" type="Timer" parent="Timers"]
+wait_time = 3.0
