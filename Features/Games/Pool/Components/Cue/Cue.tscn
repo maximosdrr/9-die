@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=4 uid="uid://dr4okuny0mqw0"]
+[gd_scene load_steps=11 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
 [ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
 [ext_resource type="Script" uid="uid://drsnd4qwj3iko" path="res://Features/Games/Pool/Components/Cue/Scripts/StokeSystem.gd" id="3_0sbak"]
 [ext_resource type="Script" uid="uid://cgt6bj71wmaqr" path="res://Features/Games/Pool/Components/Cue/Scripts/InputSystem.gd" id="3_i0ne8"]
 [ext_resource type="Script" uid="uid://ddy7tkgkx1u8k" path="res://Features/Games/Pool/Components/Cue/Scripts/SpinSystem.gd" id="5_71dtw"]
+[ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Games/Pool/Components/Cue/Scripts/NetworkStrokeSystem.gd" id="6_hxwsn"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -46,11 +47,20 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system")]
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_71dtw"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+
+[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system", "network_system")]
 script = ExtResource("1_fst4q")
 stroke_system = NodePath("Scripts/CueStrokeSystem")
 spin_system = NodePath("Scripts/CueSpinSystem")
 input_system = NodePath("Scripts/CueInputSystem")
+network_system = NodePath("Scripts/CueNetworkSystem")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
 [node name="CueBody" type="Node3D" parent="."]
@@ -74,3 +84,10 @@ metadata/_custom_type_script = "uid://cgt6bj71wmaqr"
 [node name="CueSpinSystem" type="Node" parent="Scripts"]
 script = ExtResource("5_71dtw")
 metadata/_custom_type_script = "uid://ddy7tkgkx1u8k"
+
+[node name="CueNetworkSystem" type="Node" parent="Scripts"]
+script = ExtResource("6_hxwsn")
+metadata/_custom_type_script = "uid://bnepmph1tr1s2"
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_71dtw")

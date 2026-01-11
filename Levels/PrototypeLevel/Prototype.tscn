@@ -1,10 +1,10 @@
 [gd_scene load_steps=12 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
+[ext_resource type="Script" uid="uid://cbjm4lhtst21l" path="res://Levels/PrototypeLevel/prototype.gd" id="1_rxpk7"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
-[ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_s6lm4"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -31,6 +31,8 @@ size = Vector2(50, 50)
 size = Vector3(49.328125, 0.01953125, 50.00792)
 
 [node name="Prototype" type="Node3D"]
+script = ExtResource("1_rxpk7")
+metadata/_custom_type_script = "uid://cbjm4lhtst21l"
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_4e5w7")
@@ -49,9 +51,26 @@ collision_mask = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="Player" parent="." instance=ExtResource("5_s6lm4")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9449847, -3.4410024)
-
 [node name="Table" parent="." instance=ExtResource("3_4e5w7")]
 game_controller_scene = ExtResource("4_y12w2")
 table_game_scene = ExtResource("5_rxpk7")
+
+[node name="PlayersContainer" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -7.1056952)
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../PlayersContainer")
+
+[node name="SpawnPoints" type="Node3D" parent="."]
+
+[node name="Marker3D" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.009784222, 0.9368825, -6.8028564)
+
+[node name="Marker3D2" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3980174, 4.2427096)
+
+[node name="Marker3D3" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5091734, 1.7421288, 0)
+
+[node name="Marker3D4" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.8232937, 1.0851369, 0)

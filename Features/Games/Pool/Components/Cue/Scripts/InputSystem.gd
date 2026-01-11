@@ -15,6 +15,9 @@ func _ready() -> void:
 		cue = get_parent()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not is_multiplayer_authority():
+		return
+	
 	if not cue: return
 	
 	if cue.is_locked:
@@ -22,7 +25,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
 		return
-
+	
 	if event.is_action_pressed("spin_modifier"):
 		if not cue.is_charging:
 			is_adjusting_spin = true

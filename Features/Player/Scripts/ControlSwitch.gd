@@ -8,6 +8,9 @@ enum ControllerStates { Player, Game }
 var current_control_state = ControllerStates.Player
 
 func _unhandled_input(_event: InputEvent) -> void:
+	if not is_multiplayer_authority():
+		return
+
 	if not Input.is_action_just_pressed("switch_control"):
 		return
 		

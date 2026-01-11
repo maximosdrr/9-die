@@ -10,33 +10,40 @@ var speed = 3
 @onready var player_model: MeshInstance3D = $FirstPerson/Model3D
 
 func _ready():
+	if !is_multiplayer_authority():
+		return
 	take_control()
 
 func take_control():
-	player_model.show() #TODO review it later on
+	if !is_multiplayer_authority():
+		return
+	player_model.show()
 	set_physics_process(true)
-	head_pivot.set_process_unhandled_input(true)
+	head_pivot.set_process_unhandled_input(true) 
 	
 	Global.camera.transition_to(remote_fps)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func give_control():
-	player_model.hide() #TODO review it later on
+	if !is_multiplayer_authority():
+		return
+	player_model.hide() 
 	set_physics_process(false)
 	velocity = Vector3.ZERO
 	
 	head_pivot.set_process_unhandled_input(false)
 
 func _physics_process(delta: float) -> void:
+	if !is_multiplayer_authority():
+		return
+
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	else:
 		velocity.y = 0
-
-	var input_dir := Input.get_vector("move_left", "move_right",  "move_forward", "move_backward")
-
-	var _basis := head_pivot.basis.orthonormalized()
-	var direction := (_basis * Vector3(-input_dir.x, 0, -input_dir.y)).normalized()
+	
+	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+	var direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	
 	if direction != Vector3.ZERO:
 		velocity.x = direction.x * speed
