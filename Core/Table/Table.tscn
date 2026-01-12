@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://dq0i14kh66qsi" path="res://Core/Table/States/GameWaiting.gd" id="6_njalx"]
 [ext_resource type="Script" uid="uid://ci7kc3583eis2" path="res://Core/Table/States/GameStarted.gd" id="7_dge2g"]
 [ext_resource type="Script" uid="uid://dlox0xg6s8lr7" path="res://Core/Table/States/GameStarting.gd" id="7_hu1vg"]
-[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/NetworkSystem.gd" id="7_r1yk8"]
+[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/NetworkBridge.gd" id="7_r1yk8"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
 size = Vector3(5, 2, 5)
