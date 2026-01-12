@@ -12,9 +12,10 @@ func _ready() -> void:
 	
 	NetworkManager.network_provider.player_connected.connect(_on_player_connect)
 	NetworkManager.network_provider.player_disconnected.connect(_on_player_disconnect)
-	print("signals connected")
 
 func _on_player_connect(peer_id: int) -> void:
+	if not is_multiplayer_authority():
+		return
 	multiplayer_spawner.spawn(peer_id)
 
 func _on_player_disconnect(peer_id: int) -> void:
