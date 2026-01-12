@@ -1,6 +1,5 @@
 extends Node
 
-var is_initialized: bool = false
 
 func _ready() -> void:
 	_initialize_steam()
@@ -11,7 +10,5 @@ func _initialize_steam() -> void:
 		push_error("Steam Init Failed: " + str(response))
 		return
 		
-	# Setup Relay for P2P connections (Essential for GodotSteam)
 	Steam.initRelayNetworkAccess()
-	is_initialized = true
 	print("Steam Initialized. User ID: ", Steam.getSteamID())

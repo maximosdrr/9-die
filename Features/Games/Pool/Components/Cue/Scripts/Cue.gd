@@ -4,7 +4,7 @@ class_name Cue extends Node3D
 @export var stroke_system: CueStrokeSystem 
 @export var spin_system: CueSpinSystem
 @export var input_system: CueInputSystem
-@export var network_system: CueNetworkSystem
+@export var stroke_network_bridge: CueNetworkStrokeBridge
 
 @export_group("Power Config")
 @export var max_speed_reference: float = 10.0
@@ -27,7 +27,7 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	pool_game = _pool_game
 	camera_pivot = _camera_pivot
 	input_system.setup(self)
-	network_system.setup(self)
+	stroke_network_bridge.setup(self)
 
 func _ready() -> void:
 	_update_system_limits()
@@ -99,9 +99,7 @@ func _execute_strike(impact_speed: float) -> void:
 		cue_ball.strike(dir, final_force, hit_offset)
 		#Call effects here
 	else:
-		print("Call effects here")
-
-	strike_executed.emit(dir, final_force, hit_offset)
+		strike_executed.emit(dir, final_force, hit_offset)
 	# Reset visual
 	stroke_system.stop()
 	_animate_reset_spin()

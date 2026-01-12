@@ -16,7 +16,10 @@ func process(_delta: float) -> void:
 	if Input.is_action_just_pressed("start_game"):
 		if players_on_influency_area.size() >= 1:
 			var metadata = {}
-			metadata.set("players", players_on_influency_area)
+			var players_ids = players_on_influency_area.map(
+				func (player) : return player.name
+			)
+			metadata.set("players_ids", players_ids)
 			state_machine.change_state(State.Type.GAME_STARTING, metadata)
 
 func _on_body_enter_in_influence_area(_body: Node3D):

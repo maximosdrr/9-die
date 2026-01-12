@@ -21,3 +21,6 @@ func remove_player(player: Player):
 		return
 	
 	players.erase(player_id)
+
+func get_player(id: int):
+	return players.get(id)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://km1p4vfi4o1w"]
+[gd_scene load_steps=9 format=3 uid="uid://km1p4vfi4o1w"]
 
 [ext_resource type="Script" uid="uid://bv6q1nmd0jclt" path="res://Core/Table/Scripts/Table.gd" id="1_iqaas"]
 [ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Table/Components/UI/StartGameUI.tscn" id="4_jynrt"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://dq0i14kh66qsi" path="res://Core/Table/States/GameWaiting.gd" id="6_njalx"]
 [ext_resource type="Script" uid="uid://ci7kc3583eis2" path="res://Core/Table/States/GameStarted.gd" id="7_dge2g"]
 [ext_resource type="Script" uid="uid://dlox0xg6s8lr7" path="res://Core/Table/States/GameStarting.gd" id="7_hu1vg"]
+[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/NetworkBridge.gd" id="7_r1yk8"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
 size = Vector3(5, 2, 5)
@@ -56,3 +57,10 @@ metadata/_custom_type_script = "uid://ci7kc3583eis2"
 
 [node name="StartGameTimer" type="Timer" parent="Timers"]
 wait_time = 3.0
+
+[node name="Scripts" type="Node" parent="."]
+
+[node name="StateMachineNetworkBridge" type="Node" parent="Scripts" node_paths=PackedStringArray("state_machine")]
+script = ExtResource("7_r1yk8")
+state_machine = NodePath("../../StateMachine")
+metadata/_custom_type_script = "uid://5qg7w6j3xyja"
