@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=9 format=3 uid="uid://cqwu27wd0ddmr"]
 
 [ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.gd" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
@@ -12,6 +12,20 @@ bounce = 0.85
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_bodf6"]
 radius = 0.028631873
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_5qcrw"]
+properties/0/path = NodePath(".:linear_velocity")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:angular_velocity")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:position")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+properties/3/path = NodePath(".:rotation")
+properties/3/spawn = true
+properties/3/replication_mode = 1
 
 [node name="Ball" type="RigidBody3D"]
 collision_layer = 4
@@ -37,3 +51,6 @@ metadata/_custom_type_script = "uid://dg6b2ab8k24x4"
 script = ExtResource("4_fcbjq")
 ball = NodePath("../..")
 metadata/_custom_type_script = "uid://d0l5psv6122rn"
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_5qcrw")

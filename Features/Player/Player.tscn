@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=11 format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://Features/Player/Scripts/Player.gd" id="1_wlwl2"]
 [ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://Features/Player/Scripts/HeadPivot.gd" id="2_bd6kk"]
@@ -6,12 +6,18 @@
 [ext_resource type="Script" uid="uid://ce01x24p570hc" path="res://Features/Player/Scripts/PlayerGameHandler.gd" id="5_llsyq"]
 [ext_resource type="Script" uid="uid://dw5st23gr02tm" path="res://Features/Player/Scripts/ControlSwitch.gd" id="6_4uqpi"]
 [ext_resource type="Script" uid="uid://bf4tbhk58pgub" path="res://Core/ToggleNode/Toggleable.gd" id="6_wlwl2"]
+[ext_resource type="PackedScene" uid="uid://oeifsxwu2bfd" path="res://Features/Player/Components/UI/NotificationPopup.tscn" id="7_4uqpi"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
 radius = 0.14160156
 height = 1.2376049
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_qhdlv"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_wlwl2"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D" groups=["player"]]
 collision_layer = 2
@@ -51,9 +57,10 @@ toggle_visible = true
 disable_cameras = true
 metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
-[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("context_slot")]
+[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("context_slot", "player")]
 script = ExtResource("5_llsyq")
 context_slot = NodePath("../../GameContextSlot")
+player = NodePath("../..")
 metadata/_custom_type_script = "uid://ce01x24p570hc"
 
 [node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("player", "game_context_slot")]
@@ -61,3 +68,10 @@ script = ExtResource("6_4uqpi")
 player = NodePath("../..")
 game_context_slot = NodePath("../../GameContextSlot")
 metadata/_custom_type_script = "uid://dw5st23gr02tm"
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_wlwl2")
+
+[node name="UI" type="Node3D" parent="."]
+
+[node name="NotificationPopup" parent="UI" instance=ExtResource("7_4uqpi")]

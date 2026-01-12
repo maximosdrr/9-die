@@ -1,8 +1,5 @@
 class_name CueStrokeSystem extends Node
 
-# Sinais para avisar o pai
-signal strike_detected(velocity: float)
-
 @export_group("Stroke Settings")
 @export var sensitivity: float = 0.005 
 @export var max_draw_distance: float = 0.8
@@ -30,6 +27,9 @@ func process_input(relative: float) -> void:
 		_accumulated_input += relative
 
 func _process(delta: float) -> void:
+	if not is_multiplayer_authority():
+		return
+	
 	if not _is_active: return
 
 	# 1. Aplica input ao draw atual
