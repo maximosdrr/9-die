@@ -2,6 +2,7 @@ class_name Player extends CharacterBody3D
 
 var gravity = 12
 var speed = 3
+var id = 1
 
 @onready var head_pivot: HeadPivot = $FirstPerson/HeadPivot
 @onready var remote_fps: RemoteTransform3D = $FirstPerson/HeadPivot/RemoteFPS

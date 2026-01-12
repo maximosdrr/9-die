@@ -1,5 +1,7 @@
 class_name StateMachine extends Node3D
 
+signal state_changed
+
 var current: State
 var previous: State
 var states: Dictionary[State.Type, State]
@@ -19,6 +21,7 @@ func change_state(type: State.Type, metadata: Dictionary[Variant, Variant]):
 		push_error(error_message)
 		return
 	
+	state_changed.emit(type, metadata)
 	current.exit(metadata)
 	
 	previous = current
