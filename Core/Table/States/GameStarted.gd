@@ -6,6 +6,7 @@ func _init() -> void:
 	self.type = State.Type.GAME_STARTED
 
 func enter(metadata: Dictionary[Variant, Variant]):
+	table.players_on_match = []
 	var players_ids = metadata.get('players_ids')
 	assert(players_ids != null)
 
@@ -18,6 +19,10 @@ func enter(metadata: Dictionary[Variant, Variant]):
 				table.current_table_game
 		)
 		
+		table.players_on_match.append(player.name)
+		
+	table.match_started.emit(table.players_on_match)
+
 func _get_player(player_id: String):
 	var players_container = get_tree().get_nodes_in_group("players_container")[0]
 	assert(players_container != null)

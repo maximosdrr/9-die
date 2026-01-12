@@ -1,33 +1,38 @@
 class_name StateMachineNetworkBridge extends Node
 
-@export var state_machine: StateMachine
-var _suppress_broadcast := false
+var state_machine: StateMachine
 
-func _ready() -> void:
-	state_machine.state_changed.connect(_on_state_change)
+func setup(_state_machine: StateMachine) -> void:
+	state_machine = _state_machine
+	
+	if multiplayer.is_server():
+		multiplayer.peer_connected.connect(_on_client_connect)
+		
 
-@rpc("any_peer", "call_remote", "reliable")
-func request_change_state(new_state: State.Type, metadata: Dictionary) -> void:
+#region Server
+func _on_client_connect(peer_id: int):
 	if not multiplayer.is_server():
 		return
+	
+	#CLIENT SETUP
+	rpc_id(peer_id, "_receive_state_from_server", state_machine.current.type, state_machine.current_metadata)
+	rpc_id(peer_id, "_connect_client_signals")
 
-	_suppress_broadcast = true
+@rpc("any_peer", "call_remote", "reliable")
+func _receive_state_from_client(new_state, metadata):
 	state_machine.change_state(new_state, metadata)
-	_suppress_broadcast = false
 
-	rpc("apply_state", new_state, metadata)
+#endregion Server
+
+#region Client
+@rpc("authority", "call_remote", "reliable")
+func _receive_state_from_server(new_state: State.Type, metadata):
+	state_machine.change_state(new_state, metadata)
 
 @rpc("authority", "call_remote", "reliable")
-func apply_state(new_state: State.Type, metadata: Dictionary) -> void:
-	_suppress_broadcast = true
-	state_machine.change_state(new_state, metadata)
-	_suppress_broadcast = false
+func _connect_client_signals():
+	state_machine.state_changed.connect(_on_client_change_state)
 
-func _on_state_change(new_state: State.Type, metadata: Dictionary) -> void:
-	if _suppress_broadcast:
-		return
-
-	if multiplayer.is_server():
-		rpc("apply_state", new_state, metadata)
-	else:
-		rpc_id(1, "request_change_state", new_state, metadata)
+func _on_client_change_state(new_state: State.Type, metadata: Dictionary[Variant, Variant]):
+	rpc_id(1, "_receive_state_from_client", new_state, metadata)
+#endregion Client

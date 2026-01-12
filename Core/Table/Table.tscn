@@ -31,9 +31,10 @@ shape = SubResource("BoxShape3D_i6bfp")
 [node name="PoolStartGameUI" parent="UI" instance=ExtResource("4_jynrt")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1.3847563, 0)
 
-[node name="StateMachine" type="Node3D" parent="."]
+[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("network_bridge")]
 script = ExtResource("5_7vxer")
 initial_state = 3
+network_bridge = NodePath("../Scripts/StateMachineNetworkBridge")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Waiting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("table_influence", "start_game_ui")]
@@ -60,7 +61,12 @@ wait_time = 3.0
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="StateMachineNetworkBridge" type="Node" parent="Scripts" node_paths=PackedStringArray("state_machine")]
+[node name="StateMachineNetworkBridge" type="Node" parent="Scripts"]
 script = ExtResource("7_r1yk8")
-state_machine = NodePath("../../StateMachine")
 metadata/_custom_type_script = "uid://5qg7w6j3xyja"
+
+[node name="DebugLabel" type="Label3D" parent="."]
+transform = Transform3D(-0.99999994, 0, -8.742277e-08, 0, 1, 0, 8.742277e-08, 0, -0.99999994, 0.32073355, 2.015948, -3.4737554)
+text = "DEBUG LABEL
+XXXX
+"

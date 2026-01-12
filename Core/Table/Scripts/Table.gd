@@ -1,10 +1,15 @@
 @tool
 class_name Table extends Node3D
 
+var players_on_match: Array[String] = []
+signal match_started(players: Array[String])
+
 @onready var table_game_handler: Node3D = $TableGameHandler
 @onready var player_game_controller_handler: Node3D = $PlayerGameControllerHandler
 @onready var table_influence: Area3D = $TableInfluence
 @onready var state_machine: StateMachine = $StateMachine
+@onready var debug_label: Label3D = $DebugLabel
+
 
 @export_category("Scenes")
 ## This variable is used to player to instanciate the correct game controller
@@ -14,6 +19,13 @@ class_name Table extends Node3D
 		table_game_scene = value
 		if Engine.is_editor_hint():
 			_rebuild_editor_preview()
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+
+	var text = "Current State: %s" % [state_machine.current.name]
+	debug_label.text = text
 
 var _editor_building := false
 var current_table_game: TableGame
@@ -32,7 +44,7 @@ func _spawn_runtime_game() -> void:
 
 	var table_game_instance := table_game_scene.instantiate()
 	assert(table_game_instance is TableGame)
-	(table_game_instance as TableGame).setup(table_influence)
+	(table_game_instance as TableGame).setup(table_influence, self)
 	
 	table_game_handler.add_child(table_game_instance)
 	current_table_game = table_game_instance

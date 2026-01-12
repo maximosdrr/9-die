@@ -12,6 +12,9 @@ func enter(_metadata: Dictionary[Variant, Variant]):
 	start_game_ui.hide()
 	_connect_signals()
 
+func exit(_metadata: Dictionary[Variant, Variant]):
+	_disconnect_signals()
+
 func process(_delta: float) -> void:
 	if Input.is_action_just_pressed("start_game"):
 		if players_on_influency_area.size() >= 1:
@@ -56,4 +59,10 @@ func _connect_signals():
 		table_influence.body_entered.connect(_on_body_enter_in_influence_area)
 	if not table_influence.body_exited.is_connected(_on_body_exited_in_influence_area):
 		table_influence.body_exited.connect(_on_body_exited_in_influence_area)
-	
+
+func _disconnect_signals():
+	if table_influence.body_entered.is_connected(_on_body_enter_in_influence_area):
+		table_influence.body_entered.disconnect(_on_body_enter_in_influence_area)
+		
+	if table_influence.body_exited.is_connected(_on_body_exited_in_influence_area):
+		table_influence.body_exited.disconnect(_on_body_exited_in_influence_area)
