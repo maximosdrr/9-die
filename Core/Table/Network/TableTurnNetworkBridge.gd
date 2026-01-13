@@ -24,8 +24,4 @@ func _rpc_sync_match_setup(players_ids: Array) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_sync_turn_update(next_player_id: String) -> void:
-	var next_player = PlayerRegistry.get_player_by_id(next_player_id)
-	
-	if next_player:
-		table_game.turn_owner = next_player
-		table_game.turn_changed.emit(next_player_id)
+	table_game.apply_new_turn(next_player_id)

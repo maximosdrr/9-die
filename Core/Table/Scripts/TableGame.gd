@@ -82,9 +82,17 @@ func call_next_turn():
 	var next_index = (current_index + 1) % turn_order.size()
 	var next_player_id = turn_order[next_index]
 	
-	var next_player = PlayerRegistry.get_player_by_id(next_player_id)
-	
-	turn_owner = next_player
-	turn_changed.emit(next_player.name)
+	apply_new_turn(next_player_id)
 	
 	print("Turn passed to: ", next_player_id)
+
+# Novo método público e centralizador
+func apply_new_turn(player_id: String) -> void:
+	var next_player = PlayerRegistry.get_player_by_id(player_id)
+	
+	if not next_player:
+		push_error("Tentativa de mudar turno para jogador inexistente: " + str(player_id))
+		return
+
+	turn_owner = next_player
+	turn_changed.emit(player_id)
