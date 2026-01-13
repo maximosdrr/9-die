@@ -28,6 +28,7 @@ func take_control():
 func give_control():
 	if !is_multiplayer_authority():
 		return
+
 	player_model.hide() 
 	set_physics_process(false)
 	velocity = Vector3.ZERO

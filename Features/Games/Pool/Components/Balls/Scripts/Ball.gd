@@ -9,7 +9,10 @@ class_name Ball extends RigidBody3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
 
-signal stopped_moving
+var index = 0
+
+signal stopped_moving(position: Vector3)
+signal striked
 
 var radius: float = 0.029 
 var _initial_transform: Transform3D
@@ -43,6 +46,8 @@ func _ready() -> void:
 	_initial_transform = global_transform
 
 func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = Vector3.ZERO) -> void:
+	striked.emit()
+
 	if total_force <= 0.0:
 		return
 
