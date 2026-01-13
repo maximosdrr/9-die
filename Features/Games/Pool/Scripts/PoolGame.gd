@@ -7,7 +7,6 @@ class_name PoolGame extends TableGame
 @onready var balls_movement_monitor: BallsMovementMonitor = $Scripts/BallsMovementMonitor
 
 var cue_ball: Ball = null
-var turn_owner: Player = null
 var balls: Array[Ball] = []
 
 func _ready() -> void:

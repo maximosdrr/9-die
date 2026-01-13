@@ -14,6 +14,7 @@ size = Vector3(5, 2, 5)
 
 [node name="Table" type="Node3D"]
 script = ExtResource("1_iqaas")
+enable_network_turn_syncronization = null
 metadata/_custom_type_script = "uid://bv6q1nmd0jclt"
 
 [node name="PlayerGameControllerHandler" type="Node3D" parent="."]
@@ -67,8 +68,7 @@ script = ExtResource("7_r1yk8")
 metadata/_custom_type_script = "uid://5qg7w6j3xyja"
 
 [node name="DebugLabel" type="Label3D" parent="."]
-transform = Transform3D(-0.99999994, 0, -8.742277e-08, 0, 1, 0, 8.742277e-08, 0, -0.99999994, 0.32073355, 2.015948, -3.4737554)
-visible = false
+transform = Transform3D(-0.99999994, 0, -8.742277e-08, 0, 1, 0, 8.742277e-08, 0, -0.99999994, 0.32073355, 1.3412044, -0.04745817)
 text = "DEBUG LABEL
 XXXX
 "

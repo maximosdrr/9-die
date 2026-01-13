@@ -2,7 +2,6 @@
 class_name Table extends Node3D
 
 var players_on_match: Array[String] = []
-signal match_started(players: Array[String])
 
 @onready var table_game_handler: Node3D = $TableGameHandler
 @onready var player_game_controller_handler: Node3D = $PlayerGameControllerHandler
@@ -10,6 +9,9 @@ signal match_started(players: Array[String])
 @onready var state_machine: StateMachine = $StateMachine
 @onready var debug_label: Label3D = $DebugLabel
 @onready var game_mode_handler: GameModeHandler = $GameModeHandler
+
+@export_category("NetworkConfiguration")
+@export var enable_network_turn_syncronization := true
 
 @export_category("GameMode")
 @export var game_modes: Array[GameMode]
@@ -26,6 +28,13 @@ signal match_started(players: Array[String])
 
 var _editor_building := false
 var current_table_game: TableGame
+
+func _process(delta: float) -> void:
+	if current_table_game == null or current_table_game.turn_owner == null:
+		return
+
+	var msg = "Current player turn: %s" % [current_table_game.turn_owner.name]
+	debug_label.text = msg
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
