@@ -2,7 +2,7 @@ class_name TableGame extends Node3D
 
 var players_on_area: Dictionary[int, Player] = {}
 var table_influence_area: Area3D
-var players_container: Node3D
+var players_container: PlayersContainer
 var table: Table
 
 func setup(_influence_area: Area3D, _table: Table) -> void:
