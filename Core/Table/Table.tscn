@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://dq0i14kh66qsi" path="res://Core/Table/States/GameWaiting.gd" id="6_njalx"]
 [ext_resource type="Script" uid="uid://ci7kc3583eis2" path="res://Core/Table/States/GameStarted.gd" id="7_dge2g"]
 [ext_resource type="Script" uid="uid://dlox0xg6s8lr7" path="res://Core/Table/States/GameStarting.gd" id="7_hu1vg"]
-[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/NetworkBridge.gd" id="7_r1yk8"]
+[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/Network/PublicStateSyncronizer.gd" id="7_r1yk8"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
 size = Vector3(5, 2, 5)
@@ -31,10 +31,10 @@ shape = SubResource("BoxShape3D_i6bfp")
 [node name="PoolStartGameUI" parent="UI" instance=ExtResource("4_jynrt")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1.3847563, 0)
 
-[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("network_bridge")]
+[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("public_state_syncronizer")]
 script = ExtResource("5_7vxer")
 initial_state = 3
-network_bridge = NodePath("../Scripts/StateMachineNetworkBridge")
+public_state_syncronizer = NodePath("../Scripts/PublicStateSyncronizer")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Waiting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("table_influence", "start_game_ui")]
@@ -61,7 +61,7 @@ wait_time = 3.0
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="StateMachineNetworkBridge" type="Node" parent="Scripts"]
+[node name="PublicStateSyncronizer" type="Node" parent="Scripts"]
 script = ExtResource("7_r1yk8")
 metadata/_custom_type_script = "uid://5qg7w6j3xyja"
 

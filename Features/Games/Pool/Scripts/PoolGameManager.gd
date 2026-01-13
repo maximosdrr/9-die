@@ -11,5 +11,5 @@ func setup(_pool_game: PoolGame):
 	pool_game.table.match_started.connect(_on_match_started)
 
 func _on_match_started(players: Array[String]):
-	print(players)
+	print(multiplayer.get_unique_id(), " - ", "Players: ", players)
 	return

@@ -9,16 +9,19 @@ var current_metadata = {}
 
 @export var enabled: bool = true
 @export var initial_state: State.Type
-@export var network_bridge: StateMachineNetworkBridge = null
+@export var public_state_syncronizer: PublicStateSyncronizer = null
 
 func _ready() -> void:
 	_setup_states()
 	_setup_initial_state()
 	
-	if network_bridge != null:
-		network_bridge.setup(self)
+	if public_state_syncronizer != null:
+		public_state_syncronizer.setup(self)
 
 func change_state(type: State.Type, metadata: Dictionary[Variant, Variant]):
+	if current.type == type:
+		return
+	
 	var new_state = states[type]
 	
 	if new_state == null:
