@@ -38,7 +38,7 @@ func start_placement(ball: Ball) -> void:
 	_prepare_ball_for_placement()
 
 	set_process_unhandled_input(true)
-	print("Ball In Hand: Posicione a bola ", _ball.name)
+	print("Ball In Hand: Place the ball ", _ball.name)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _is_placing or not is_instance_valid(_ball) or Global.camera == null:

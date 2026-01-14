@@ -43,7 +43,6 @@ func _initialize_player_node(peer_id: int) -> Node:
 	var spawn_index = players_count % spawn_points.size()
 	
 	var spawn_point = spawn_points[spawn_index]
-	print(spawn_point.name, " - ", spawn_point.global_transform)
 	player_instance.global_transform = spawn_point.global_transform
 	
 	return player_instance

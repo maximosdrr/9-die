@@ -113,7 +113,7 @@ func _start_ball_in_hand():
 	ball_placement_manager.start_placement(cue_ball)
 
 func _on_ball_placement_finished():
-	print("Posicionamento concluído. O Jogador " + pool_game.turn_owner.name + " pode realizar a tacada.")
+	print("Ball Placement done. Player " + pool_game.turn_owner.name + " can now strike.")
 
 # --- Helpers ---
 
