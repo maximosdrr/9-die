@@ -13,4 +13,4 @@ func request_strike(dir: Vector3, final_force: float, hit_offset: Vector3):
 	cue.cue_ball.strike(dir, final_force, hit_offset)
 	
 func _call_strike(dir: Vector3, final_force: float, hit_offset: Vector3):
-	rpc_id(1, "request_strike", dir, final_force, hit_offset) # 1 = server normalmente
+	rpc_id(1, "request_strike", dir, final_force, hit_offset)

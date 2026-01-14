@@ -22,4 +22,5 @@ func physics_process(delta: float) -> void:
 	
 	if ball.linear_velocity.length() <= stop_speed_threshold:
 		state_machine.change_state(State.Type.IDLE, {})
+		ball.stopped_moving.emit(ball.global_position)
 	

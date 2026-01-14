@@ -4,8 +4,12 @@ class_name PoolController extends PlayerGameController
 @onready var aim_pivot: AimCameraPivot = $AimPivot
 @onready var cue: Cue = $AimPivot/Elevation/Cue
 
-func setup(_parent: Node3D, table_game: TableGame):
-	var pool_game = table_game as PoolGame
+var pool_game: PoolGame
+var player: Player
+
+func setup(_parent: Player, table_game: TableGame):
+	player = _parent
+	pool_game = table_game as PoolGame
 	
 	assert(pool_game != null)
 	assert(pool_game is PoolGame)
@@ -14,6 +18,14 @@ func setup(_parent: Node3D, table_game: TableGame):
 	cue.setup(pool_game, aim_pivot)
 
 func take_control():
+	#if pool_game.turn_owner == null:
+		#push_error("Game not started yet! Table.turn_owner is null")
+		#return
+#
+	#if player.name != pool_game.turn_owner.name:
+		#push_error("Cannot take control, it's not your turn!")
+		#return
+
 	show()
 	set_process_unhandled_input(true)
 	set_process(true)

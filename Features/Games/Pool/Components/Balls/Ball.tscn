@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=10 format=3 uid="uid://cqwu27wd0ddmr"]
 
 [ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.gd" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
@@ -27,6 +27,9 @@ properties/3/path = NodePath(".:rotation")
 properties/3/spawn = true
 properties/3/replication_mode = 1
 
+[sub_resource type="SphereShape3D" id="SphereShape3D_5qcrw"]
+radius = 0.029
+
 [node name="Ball" type="RigidBody3D"]
 collision_layer = 4
 collision_mask = 13
@@ -54,3 +57,13 @@ metadata/_custom_type_script = "uid://d0l5psv6122rn"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 replication_config = SubResource("SceneReplicationConfig_5qcrw")
+
+[node name="Hitbox" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
+shape = SubResource("SphereShape3D_5qcrw")
+debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
+
+[connection signal="body_entered" from="Hitbox" to="." method="_on_body_entered"]

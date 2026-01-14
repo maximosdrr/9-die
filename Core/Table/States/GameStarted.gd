@@ -20,5 +20,5 @@ func enter(metadata: Dictionary[Variant, Variant]):
 		)
 		
 		table.players_on_match.append(player.name)
-		
-	table.match_started.emit(table.players_on_match)
+	
+	table.current_table_game.setup_first_turn(players_ids)

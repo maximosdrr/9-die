@@ -21,6 +21,7 @@ const COLORED_BALL_MESHES = [
 
 var ball_diameter: float = 0.029 
 var cue_ball: Ball = null 
+var balls: Array[Ball] = []
 
 func _ready() -> void:
 	spawn_cue_ball()
@@ -66,4 +67,7 @@ func create_colored_ball(visual_resource: PackedScene, pos: Vector3, number: int
 	
 	ball_instance.position = pos
 	ball_instance.name = "Ball_" + str(number)
+	ball_instance.index = number
 	balls_holder.add_child(ball_instance)
+	
+	balls.append(ball_instance)

@@ -38,6 +38,8 @@ func _switch_to_player(game_controller: PlayerGameController):
 	current_control_state = ControllerStates.Player
 		
 func _switch_to_game(game_controller: PlayerGameController):
+	#TODO verify if can take control before give control
+	#Otherwise if you cannot take control at that moment you will be in a limbo
 	player.give_control()
 	game_controller.take_control()
 	current_control_state = ControllerStates.Game
