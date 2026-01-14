@@ -10,6 +10,10 @@ var id = 1
 @onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
 @onready var player_model: MeshInstance3D = $FirstPerson/Model3D
 
+enum ControllerStates { Player, Game }
+
+var current_control_state = ControllerStates.Player
+
 func _ready():
 	if !is_multiplayer_authority():
 		return
@@ -18,12 +22,14 @@ func _ready():
 func take_control():
 	if !is_multiplayer_authority():
 		return
+	
 	player_model.show()
 	set_physics_process(true)
 	head_pivot.set_process_unhandled_input(true) 
 	
 	Global.camera.transition_to(remote_fps)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	current_control_state = ControllerStates.Player
 
 func give_control():
 	if !is_multiplayer_authority():
@@ -34,6 +40,7 @@ func give_control():
 	velocity = Vector3.ZERO
 	
 	head_pivot.set_process_unhandled_input(false)
+	current_control_state = ControllerStates.Game
 
 func _physics_process(delta: float) -> void:
 	if !is_multiplayer_authority():

@@ -10,7 +10,7 @@ var turn_owner: Player
 var network_turn_syncronization: TableTurnNetworkBridge
 
 signal turn_changed(next_player_name: String, context_data: Dictionary)
-signal match_started(players_ids: Array)
+signal match_started(players_ids: Array, first_turn_player: String)
 
 func setup(_table: Table) -> void:
 	table = _table
@@ -70,7 +70,7 @@ func setup_first_turn(players: Array):
 	
 	turn_owner = player
 	print("Game started! First player is: ", turn_owner.name)
-	match_started.emit(players)
+	match_started.emit(players, str(first_turn_owner_id))
 	
 func call_next_turn(context_data: Dictionary = {}):
 	var current_id = turn_owner.name

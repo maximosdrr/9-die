@@ -16,16 +16,22 @@ func setup(_parent: Player, table_game: TableGame):
 	
 	aim_pivot.setup(pool_game)
 	cue.setup(pool_game, aim_pivot)
+	
+	pool_game.turn_changed.connect(_on_turn_change)
+	pool_game.match_started.connect(_on_match_starts)
 
 func take_control():
-	#if pool_game.turn_owner == null:
-		#push_error("Game not started yet! Table.turn_owner is null")
-		#return
-#
-	#if player.name != pool_game.turn_owner.name:
-		#push_error("Cannot take control, it's not your turn!")
-		#return
+	if not is_multiplayer_authority():
+		return
 
+	if pool_game.turn_owner == null:
+		push_error("Game not started yet! Table.turn_owner is null")
+		return
+#
+	if player.name != pool_game.turn_owner.name:
+		push_error("Cannot take control, it's not your turn!")
+		return
+	
 	show()
 	set_process_unhandled_input(true)
 	set_process(true)
@@ -38,6 +44,9 @@ func take_control():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func give_control():
+	if not is_multiplayer_authority():
+		return
+
 	hide()
 	Global.camera.set_global_camera_fov(75)
 	set_process_unhandled_input(false)
@@ -45,3 +54,19 @@ func give_control():
 	
 	aim_pivot.set_process(false)
 	aim_pivot.set_process_unhandled_input(false)
+
+func _apply_control(turn_owner_id: String):
+	if turn_owner_id == player.name:
+		can_take_control = true
+		player.give_control()
+		take_control()
+	else:
+		can_take_control = false
+		give_control()
+		player.take_control()
+
+func _on_match_starts(_players: Array, first_turn_player_id: String):
+	_apply_control(first_turn_player_id)
+
+func _on_turn_change(next_player_name: String, _context_data: Dictionary):
+	_apply_control(next_player_name)

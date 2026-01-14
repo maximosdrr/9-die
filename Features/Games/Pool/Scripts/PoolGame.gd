@@ -22,5 +22,4 @@ func _ready() -> void:
 
 func _handle_turn_context(data: Dictionary):
 	if data.get("ball_in_hand", false) == true:
-		print("Context received trough network")
 		ball_placement_manager.start_placement(cue_ball)

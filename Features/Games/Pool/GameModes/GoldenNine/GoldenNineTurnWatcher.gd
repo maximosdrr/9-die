@@ -115,8 +115,6 @@ func _start_ball_in_hand():
 func _on_ball_placement_finished():
 	print("Ball Placement done. Player " + pool_game.turn_owner.name + " can now strike.")
 
-# --- Helpers ---
-
 func _extend_turn():
 	print("Turn extended for: ", pool_game.turn_owner.name)
 
