@@ -89,7 +89,7 @@ func _apply_turn_action(action: GameMode.TurnActions):
 			pool_game.call_next_turn()
 			
 		GameMode.TurnActions.EXTEND_TURN:
-			_extend_turn()
+			pool_game.extend_current_turn({})
 			
 		GameMode.TurnActions.CALL_FOUL_WITH_ACTION:
 			var turn_context = {
@@ -115,8 +115,6 @@ func _start_ball_in_hand():
 func _on_ball_placement_finished():
 	print("Ball Placement done. Player " + pool_game.turn_owner.name + " can now strike.")
 
-func _extend_turn():
-	print("Turn extended for: ", pool_game.turn_owner.name)
 
 func _call_end_game_with_winner():
 	print("Game Over! Winner: ", pool_game.turn_owner.name)

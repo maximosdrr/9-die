@@ -11,6 +11,7 @@ var network_turn_syncronization: TableTurnNetworkBridge
 
 signal turn_changed(next_player_name: String, context_data: Dictionary)
 signal match_started(players_ids: Array, first_turn_player: String)
+signal turn_extended(context_data: Dictionary)
 
 func setup(_table: Table) -> void:
 	table = _table
@@ -99,6 +100,16 @@ func apply_new_turn(player_id: String, context_data: Dictionary = {}) -> void:
 	
 	turn_changed.emit(player_id, context_data)
 
-# Método virtual que cada jogo implementa do seu jeito
+func extend_current_turn(context_data: Dictionary = {}):
+	apply_turn_extension(context_data)
+	print("Turn extended for: ", turn_owner.name)
+
+func apply_turn_extension(context_data: Dictionary = {}):
+	turn_extended.emit(context_data)
+	_handle_turn_extension_context(context_data)
+
+func _handle_turn_extension_context(data: Dictionary):
+	pass
+
 func _handle_turn_context(data: Dictionary):
 	pass
