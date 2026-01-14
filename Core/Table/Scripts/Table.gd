@@ -8,14 +8,9 @@ var players_on_match: Array[String] = []
 @onready var table_influence: Area3D = $TableInfluence
 @onready var state_machine: StateMachine = $StateMachine
 @onready var debug_label: Label3D = $DebugLabel
-@onready var game_mode_handler: GameModeHandler = $GameModeHandler
 
 @export_category("NetworkConfiguration")
 @export var enable_network_turn_syncronization := true
-
-@export_category("GameMode")
-@export var game_modes: Array[GameMode]
-@export var initial_game_mode: GameMode.Type
 
 @export_category("Scenes")
 ## This variable is used to player to instanciate the correct game controller

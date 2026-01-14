@@ -18,6 +18,7 @@ signal strike_executed
 var ball_radius_offset: float = 0.04
 var is_charging: bool = false
 var is_locked: bool = false
+var strike_is_locked: bool = true
 var pool_game: PoolGame
 var cue_ball: Ball
 var camera_pivot: AimCameraPivot
@@ -28,13 +29,32 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	camera_pivot = _camera_pivot
 	input_system.setup(self)
 	stroke_network_bridge.setup(self)
+	if not pool_game.match_started.is_connected(_on_match_start):
+		pool_game.match_started.connect(_on_match_start)
+	
+	if not pool_game.turn_changed.is_connected(_on_turn_change):
+		pool_game.turn_changed.connect(_on_turn_change)
+	
+	if not pool_game.turn_extended.is_connected(_on_turn_extendes):
+		pool_game.turn_extended.connect(_on_turn_extendes)
 
 func _ready() -> void:
 	_update_system_limits()
 	position.z = ball_radius_offset
 
+func _on_match_start(_players_ids: Array, first_turn_player: String):
+	if int(first_turn_player) == multiplayer.get_unique_id():
+		strike_is_locked = false
+
+func _on_turn_change(next_player_name: String, _context_data: Dictionary):
+	if int(next_player_name) == multiplayer.get_unique_id():
+		strike_is_locked = false
+
+func _on_turn_extendes(_context_data: Dictionary):
+	strike_is_locked = false
+
 func start_charging() -> void:
-	if is_charging or is_locked: return # Não inicia se estiver travado
+	if is_charging or is_locked or strike_is_locked: return
 	is_charging = true
 	stroke_system.start_charging(position.z)
 
@@ -78,10 +98,11 @@ func _process(_delta: float) -> void:
 
 func _execute_strike(impact_speed: float) -> void:
 	if not cue_ball: return
-	
+	if strike_is_locked: return
 	# 1. Ativa o BLOQUEIO imediatamente
 	is_locked = true 
 	is_charging = false
+	strike_is_locked = true
 	
 	# Cálculo de força
 	var raw_power = clamp(impact_speed / max_speed_reference, 0.0, 1.0)

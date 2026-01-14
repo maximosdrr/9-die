@@ -7,6 +7,8 @@ extends Node3D
 @export var mouse_sensitivity: float = 0.005
 @export var distance_from_ball: float = 0.55
 @export var height_offset: float = 0.1
+@export var transition_duration: float = 0.25
+
 @export_subgroup("Limits")
 @export var min_pitch_deg: float = -25.0
 @export var max_pitch_deg: float = 0.0
@@ -16,15 +18,25 @@ var curren_max_pitch_deg = 0.0
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
 var target: Ball
+var pool_game: PoolGame
+var _tween: Tween
 
-func setup(pool_game: PoolGame):
-	target = pool_game.cue_ball
+func setup(_pool_game: PoolGame):
+	target = _pool_game.cue_ball
+	pool_game = _pool_game
+	
+	if not pool_game.turn_changed.is_connected(_on_turn_changed):
+		pool_game.turn_changed.connect(_on_turn_changed)
+	if not pool_game.match_started.is_connected(_on_match_started):
+		pool_game.match_started.connect(_on_match_started)
+	if not pool_game.turn_extended.is_connected(_on_turn_extended):
+		pool_game.turn_extended.connect(_on_turn_extended)
 
 func _ready() -> void:
 	curren_max_pitch_deg = max_pitch_deg
 	set_as_top_level(true)
 	_initialize_rotation()
-
+	set_process(false)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -38,15 +50,29 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		_rotate_camera(event.relative)
 
-func _process(delta: float) -> void:
-	if target == null:
-		return
 
-	if target.state_machine.current.type == State.Type.MOVING:
-		return
+func _on_turn_extended(_context_data: Dictionary):
+	_move_smoothly_to_target()
+
+func _on_turn_changed(_next_player_name: String, _context_data: Dictionary):
+	_move_smoothly_to_target()
+
+func _on_match_started(_players_ids: Array, _first_turn_player: String):
+	if target:
+		global_position = target.global_position
+
+func _move_smoothly_to_target():
+	if not target: return
 	
-	global_position = global_position.\
-		lerp(target.global_position, delta * 25.0)
+	if _tween: _tween.kill()
+	
+	_tween = create_tween()
+	
+	_tween.set_trans(Tween.TRANS_CUBIC)
+	_tween.set_ease(Tween.EASE_OUT)
+	
+	_tween.tween_property(self, "global_position", target.global_position, transition_duration)
+
 
 func _initialize_rotation() -> void:
 	_rot_y = rotation.y
