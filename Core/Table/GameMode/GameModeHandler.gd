@@ -9,5 +9,5 @@ func _ready() -> void:
 		if node is GameMode:
 			modes.append(node)
 
-func resolve_turn(context: Dictionary) -> GameMode.TurnActions:
+func resolve_turn(context: Object) -> GameMode.TurnActions:
 	return current_game_mode.resolve_turn(context)

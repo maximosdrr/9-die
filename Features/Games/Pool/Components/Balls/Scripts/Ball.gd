@@ -13,6 +13,7 @@ var index = 0
 
 signal stopped_moving(position: Vector3)
 signal striked
+signal ball_contacted(ball: Ball)
 
 var radius: float = 0.029 
 var _initial_transform: Transform3D
@@ -91,3 +92,8 @@ func _physics_process(_delta: float) -> void:
 		angular_damp = 1.0 
 	else:
 		angular_damp = data.angular_damp
+
+
+func _on_body_entered(body: Node) -> void:
+	if body is Ball:
+		ball_contacted.emit(body)

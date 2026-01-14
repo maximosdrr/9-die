@@ -86,7 +86,6 @@ func call_next_turn():
 	
 	print("Turn passed to: ", next_player_id)
 
-# Novo método público e centralizador
 func apply_new_turn(player_id: String) -> void:
 	var next_player = PlayerRegistry.get_player_by_id(player_id)
 	
