@@ -1,9 +1,8 @@
-[gd_scene load_steps=14 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=13 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
-[ext_resource type="Script" uid="uid://c3oml4nmfm8ni" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNine.gd" id="5_obyne"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://cma5b7oyrsijb" path="res://Core/Level/NetworkLevelManager.gd" id="5_s6lm4"]
 [ext_resource type="Script" uid="uid://beujd6xojmcbc" path="res://Autoload/PlayersContainer/PlayersContainer.gd" id="5_wwpfk"]
@@ -51,14 +50,9 @@ collision_mask = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="Table" parent="." node_paths=PackedStringArray("game_modes") instance=ExtResource("3_4e5w7")]
-game_modes = [NodePath("NineBallMode")]
+[node name="Table" parent="." instance=ExtResource("3_4e5w7")]
 game_controller_scene = ExtResource("4_y12w2")
 table_game_scene = ExtResource("5_rxpk7")
-
-[node name="NineBallMode" type="Node" parent="Table"]
-script = ExtResource("5_obyne")
-metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
 
 [node name="Multiplayer" type="Node3D" parent="."]
 

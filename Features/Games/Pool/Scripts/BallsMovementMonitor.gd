@@ -15,7 +15,7 @@ signal balls_moving
 
 func setup(_pool_game: PoolGame):
 	pool_game = _pool_game
-	balls = _pool_game.balls
+	balls = _pool_game.balls.duplicate()
 	balls.append(pool_game.cue_ball)
 
 func _process(delta: float) -> void:

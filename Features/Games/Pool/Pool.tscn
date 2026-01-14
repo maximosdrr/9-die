@@ -1,13 +1,16 @@
-[gd_scene load_steps=27 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=30 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
 [ext_resource type="Script" uid="uid://chiuo5s528lxj" path="res://Features/Games/Pool/Scripts/GroundScoreMonitor.gd" id="3_exhwf"]
 [ext_resource type="Script" uid="uid://bmv1krpa1tpxy" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.gd" id="3_qmuqs"]
 [ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/BallGirl.gd" id="4_y227s"]
-[ext_resource type="Script" uid="uid://y72pphul62gh" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineTurnWatcher.gd" id="5_5ugkb"]
+[ext_resource type="Script" uid="uid://y72pphul62gh" path="res://Features/Games/Pool/GameModes/GoldenNine/TurnResolver.gd" id="5_5ugkb"]
 [ext_resource type="Script" uid="uid://dak3kydlshkpb" path="res://Features/Games/Pool/Scripts/BallsMovementMonitor.gd" id="6_20w0b"]
+[ext_resource type="Script" uid="uid://cm8rk3wxalspc" path="res://Core/Table/GameMode/GameModeHandler.gd" id="8_bojb6"]
 [ext_resource type="Script" uid="uid://b26iaj5fixb40" path="res://Features/Games/Pool/Scripts/BallPlacementManager.gd" id="8_rm535"]
+[ext_resource type="Script" uid="uid://c3oml4nmfm8ni" path="res://Features/Games/Pool/GameModes/GoldenNine/TurnRuler.gd" id="8_yqm70"]
+[ext_resource type="Script" uid="uid://c7lqh1twjwxm" path="res://Features/Games/Pool/GameModes/GoldenNine/GameMode.gd" id="9_nppf3"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
@@ -236,10 +239,6 @@ script = ExtResource("4_y227s")
 ball_off_monitor = NodePath("../../PoolTable/BallOffMonitor")
 metadata/_custom_type_script = "uid://b7qoe402kd725"
 
-[node name="GoldenNineTurnWatcher" type="Node" parent="Scripts"]
-script = ExtResource("5_5ugkb")
-metadata/_custom_type_script = "uid://y72pphul62gh"
-
 [node name="BallsMovementMonitor" type="Node" parent="Scripts"]
 script = ExtResource("6_20w0b")
 metadata/_custom_type_script = "uid://dak3kydlshkpb"
@@ -248,5 +247,25 @@ metadata/_custom_type_script = "uid://dak3kydlshkpb"
 script = ExtResource("8_rm535")
 overhead_view_remote = NodePath("../../Pivot/RemoteTop")
 metadata/_custom_type_script = "uid://b26iaj5fixb40"
+
+[node name="GameModeHandler" type="Node" parent="." node_paths=PackedStringArray("current_game_mode")]
+script = ExtResource("8_bojb6")
+current_game_mode = NodePath("GoldenNine")
+metadata/_custom_type_script = "uid://cm8rk3wxalspc"
+
+[node name="GoldenNine" type="Node" parent="GameModeHandler"]
+script = ExtResource("9_nppf3")
+metadata/_custom_type_script = "uid://c7lqh1twjwxm"
+
+[node name="Ruler" type="Node" parent="GameModeHandler/GoldenNine"]
+script = ExtResource("8_yqm70")
+metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
+
+[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("turn_ruler", "ball_placement_manager", "off_table_monitor")]
+script = ExtResource("5_5ugkb")
+turn_ruler = NodePath("../Ruler")
+ball_placement_manager = NodePath("../../../Scripts/BallPlacementManager")
+off_table_monitor = NodePath("../../../Scripts/OffTableMonitor")
+metadata/_custom_type_script = "uid://y72pphul62gh"
 
 [connection signal="body_entered" from="PoolTable/ScoreMonitor" to="PoolTable/ScoreMonitor" method="_on_body_entered"]

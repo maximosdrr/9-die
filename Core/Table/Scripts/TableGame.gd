@@ -17,7 +17,6 @@ func setup(_table: Table) -> void:
 	table = _table
 	assert(table.table_influence is Area3D)
 	table_influence_area = table.table_influence
-	_setup_game_modes()
 	_setup_network_turn_syncronization(self)
 	_connect_signals()
 	
@@ -34,17 +33,6 @@ func _setup_network_turn_syncronization(_table_game: TableGame):
 	# 3. Now it's safe to run setup (and connect signals)
 	network_turn_syncronization.setup(_table_game)
 
-func _setup_game_modes():
-	game_mode_handler = table.game_mode_handler
-	
-	for game_mode in table.game_modes:
-		if not game_mode is GameMode: return
-		
-		game_mode.reparent(game_mode_handler)
-		
-		if game_mode.type == table.initial_game_mode:
-			game_mode_handler.current_game_mode = game_mode 
-	
 func _connect_signals() -> void:
 	if not table_influence_area.body_entered.is_connected(_on_table_influence_body_entered):
 		table_influence_area.body_entered.connect(_on_table_influence_body_entered)
@@ -96,8 +84,10 @@ func apply_new_turn(player_id: String, context_data: Dictionary = {}) -> void:
 
 	turn_owner = next_player
 	
-	_handle_turn_context(context_data)
-	
+	if game_mode_handler:
+		game_mode_handler.current_game_mode.turn_resolver.handle_new_turn_context(context_data)
+	else:
+		push_warning("Game mode handler is not configured on table: ", name)
 	turn_changed.emit(player_id, context_data)
 
 func extend_current_turn(context_data: Dictionary = {}):
@@ -106,10 +96,7 @@ func extend_current_turn(context_data: Dictionary = {}):
 
 func apply_turn_extension(context_data: Dictionary = {}):
 	turn_extended.emit(context_data)
-	_handle_turn_extension_context(context_data)
-
-func _handle_turn_extension_context(data: Dictionary):
-	pass
-
-func _handle_turn_context(data: Dictionary):
-	pass
+	if game_mode_handler:
+		game_mode_handler.current_game_mode.turn_resolver.handle_turn_extension_context(context_data)
+	else:
+		push_warning("Game mode handler is not configured on table: ", name)

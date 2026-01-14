@@ -1,9 +1,10 @@
-class_name GoldenNineTurnWatcher extends Node
+class_name GoldenNineTurnResolver extends TurnResolver
+
+@export var turn_ruler: TurnRuler
+@export var ball_placement_manager: BallPlacementManager
+@export var off_table_monitor: OffTableMonitor
 
 var pool_game: PoolGame
-var game_mode_handler: GameModeHandler
-var ball_placement_manager: BallPlacementManager
-
 var balls_scored: Dictionary[int, Ball] = {}
 var balls_in_game: Dictionary[int, Ball] = {}
 var cue_ball: Ball
@@ -11,14 +12,11 @@ var cue_ball: Ball
 var _first_ball_hit: Ball = null
 var _balls_off_table_list: Array[Ball] = []
 
-func setup(_pool_game: PoolGame):
+func setup(_pool_game: TableGame):
 	pool_game = _pool_game
 	cue_ball = _pool_game.cue_ball
-	game_mode_handler = _pool_game.game_mode_handler
 	
-	# Assumindo que o manager já existe no PoolGame
 	ball_placement_manager = _pool_game.ball_placement_manager
-	# Conectamos o sinal para saber quando o jogador terminou de posicionar
 	ball_placement_manager.placement_finished.connect(_on_ball_placement_finished)
 	
 	pool_game.cue_ball.striked.connect(_on_strike)
@@ -54,14 +52,14 @@ func _on_strike():
 		if current_balls_remaining.has(ball.index):
 			current_balls_remaining.erase(ball.index)
 	
-	var context = TurnContext.new()
-	context.balls_scored = balls_scored.duplicate()
-	context.first_ball_touched = _first_ball_hit
-	context.balls_off_table = _balls_off_table_list.duplicate()
-	context.target_ball = target_ball
+	var context = {}
 	
-	var resolve_turn_action = game_mode_handler.resolve_turn(context)
+	context["balls_scored"] = balls_scored.duplicate()
+	context["first_ball_touched"] = _first_ball_hit
+	context["balls_off_table"] = _balls_off_table_list.duplicate()
+	context["target_ball"] = target_ball
 	
+	var resolve_turn_action = turn_ruler.rule(context)
 	balls_in_game = current_balls_remaining
 	
 	_apply_turn_action(resolve_turn_action)
@@ -83,25 +81,25 @@ func _on_ball_touch_score_ground(body: Node3D):
 	if body is Ball:
 		balls_scored[body.index] = body
 
-func _apply_turn_action(action: GameMode.TurnActions):
+func _apply_turn_action(action: TurnRuler.Actions):
 	match action:
-		GameMode.TurnActions.CALL_NEXT_TURN:
+		TurnRuler.Actions.CALL_NEXT_TURN:
 			pool_game.call_next_turn()
 			
-		GameMode.TurnActions.EXTEND_TURN:
+		TurnRuler.Actions.EXTEND_TURN:
 			pool_game.extend_current_turn({})
 			
-		GameMode.TurnActions.CALL_FOUL_WITH_ACTION:
+		TurnRuler.Actions.CALL_FOUL_WITH_ACTION:
 			var turn_context = {
 				"ball_in_hand": true,
 				"foul_reason": "scratch" 
 			}
 			pool_game.call_next_turn(turn_context)
 			
-		GameMode.TurnActions.END_GAME_FATAL_FOUL:
+		TurnRuler.Actions.END_GAME_FATAL_FOUL:
 			_call_end_game_with_fatal_foul()
 			
-		GameMode.TurnActions.END_GAME_PLAYER_WIN:
+		TurnRuler.Actions.END_GAME_PLAYER_WIN:
 			_call_end_game_with_winner()
 
 func _start_ball_in_hand():
@@ -115,15 +113,8 @@ func _start_ball_in_hand():
 func _on_ball_placement_finished():
 	print("Ball Placement done. Player " + pool_game.turn_owner.name + " can now strike.")
 
-
 func _call_end_game_with_winner():
 	print("Game Over! Winner: ", pool_game.turn_owner.name)
 
 func _call_end_game_with_fatal_foul():
 	print("Game Over! Fatal Foul by: ", pool_game.turn_owner.name)
-
-class TurnContext:
-	var balls_scored: Dictionary[int, Ball] = {}
-	var first_ball_touched: Ball = null
-	var balls_off_table: Array[Ball] = []
-	var target_ball: Ball = null

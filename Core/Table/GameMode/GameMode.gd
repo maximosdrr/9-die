@@ -1,19 +1,13 @@
 class_name GameMode extends Node
 
-enum TurnActions {
-	CALL_FOUL,
-	CALL_FOUL_WITH_ACTION,
-	CALL_NEXT_TURN,
-	EXTEND_TURN,
-	END_GAME_FATAL_FOUL,
-	END_GAME_PLAYER_WIN,
-}
+var turn_ruler: TurnRuler
+var turn_resolver: TurnResolver
 
-enum Type {
-	GOLDEN_NINE,
-}
-
-var type: Type
-
-func resolve_turn(context: Object):
-	pass
+func _ready() -> void:
+	for node in get_children():
+		if node is TurnRuler:
+			turn_ruler = node
+		elif node is TurnResolver:
+			turn_resolver = node
+		else:
+			push_error("Game Mode should only have children of type TurnRuler or TurnResolver")	

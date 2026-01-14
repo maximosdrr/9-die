@@ -2,10 +2,10 @@ class_name PoolGame extends TableGame
 
 @onready var pool_ball_respawn: PoolBallRespawn = $Scripts/PoolBallRespawn
 @onready var off_table_monitor: OffTableMonitor = $Scripts/OffTableMonitor
-@onready var golden_nine_turn_watcher: GoldenNineTurnWatcher = $Scripts/GoldenNineTurnWatcher
 @onready var score_monitor: Area3D = $PoolTable/ScoreMonitor
 @onready var balls_movement_monitor: BallsMovementMonitor = $Scripts/BallsMovementMonitor
 @onready var ball_placement_manager: BallPlacementManager = $Scripts/BallPlacementManager
+@onready var _game_mode_handler: GameModeHandler = $GameModeHandler
 
 var cue_ball: Ball = null
 var balls: Array[Ball] = []
@@ -17,12 +17,6 @@ func _ready() -> void:
 	cue_ball = pool_ball_respawn.cue_ball
 	balls = pool_ball_respawn.balls
 	
-	golden_nine_turn_watcher.setup(self)
 	balls_movement_monitor.setup(self)
-
-func _handle_turn_context(data: Dictionary):
-	if data.get("ball_in_hand", false) == true:
-		ball_placement_manager.start_placement(cue_ball)
-
-func _handle_turn_extension_context(data: Dictionary):
-	pass
+	_game_mode_handler.setup(self)
+	game_mode_handler = _game_mode_handler
