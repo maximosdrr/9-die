@@ -16,9 +16,11 @@ var curren_max_pitch_deg = 0.0
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
 var target: Ball
+var pool_game: PoolGame
 
-func setup(pool_game: PoolGame):
-	target = pool_game.cue_ball
+func setup(_pool_game: PoolGame):
+	target = _pool_game.cue_ball
+	pool_game = _pool_game
 
 func _ready() -> void:
 	curren_max_pitch_deg = max_pitch_deg
@@ -43,6 +45,9 @@ func _process(delta: float) -> void:
 		return
 
 	if target.state_machine.current.type == State.Type.MOVING:
+		return
+	
+	if pool_game.balls_movement_monitor.is_moving_state:
 		return
 	
 	global_position = global_position.\

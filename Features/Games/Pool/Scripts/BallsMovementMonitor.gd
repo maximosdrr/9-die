@@ -8,7 +8,7 @@ var balls: Array[Ball]
 
 var _ball_check_timer = 0.0
 var _stop_tolerance_timer = 0.0
-var _is_moving_state = false
+var is_moving_state = false
 
 signal balls_stopped
 signal balls_moving
@@ -35,13 +35,13 @@ func _process(delta: float) -> void:
 	if any_ball_moving:
 		_stop_tolerance_timer = stop_tolerance
 		
-		if not _is_moving_state:
-			_is_moving_state = true
+		if not is_moving_state:
+			is_moving_state = true
 			balls_moving.emit()
 	else:
-		if _is_moving_state:
+		if is_moving_state:
 			_stop_tolerance_timer -= ball_check_delay
 			
 			if _stop_tolerance_timer <= 0:
-				_is_moving_state = false
+				is_moving_state = false
 				balls_stopped.emit()
