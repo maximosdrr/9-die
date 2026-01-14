@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
-[ext_resource type="Script" uid="uid://c3oml4nmfm8ni" path="res://Features/Games/Pool/GameModes/GoldenNine.gd" id="5_obyne"]
+[ext_resource type="Script" uid="uid://c3oml4nmfm8ni" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNine.gd" id="5_obyne"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://cma5b7oyrsijb" path="res://Core/Level/NetworkLevelManager.gd" id="5_s6lm4"]
 [ext_resource type="Script" uid="uid://beujd6xojmcbc" path="res://Autoload/PlayersContainer/PlayersContainer.gd" id="5_wwpfk"]
@@ -68,16 +68,16 @@ spawn_path = NodePath("../PlayersContainer")
 [node name="SpawnPoints" type="Node3D" parent="Multiplayer"]
 
 [node name="Marker3D" type="Marker3D" parent="Multiplayer/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2256646, 0.9, -0.98654604)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, -1)
 
 [node name="Marker3D2" type="Marker3D" parent="Multiplayer/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4942483, 0.9, 0.84543896)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, 1)
 
 [node name="Marker3D3" type="Marker3D" parent="Multiplayer/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2362247, 0.9, 0.8065996)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, 1)
 
 [node name="Marker3D4" type="Marker3D" parent="Multiplayer/SpawnPoints"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4108713, 0.9, -0.6161475)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, -1)
 
 [node name="PlayersContainer" type="Node3D" parent="Multiplayer"]
 script = ExtResource("5_wwpfk")

@@ -9,7 +9,7 @@ var turn_order: Array
 var turn_owner: Player
 var network_turn_syncronization: TableTurnNetworkBridge
 
-signal turn_changed(next_player_name: String)
+signal turn_changed(next_player_name: String, context_data: Dictionary)
 signal match_started(players_ids: Array)
 
 func setup(_table: Table) -> void:
@@ -72,7 +72,7 @@ func setup_first_turn(players: Array):
 	print("Game started! First player is: ", turn_owner.name)
 	match_started.emit(players)
 	
-func call_next_turn():
+func call_next_turn(context_data: Dictionary = {}):
 	var current_id = turn_owner.name
 	var current_index = turn_order.find(current_id)
 	
@@ -82,11 +82,11 @@ func call_next_turn():
 	var next_index = (current_index + 1) % turn_order.size()
 	var next_player_id = turn_order[next_index]
 	
-	apply_new_turn(next_player_id)
+	apply_new_turn(next_player_id, context_data)
 	
 	print("Turn passed to: ", next_player_id)
 
-func apply_new_turn(player_id: String) -> void:
+func apply_new_turn(player_id: String, context_data: Dictionary = {}) -> void:
 	var next_player = PlayerRegistry.get_player_by_id(player_id)
 	
 	if not next_player:
@@ -94,4 +94,11 @@ func apply_new_turn(player_id: String) -> void:
 		return
 
 	turn_owner = next_player
-	turn_changed.emit(player_id)
+	
+	_handle_turn_context(context_data)
+	
+	turn_changed.emit(player_id, context_data)
+
+# Método virtual que cada jogo implementa do seu jeito
+func _handle_turn_context(data: Dictionary):
+	pass

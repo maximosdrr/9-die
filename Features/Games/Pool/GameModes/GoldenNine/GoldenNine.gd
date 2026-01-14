@@ -6,9 +6,8 @@ func _init() -> void:
 func resolve_turn(context: Object) -> TurnActions:
 	var balls_scored = context.get("balls_scored") as Dictionary
 	var first_ball_touched = context.get("first_ball_touched") as Ball
-	var balls_in_game = context.get("balls_in_game") as Dictionary
 	var balls_off_table = context.get("balls_off_table")
-	
+	var target_ball = context.get("target_ball") as Ball
 
 	if balls_scored.has(0):
 		return TurnActions.CALL_FOUL_WITH_ACTION 
@@ -21,8 +20,7 @@ func resolve_turn(context: Object) -> TurnActions:
 
 	# --- 3. CHECK LEGAL CONTACT (The Core 9-Ball Rule) ---
 	
-	var target_ball = _get_target_ball(balls_in_game)
-	
+	print("######### ", target_ball.index)
 	# If we hit anything other than the lowest ball first, it's a foul immediately.
 	# Even if the 9 went in, this foul takes precedence.
 	if target_ball.index != first_ball_touched.index:
@@ -42,8 +40,3 @@ func resolve_turn(context: Object) -> TurnActions:
 		return TurnActions.EXTEND_TURN
 	
 	return TurnActions.CALL_NEXT_TURN
-
-func _get_target_ball(balls_in_game: Dictionary) -> Ball:
-	# Lowest index is always the target in 9-Ball
-	var target_index = balls_in_game.keys().min()
-	return balls_in_game[target_index]
