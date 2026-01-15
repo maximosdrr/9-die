@@ -1,19 +1,27 @@
 class_name StateMachine extends Node3D
 
-signal state_changed
+signal state_changed(type: State.Type, metadata: Dictionary[Variant, Variant])
 
 var current: State
 var previous: State
 var states: Dictionary[State.Type, State]
+var current_metadata = {}
 
 @export var enabled: bool = true
 @export var initial_state: State.Type
+@export var public_state_syncronizer: PublicStateSyncronizer = null
 
 func _ready() -> void:
 	_setup_states()
 	_setup_initial_state()
+	
+	if public_state_syncronizer != null:
+		public_state_syncronizer.setup(self)
 
 func change_state(type: State.Type, metadata: Dictionary[Variant, Variant]):
+	if current.type == type:
+		return
+	
 	var new_state = states[type]
 	
 	if new_state == null:
@@ -21,6 +29,7 @@ func change_state(type: State.Type, metadata: Dictionary[Variant, Variant]):
 		push_error(error_message)
 		return
 	
+	current_metadata = metadata
 	state_changed.emit(type, metadata)
 	current.exit(metadata)
 	

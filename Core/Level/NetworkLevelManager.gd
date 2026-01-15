@@ -2,7 +2,7 @@ class_name LevelMultiplayerManager extends Node
 
 const PLAYER_SCENE = preload("uid://dq4mwkkjaq18o")
 
-@export var players_container: Node3D
+@export var players_container: PlayersContainer
 @export var multiplayer_spawner: MultiplayerSpawner
 @export var spawn_points: Array[Marker3D]
 
@@ -23,7 +23,6 @@ func _on_player_disconnect(peer_id: int) -> void:
 
 	if players_container.has_node(str(peer_id)):
 		var player = players_container.get_node(str(peer_id))
-		#PlayersManager.remove_player(player)
 		player.queue_free()
 
 func _initialize_player_node(peer_id: int) -> Node:
@@ -44,8 +43,6 @@ func _initialize_player_node(peer_id: int) -> Node:
 	var spawn_index = players_count % spawn_points.size()
 	
 	var spawn_point = spawn_points[spawn_index]
-	
-	player_instance.global_transform = spawn_point.global_transform	
-	#PlayersManager.add_player(player_instance as Player)
+	player_instance.global_transform = spawn_point.global_transform
 	
 	return player_instance

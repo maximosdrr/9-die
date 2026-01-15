@@ -18,6 +18,7 @@ signal strike_executed
 var ball_radius_offset: float = 0.04
 var is_charging: bool = false
 var is_locked: bool = false
+var strike_is_locked: bool = true
 var pool_game: PoolGame
 var cue_ball: Ball
 var camera_pivot: AimCameraPivot
@@ -28,13 +29,32 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	camera_pivot = _camera_pivot
 	input_system.setup(self)
 	stroke_network_bridge.setup(self)
+	if not pool_game.match_started.is_connected(_on_match_start):
+		pool_game.match_started.connect(_on_match_start)
+	
+	if not pool_game.turn_changed.is_connected(_on_turn_change):
+		pool_game.turn_changed.connect(_on_turn_change)
+	
+	if not pool_game.turn_extended.is_connected(_on_turn_extendes):
+		pool_game.turn_extended.connect(_on_turn_extendes)
 
 func _ready() -> void:
 	_update_system_limits()
 	position.z = ball_radius_offset
 
+func _on_match_start(_players_ids: Array, first_turn_player: String):
+	if int(first_turn_player) == multiplayer.get_unique_id():
+		strike_is_locked = false
+
+func _on_turn_change(next_player_name: String, _context):
+	if int(next_player_name) == multiplayer.get_unique_id():
+		strike_is_locked = false
+
+func _on_turn_extendes():
+	strike_is_locked = false
+
 func start_charging() -> void:
-	if is_charging or is_locked: return # Não inicia se estiver travado
+	if is_charging or is_locked or strike_is_locked: return
 	is_charging = true
 	stroke_system.start_charging(position.z)
 
@@ -59,7 +79,7 @@ func _process(_delta: float) -> void:
 	position.x = spin_system.current_offset.x
 	position.y = spin_system.current_offset.y
 
-	if is_locked: return # Se travado, não faz lógica de movimento do taco
+	if is_locked: return
 
 	if not is_charging:
 		if position.z != ball_radius_offset: position.z = ball_radius_offset
@@ -78,10 +98,11 @@ func _process(_delta: float) -> void:
 
 func _execute_strike(impact_speed: float) -> void:
 	if not cue_ball: return
-	
+	if strike_is_locked: return
 	# 1. Ativa o BLOQUEIO imediatamente
 	is_locked = true 
 	is_charging = false
+	strike_is_locked = true
 	
 	# Cálculo de força
 	var raw_power = clamp(impact_speed / max_speed_reference, 0.0, 1.0)
@@ -94,12 +115,14 @@ func _execute_strike(impact_speed: float) -> void:
 	dir.y = 0 
 	var hit_offset = Vector3(spin_system.current_offset.x, spin_system.current_offset.y, 0.0)
 	
-	#Send signal to network stroke system
-	if multiplayer.is_server():
-		cue_ball.strike(dir, final_force, hit_offset)
-		#Call effects here
+	if final_force < 0.01:
+		strike_is_locked = false
 	else:
-		strike_executed.emit(dir, final_force, hit_offset)
+		if multiplayer.is_server():
+			cue_ball.strike(dir, final_force, hit_offset)
+			#Call effects here
+		else:
+			strike_executed.emit(dir, final_force, hit_offset)
 	# Reset visual
 	stroke_system.stop()
 	_animate_reset_spin()

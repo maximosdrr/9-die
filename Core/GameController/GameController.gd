@@ -1,6 +1,8 @@
 class_name PlayerGameController extends Node3D
 
-func setup(parent: Node3D, table_game: TableGame):
+var can_take_control: bool = false
+
+func setup(parent: Player, table_game: TableGame):
 	pass
 	
 func _ready() -> void:

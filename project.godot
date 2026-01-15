@@ -21,7 +21,7 @@ Groups="*res://Autoload/Groups.gd"
 Global="*res://Autoload/Global.gd"
 NetworkManager="*res://Autoload/Network/NetworkManager.gd"
 SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.gd"
-PlayersManager="*res://Autoload/PlayersManager.gd"
+PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.gd"
 
 [input]
 

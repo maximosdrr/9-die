@@ -1,10 +1,16 @@
 @tool
 class_name Table extends Node3D
 
+var players_on_match: Array[String] = []
+
 @onready var table_game_handler: Node3D = $TableGameHandler
 @onready var player_game_controller_handler: Node3D = $PlayerGameControllerHandler
 @onready var table_influence: Area3D = $TableInfluence
 @onready var state_machine: StateMachine = $StateMachine
+@onready var debug_label: Label3D = $DebugLabel
+
+@export_category("NetworkConfiguration")
+@export var enable_network_turn_syncronization := true
 
 @export_category("Scenes")
 ## This variable is used to player to instanciate the correct game controller
@@ -17,6 +23,13 @@ class_name Table extends Node3D
 
 var _editor_building := false
 var current_table_game: TableGame
+
+func _process(delta: float) -> void:
+	if current_table_game == null or current_table_game.turn_owner == null:
+		return
+
+	var msg = "Current player turn: %s" % [current_table_game.turn_owner.name]
+	debug_label.text = msg
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
@@ -32,7 +45,7 @@ func _spawn_runtime_game() -> void:
 
 	var table_game_instance := table_game_scene.instantiate()
 	assert(table_game_instance is TableGame)
-	(table_game_instance as TableGame).setup(table_influence)
+	(table_game_instance as TableGame).setup(self)
 	
 	table_game_handler.add_child(table_game_instance)
 	current_table_game = table_game_instance
