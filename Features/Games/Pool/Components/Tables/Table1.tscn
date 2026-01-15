@@ -5,7 +5,8 @@
 [ext_resource type="Script" uid="uid://chiuo5s528lxj" path="res://Features/Games/Pool/Scripts/GroundScoreMonitor.gd" id="2_h7p6q"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_cgd1i"]
-friction = 0.4
+friction = 0.8
+bounce = 0.04
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ionqa"]
 size = Vector3(1.8975927, 1.2071289, 0.10501954)
