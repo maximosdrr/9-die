@@ -89,4 +89,3 @@ metadata/_custom_type_script = "uid://cma5b7oyrsijb"
 
 [node name="Pub" parent="." instance=ExtResource("7_wwpfk")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.1557403, 0, 0)
-visible = false
