@@ -37,7 +37,6 @@ func _on_turn_start(owner_id: String, context: Dictionary):
 	
 	if context.has("ball_replacement"):
 		_call_ball_replacement(context)
-	print("Turn started! ", owner_id)
 
 func _call_ball_replacement(context: Dictionary):
 	var ball_index = context.get("ball_replacement")

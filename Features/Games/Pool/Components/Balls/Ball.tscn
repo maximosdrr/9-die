@@ -36,6 +36,7 @@ collision_mask = 13
 physics_material_override = SubResource("PhysicsMaterial_n5t01")
 script = ExtResource("1_eusg5")
 data = ExtResource("2_5qcrw")
+continuos_cd = true
 metadata/_custom_type_script = "uid://crufycb4ylox5"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
