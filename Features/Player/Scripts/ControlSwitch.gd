@@ -3,8 +3,6 @@ class_name ControlSwitch extends Node
 @export var player: Player
 @export var game_context_slot: Node3D
 
-
-
 func _unhandled_input(_event: InputEvent) -> void:
 	if not is_multiplayer_authority():
 		return

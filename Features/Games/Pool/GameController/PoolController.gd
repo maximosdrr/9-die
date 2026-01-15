@@ -55,18 +55,23 @@ func give_control():
 	aim_pivot.set_process(false)
 	aim_pivot.set_process_unhandled_input(false)
 
-func _apply_control(turn_owner_id: String):
+func _apply_control(turn_owner_id: String, context: Dictionary):
 	if turn_owner_id == player.name:
 		can_take_control = true
 		player.give_control()
-		take_control()
+		if not context.has("ball_replacement"):
+			take_control()
+		else:
+			await pool_game.ball_placement_manager.placement_finished
+			await get_tree().create_timer(1).timeout
+			take_control()
 	else:
 		can_take_control = false
 		give_control()
 		player.take_control()
 
 func _on_match_starts(_players: Array, first_turn_player_id: String):
-	_apply_control(first_turn_player_id)
+	_apply_control(first_turn_player_id, {})
 
-func _on_turn_change(next_player_name: String, _context_data: Dictionary):
-	_apply_control(next_player_name)
+func _on_turn_change(next_player_name: String, context: Dictionary):
+	_apply_control(next_player_name, context)

@@ -1,44 +1,71 @@
 class_name GoldenNineTurnResolver extends TurnResolver
 
 @export var turn_ruler: TurnRuler
-@export var ball_placement_manager: BallPlacementManager
 @export var off_table_monitor: OffTableMonitor
+@export var ball_placement_manager: BallPlacementManager
+
+#Listeners. They can modify GoldenNineTurnResolve props! Be careful
+@onready var cue_ball_contact_listener: GoldenNineCueBallContactListener = $GoldenNineCueBallContactListener
+@onready var score_listener: GoldenNineScoreListener = $GoldenNineScoreListener
+@onready var ball_fell_off_listener: GoldenNineBallFellOffListener = $GoldenNineBallFellOffListener
 
 var pool_game: PoolGame
 var balls_scored: Dictionary[int, Ball] = {}
 var balls_in_game: Dictionary[int, Ball] = {}
 var cue_ball: Ball
 
-var _first_ball_hit: Ball = null
-var _balls_off_table_list: Array[Ball] = []
+var first_ball_hit: Ball = null
+var balls_off_table_list: Array[Ball] = []
 
 func setup(_pool_game: TableGame):
 	pool_game = _pool_game
 	cue_ball = _pool_game.cue_ball
 	
-	ball_placement_manager = _pool_game.ball_placement_manager
-	ball_placement_manager.placement_finished.connect(_on_ball_placement_finished)
-	
 	pool_game.cue_ball.striked.connect(_on_strike)
-	pool_game.score_monitor.body_entered.connect(_on_ball_touch_score_ground)
+	pool_game.turn_changed.connect(_on_turn_start)
 	
-	if pool_game.off_table_monitor:
-		pool_game.off_table_monitor.ball_fell_off.connect(_on_ball_fell_off)
+	score_listener.setup(self)
+	cue_ball_contact_listener.setup(self)
+	ball_fell_off_listener.setup(self)
 	
-	_reset_balls_in_game()
+	for ball in pool_game.balls:
+		balls_in_game[ball.index] = ball
+
+func _on_turn_start(owner_id: String, context: Dictionary):
+	if multiplayer.get_unique_id() != int(owner_id):
+		return
+	
+	if context.has("ball_replacement"):
+		_call_ball_replacement(context)
+	print("Turn started! ", owner_id)
+
+func _call_ball_replacement(context: Dictionary):
+	var ball_index = context.get("ball_replacement")
+	var target = cue_ball if ball_index == 0 else balls_in_game[ball_index]
+	
+	ball_placement_manager.start_placement(target)
+	
+	await ball_placement_manager.placement_finished
+	print("Posicionamento finalizado e autoridade devolvida ao servidor.")
 
 func _on_strike():
 	balls_scored.clear()
-	_balls_off_table_list.clear()
-	_first_ball_hit = null
+	balls_off_table_list.clear()
+	first_ball_hit = null
 	
-	if not cue_ball.ball_contacted.is_connected(_on_cue_ball_contact):
-		cue_ball.ball_contacted.connect(_on_cue_ball_contact)
-	
+	cue_ball_contact_listener.start_listening_collisions()
 	await pool_game.balls_movement_monitor.balls_stopped
+	cue_ball_contact_listener.stop_listening_collisions()
 	
-	if cue_ball.ball_contacted.is_connected(_on_cue_ball_contact):
-		cue_ball.ball_contacted.disconnect(_on_cue_ball_contact)
+	var context = generate_turn_context()
+	
+	var resolve_turn_action = turn_ruler.rule(context)
+	balls_in_game = context.get("current_balls_remaining")
+	
+	_apply_turn_action(resolve_turn_action)
+
+func generate_turn_context():
+	var context = {}
 	
 	var current_balls_remaining = balls_in_game.duplicate()
 	var target_ball_index = current_balls_remaining.keys().min()
@@ -48,73 +75,33 @@ func _on_strike():
 		if current_balls_remaining.has(scored_index):
 			current_balls_remaining.erase(scored_index)
 
-	for ball in _balls_off_table_list:
+	for ball in balls_off_table_list:
 		if current_balls_remaining.has(ball.index):
 			current_balls_remaining.erase(ball.index)
 	
-	var context = {}
-	
 	context["balls_scored"] = balls_scored.duplicate()
-	context["first_ball_touched"] = _first_ball_hit
-	context["balls_off_table"] = _balls_off_table_list.duplicate()
+	context["first_ball_touched"] = first_ball_hit
+	context["balls_off_table"] = balls_off_table_list.duplicate()
 	context["target_ball"] = target_ball
+	context["current_balls_remaining"] = current_balls_remaining
 	
-	var resolve_turn_action = turn_ruler.rule(context)
-	balls_in_game = current_balls_remaining
-	
-	_apply_turn_action(resolve_turn_action)
-
-func _on_cue_ball_contact(other_ball: Ball):
-	if _first_ball_hit == null:
-		_first_ball_hit = other_ball
-
-func _on_ball_fell_off(ball: Ball):
-	if not _balls_off_table_list.has(ball):
-		_balls_off_table_list.append(ball)
-
-func _reset_balls_in_game():
-	balls_in_game.clear()
-	for ball in pool_game.balls:
-		balls_in_game[ball.index] = ball
-
-func _on_ball_touch_score_ground(body: Node3D):
-	if body is Ball:
-		balls_scored[body.index] = body
+	return context
 
 func _apply_turn_action(action: TurnRuler.Actions):
 	match action:
 		TurnRuler.Actions.CALL_NEXT_TURN:
-			pool_game.call_next_turn()
+			pool_game.call_next_turn({})
 			
 		TurnRuler.Actions.EXTEND_TURN:
-			pool_game.extend_current_turn({})
+			pool_game.call_extend_current_turn()
 			
-		TurnRuler.Actions.CALL_FOUL_WITH_ACTION:
-			var turn_context = {
-				"ball_in_hand": true,
-				"foul_reason": "scratch" 
-			}
-			pool_game.call_next_turn(turn_context)
+		TurnRuler.Actions.CALL_CUE_BALL_REPLACEMENT:
+			pool_game.call_next_turn({
+				"ball_replacement": 0
+			})
 			
 		TurnRuler.Actions.END_GAME_FATAL_FOUL:
-			_call_end_game_with_fatal_foul()
+			print("Game over! Fatal Foul")
 			
 		TurnRuler.Actions.END_GAME_PLAYER_WIN:
-			_call_end_game_with_winner()
-
-func _start_ball_in_hand():
-	if cue_ball.global_position.y < 0:
-		cue_ball.global_position = Vector3(0, 1.0, 0)
-		cue_ball.linear_velocity = Vector3.ZERO
-		cue_ball.angular_velocity = Vector3.ZERO
-	
-	ball_placement_manager.start_placement(cue_ball)
-
-func _on_ball_placement_finished():
-	print("Ball Placement done. Player " + pool_game.turn_owner.name + " can now strike.")
-
-func _call_end_game_with_winner():
-	print("Game Over! Winner: ", pool_game.turn_owner.name)
-
-func _call_end_game_with_fatal_foul():
-	print("Game Over! Fatal Foul by: ", pool_game.turn_owner.name)
+			print("Game over! Win!")

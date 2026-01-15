@@ -31,6 +31,8 @@ func setup(_pool_game: PoolGame):
 		pool_game.match_started.connect(_on_match_started)
 	if not pool_game.turn_extended.is_connected(_on_turn_extended):
 		pool_game.turn_extended.connect(_on_turn_extended)
+	if not pool_game.ball_placement_manager.placement_finished.is_connected(_on_placement_finished):
+		pool_game.ball_placement_manager.placement_finished.connect(_on_placement_finished)
 
 func _ready() -> void:
 	curren_max_pitch_deg = max_pitch_deg
@@ -50,11 +52,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		_rotate_camera(event.relative)
 
-
-func _on_turn_extended(_context_data: Dictionary):
+func _on_placement_finished():
+	await get_tree().create_timer(1).timeout
 	_move_smoothly_to_target()
 
-func _on_turn_changed(_next_player_name: String, _context_data: Dictionary):
+func _on_turn_extended():
+	_move_smoothly_to_target()
+
+func _on_turn_changed(_next_player_name: String, _context):
 	_move_smoothly_to_target()
 
 func _on_match_started(_players_ids: Array, _first_turn_player: String):

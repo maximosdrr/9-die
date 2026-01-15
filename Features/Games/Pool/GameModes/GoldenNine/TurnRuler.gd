@@ -10,7 +10,7 @@ func rule(context: Dictionary) -> Actions:
 	var target_ball = context.get("target_ball") as Ball
 	
 	if balls_scored.has(0):
-		return Actions.CALL_FOUL_WITH_ACTION 
+		return Actions.CALL_CUE_BALL_REPLACEMENT 
 	
 	if first_ball_touched == null:
 		return Actions.CALL_NEXT_TURN
