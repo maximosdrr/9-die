@@ -9,7 +9,5 @@ func setup(_turn_resolver: TurnResolver) -> void:
 		.body_entered.connect(_on_ball_touch_score_ground)
 
 func _on_ball_touch_score_ground(body: Node3D):
-	print("Body", body.name)
 	if body is Ball:
-		print("Body: ", body.name)
 		turn_resolver.balls_scored[body.index] = body
