@@ -7,7 +7,7 @@ class_name Cue extends Node3D
 @export var stroke_network_bridge: CueNetworkStrokeBridge
 
 @export_group("Power Config")
-@export var max_speed_reference: float = 10.0
+@export var max_speed_reference: float = 12.0
 @export var force_multiplier: float = 1.2
 @export var visual_gap: float = 0.01
 #Time that cue camera is locked after shot

@@ -33,7 +33,7 @@ func _ready() -> void:
 	angular_damp = data.angular_damp
 	
 	continuous_cd = continuos_cd
-	can_sleep = true
+	can_sleep = false
 	
 	physics_material_override.bounce = data.bounce
 	physics_material_override.friction = data.friction

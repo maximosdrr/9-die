@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3 uid="uid://bcdgwpk5bpi3w"]
+[gd_scene load_steps=49 format=3 uid="uid://bcdgwpk5bpi3w"]
 
 [ext_resource type="PackedScene" uid="uid://cvpr4cxhmjyri" path="res://Assets/PoolGame/Scenes/PoolTableModel.tscn" id="1_ej02f"]
 [ext_resource type="Script" uid="uid://cgrjunhp6qhbg" path="res://Features/Games/Pool/Components/Tables/PoolGameTable.gd" id="1_h7p6q"]
@@ -56,6 +56,92 @@ size = Vector3(1.2357774, 0.277, 0.093)
 [sub_resource type="BoxShape3D" id="BoxShape3D_s8te4"]
 size = Vector3(1.429936, 0.08141455, 2.402941)
 
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_h7p6q"]
+friction = 0.0
+rough = true
+absorbent = true
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_r0g6o"]
+size = Vector3(0.097249985, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_qr0y0"]
+size = Vector3(0.12515771, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_43dx8"]
+size = Vector3(0.12507886, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vnc0c"]
+size = Vector3(0.12642431, 0.05754471, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_srx7e"]
+size = Vector3(0.09916147, 0.09248352, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4tmfn"]
+size = Vector3(0.12507886, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ayfk8"]
+size = Vector3(0.17454028, 0.05754471, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_gqhgs"]
+size = Vector3(0.100664794, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jxd5x"]
+size = Vector3(0.15238318, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_gluw1"]
+size = Vector3(0.11796093, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_g4xef"]
+size = Vector3(0.10907968, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_knvgh"]
+size = Vector3(0.13272986, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nld7a"]
+size = Vector3(0.097249985, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1gk0k"]
+size = Vector3(0.05148761, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_uew77"]
+size = Vector3(0.06863459, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_i8w7u"]
+size = Vector3(0.09568324, 0.11392975, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2q8i6"]
+size = Vector3(0.07988199, 0.09500885, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_f2k8q"]
+size = Vector3(0.10027082, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_815fa"]
+size = Vector3(0.065819904, 0.118061066, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_eejdf"]
+size = Vector3(0.064819895, 0.100379944, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_yhkby"]
+size = Vector3(0.09799707, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6ew2g"]
+size = Vector3(0.05350244, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_riaxd"]
+size = Vector3(0.062844604, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ny7t2"]
+size = Vector3(0.04524831, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bbdxa"]
+size = Vector3(0.047886536, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5ajig"]
+size = Vector3(0.05800122, 0.0675354, 0.001)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jcjgi"]
+size = Vector3(0.08119726, 0.0675354, 0.001)
+
 [node name="Table1" type="StaticBody3D"]
 collision_layer = 8
 collision_mask = 5
@@ -99,7 +185,7 @@ shape = SubResource("BoxShape3D_ionqa")
 debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
 
 [node name="Table" parent="." instance=ExtResource("1_ej02f")]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 0, 0)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -0.0008817911, -0.0005027652, -0.0010242462)
 
 [node name="TableFloor" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.81, 0)
@@ -115,7 +201,6 @@ debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
 [node name="Rails" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.84360564, 0)
-visible = false
 collision_layer = 8
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_r0g6o")
@@ -151,6 +236,7 @@ shape = SubResource("BoxShape3D_3sslv")
 debug_color = Color(0.9979411, 0, 0.16499314, 0.41960785)
 
 [node name="Borders" type="StaticBody3D" parent="."]
+visible = false
 collision_layer = 8
 collision_mask = 7
 physics_material_override = SubResource("PhysicsMaterial_qr0y0")
@@ -177,6 +263,7 @@ debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="ScoreMonitor" type="Area3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21404922, 0)
+visible = false
 collision_layer = 0
 collision_mask = 4
 script = ExtResource("2_h7p6q")
@@ -187,4 +274,178 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4327764, 0)
 shape = SubResource("BoxShape3D_s8te4")
 debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
 
+[node name="Pockets" type="Node3D" parent="."]
+
+[node name="Collisions" type="StaticBody3D" parent="Pockets"]
+collision_layer = 8
+collision_mask = 5
+physics_material_override = SubResource("PhysicsMaterial_h7p6q")
+
+[node name="BallPocket1Top1" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.6364553, 7.2107813e-09, 0.7713136, -0.299442, 0.9215653, 0.24708685, -0.71081585, -0.3882234, 0.5865351, -0.4504573, 0.83883643, 1.0304871)
+shape = SubResource("BoxShape3D_r0g6o")
+
+[node name="BallPocket1Top2" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.6275691, 0, 0.7785609, 0, 1, 0, -0.7785609, 0, 0.6275691, -0.54131174, 0.83883643, 0.9563586)
+shape = SubResource("BoxShape3D_qr0y0")
+
+[node name="BallPocket1Top3" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.81873137, 0, 0.5741768, 0, 1, 0, -0.5741768, 0, -0.81873137, -0.5361115, 0.83883643, 1.039016)
+shape = SubResource("BoxShape3D_43dx8")
+
+[node name="BallPocket2Top1" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.506903, -0.2895224, 0.8119274, -0.21705173, 0.9544289, 0.20482676, -0.8342292, -0.072403, -0.5466443, 0.5307922, 0.8510696, 0.94783545)
+shape = SubResource("BoxShape3D_vnc0c")
+
+[node name="BallPocket2Top2" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.5502767, 0, 0.83498234, -0.41750377, 0.8660166, -0.27514666, -0.7231086, -0.5000151, -0.47654882, 0.44854614, 0.85063195, 1.0276605)
+shape = SubResource("BoxShape3D_srx7e")
+
+[node name="BallPocket2Top3" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.7963716, 0, -0.6048076, 0, 1, 0, 0.6048076, 0, -0.7963716, 0.5202302, 0.83883643, 1.0434258)
+shape = SubResource("BoxShape3D_4tmfn")
+
+[node name="BallPocket1Bottom1" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.52776456, 0.29125503, -0.7978942, -0.2170517, 0.95442885, 0.20482677, 0.82119024, 0.06508396, 0.56693107, -0.5404165, 0.8562915, -0.9488921)
+shape = SubResource("BoxShape3D_ayfk8")
+
+[node name="BallPocket1Bottom2" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.5711435, 0, -0.82085013, 0, 1, 0, 0.82085013, 0, 0.5711435, -0.4457694, 0.83883643, -1.0168082)
+shape = SubResource("BoxShape3D_gqhgs")
+
+[node name="BallPocket1Bottom3" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.78087753, 0, 0.62468415, 0, 1, 0, -0.62468415, 0, 0.78087753, -0.5361753, 0.83883643, -1.0492412)
+shape = SubResource("BoxShape3D_jxd5x")
+
+[node name="BallPocket2Bottom1" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.61834055, 0.009783298, -0.7858494, -0.20758483, 0.9623785, 0.17531773, 0.75799966, 0.27153647, -0.5930467, 0.45065707, 0.8366868, -1.0286394)
+shape = SubResource("BoxShape3D_gluw1")
+
+[node name="BallPocket2Bottom2" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.6077501, 0, -0.7941283, 0, 1, 0, 0.7941283, 0, -0.6077501, 0.5285548, 0.83883643, -0.94471484)
+shape = SubResource("BoxShape3D_g4xef")
+
+[node name="BallPocket2Bottom3" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.6851704, 0, -0.7283828, 0, 1, 0, 0.7283828, 0, 0.6851704, 0.5317474, 0.83883643, -1.0444936)
+shape = SubResource("BoxShape3D_knvgh")
+
+[node name="BallPocket1Middle1" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.9942075, 0, -0.1074788, 0, 1, 0, 0.10747877, 0, 0.99420744, 0.5427853, 0.8426453, -0.05744359)
+shape = SubResource("BoxShape3D_nld7a")
+
+[node name="BallPocket1Middle2" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(0.96743584, 0, 0.2531164, 0, 1, 0, -0.2531164, 0, 0.96743584, 0.5422509, 0.8426453, 0.056597367)
+shape = SubResource("BoxShape3D_g4xef")
+
+[node name="BallPocket1Middle3" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.028479725, 0, -0.99959445, 0, 1, 0, 0.99959445, 0, -0.028479725, 0.5861023, 0.8426453, 0.004333712)
+shape = SubResource("BoxShape3D_knvgh")
+
+[node name="BallPocket1Middle4" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.96393317, 0, 0.26614505, 0, 1, 0, -0.26614502, 0, -0.9639331, -0.54243845, 0.8426453, 0.0590145)
+shape = SubResource("BoxShape3D_gluw1")
+
+[node name="BallPocket1Middle5" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.90789455, 0, -0.41919857, 0, 1, 0, 0.41919857, 0, -0.90789455, -0.547392, 0.8426453, -0.05492008)
+shape = SubResource("BoxShape3D_g4xef")
+
+[node name="BallPocket1Middle6" type="CollisionShape3D" parent="Pockets/Collisions"]
+transform = Transform3D(-0.019651309, 0, 0.999807, 0, 1, 0, -0.999807, 0, -0.019651309, -0.5886778, 0.8426453, -0.00060693524)
+shape = SubResource("BoxShape3D_knvgh")
+
+[node name="Detectors" type="Area3D" parent="Pockets"]
+collision_layer = 0
+collision_mask = 4
+
+[node name="BallPocket1Top1" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.71334827, 0, 0.70080966, 0, 1, 0, -0.70080966, 0, 0.71334827, -0.4791097, 0.83883643, 1.0466647)
+shape = SubResource("BoxShape3D_1gk0k")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Top2" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.33104146, 0, 0.94361615, 0, 1, 0, -0.94361615, 0, 0.33104146, -0.55139387, 0.8391748, 0.9893872)
+shape = SubResource("BoxShape3D_uew77")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Top3" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.81873137, 0, 0.5741768, 0, 1, 0, -0.5741768, 0, -0.81873137, -0.52245015, 0.83883643, 1.0422885)
+shape = SubResource("BoxShape3D_i8w7u")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket2Top1" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.58798295, 0, -0.80887336, 0, 0.99999994, 0, 0.8088735, 0, 0.5879829, 0.541945, 0.8260262, 0.98732674)
+shape = SubResource("BoxShape3D_2q8i6")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket2Top2" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.6086091, 0, 0.79347026, 0, 1, 0, -0.79347026, 0, -0.6086091, 0.48769322, 0.7946851, 1.0602827)
+shape = SubResource("BoxShape3D_i8w7u")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket2Top3" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.7963716, 0, -0.6048076, 0, 1, 0, 0.6048076, 0, -0.7963716, 0.51697147, 0.83883643, 1.02943)
+shape = SubResource("BoxShape3D_f2k8q")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Bottom1" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.638741, 0, 0.7694219, 0, 1, 0, -0.769422, 0, -0.63874096, -0.5564552, 0.8275261, -0.98894817)
+shape = SubResource("BoxShape3D_815fa")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Bottom2" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.88862514, 0, -0.45863414, 0, 1, 0, 0.45863414, 0, 0.88862514, -0.4866956, 0.8198965, -1.050564)
+shape = SubResource("BoxShape3D_eejdf")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Bottom3" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.74317986, 0, 0.6690917, 0, 1, 0, -0.6690917, 0, 0.74317986, -0.5361658, 0.83883643, -1.043871)
+shape = SubResource("BoxShape3D_yhkby")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket2Bottom1" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.815956, 0, 0.57811403, 0, 1, 0, -0.57811403, 0, 0.815956, 0.47549483, 0.8392641, -1.0460016)
+shape = SubResource("BoxShape3D_6ew2g")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket2Bottom2" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.5594677, 0, 0.82885194, 0, 1, 0, -0.82885194, 0, 0.5594677, 0.55295193, 0.83883643, -0.98085916)
+shape = SubResource("BoxShape3D_riaxd")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket2Bottom3" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.6851704, 0, -0.7283828, 0, 1, 0, 0.7283828, 0, 0.6851704, 0.5335435, 0.83883643, -1.0365624)
+shape = SubResource("BoxShape3D_i8w7u")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Middle1" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.92317677, 0, -0.38437587, 0, 1, 0, 0.3843758, 0, 0.9231767, 0.5630232, 0.8426453, -0.043734945)
+shape = SubResource("BoxShape3D_ny7t2")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Middle2" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(0.96743584, 0, 0.2531164, 0, 1, 0, -0.2531164, 0, 0.96743584, 0.5630864, 0.8426453, 0.039633635)
+shape = SubResource("BoxShape3D_bbdxa")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Middle3" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.028479725, 0, -0.99959445, 0, 1, 0, 0.99959445, 0, -0.028479725, 0.58322656, 0.82169116, 0.004333712)
+shape = SubResource("BoxShape3D_i8w7u")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Middle4" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.96393317, 0, 0.26614505, 0, 1, 0, -0.26614502, 0, -0.9639331, -0.57301605, 0.8426453, 0.040262327)
+shape = SubResource("BoxShape3D_i8w7u")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Middle5" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.90789455, 0, -0.41919857, 0, 1, 0, 0.41919857, 0, -0.90789455, -0.56362253, 0.8426453, -0.041395746)
+shape = SubResource("BoxShape3D_5ajig")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
+[node name="BallPocket1Middle6" type="CollisionShape3D" parent="Pockets/Detectors"]
+transform = Transform3D(-0.019651309, 0, 0.999807, 0, 1, 0, -0.999807, 0, -0.019651309, -0.58648497, 0.8426453, -0.00060693524)
+shape = SubResource("BoxShape3D_jcjgi")
+debug_color = Color(0.97489613, 0.13961968, 0.20028117, 0.41960785)
+
 [connection signal="body_entered" from="ScoreMonitor" to="ScoreMonitor" method="_on_body_entered"]
+[connection signal="body_entered" from="Pockets/Detectors" to="." method="_on_pockets_detectors_ball_entered"]
