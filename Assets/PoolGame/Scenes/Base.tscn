@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://71aroaco0gp0"]
+
+[ext_resource type="PackedScene" uid="uid://cs3vhl2o5sv10" path="res://Assets/PoolGame/Textures/PoolTableWithCueAndBalls.glb" id="1_w0bn4"]
+
+[node name="Base" type="Node3D"]
+
+[node name="Sketchfab_Scene" parent="." instance=ExtResource("1_w0bn4")]
+
+[editable path="Sketchfab_Scene"]
