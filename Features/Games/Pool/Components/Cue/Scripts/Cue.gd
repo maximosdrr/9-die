@@ -79,7 +79,7 @@ func _process(_delta: float) -> void:
 	position.x = spin_system.current_offset.x
 	position.y = spin_system.current_offset.y
 
-	if is_locked: return # Se travado, não faz lógica de movimento do taco
+	if is_locked: return
 
 	if not is_charging:
 		if position.z != ball_radius_offset: position.z = ball_radius_offset
@@ -115,12 +115,14 @@ func _execute_strike(impact_speed: float) -> void:
 	dir.y = 0 
 	var hit_offset = Vector3(spin_system.current_offset.x, spin_system.current_offset.y, 0.0)
 	
-	#Send signal to network stroke system
-	if multiplayer.is_server():
-		cue_ball.strike(dir, final_force, hit_offset)
-		#Call effects here
+	if final_force < 0.01:
+		strike_is_locked = false
 	else:
-		strike_executed.emit(dir, final_force, hit_offset)
+		if multiplayer.is_server():
+			cue_ball.strike(dir, final_force, hit_offset)
+			#Call effects here
+		else:
+			strike_executed.emit(dir, final_force, hit_offset)
 	# Reset visual
 	stroke_system.stop()
 	_animate_reset_spin()

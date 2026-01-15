@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=14 format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://cma5b7oyrsijb" path="res://Core/Level/NetworkLevelManager.gd" id="5_s6lm4"]
 [ext_resource type="Script" uid="uid://beujd6xojmcbc" path="res://Autoload/PlayersContainer/PlayersContainer.gd" id="5_wwpfk"]
+[ext_resource type="PackedScene" uid="uid://udvrwjnmye7w" path="res://Assets/Levels/Pub/Pub.tscn" id="7_wwpfk"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -85,3 +86,6 @@ players_container = NodePath("../../PlayersContainer")
 multiplayer_spawner = NodePath("../../MultiplayerSpawner")
 spawn_points = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")]
 metadata/_custom_type_script = "uid://cma5b7oyrsijb"
+
+[node name="Pub" parent="." instance=ExtResource("7_wwpfk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.1557403, 0, 0)
