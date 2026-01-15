@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://vr3ram3d1ioc"]
 
-[ext_resource type="Script" uid="uid://ca7so7568ql4e" path="res://Features/Games/Pool/GameController/Scripts/AimCameraPivot.gd" id="1_vuqwp"]
+[ext_resource type="Script" uid="uid://ca7so7568ql4e" path="res://Features/Games/Pool/GameController/AimCameraPivot.gd" id="1_vuqwp"]
 [ext_resource type="Script" uid="uid://b4ixi03kyeqyy" path="res://Features/Games/Pool/GameController/PoolController.gd" id="1_xnddr"]
 [ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Games/Pool/Components/Cue/Cue.tscn" id="2_fuwyn"]
 [ext_resource type="Script" uid="uid://bf4tbhk58pgub" path="res://Core/ToggleNode/Toggleable.gd" id="3_fuwyn"]

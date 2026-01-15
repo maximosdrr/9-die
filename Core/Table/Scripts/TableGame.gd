@@ -9,9 +9,9 @@ var turn_order: Array
 var turn_owner: Player
 var network_turn_syncronization: TableTurnNetworkBridge
 
-signal turn_changed(next_player_name: String, context_data: Dictionary)
+signal turn_changed(next_player_name: String, context: Dictionary)
 signal match_started(players_ids: Array, first_turn_player: String)
-signal turn_extended(context_data: Dictionary)
+signal turn_extended()
 
 func setup(_table: Table) -> void:
 	table = _table
@@ -61,7 +61,7 @@ func setup_first_turn(players: Array):
 	print("Game started! First player is: ", turn_owner.name)
 	match_started.emit(players, str(first_turn_owner_id))
 	
-func call_next_turn(context_data: Dictionary = {}):
+func call_next_turn(context: Dictionary):
 	var current_id = turn_owner.name
 	var current_index = turn_order.find(current_id)
 	
@@ -71,11 +71,11 @@ func call_next_turn(context_data: Dictionary = {}):
 	var next_index = (current_index + 1) % turn_order.size()
 	var next_player_id = turn_order[next_index]
 	
-	apply_new_turn(next_player_id, context_data)
+	apply_new_turn(next_player_id, context)
 	
 	print("Turn passed to: ", next_player_id)
 
-func apply_new_turn(player_id: String, context_data: Dictionary = {}) -> void:
+func apply_new_turn(player_id: String, context: Dictionary) -> void:
 	var next_player = PlayerRegistry.get_player_by_id(player_id)
 	
 	if not next_player:
@@ -85,18 +85,18 @@ func apply_new_turn(player_id: String, context_data: Dictionary = {}) -> void:
 	turn_owner = next_player
 	
 	if game_mode_handler:
-		game_mode_handler.current_game_mode.turn_resolver.handle_new_turn_context(context_data)
+		game_mode_handler.current_game_mode.turn_resolver.handle_new_turn_context()
 	else:
 		push_warning("Game mode handler is not configured on table: ", name)
-	turn_changed.emit(player_id, context_data)
+	turn_changed.emit(player_id, context)
 
-func extend_current_turn(context_data: Dictionary = {}):
-	apply_turn_extension(context_data)
+func call_extend_current_turn():
+	apply_turn_extension()
 	print("Turn extended for: ", turn_owner.name)
 
-func apply_turn_extension(context_data: Dictionary = {}):
-	turn_extended.emit(context_data)
+func apply_turn_extension():
+	turn_extended.emit()
 	if game_mode_handler:
-		game_mode_handler.current_game_mode.turn_resolver.handle_turn_extension_context(context_data)
+		game_mode_handler.current_game_mode.turn_resolver.handle_turn_extension_context()
 	else:
 		push_warning("Game mode handler is not configured on table: ", name)

@@ -17,24 +17,22 @@ func _on_match_started_server_side(players_ids: Array, _first_player: String) ->
 	if multiplayer.is_server():
 		_rpc_sync_match_setup.rpc(players_ids)
 
-func _on_turn_changed_server_side(next_player_id: String, context_data: Dictionary = {}) -> void:
+func _on_turn_changed_server_side(next_player_id: String, context: Dictionary) -> void:
 	if multiplayer.is_server():
-		_rpc_sync_turn_update.rpc(next_player_id, context_data)
+		_rpc_sync_turn_update.rpc(next_player_id, context)
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_sync_match_setup(players_ids: Array) -> void:
 	table_game.setup_first_turn(players_ids)
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_sync_turn_update(next_player_id: String, context_data: Dictionary) -> void:
-	table_game.apply_new_turn(next_player_id, context_data)
+func _rpc_sync_turn_update(next_player_id: String, context: Dictionary) -> void:
+	table_game.apply_new_turn(next_player_id, context)
 
-# Callback do servidor
-func _on_turn_extended_server_side(context_data: Dictionary = {}) -> void:
+func _on_turn_extended_server_side() -> void:
 	if multiplayer.is_server():
-		_rpc_sync_turn_extension.rpc(context_data)
+		_rpc_sync_turn_extension.rpc()
 
-# RPC para os clientes
 @rpc("authority", "call_remote", "reliable")
-func _rpc_sync_turn_extension(context_data: Dictionary) -> void:
-	table_game.apply_turn_extension(context_data)
+func _rpc_sync_turn_extension() -> void:
+	table_game.apply_turn_extension()

@@ -15,7 +15,6 @@ var _ball: Ball
 var _is_placing := false
 var _plane: Plane
 var _previous_camera_remote: RemoteTransform3D
-
 var _placement_token := 0
 
 func _ready() -> void:
@@ -23,26 +22,22 @@ func _ready() -> void:
 	set_process_unhandled_input(false)
 
 func start_placement(ball: Ball) -> void:
-	if not is_instance_valid(ball):
-		return
-	if Global.camera == null:
-		return
+	if not is_instance_valid(ball): return
+	if Global.camera == null: return
 
 	_ball = ball
 	_is_placing = true
 	_placement_token += 1
+	
+	_set_ball_placement_state.rpc(_ball.get_path(), multiplayer.get_unique_id(), true, _ball.global_position)
 
 	_enter_input_mode()
 	_switch_to_overhead_camera()
-
-	_prepare_ball_for_placement()
-
+	
 	set_process_unhandled_input(true)
-	print("Ball In Hand: Place the ball ", _ball.name)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not _is_placing or not is_instance_valid(_ball) or Global.camera == null:
-		return
+	if not _is_placing or not is_instance_valid(_ball): return
 	
 	if event is InputEventMouseMotion:
 		_move_ball_to_mouse(event.position)
@@ -58,8 +53,7 @@ func _move_ball_to_mouse(screen_position: Vector2) -> void:
 	var ray_dir := cam.project_ray_normal(screen_position)
 
 	var hit = _plane.intersects_ray(ray_origin, ray_dir)
-	if hit == null:
-		return
+	if hit == null: return
 
 	var half_w := play_area_width * 0.5
 	var half_l := play_area_length * 0.5
@@ -72,19 +66,16 @@ func _move_ball_to_mouse(screen_position: Vector2) -> void:
 	_ball.global_position = Vector3(x, table_surface_y + ball_radius, z)
 
 func _confirm_placement() -> void:
-	if not _is_placing:
-		return
+	if not _is_placing: return
 
 	_is_placing = false
 	set_process_unhandled_input(false)
-
 	_exit_input_mode()
 
 	if is_instance_valid(_ball):
-		_release_ball_safely(_ball, _placement_token)
+		_set_ball_placement_state.rpc(_ball.get_path(), 1, false, _ball.global_position)
 
 	_restore_camera()
-
 	_ball = null
 	placement_finished.emit()
 
@@ -104,24 +95,30 @@ func _restore_camera() -> void:
 		Global.camera.transition_to(_previous_camera_remote)
 	_previous_camera_remote = null
 
-func _prepare_ball_for_placement() -> void:
-	_ball.freeze = true
-	_ball.linear_velocity = Vector3.ZERO
-	_ball.angular_velocity = Vector3.ZERO
-	_ball.global_position.y = table_surface_y + ball_radius
-
-func _release_ball_safely(ball: Ball, token: int) -> void:
-	ball.freeze = false
-	ball.sleeping = false
-	ball.can_sleep = false
-
-	# "assentar" levemente na mesa
-	ball.linear_velocity = Vector3(0, -0.02, 0)
-	ball.angular_velocity = Vector3.ZERO
-
-	get_tree().create_timer(0.5).timeout.connect(func():
-		if token != _placement_token:
-			return
-		if is_instance_valid(ball):
-			ball.can_sleep = true
-	)
+@rpc("any_peer", "call_local", "reliable")
+func _set_ball_placement_state(ball_path: NodePath, new_authority: int, is_frozen: bool, final_pos: Vector3):
+	var ball_node = get_node_or_null(ball_path)
+	if not ball_node: return
+	
+	ball_node.global_position = final_pos
+	
+	ball_node.set_multiplayer_authority(new_authority)
+	if ball_node.has_method("get_multiplayer_synchronizer"):
+		ball_node.get_multiplayer_synchronizer().set_multiplayer_authority(new_authority)
+	
+	ball_node.freeze = is_frozen
+	
+	ball_node.linear_velocity = Vector3.ZERO
+	ball_node.angular_velocity = Vector3.ZERO
+	
+	if not is_frozen:
+		ball_node.can_sleep = false 
+		ball_node.sleeping = false
+		
+		if ball_node.is_multiplayer_authority():
+			ball_node.apply_central_impulse(Vector3.DOWN * 0.05)
+			
+			get_tree().create_timer(0.2, false).timeout.connect(func():
+				if is_instance_valid(ball_node):
+					ball_node.can_sleep = true
+			)

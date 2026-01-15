@@ -46,11 +46,11 @@ func _on_match_start(_players_ids: Array, first_turn_player: String):
 	if int(first_turn_player) == multiplayer.get_unique_id():
 		strike_is_locked = false
 
-func _on_turn_change(next_player_name: String, _context_data: Dictionary):
+func _on_turn_change(next_player_name: String, _context):
 	if int(next_player_name) == multiplayer.get_unique_id():
 		strike_is_locked = false
 
-func _on_turn_extendes(_context_data: Dictionary):
+func _on_turn_extendes():
 	strike_is_locked = false
 
 func start_charging() -> void:

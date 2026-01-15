@@ -8,6 +8,7 @@ class_name Ball extends RigidBody3D
 
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
+@onready var multiplayer_synchronizer: MultiplayerSynchronizer = $MultiplayerSynchronizer
 
 var index = 0
 

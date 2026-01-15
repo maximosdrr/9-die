@@ -1,4 +1,4 @@
-[gd_scene load_steps=30 format=4 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=33 format=4 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Texture2D" uid="uid://dmsym4plkr834" path="res://Assets/PoolTable/PoolTable_table_base_color.png" id="2_uvr2m"]
@@ -11,6 +11,9 @@
 [ext_resource type="Script" uid="uid://b26iaj5fixb40" path="res://Features/Games/Pool/Scripts/BallPlacementManager.gd" id="8_rm535"]
 [ext_resource type="Script" uid="uid://c3oml4nmfm8ni" path="res://Features/Games/Pool/GameModes/GoldenNine/TurnRuler.gd" id="8_yqm70"]
 [ext_resource type="Script" uid="uid://c7lqh1twjwxm" path="res://Features/Games/Pool/GameModes/GoldenNine/GameMode.gd" id="9_nppf3"]
+[ext_resource type="Script" uid="uid://c8itq3mj32nfw" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineCueBallContactListener.gd" id="12_8ji62"]
+[ext_resource type="Script" uid="uid://dt5fcc3asoxbn" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineScoreListener.gd" id="13_ib5tq"]
+[ext_resource type="Script" uid="uid://clogi8r4yr41e" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineBallFellOffListener.gd" id="14_nqd1a"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hqklk"]
 friction = 0.4
@@ -261,11 +264,23 @@ metadata/_custom_type_script = "uid://c7lqh1twjwxm"
 script = ExtResource("8_yqm70")
 metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
 
-[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("turn_ruler", "ball_placement_manager", "off_table_monitor")]
+[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("turn_ruler", "off_table_monitor", "ball_placement_manager")]
 script = ExtResource("5_5ugkb")
 turn_ruler = NodePath("../Ruler")
-ball_placement_manager = NodePath("../../../Scripts/BallPlacementManager")
 off_table_monitor = NodePath("../../../Scripts/OffTableMonitor")
+ball_placement_manager = NodePath("../../../Scripts/BallPlacementManager")
 metadata/_custom_type_script = "uid://y72pphul62gh"
+
+[node name="GoldenNineCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
+script = ExtResource("12_8ji62")
+metadata/_custom_type_script = "uid://c8itq3mj32nfw"
+
+[node name="GoldenNineScoreListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
+script = ExtResource("13_ib5tq")
+metadata/_custom_type_script = "uid://dt5fcc3asoxbn"
+
+[node name="GoldenNineBallFellOffListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
+script = ExtResource("14_nqd1a")
+metadata/_custom_type_script = "uid://clogi8r4yr41e"
 
 [connection signal="body_entered" from="PoolTable/ScoreMonitor" to="PoolTable/ScoreMonitor" method="_on_body_entered"]
