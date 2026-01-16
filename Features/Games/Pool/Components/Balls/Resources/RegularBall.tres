@@ -5,6 +5,5 @@
 [resource]
 script = ExtResource("2_cumvy")
 name = "PrototypeBall"
-absorbent = false
-continuos_cd = true
+gravity_scale = 2.0
 metadata/_custom_type_script = "uid://b18ax0wydcqg1"

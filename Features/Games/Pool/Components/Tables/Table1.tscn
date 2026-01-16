@@ -5,7 +5,6 @@
 [ext_resource type="Script" uid="uid://chiuo5s528lxj" path="res://Features/Games/Pool/Scripts/GroundScoreMonitor.gd" id="2_h7p6q"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_cgd1i"]
-rough = true
 bounce = 0.04
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ionqa"]
@@ -27,7 +26,7 @@ size = Vector3(0.9793779, 0, 1.952776)
 size = Vector3(1.36623, 0.032165527, 2.1844769)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_r0g6o"]
-bounce = 0.7
+bounce = 0.6
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bdie8"]
 size = Vector3(0.8299557, 0.06965381, 0.050484374)
