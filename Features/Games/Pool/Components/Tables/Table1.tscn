@@ -26,7 +26,7 @@ size = Vector3(0.9793779, 0, 1.952776)
 size = Vector3(1.36623, 0.032165527, 2.1844769)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_r0g6o"]
-bounce = 0.6
+bounce = 0.3
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bdie8"]
 size = Vector3(0.8299557, 0.06965381, 0.050484374)
@@ -44,7 +44,6 @@ size = Vector3(0.815, 0.07, 0.058)
 size = Vector3(0.827, 0.07, 0.058)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_qr0y0"]
-rough = true
 absorbent = true
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_2amhn"]
@@ -58,7 +57,6 @@ size = Vector3(1.429936, 0.08141455, 2.402941)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_h7p6q"]
 friction = 0.0
-rough = true
 absorbent = true
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_r0g6o"]
