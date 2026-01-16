@@ -16,7 +16,7 @@ func rule(context: Dictionary) -> Actions:
 		return Actions.CALL_NEXT_TURN
 	
 	if balls_off_table and balls_off_table.size() > 0:
-		var has_cue_ball = balls_off_table.find(
+		var has_cue_ball = balls_off_table.any(
 			func(ball: Ball): return ball.index == 0
 		)
 		

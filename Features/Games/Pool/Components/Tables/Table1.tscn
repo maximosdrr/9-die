@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://chiuo5s528lxj" path="res://Features/Games/Pool/Scripts/GroundScoreMonitor.gd" id="2_h7p6q"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_cgd1i"]
-friction = 0.8
+rough = true
 bounce = 0.04
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ionqa"]
@@ -189,7 +189,7 @@ debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -0.0008817911, -0.0005027652, -0.0010242462)
 
 [node name="TableFloor" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.81, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 visible = false
 shape = SubResource("BoxShape3D_16wns")
 debug_color = Color(0.9973993, 0, 0.1541062, 0.41960785)

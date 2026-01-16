@@ -1,10 +1,7 @@
 class_name Ball extends RigidBody3D
 
 @export var data: BallResource
-@export var continuos_cd: bool = false
 
-@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 20.0 
-@export_range(0.0, 1.0) var spin_power_factor: float = 0.02
 
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
@@ -20,10 +17,6 @@ var radius: float = 0.029
 var _initial_transform: Transform3D
 
 func _ready() -> void:
-	if data == null:
-		push_warning("Ball has no BallResource assigned.")
-		return
-
 	if data.model != null:
 		add_child(data.model.instantiate())
 
@@ -32,19 +25,19 @@ func _ready() -> void:
 	linear_damp = data.linear_damp
 	angular_damp = data.angular_damp
 	
-	continuous_cd = continuos_cd
-	can_sleep = false
+	continuous_cd = data.continuos_cd 
+	can_sleep = data.can_sleep
 	
-	physics_material_override.bounce = data.bounce
-	physics_material_override.friction = data.friction
+	var new_mat = PhysicsMaterial.new()
+	new_mat.bounce = data.bounce
+	new_mat.friction = data.friction
+	new_mat.absorbent = data.absorbent 
+	
+	physics_material_override = new_mat
 
 	add_to_group("Ball")
 	
-	if collision_shape and collision_shape.shape is SphereShape3D:
-		radius = collision_shape.shape.radius
-	else:
-		push_error("Ball CollisionShape must be a SphereShape3D!")
-	
+	radius = collision_shape.shape.radius
 	_initial_transform = global_transform
 
 func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = Vector3.ZERO) -> void:
@@ -57,7 +50,7 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	
 	var offset_ratio = hit_offset_local.x / radius
 	
-	var max_angle_rad = deg_to_rad(max_squirt_angle_deg)
+	var max_angle_rad = deg_to_rad(data.max_squirt_angle_deg)
 	var deflection_angle = offset_ratio * max_angle_rad
 	
 	var final_dir = raw_dir.rotated(Vector3.UP, deflection_angle)
@@ -72,7 +65,7 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	
 	var linear_impulse = final_dir * total_force
 	var raw_torque = hit_offset_world.cross(linear_impulse)
-	var reduced_torque = raw_torque * spin_power_factor
+	var reduced_torque = raw_torque * data.spin_power_factor
 	
 	apply_central_impulse(linear_impulse)
 	apply_torque_impulse(reduced_torque)
