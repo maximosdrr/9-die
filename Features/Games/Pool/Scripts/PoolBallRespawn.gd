@@ -14,8 +14,8 @@ const COLORED_BALL_MESHES = [
 	preload("uid://buoe2fsbwjbk1")
 ]
 
-@export var head_spot: Vector3 = Vector3(0, 0, -0.5)
-@export var foot_spot: Vector3 = Vector3(0, 0, 0.5)
+@export var head_spot: Vector3 = Vector3(0, 0.17, -0.5)
+@export var foot_spot: Vector3 = Vector3(0, 0.17, 0.5)
 @export var balls_quantity: int = 9
 @export var balls_holder: Node3D
 
