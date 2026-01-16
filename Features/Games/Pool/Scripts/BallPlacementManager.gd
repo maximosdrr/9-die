@@ -9,13 +9,12 @@ signal placement_finished
 @export_group("Table Limits")
 @export var play_area_width: float = 1.1
 @export var play_area_length: float = 2.3
-@export var ball_radius: float = 0.03
+@export var ball_radius: float = 0.029
 
 var _ball: Ball
 var _is_placing := false
 var _plane: Plane
 var _previous_camera_remote: RemoteTransform3D
-var _placement_token := 0
 
 func _ready() -> void:
 	_plane = Plane(Vector3.UP, table_surface_y)
@@ -27,7 +26,6 @@ func start_placement(ball: Ball) -> void:
 
 	_ball = ball
 	_is_placing = true
-	_placement_token += 1
 	
 	_set_ball_placement_state.rpc(_ball.get_path(), multiplayer.get_unique_id(), true, _ball.global_position)
 
@@ -62,8 +60,9 @@ func _move_ball_to_mouse(screen_position: Vector2) -> void:
 
 	var x = clamp(hit.x, -limit_x, limit_x)
 	var z = clamp(hit.z, -limit_z, limit_z)
-
-	_ball.global_position = Vector3(x, table_surface_y + ball_radius, z)
+	
+	var ball_safety_margin = 0.05
+	_ball.global_position = Vector3(x, table_surface_y + ball_radius + ball_safety_margin, z)
 
 func _confirm_placement() -> void:
 	if not _is_placing: return

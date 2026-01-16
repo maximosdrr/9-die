@@ -66,4 +66,6 @@ collision_mask = 4
 shape = SubResource("SphereShape3D_5qcrw")
 debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
 
+[node name="DebugLabel" type="Label3D" parent="."]
+
 [connection signal="body_entered" from="Hitbox" to="." method="_on_body_entered"]
