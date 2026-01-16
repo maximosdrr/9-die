@@ -81,11 +81,19 @@ func respawn() -> void:
 	visible = true
 	process_mode = Node.PROCESS_MODE_INHERIT
 
-func _physics_process(_delta: float) -> void:
-	if linear_velocity.length() < 0.1:
-		angular_damp = 1.0 
-	else:
-		angular_damp = data.angular_damp
+func _physics_process(delta: float) -> void:
+	var speed := linear_velocity.length()
+
+	var slow_threshold := 0.3
+	
+	var stop_threshold := 0.05
+	
+	var min_damp := data.angular_damp
+	var max_damp := 1.5
+	
+	var t := inverse_lerp(slow_threshold, stop_threshold, speed)
+	t = clamp(t, 0.0, 1.0)
+	angular_damp = lerp(min_damp, max_damp, t)
 
 
 func _on_body_entered(body: Node) -> void:

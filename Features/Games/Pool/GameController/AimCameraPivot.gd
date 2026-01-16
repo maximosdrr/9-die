@@ -21,7 +21,7 @@ var target: Ball
 var pool_game: PoolGame
 var _tween: Tween
 
-func setup(_pool_game: PoolGame):
+func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	target = _pool_game.cue_ball
 	pool_game = _pool_game
 	

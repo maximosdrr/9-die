@@ -1,7 +1,7 @@
 class_name BallsMovementMonitor extends Node
 
 @export var ball_check_delay := 0.1
-@export var stop_tolerance := 0.25
+@export var stop_tolerance := 0.5
 
 var pool_game: PoolGame
 var balls: Array[Ball]
@@ -28,7 +28,7 @@ func _process(delta: float) -> void:
 	var any_ball_moving = false
 	
 	for ball in balls:
-		if ball.state_machine.current.type == State.Type.MOVING:
+		if ball.linear_velocity.length() > 0.01:
 			any_ball_moving = true
 			break
 

@@ -26,7 +26,6 @@ size = Vector3(0.9793779, 0, 1.952776)
 size = Vector3(1.36623, 0.032165527, 2.1844769)
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_r0g6o"]
-bounce = 0.3
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bdie8"]
 size = Vector3(0.8299557, 0.06965381, 0.050484374)
