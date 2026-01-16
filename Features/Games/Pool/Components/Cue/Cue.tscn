@@ -56,10 +56,9 @@ stroke_network_bridge = NodePath("Scripts/NetworkStrokeBridge")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
 [node name="CueBody" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.468)
 
 [node name="Model3D" type="MeshInstance3D" parent="CueBody"]
-transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0)
+transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 1.47)
 mesh = SubResource("ArrayMesh_m6ccd")
 skeleton = NodePath("")
 
