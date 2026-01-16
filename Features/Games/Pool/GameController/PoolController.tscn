@@ -13,7 +13,6 @@ metadata/_custom_type_script = "uid://b4ixi03kyeqyy"
 [node name="AimPivot" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
 script = ExtResource("1_vuqwp")
-head_tilt_offset_deg = 0.5
 metadata/_custom_type_script = "uid://ca7so7568ql4e"
 
 [node name="Elevation" type="Node3D" parent="AimPivot"]
