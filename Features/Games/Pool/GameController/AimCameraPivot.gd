@@ -6,20 +6,16 @@ extends Node3D
 @export_group("Camera Settings")
 @export var mouse_sensitivity: float = 0.0025
 @export var distance_from_ball: float = 0.55
-@export var height_offset: float = 0.1
+@export var height_offset: float = 0.05
 
-@export var head_tilt_offset_deg: float = 5.0
+@export var head_tilt_offset_deg: float = -20.0 
 @export var transition_duration: float = 0.25
 
 @export_subgroup("Limits")
-@export var min_pitch_deg: float = -45.0
-@export var max_pitch_deg: float = -5.0
-@export var max_head_look_up_deg: float = -45.0 
+@export var min_pitch_deg: float = -90.0
+@export var max_head_look_up_deg: float = -60.0
 
-var cue: Cue
-var cue_handle_sensor: RayCast3D
-var cue_length: float = 1.47
-var extra_height_margin: float = 0.08
+var cue: Cue 
 
 var curren_max_pitch_deg = 0.0
 var _rot_y: float = 0.0
@@ -36,14 +32,6 @@ func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	pool_game = _pool_game
 	cue = _pool_controller.cue
 	
-	cue_handle_sensor = get_node_or_null("CueHandleSensor")
-	
-	if not cue_handle_sensor:
-		push_warning("ATENÇÃO: RayCast 'CueHandleSensor' não encontrado como filho do AimPivot!")
-	else:
-		cue_handle_sensor.position = Vector3(0, 0.5, cue_length)
-		cue_handle_sensor.target_position = Vector3(0, -2.0, 0)
-	
 	if not pool_game.turn_changed.is_connected(_on_turn_changed):
 		pool_game.turn_changed.connect(_on_turn_changed)
 	if not pool_game.match_started.is_connected(_on_match_started):
@@ -54,13 +42,12 @@ func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 		pool_game.ball_placement_manager.placement_finished.connect(_on_placement_finished)
 
 func _ready() -> void:
-	curren_max_pitch_deg = max_pitch_deg
 	set_as_top_level(true)
 	_initialize_rotation()
 	set_process(false)
 
 func _physics_process(_delta: float) -> void:
-	_update_cue_angle()
+	# Não atualizamos o taco aqui. Apenas reagimos a ele.
 	_enforce_physical_limits()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -118,9 +105,9 @@ func _rotate_camera(relative_motion: Vector2) -> void:
 		var delta_y = relative_motion.y * mouse_sensitivity
 		var current_limit = _calculate_dynamic_limit()
 		
+		# Lógica de Input da Câmera
 		if _head_look_angle < -0.0001 and delta_y < 0:
 			_head_look_angle -= delta_y 
-			
 			if _head_look_angle > 0:
 				var remainder = -_head_look_angle
 				_head_look_angle = 0.0
@@ -131,11 +118,10 @@ func _rotate_camera(relative_motion: Vector2) -> void:
 		if _rot_x > current_limit:
 			var excess = _rot_x - current_limit
 			_rot_x = current_limit
-			
 			_head_look_angle -= excess
 		
 		_head_look_angle = max(_head_look_angle, deg_to_rad(max_head_look_up_deg))
-		_rot_x = clamp(_rot_x, deg_to_rad(min_pitch_deg), deg_to_rad(max_pitch_deg))
+		_rot_x = clamp(_rot_x, deg_to_rad(min_pitch_deg), current_limit)
 		
 		elevation_node.rotation.x = _rot_x
 		
@@ -143,37 +129,17 @@ func _rotate_camera(relative_motion: Vector2) -> void:
 			_camera_node.rotation.x = -_head_look_angle
 
 func _calculate_dynamic_limit() -> float:
-	if not cue: return deg_to_rad(max_pitch_deg)
+	if not cue: return 0.0
 	
 	var current_cue_pitch = cue.rotation.x
 	var head_offset_rad = deg_to_rad(head_tilt_offset_deg)
 	
-	var dynamic = current_cue_pitch - head_offset_rad
-	return min(dynamic, deg_to_rad(max_pitch_deg))
+	var dynamic_limit = current_cue_pitch - head_offset_rad
+	return min(dynamic_limit, 0.3)
 
 func _enforce_physical_limits() -> void:
+	# Garante que se o taco subir sozinho, a câmera sobe junto
 	var limit = _calculate_dynamic_limit()
 	if _rot_x > limit:
 		_rot_x = lerp(_rot_x, limit, 0.1)
 		elevation_node.rotation.x = _rot_x
-
-func _update_cue_angle() -> void:
-	if not cue or not cue_handle_sensor: return
-	
-	var target_cue_pitch = 0.0
-	
-	if cue_handle_sensor.is_colliding():
-		var collision_point = cue_handle_sensor.get_collision_point()
-		var diff_y = (collision_point.y + extra_height_margin) - global_position.y
-		
-		if diff_y > 0:
-			var pivot_pos_2d = Vector2(global_position.x, global_position.z)
-			var col_pos_2d = Vector2(collision_point.x, collision_point.z)
-			var dist = pivot_pos_2d.distance_to(col_pos_2d)
-			dist = max(dist, 0.1)
-			
-			var angle_rad = atan2(diff_y, dist)
-			target_cue_pitch = -abs(angle_rad)
-	
-	target_cue_pitch = clamp(target_cue_pitch, deg_to_rad(-45.0), 0.0)
-	cue.rotation.x = lerp(cue.rotation.x, target_cue_pitch, 0.2)
