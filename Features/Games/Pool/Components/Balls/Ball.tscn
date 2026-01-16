@@ -36,7 +36,6 @@ collision_mask = 13
 physics_material_override = SubResource("PhysicsMaterial_n5t01")
 script = ExtResource("1_eusg5")
 data = ExtResource("2_5qcrw")
-continuos_cd = true
 metadata/_custom_type_script = "uid://crufycb4ylox5"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -66,5 +65,7 @@ collision_mask = 4
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
 shape = SubResource("SphereShape3D_5qcrw")
 debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
+
+[node name="DebugLabel" type="Label3D" parent="."]
 
 [connection signal="body_entered" from="Hitbox" to="." method="_on_body_entered"]

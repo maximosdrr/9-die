@@ -81,7 +81,11 @@ start_game={
 
 [physics]
 
-common/physics_ticks_per_second=240
+common/physics_ticks_per_second=580
 common/physics_jitter_fix=1.0
 3d/solver/solver_iterations=24
 common/physics_interpolation=true
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2

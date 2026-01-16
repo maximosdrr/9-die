@@ -1,21 +1,21 @@
 class_name PoolBallRespawn extends Node
 
 const BALL_SCENE = preload("uid://cqwu27wd0ddmr")
-const WHITE_BALL_MESH = preload("uid://bhjlnqgqhyfnc")
+const WHITE_BALL_MESH = preload("uid://duqktbfsd1n6u")
 
 const COLORED_BALL_MESHES = [
-	preload("uid://bu6okh4akm3ec"), preload("uid://dfmov82m3kcqh"), 
-	preload("uid://i25llnp0d762"), preload("uid://bai0gasp48bda"), 
-	preload("uid://bi80fjwrtn0pb"), preload("uid://d0bej0qthal2d"), 
-	preload("uid://d1gohyrlrh0km"), preload("uid://dqhiy43ibqtnu"), 
-	preload("uid://dpnwjgewr20pt"), preload("uid://eb8mq2lhl83w"), 
-	preload("uid://nsf6cg0twjqg"), preload("uid://dnmrfdttylve1"), 
-	preload("uid://b3skwpys2hnwk"), preload("uid://dk2el0bm0kq7v"), 
-	preload("uid://fc8ua6ttootl")
+	preload("uid://dfbechio6ptbs"), preload("uid://xb3gwg7b6vym"),
+	preload("uid://bgm0x1tow64ow"), preload("uid://bohcijga8l31y"),
+	preload("uid://blo2j7vueioa8"), preload("uid://csl0h6mpj5wrf"),
+	preload("uid://b3u1v561vo0k6"), preload("uid://dkmf4qijjxk0y"),
+	preload("uid://cl3vhtcj52lj2"), preload("uid://c2pjjww311x5"),
+	preload("uid://dsoxx0stji020"), preload("uid://bvnrqbdvnvih1"),
+	preload("uid://bdr1hxm60mcdi"), preload("uid://3pq44lqvihfa"),
+	preload("uid://buoe2fsbwjbk1")
 ]
 
-@export var head_spot: Vector3 = Vector3(0, 0, -0.5)
-@export var foot_spot: Vector3 = Vector3(0, 0, 0.5)
+@export var head_spot: Vector3 = Vector3(0, 0.17, -0.5)
+@export var foot_spot: Vector3 = Vector3(0, 0.17, 0.5)
 @export var balls_quantity: int = 9
 @export var balls_holder: Node3D
 
