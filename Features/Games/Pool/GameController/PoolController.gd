@@ -18,7 +18,6 @@ func setup(_parent: Player, table_game: TableGame):
 	cue.setup(pool_game, aim_pivot)
 	
 	pool_game.turn_changed.connect(_on_turn_change)
-	pool_game.match_started.connect(_on_match_starts)
 
 func take_control():
 	if not is_multiplayer_authority():
@@ -55,7 +54,7 @@ func give_control():
 	aim_pivot.set_process(false)
 	aim_pivot.set_process_unhandled_input(false)
 
-func _apply_control(turn_owner_id: String, context: Dictionary):
+func apply_control(turn_owner_id: String, context: Dictionary):
 	if turn_owner_id == player.name:
 		can_take_control = true
 		player.give_control()
@@ -70,8 +69,5 @@ func _apply_control(turn_owner_id: String, context: Dictionary):
 		give_control()
 		player.take_control()
 
-func _on_match_starts(_players: Array, first_turn_player_id: String):
-	_apply_control(first_turn_player_id, {})
-
 func _on_turn_change(next_player_name: String, context: Dictionary):
-	_apply_control(next_player_name, context)
+	apply_control(next_player_name, context)

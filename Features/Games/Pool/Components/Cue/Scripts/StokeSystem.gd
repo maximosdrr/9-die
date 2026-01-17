@@ -5,7 +5,6 @@ class_name CueStrokeSystem extends Node
 @export var max_draw_distance: float = 0.8
 @export var buffer_size: int = 5
 
-# Estado
 var current_draw: float = 0.0
 var _accumulated_input: float = 0.0
 var _velocity_buffer: Array[float] = []

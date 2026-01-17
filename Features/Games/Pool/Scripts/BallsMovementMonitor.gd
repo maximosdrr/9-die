@@ -28,6 +28,9 @@ func _process(delta: float) -> void:
 	var any_ball_moving = false
 	
 	for ball in balls:
+		if not is_instance_valid(ball):
+			continue
+
 		if ball.linear_velocity.length() > 0.01:
 			any_ball_moving = true
 			break

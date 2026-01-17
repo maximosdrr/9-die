@@ -13,7 +13,8 @@ func rule(context: Dictionary) -> Actions:
 		return Actions.CALL_CUE_BALL_REPLACEMENT 
 	
 	if first_ball_touched == null:
-		return Actions.CALL_NEXT_TURN
+		return Actions.END_GAME_PLAYER_WIN
+		#return Actions.CALL_NEXT_TURN
 	
 	if balls_off_table and balls_off_table.size() > 0:
 		var has_cue_ball = balls_off_table.any(

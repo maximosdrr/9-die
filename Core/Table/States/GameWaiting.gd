@@ -8,8 +8,14 @@ var players_on_influency_area: Array[Node3D] = []
 func _init() -> void:
 	self.type = State.Type.WAITING_GAME_START
 
-func enter(_metadata: Dictionary[Variant, Variant]):
-	start_game_ui.hide()
+func enter(metadata: Dictionary[Variant, Variant]):
+	var is_restart = metadata.has("is_restart")
+	if is_restart:
+		_update_ui_text()
+		start_game_ui.show()
+	else:
+		start_game_ui.hide()
+
 	_connect_signals()
 
 func exit(_metadata: Dictionary[Variant, Variant]):

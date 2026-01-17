@@ -12,7 +12,6 @@ class_name Cue extends Node3D
 @export var visual_gap: float = 0.01
 @export var post_shot_cooldown: float = 0.25
 
-
 signal strike_executed
 
 var ball_radius_offset: float = 0.04
@@ -29,8 +28,6 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	camera_pivot = _camera_pivot
 	input_system.setup(self)
 	stroke_network_bridge.setup(self)
-	if not pool_game.match_started.is_connected(_on_match_start):
-		pool_game.match_started.connect(_on_match_start)
 	
 	if not pool_game.turn_changed.is_connected(_on_turn_change):
 		pool_game.turn_changed.connect(_on_turn_change)
@@ -38,13 +35,12 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
 	if not pool_game.turn_extended.is_connected(_on_turn_extendes):
 		pool_game.turn_extended.connect(_on_turn_extendes)
 
+	if int(pool_game.turn_owner.name) == multiplayer.get_unique_id():
+		strike_is_locked = false
+
 func _ready() -> void:
 	_update_system_limits()
 	position.z = ball_radius_offset
-
-func _on_match_start(_players_ids: Array, first_turn_player: String):
-	if int(first_turn_player) == multiplayer.get_unique_id():
-		strike_is_locked = false
 
 func _on_turn_change(next_player_name: String, _context):
 	if int(next_player_name) == multiplayer.get_unique_id():

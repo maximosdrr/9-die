@@ -26,6 +26,12 @@ properties/2/replication_mode = 1
 properties/3/path = NodePath(".:rotation")
 properties/3/spawn = true
 properties/3/replication_mode = 1
+properties/4/path = NodePath(".:texture_id")
+properties/4/spawn = true
+properties/4/replication_mode = 1
+properties/5/path = NodePath(".:index")
+properties/5/spawn = true
+properties/5/replication_mode = 1
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_5qcrw"]
 radius = 0.029

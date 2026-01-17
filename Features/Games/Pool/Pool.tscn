@@ -19,13 +19,9 @@ script = ExtResource("1_jypsj")
 pool_table = NodePath("Table1")
 metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
 
-[node name="Pivot" type="Node3D" parent="."]
-transform = Transform3D(-4.371139e-08, -0.99999994, 0, -4.371139e-08, 1.9106853e-15, 0.99999994, -1, 4.3711385e-08, -4.3711385e-08, 0, 2.5, 0)
-
-[node name="RemoteTop" type="RemoteTransform3D" parent="Pivot"]
-remote_path = NodePath("../..")
-
-[node name="Camera3D" type="Camera3D" parent="Pivot"]
+[node name="BallsHolderMultiplayerSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("uid://cqwu27wd0ddmr")
+spawn_path = NodePath("../BallsHolder")
 
 [node name="BallsHolder" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
@@ -83,3 +79,11 @@ script = ExtResource("14_nqd1a")
 metadata/_custom_type_script = "uid://clogi8r4yr41e"
 
 [node name="Table1" parent="." instance=ExtResource("13_nqd1a")]
+
+[node name="Pivot" type="Node3D" parent="."]
+transform = Transform3D(-4.371139e-08, -0.99999994, 0, -4.371139e-08, 1.9106853e-15, 0.99999994, -1, 4.3711385e-08, -4.3711385e-08, 0, 2.5, 0)
+
+[node name="RemoteTop" type="RemoteTransform3D" parent="Pivot"]
+remote_path = NodePath("../..")
+
+[node name="Camera3D" type="Camera3D" parent="Pivot"]

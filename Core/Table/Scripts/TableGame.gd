@@ -7,11 +7,13 @@ var table: Table
 var game_mode_handler: GameModeHandler
 var turn_order: Array
 var turn_owner: Player
+var player: Player
 var network_turn_syncronization: TableTurnNetworkBridge
 
 signal turn_changed(next_player_name: String, context: Dictionary)
 signal match_started(players_ids: Array, first_turn_player: String)
 signal turn_extended()
+signal match_over(winner: String, context: Dictionary)
 
 func setup(_table: Table) -> void:
 	table = _table
@@ -21,7 +23,6 @@ func setup(_table: Table) -> void:
 	_connect_signals()
 	
 func _setup_network_turn_syncronization(_table_game: TableGame):
-	# Assuming 'table' is your data object with the config
 	if not table.enable_network_turn_syncronization:
 		return
 
@@ -30,7 +31,6 @@ func _setup_network_turn_syncronization(_table_game: TableGame):
 	
 	add_child(network_turn_syncronization)
 	
-	# 3. Now it's safe to run setup (and connect signals)
 	network_turn_syncronization.setup(_table_game)
 
 func _connect_signals() -> void:
@@ -51,15 +51,8 @@ func _on_table_influence_body_exited(body: Node3D) -> void:
 	
 	players_on_area.erase(body.get_instance_id())
 
-func setup_first_turn(players: Array):
-	turn_order = players
-	
-	var first_turn_owner_id = turn_order[0]
-	var player = PlayerRegistry.get_player_by_id(first_turn_owner_id)
-	
-	turn_owner = player
-	print("Game started! First player is: ", turn_owner.name)
-	match_started.emit(players, str(first_turn_owner_id))
+func setup_match(players: Array, first_turn_owner_id: String):
+	pass
 	
 func call_next_turn(context: Dictionary):
 	var current_id = turn_owner.name
@@ -100,3 +93,12 @@ func apply_turn_extension():
 		game_mode_handler.current_game_mode.turn_resolver.handle_turn_extension_context()
 	else:
 		push_warning("Game mode handler is not configured on table: ", name)
+
+func call_match_over(winner: String, context: Dictionary):
+	apply_match_over(winner, context)
+
+func apply_match_over(winner: String, context: Dictionary):
+	table.state_machine.change_state(State.Type.WAITING_GAME_START, {
+		"is_restart": true
+	})
+	match_over.emit(winner, context)

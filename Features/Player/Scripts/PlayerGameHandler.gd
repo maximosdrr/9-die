@@ -5,10 +5,14 @@ class_name PlayerGameHandler extends Node
 
 var current_controller: PlayerGameController = null
 
-func equip_game_controller(controller_scene: PackedScene, table_game: TableGame):
+func equip_game_controller(
+	controller_scene: PackedScene, 
+	table_game: TableGame
+	):
 	unequip_current_controller()
 	
 	var controller_instance = controller_scene.instantiate()
+	controller_instance.name = "ActiveController"
 	controller_instance.set_multiplayer_authority(player.name.to_int())
 	
 	current_controller = controller_instance
@@ -20,6 +24,7 @@ func equip_game_controller(controller_scene: PackedScene, table_game: TableGame)
 		context_slot.hide()
 	
 	context_slot.add_child(current_controller)
+	print("called")
 	current_controller.setup(owner, table_game)
 
 func unequip_current_controller():

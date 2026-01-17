@@ -13,12 +13,17 @@ func enter(metadata: Dictionary[Variant, Variant]):
 	for player_id in players_ids:
 		var player: Player = PlayerRegistry.get_player_by_id(player_id)
 		assert(player != null)
-		
-		player.game_handler.equip_game_controller(
-				table.game_controller_scene,
-				table.current_table_game
-		)
-		
 		table.players_on_match.append(player.name)
+		
+		if int(player.name) == multiplayer.get_unique_id():
+			table.current_table_game.player = player
 	
-	table.current_table_game.setup_first_turn(players_ids)
+	table.current_table_game.turn_order = players_ids
+	var first_turn_owner_id = players_ids[0]
+	
+	var _player = PlayerRegistry.get_player_by_id(first_turn_owner_id)
+	table.current_table_game.turn_owner = _player
+	
+	if multiplayer.is_server():
+		table.current_table_game.setup_match(players_ids, first_turn_owner_id)
+	

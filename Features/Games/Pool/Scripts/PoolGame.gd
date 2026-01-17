@@ -13,14 +13,51 @@ var balls: Array[Ball] = []
 var score_monitor: Area3D
 
 func _ready() -> void:
-	assert(pool_ball_respawn.cue_ball != null)
-	assert(pool_ball_respawn.balls.size() > 0)
-	
-	cue_ball = pool_ball_respawn.cue_ball
-	balls = pool_ball_respawn.balls
 	score_monitor = pool_table.score_monitor
 	
-	balls_movement_monitor.setup(self)
-	_game_mode_handler.setup(self)
 	off_table_monitor.setup(pool_table.ball_off_monitor)
 	game_mode_handler = _game_mode_handler
+	match_over.connect(_on_match_is_over)
+	match_started.connect(_on_match_starts)
+	
+
+func setup_match(players: Array, first_turn_owner: String):
+	pool_ball_respawn.start_game()
+	
+	var holder = pool_ball_respawn.balls_holder
+	
+	if not holder.has_node("CueBall"):
+		while not holder.has_node("CueBall"):
+			await holder.child_entered_tree
+	
+	cue_ball = holder.get_node("CueBall")
+	
+	balls.clear()
+
+	for child in holder.get_children():
+		if child is Ball and child.name != "CueBall":
+			balls.append(child)
+	
+	_game_mode_handler.setup(self)
+	balls_movement_monitor.setup(self)
+	
+	match_started.emit(players, str(first_turn_owner))
+
+func _on_match_starts(players_ids: Array, first_turn_owner: String):
+	for p_id in players_ids:
+		var p_node = PlayerRegistry.get_player_by_id(p_id)
+		
+		if p_node:
+			p_node.game_handler.equip_game_controller(
+				table.game_controller_scene,
+				self
+			)
+	
+	if player and player.game_handler.current_controller:
+		player.game_handler.current_controller.apply_control(first_turn_owner, {})
+
+func _on_match_is_over(_winner: String, _context: Dictionary):
+	player.game_handler.current_controller.give_control()
+	player.game_handler.unequip_current_controller()
+	player.take_control()
+	pool_ball_respawn.clear_table()
