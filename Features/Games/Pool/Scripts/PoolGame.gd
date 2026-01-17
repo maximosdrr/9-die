@@ -21,26 +21,16 @@ func _ready() -> void:
 	match_started.connect(_on_match_starts)
 	
 
-func setup_match(players: Array, first_turn_owner: String):
+func setup_match(players: Array, first_turn_owner: String) -> void:
 	pool_ball_respawn.start_game()
-	
-	var holder = pool_ball_respawn.balls_holder
-	
-	if not holder.has_node("CueBall"):
-		while not holder.has_node("CueBall"):
-			await holder.child_entered_tree
-	
-	cue_ball = holder.get_node("CueBall")
-	
-	balls.clear()
 
-	for child in holder.get_children():
-		if child is Ball and child.name != "CueBall":
-			balls.append(child)
-	
+	var payload := await pool_ball_respawn.wait_table_ready()
+	cue_ball = payload[0]
+	balls = payload[1]
+
 	_game_mode_handler.setup(self)
 	balls_movement_monitor.setup(self)
-	
+
 	match_started.emit(players, str(first_turn_owner))
 
 func _on_match_starts(players_ids: Array, first_turn_owner: String):
