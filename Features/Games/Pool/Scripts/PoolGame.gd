@@ -50,4 +50,6 @@ func _on_match_is_over(_winner: String, _context: Dictionary):
 	player.game_handler.current_controller.give_control()
 	player.game_handler.unequip_current_controller()
 	player.take_control()
-	pool_ball_respawn.clear_table()
+	
+	if multiplayer.is_server():
+		pool_ball_respawn.clear_table()

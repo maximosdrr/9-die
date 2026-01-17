@@ -10,11 +10,12 @@ func rule(context: Dictionary) -> Actions:
 	var target_ball: Ball = context.get("target_ball")
 	
 	if balls_scored.has(0):
+		if balls_scored.has(9):
+			return Actions.END_GAME_FATAL_FOUL
 		return Actions.CALL_CUE_BALL_REPLACEMENT 
 	
 	if first_ball_touched == null:
-		return Actions.END_GAME_PLAYER_WIN
-		#return Actions.CALL_NEXT_TURN
+		return Actions.CALL_NEXT_TURN
 	
 	if balls_off_table and balls_off_table.size() > 0:
 		var has_cue_ball = balls_off_table.any(
@@ -26,8 +27,11 @@ func rule(context: Dictionary) -> Actions:
 		return Actions.CALL_NEXT_TURN
 
 	if target_ball.index != first_ball_touched.index:
-		return Actions.CALL_NEXT_TURN
+		if balls_scored.has(9):
+			return Actions.END_GAME_FATAL_FOUL
 
+		return Actions.CALL_NEXT_TURN
+	
 	if balls_scored.has(9):
 		return Actions.END_GAME_PLAYER_WIN
 	
