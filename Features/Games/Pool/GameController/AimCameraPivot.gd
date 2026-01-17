@@ -4,7 +4,7 @@ extends Node3D
 @onready var elevation_node: Node3D = $Elevation
 
 @export_group("Camera Behavior")
-@export var mouse_sensitivity: float = 0.0025
+@export var mouse_sensitivity: float = 0.0015
 @export var distance_from_ball: float = 0.55
 @export var height_offset: float = 0.1
 @export var transition_duration: float = 0.25
@@ -13,7 +13,7 @@ extends Node3D
 @export_group("Rotation Limits")
 @export var limit_ceiling_deg: float = -90.0 
 @export var limit_floor_deg: float = 15.0 
-@export var max_neck_look_up_deg: float = -40.0
+@export var max_neck_look_up_deg: float = -20.0
 
 @export var cue_offset_deg: float = -6.0
 

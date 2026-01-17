@@ -42,6 +42,7 @@ func _on_lobby_created(connect_result: int, lobby_id: int) -> void:
 	var peer_id = multiplayer.get_unique_id()
 	
 	lobby_created.emit(lobby_id, peer_id)
+	player_connected.emit(peer_id)
 	
 	var start_message = "Host Session Started. Peer ID: %s Lobby ID: %s" % [peer_id, lobby_id]
 	print(start_message)
@@ -49,14 +50,13 @@ func _on_lobby_created(connect_result: int, lobby_id: int) -> void:
 func _on_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response: int) -> void:
 	if response != Steam.ChatRoomEnterResponse.CHAT_ROOM_ENTER_RESPONSE_SUCCESS:
 		var msg = "Failed to join lobby. Code: " + str(response)
-		push_error(msg)
 		connection_failed.emit(msg)
 		return
 
 	var host_id = Steam.getLobbyOwner(lobby_id)
 	
-	if host_id == Steam.getSteamID(): 
-		print("Host cannot rejoin in his own room")
+	if host_id == Steam.getSteamID():
+		print("cannot enter in this room as a guest if you are already the host")
 		return 
 
 	peer = SteamMultiplayerPeer.new()
@@ -67,6 +67,7 @@ func _on_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response:
 		var peer_id = multiplayer.get_unique_id()
 		
 		lobby_session_joined.emit(lobby_id, peer_id, host_id)
+		player_connected.emit(peer_id)
 		
 		var start_message = "Client Session Started. Connected to Host: %s . Peer ID: %s " % [host_id, peer_id]
 		print(start_message)

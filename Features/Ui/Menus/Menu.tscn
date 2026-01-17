@@ -2,11 +2,10 @@
 
 [ext_resource type="Script" uid="uid://cim8wlhd4qyfn" path="res://Features/Ui/Menus/Menu.gd" id="1_clg3x"]
 
-[node name="Menu" type="Control" node_paths=PackedStringArray("lobby_container")]
+[node name="Menu" type="Control"]
 layout_mode = 3
 anchors_preset = 0
 script = ExtResource("1_clg3x")
-lobby_container = NodePath("VBoxContainer/HBoxContainer/ScrollContainer/LobbyList")
 
 [node name="Background" type="Panel" parent="."]
 layout_mode = 0
