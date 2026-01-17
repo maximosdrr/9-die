@@ -16,3 +16,6 @@ func take_control():
 	
 func give_control():
 	pass
+
+func apply_control(turn_owner_id: String, context: Dictionary):
+	pass

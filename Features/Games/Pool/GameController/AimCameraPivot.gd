@@ -17,7 +17,6 @@ extends Node3D
 
 @export var cue_offset_deg: float = -6.0
 
-
 var cue: Cue 
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
@@ -33,18 +32,20 @@ func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	target = _pool_game.cue_ball
 	pool_game = _pool_game
 	cue = _pool_controller.cue
-	
 	_connect_signals()
+	if target:
+		await get_tree().create_timer(1.5).timeout
+		global_position = target.global_position
+		set_physics_process(true)
 
 func _ready() -> void:
 	set_as_top_level(true)
 	_initialize_positions()
-	set_process(false) # Só usamos physics_process e input
+	set_process(false)
 
 func _connect_signals() -> void:
 	var events = [
 		[pool_game.turn_changed, _on_turn_changed],
-		[pool_game.match_started, _on_match_started],
 		[pool_game.turn_extended, _on_turn_extended],
 		[pool_game.ball_placement_manager.placement_finished, _on_placement_finished]
 	]
@@ -133,11 +134,6 @@ func _on_turn_extended():
 
 func _on_turn_changed(_next_player_name: String, _context):
 	_move_smoothly_to_target()
-
-func _on_match_started(_players_ids: Array, _first_turn_player: String):
-	if target:
-		global_position = target.global_position
-		set_physics_process(true)
 
 func _move_smoothly_to_target():
 	if not target: return
