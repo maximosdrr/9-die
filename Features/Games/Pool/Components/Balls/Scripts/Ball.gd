@@ -97,9 +97,11 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	var aim_basis = Basis(right, up, forward)
 	
 	var hit_offset_world = aim_basis * hit_offset_local
-	
 	var linear_impulse = final_dir * total_force
+	
 	var raw_torque = hit_offset_world.cross(linear_impulse)
+	raw_torque.y = -raw_torque.y
+	
 	var reduced_torque = raw_torque * spin_power
 	
 	apply_central_impulse(linear_impulse)
