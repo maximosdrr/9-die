@@ -15,7 +15,7 @@ extends Node3D
 @export var limit_floor_deg: float = 15.0 
 @export var max_neck_look_up_deg: float = -20.0
 
-@export var cue_offset_deg: float = -6.0
+@export var cue_offset_deg: float = -5.0
 
 var cue: Cue 
 var _rot_y: float = 0.0

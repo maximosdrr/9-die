@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bu6okh4akm3ec"
-path="res://.godot/imported/Ball1.glb-1f9aa8f4be22d4a89f6dc0b95aa18abe.scn"
+valid=false
 
 [deps]
 
 source_file="res://Assets/Balls/RegularBalls/Ball1.glb"
-dest_files=["res://.godot/imported/Ball1.glb-1f9aa8f4be22d4a89f6dc0b95aa18abe.scn"]
 
 [params]
 

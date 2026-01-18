@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://dup2nccx8cd5p"
-path="res://.godot/imported/Poolstick.glb-9d3c2c8ff0948f8158f78017902d13de.scn"
+valid=false
 
 [deps]
 
 source_file="res://Assets/Poolstick/Poolstick.glb"
-dest_files=["res://.godot/imported/Poolstick.glb-9d3c2c8ff0948f8158f78017902d13de.scn"]
 
 [params]
 

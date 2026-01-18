@@ -31,14 +31,11 @@ func _process(delta: float) -> void:
 	
 	if not _is_active: return
 
-	# 1. Aplica input ao draw atual
 	if _accumulated_input != 0:
 		current_draw += (_accumulated_input * sensitivity)
-		# Nota: O clamp final do minimo (colisão) faremos no pai ou aqui se passarmos o offset
 		current_draw = min(current_draw, max_draw_distance) 
 		_accumulated_input = 0.0
 
-	# 2. Calcula velocidade
 	var instant_velocity = (current_draw - _previous_draw) / delta
 	
 	_velocity_buffer.push_front(instant_velocity)

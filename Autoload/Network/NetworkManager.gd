@@ -3,8 +3,8 @@ extends Node
 var network_provider: NetworkProvider
 
 func _ready() -> void:
-	network_provider = ENetNetworkProvider.new()
-	#network_provider = SteamNetworkProvider.new()
+	#network_provider = ENetNetworkProvider.new()
+	network_provider = SteamNetworkProvider.new()
 	add_child(network_provider)
 
 func create_host_session() -> void:

@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bhjlnqgqhyfnc"
-path="res://.godot/imported/WhiteBall.glb-8484e2a6969781d4c222b5ac4b83a153.scn"
+valid=false
 
 [deps]
 
 source_file="res://Assets/Balls/RegularBalls/WhiteBall.glb"
-dest_files=["res://.godot/imported/WhiteBall.glb-8484e2a6969781d4c222b5ac4b83a153.scn"]
 
 [params]
 

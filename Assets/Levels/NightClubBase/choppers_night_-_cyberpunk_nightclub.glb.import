@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://iaafd1dndqsi"
-path="res://.godot/imported/choppers_night_-_cyberpunk_nightclub.glb-58dd51b841c30b8e5cf440fe8b83e661.scn"
+valid=false
 
 [deps]
 
 source_file="res://Assets/Levels/NightClubBase/choppers_night_-_cyberpunk_nightclub.glb"
-dest_files=["res://.godot/imported/choppers_night_-_cyberpunk_nightclub.glb-58dd51b841c30b8e5cf440fe8b83e661.scn"]
 
 [params]
 

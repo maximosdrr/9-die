@@ -24,7 +24,6 @@ func equip_game_controller(
 		context_slot.hide()
 	
 	context_slot.add_child(current_controller)
-	print("called")
 	current_controller.setup(owner, table_game)
 
 func unequip_current_controller():

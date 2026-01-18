@@ -1,12 +1,11 @@
 class_name CueAutomaticElevation
 extends Node
 
-# Margem FÍSICA para o taco não entrar na madeira (4cm é um bom valor realista)
 @export var physical_margin: float = 0.08
 
 @export var cue: Cue
 @export var cue_handle_sensor: RayCast3D
-@export var aim_pivot: Node3D # Precisamos saber a altura da bola (pivot)
+@export var aim_pivot: Node3D
 
 func _physics_process(_delta: float) -> void:
 	_update_cue_angle()

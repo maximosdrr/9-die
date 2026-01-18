@@ -186,7 +186,6 @@ transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -0.0
 
 [node name="TableFloor" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
-visible = false
 shape = SubResource("BoxShape3D_16wns")
 debug_color = Color(0.9973993, 0, 0.1541062, 0.41960785)
 

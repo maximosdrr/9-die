@@ -13,6 +13,7 @@ const COLORED_BALL_MESHES = [
 ]
 
 @export var data: BallResource
+@export var index = 0
 @export var texture_id: int = 0:
 	set(value):
 		texture_id = value
@@ -22,8 +23,6 @@ const COLORED_BALL_MESHES = [
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var state_machine: StateMachine = $StateMachine
 @onready var multiplayer_synchronizer: MultiplayerSynchronizer = $MultiplayerSynchronizer
-
-@export var index = 0
 
 signal stopped_moving(position: Vector3)
 signal striked

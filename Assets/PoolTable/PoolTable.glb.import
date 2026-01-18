@@ -4,12 +4,11 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://c05d8yaoecgvb"
-path="res://.godot/imported/PoolTable.glb-46d0fed95638c8a29c80cc4a247dff57.scn"
+valid=false
 
 [deps]
 
 source_file="res://Assets/PoolTable/PoolTable.glb"
-dest_files=["res://.godot/imported/PoolTable.glb-46d0fed95638c8a29c80cc4a247dff57.scn"]
 
 [params]
 
