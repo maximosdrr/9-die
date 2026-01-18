@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=4 uid="uid://dr4okuny0mqw0"]
+[gd_scene load_steps=12 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
 [ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://ddy7tkgkx1u8k" path="res://Features/Games/Pool/Components/Cue/Scripts/SpinSystem.gd" id="5_71dtw"]
 [ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Games/Pool/Components/Cue/Scripts/NetworkStrokeBridge.gd" id="6_hxwsn"]
 [ext_resource type="AudioStream" uid="uid://blc68ac0hdhso" path="res://Assets/SoundEffects/Strike.ogg" id="7_lm3ol"]
+[ext_resource type="Script" uid="uid://dt8xf8l0g7j3c" path="res://Features/Games/Pool/Components/Cue/Scripts/CueSfx.gd" id="7_t7is8"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -48,11 +49,12 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system", "stroke_network_bridge")]
+[node name="Cue" type="Node3D" node_paths=PackedStringArray("stroke_system", "spin_system", "input_system", "cue_sfx", "stroke_network_bridge")]
 script = ExtResource("1_fst4q")
 stroke_system = NodePath("Scripts/CueStrokeSystem")
 spin_system = NodePath("Scripts/CueSpinSystem")
 input_system = NodePath("Scripts/CueInputSystem")
+cue_sfx = NodePath("Scripts/CueSfx")
 stroke_network_bridge = NodePath("Scripts/NetworkStrokeBridge")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
@@ -80,6 +82,12 @@ metadata/_custom_type_script = "uid://ddy7tkgkx1u8k"
 [node name="NetworkStrokeBridge" type="Node" parent="Scripts"]
 script = ExtResource("6_hxwsn")
 metadata/_custom_type_script = "uid://bnepmph1tr1s2"
+
+[node name="CueSfx" type="Node" parent="Scripts" node_paths=PackedStringArray("strike_sfx", "cue")]
+script = ExtResource("7_t7is8")
+strike_sfx = NodePath("../../sfx")
+cue = NodePath("../..")
+metadata/_custom_type_script = "uid://dt8xf8l0g7j3c"
 
 [node name="sfx" type="AudioStreamPlayer3D" parent="."]
 stream = ExtResource("7_lm3ol")

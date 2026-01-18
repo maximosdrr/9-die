@@ -78,9 +78,8 @@ debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="BallSoundEffects" type="Node" parent="Scripts" node_paths=PackedStringArray("ball_rolling_sfx", "ball_colliding_sfx", "ball")]
+[node name="BallSoundEffects" type="Node" parent="Scripts" node_paths=PackedStringArray("ball_colliding_sfx", "ball")]
 script = ExtResource("7_pgfyo")
-ball_rolling_sfx = NodePath("")
 ball_colliding_sfx = NodePath("../../SFX/BallCollideAnotherBall")
 ball = NodePath("../..")
 metadata/_custom_type_script = "uid://yjcyl6ji1ji6"

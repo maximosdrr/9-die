@@ -4,6 +4,7 @@ class_name Cue extends Node3D
 @export var stroke_system: CueStrokeSystem 
 @export var spin_system: CueSpinSystem
 @export var input_system: CueInputSystem
+@export var cue_sfx: CueSfx
 @export var stroke_network_bridge: CueNetworkStrokeBridge
 
 @export_group("Power Config")
@@ -11,8 +12,6 @@ class_name Cue extends Node3D
 @export var force_multiplier: float = 1
 @export var visual_gap: float = 0.01
 @export var post_shot_cooldown: float = 0.25
-
-@onready var sfx: AudioStreamPlayer3D = $sfx
 
 signal strike_executed
 
@@ -114,7 +113,7 @@ func _execute_strike(impact_speed: float) -> void:
 			cue_ball.strike(dir, final_force, hit_offset)
 		else:
 			strike_executed.emit(dir, final_force, hit_offset)
-		sfx.play()
+		cue_sfx.emit_strike_sound(dir, final_force, hit_offset)
 	else:
 		strike_is_locked = false
 		

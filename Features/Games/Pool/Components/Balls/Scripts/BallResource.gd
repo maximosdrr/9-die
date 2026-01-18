@@ -18,7 +18,7 @@ class_name BallResource extends Resource
 @export var absorbent := false
 @export var can_sleep := true
 @export var continuos_cd: bool = true
-@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 5.0
+@export_range(0.0, 45.0) var max_squirt_angle_deg: float = 2.0
 @export_range(0.0, 1.0) var spin_power_factor: float = 0.4
 
 @export var model: PackedScene
