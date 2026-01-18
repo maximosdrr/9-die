@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3 uid="uid://bcdgwpk5bpi3w"]
+[gd_scene load_steps=40 format=3 uid="uid://bcdgwpk5bpi3w"]
 
 [ext_resource type="PackedScene" uid="uid://cvpr4cxhmjyri" path="res://Assets/PoolGame/Scenes/PoolTableModel.tscn" id="1_ej02f"]
 [ext_resource type="Script" uid="uid://cgrjunhp6qhbg" path="res://Features/Games/Pool/Components/Tables/PoolGameTable.gd" id="1_h7p6q"]
@@ -56,7 +56,7 @@ size = Vector3(1.161186, 0.11652735, 0.093)
 size = Vector3(1.2072442, 0.11652735, 0.093)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_2amhn"]
-size = Vector3(0.067, 0.117, 2.115)
+size = Vector3(0.043117188, 0.117, 2.0399804)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_815fa"]
 size = Vector3(1.161186, 0.1675166, 0.093)
@@ -79,17 +79,11 @@ size = Vector3(0.097249985, 0.0675354, 0.001)
 [sub_resource type="BoxShape3D" id="BoxShape3D_qr0y0"]
 size = Vector3(0.12515771, 0.0675354, 0.001)
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_43dx8"]
-size = Vector3(0.12507886, 0.0675354, 0.001)
-
 [sub_resource type="BoxShape3D" id="BoxShape3D_vnc0c"]
 size = Vector3(0.12642431, 0.05754471, 0.001)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_srx7e"]
 size = Vector3(0.09916147, 0.09248352, 0.001)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_4tmfn"]
-size = Vector3(0.12507886, 0.0675354, 0.001)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ayfk8"]
 size = Vector3(0.12786359, 0.05754471, 0.001)
@@ -97,17 +91,11 @@ size = Vector3(0.12786359, 0.05754471, 0.001)
 [sub_resource type="BoxShape3D" id="BoxShape3D_gqhgs"]
 size = Vector3(0.08631381, 0.0675354, 0.001)
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_jxd5x"]
-size = Vector3(0.15238318, 0.0675354, 0.001)
-
 [sub_resource type="BoxShape3D" id="BoxShape3D_gluw1"]
 size = Vector3(0.09369922, 0.0675354, 0.001)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_g4xef"]
 size = Vector3(0.09604375, 0.0675354, 0.001)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_knvgh"]
-size = Vector3(0.13272986, 0.0675354, 0.001)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_nld7a"]
 size = Vector3(0.097249985, 0.0675354, 0.001)
@@ -176,7 +164,6 @@ debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
 [node name="Floor" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.795, 0)
-visible = false
 
 [node name="Main" type="CollisionShape3D" parent="Floor"]
 shape = SubResource("BoxShape3D_16wns")
@@ -194,7 +181,6 @@ debug_color = Color(0.9973993, 0, 0.1541062, 0.41960785)
 
 [node name="Rails" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.84360564, 0)
-visible = false
 collision_layer = 8
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_r0g6o")
@@ -245,12 +231,12 @@ shape = SubResource("BoxShape3D_5ajig")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="BorderLeft" type="CollisionShape3D" parent="Borders"]
-transform = Transform3D(0.9659257, -0.258819, 0, 0.258819, 0.9659257, 0, 0, 0, 1, 0.595, 0.845, 0)
+transform = Transform3D(0.9659257, -0.258819, 0, 0.258819, 0.9659257, 0, 0, 0, 1, 0.6465345, 0.8480907, 0)
 shape = SubResource("BoxShape3D_2amhn")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="BorderRight" type="CollisionShape3D" parent="Borders"]
-transform = Transform3D(0.9659257, 0.258819, 0, -0.258819, 0.9659257, 0, 0, 0, 1, -0.595, 0.845, 0)
+transform = Transform3D(0.9659257, 0.258819, 0, -0.258819, 0.9659257, 0, 0, 0, 1, -0.635, 0.845, 0)
 shape = SubResource("BoxShape3D_2amhn")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
@@ -288,7 +274,6 @@ shape = SubResource("BoxShape3D_s8te4")
 debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
 
 [node name="Pockets" type="Node3D" parent="."]
-visible = false
 
 [node name="Collisions" type="StaticBody3D" parent="Pockets"]
 collision_layer = 8
@@ -303,10 +288,6 @@ shape = SubResource("BoxShape3D_r0g6o")
 transform = Transform3D(0.6275691, 0, 0.7785609, 0, 1, 0, -0.7785609, 0, 0.6275691, -0.54131174, 0.83883643, 0.9563586)
 shape = SubResource("BoxShape3D_qr0y0")
 
-[node name="BallPocket1Top3" type="CollisionShape3D" parent="Pockets/Collisions"]
-transform = Transform3D(-0.81873137, 0, 0.5741768, 0, 1, 0, -0.5741768, 0, -0.81873137, -0.5361115, 0.83883643, 1.039016)
-shape = SubResource("BoxShape3D_43dx8")
-
 [node name="BallPocket2Top1" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(-0.506903, -0.2895224, 0.8119274, -0.21705173, 0.9544289, 0.20482676, -0.8342292, -0.072403, -0.5466443, 0.5307922, 0.8510696, 0.94783545)
 shape = SubResource("BoxShape3D_vnc0c")
@@ -314,10 +295,6 @@ shape = SubResource("BoxShape3D_vnc0c")
 [node name="BallPocket2Top2" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(-0.5502767, 0, 0.83498234, -0.41750377, 0.8660166, -0.27514666, -0.7231086, -0.5000151, -0.47654882, 0.44854614, 0.85063195, 1.0276605)
 shape = SubResource("BoxShape3D_srx7e")
-
-[node name="BallPocket2Top3" type="CollisionShape3D" parent="Pockets/Collisions"]
-transform = Transform3D(-0.7963716, 0, -0.6048076, 0, 1, 0, 0.6048076, 0, -0.7963716, 0.5202302, 0.83883643, 1.0434258)
-shape = SubResource("BoxShape3D_4tmfn")
 
 [node name="BallPocket1Bottom1" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(0.52776456, 0.29125503, -0.7978942, -0.2170517, 0.95442885, 0.20482677, 0.82119024, 0.06508396, 0.56693107, -0.5347297, 0.85395265, -0.9400436)
@@ -327,10 +304,6 @@ shape = SubResource("BoxShape3D_ayfk8")
 transform = Transform3D(0.5711435, 0, -0.82085013, 0, 1, 0, 0.82085013, 0, 0.5711435, -0.44649684, 0.8384009, -1.0226982)
 shape = SubResource("BoxShape3D_gqhgs")
 
-[node name="BallPocket1Bottom3" type="CollisionShape3D" parent="Pockets/Collisions"]
-transform = Transform3D(0.78087753, 0, 0.62468415, 0, 1, 0, -0.62468415, 0, 0.78087753, -0.5361753, 0.83883643, -1.0492412)
-shape = SubResource("BoxShape3D_jxd5x")
-
 [node name="BallPocket2Bottom1" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(-0.61834055, 0.009783298, -0.7858494, -0.20758483, 0.9623785, 0.17531773, 0.75799966, 0.27153647, -0.5930467, 0.45065707, 0.8366868, -1.0286394)
 shape = SubResource("BoxShape3D_gluw1")
@@ -338,10 +311,6 @@ shape = SubResource("BoxShape3D_gluw1")
 [node name="BallPocket2Bottom2" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(-0.6077501, 0, -0.7941283, 0, 1, 0, 0.7941283, 0, -0.6077501, 0.5285548, 0.83883643, -0.94471484)
 shape = SubResource("BoxShape3D_g4xef")
-
-[node name="BallPocket2Bottom3" type="CollisionShape3D" parent="Pockets/Collisions"]
-transform = Transform3D(0.6851704, 0, -0.7283828, 0, 1, 0, 0.7283828, 0, 0.6851704, 0.5317474, 0.83883643, -1.0444936)
-shape = SubResource("BoxShape3D_knvgh")
 
 [node name="BallPocket1Middle1" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(0.9942075, 0, -0.1074788, 0, 1, 0, 0.10747877, 0, 0.99420744, 0.5427853, 0.8426453, -0.05744359)
@@ -351,10 +320,6 @@ shape = SubResource("BoxShape3D_nld7a")
 transform = Transform3D(0.96743584, 0, 0.2531164, 0, 1, 0, -0.2531164, 0, 0.96743584, 0.5422509, 0.8426453, 0.056597367)
 shape = SubResource("BoxShape3D_g4xef")
 
-[node name="BallPocket1Middle3" type="CollisionShape3D" parent="Pockets/Collisions"]
-transform = Transform3D(-0.028479725, 0, -0.99959445, 0, 1, 0, 0.99959445, 0, -0.028479725, 0.5861023, 0.8426453, 0.004333712)
-shape = SubResource("BoxShape3D_knvgh")
-
 [node name="BallPocket1Middle4" type="CollisionShape3D" parent="Pockets/Collisions"]
 transform = Transform3D(-0.96393317, 0, 0.26614505, 0, 1, 0, -0.26614502, 0, -0.9639331, -0.55413175, 0.8426453, 0.05578593)
 shape = SubResource("BoxShape3D_gluw1")
@@ -363,12 +328,7 @@ shape = SubResource("BoxShape3D_gluw1")
 transform = Transform3D(-0.9279535, 0, -0.37269634, 0, 1, 0, 0.37269634, 0, -0.9279535, -0.5533096, 0.8426453, -0.05218776)
 shape = SubResource("BoxShape3D_g4xef")
 
-[node name="BallPocket1Middle6" type="CollisionShape3D" parent="Pockets/Collisions"]
-transform = Transform3D(-0.019651309, 0, 0.999807, 0, 1, 0, -0.999807, 0, -0.019651309, -0.5886778, 0.8426453, -0.00060693524)
-shape = SubResource("BoxShape3D_knvgh")
-
 [node name="Detectors" type="Area3D" parent="Pockets"]
-visible = false
 collision_layer = 0
 collision_mask = 4
 
