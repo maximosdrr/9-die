@@ -10,6 +10,7 @@ var current_metadata = {}
 @export var enabled: bool = true
 @export var initial_state: State.Type
 @export var public_state_syncronizer: PublicStateSyncronizer = null
+@export var check_for_multiplayer_authority_on_state_handle_input: bool = false
 
 func _ready() -> void:
 	_setup_states()
@@ -45,6 +46,13 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if current != null:
 		current.physics_process(delta)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if check_for_multiplayer_authority_on_state_handle_input and\
+	not is_multiplayer_authority(): return
+	
+	if current != null:
+		current.handle_input(event)
 
 func _setup_states():
 	var parent = get_parent()

@@ -1,4 +1,4 @@
-class_name CueNetworkStrokeBridge extends Node
+class_name CueNetworkBridge extends Node
 
 var cue: Cue
 
