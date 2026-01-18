@@ -32,7 +32,7 @@ size = Vector3(0.915, 0, 0.03)
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_r0g6o"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_bdie8"]
-size = Vector3(0.8299557, 0.06965381, 0.050484374)
+size = Vector3(0.8299557, 0.0669314, 0.050484374)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_opkgq"]
 size = Vector3(0.83, 0.07, 0.05)
@@ -53,7 +53,7 @@ absorbent = true
 size = Vector3(0.067, 0.117, 2.115)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ll4hg"]
-size = Vector3(1.2072442, 0.11652735, 0.093)
+size = Vector3(1.161186, 0.11652735, 0.093)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_5ajig"]
 size = Vector3(1.2072442, 0.11652735, 0.093)
@@ -188,12 +188,12 @@ collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_r0g6o")
 
 [node name="RailTop" type="CollisionShape3D" parent="Rails"]
-transform = Transform3D(1, 0, 0, 0, 0.9396925, 0.3420201, 0, -0.3420201, 0.9396925, 0, 0, 1.016)
+transform = Transform3D(1, 0, 0, 0, 0.9659257, 0.258819, 0, -0.258819, 0.9659257, 0, 0, 1.016)
 shape = SubResource("BoxShape3D_bdie8")
 debug_color = Color(0.8669102, 0, 0.1376302, 0.41960785)
 
 [node name="RailBottom" type="CollisionShape3D" parent="Rails"]
-transform = Transform3D(1, 0, 0, 0, 0.93969256, -0.3420201, 0, 0.3420201, 0.93969256, 0, 0, -1.016)
+transform = Transform3D(1, 0, 0, 0, 0.9659257, -0.258819, 0, 0.258819, 0.9659257, 0, 0, -1.016)
 shape = SubResource("BoxShape3D_opkgq")
 debug_color = Color(0.8669102, 0, 0.1376302, 0.41960785)
 
@@ -233,12 +233,12 @@ shape = SubResource("BoxShape3D_2amhn")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="BorderTop" type="CollisionShape3D" parent="Borders"]
-transform = Transform3D(1, 0, 0, 0, 0.93969274, 0.34202015, 0, -0.34202015, 0.93969274, 0.015, 0.845, 1.09)
+transform = Transform3D(1, 0, 0, 0, 0.96592593, 0.25881907, 0, -0.25881907, 0.96592593, 0.011555447, 0.838964, 1.0927287)
 shape = SubResource("BoxShape3D_ll4hg")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
 [node name="BorderBottom" type="CollisionShape3D" parent="Borders"]
-transform = Transform3D(1, 0, 0, 0, 0.9396925, -0.3420201, 0, 0.3420201, 0.9396925, 0.015, 0.84635115, -1.0922519)
+transform = Transform3D(1, 0, 0, 0, 0.9659257, -0.258819, 0, 0.258819, 0.9659257, 0.015, 0.8397226, -1.0918621)
 shape = SubResource("BoxShape3D_5ajig")
 debug_color = Color(0.8745098, 0.23529412, 0.63529414, 0.41960785)
 
@@ -256,6 +256,7 @@ shape = SubResource("BoxShape3D_s8te4")
 debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
 
 [node name="Pockets" type="Node3D" parent="."]
+visible = false
 
 [node name="Collisions" type="StaticBody3D" parent="Pockets"]
 collision_layer = 8

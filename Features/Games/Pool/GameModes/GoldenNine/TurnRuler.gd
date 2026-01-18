@@ -18,14 +18,14 @@ func rule(context: Dictionary) -> Actions:
 		return Actions.CALL_CUE_BALL_REPLACEMENT
 	
 	if balls_off_table and balls_off_table.size() > 0:
-		var has_cue_ball = balls_off_table.any(
-			func(ball: Ball): return ball.index == 0
+		var has_golden_ball = balls_off_table.any(
+			func(ball: Ball): return ball.index == 9
 		)
 		
-		if has_cue_ball: return Actions.CALL_CUE_BALL_REPLACEMENT
+		if has_golden_ball: return Actions.END_GAME_FATAL_FOUL
 		
-		return Actions.CALL_NEXT_TURN
-
+		return Actions.CALL_CUE_BALL_REPLACEMENT
+		
 	if target_ball.index != first_ball_touched.index:
 		if balls_scored.has(9):
 			return Actions.END_GAME_FATAL_FOUL
