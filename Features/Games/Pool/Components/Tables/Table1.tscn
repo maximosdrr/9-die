@@ -21,7 +21,7 @@ size = Vector3(0.11163795, 1.9139618, 3.1064038)
 size = Vector3(0.11163795, 1.8976548, 3.1064038)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ssfmh"]
-size = Vector3(1.36623, 0.032165527, 2.1844769)
+size = Vector3(1.2225366, 0.032165527, 2.1106944)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_16wns"]
 size = Vector3(0.97, 0, 1.885)
@@ -168,10 +168,9 @@ debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
 
 [node name="Table" parent="." instance=ExtResource("1_ej02f")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -0.0008817911, -0.0005027652, -0.0010242462)
-visible = false
 
 [node name="TableFloorBottom" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0014476776, 0.6135681, 0.009924889)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0079844, 0.6135681, 0.0022838116)
 shape = SubResource("BoxShape3D_ssfmh")
 debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
