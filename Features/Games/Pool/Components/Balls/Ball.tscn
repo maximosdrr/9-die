@@ -1,12 +1,14 @@
-[gd_scene load_steps=12 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=14 format=3 uid="uid://cqwu27wd0ddmr"]
 
 [ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.gd" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="2_eusg5"]
 [ext_resource type="Script" uid="uid://dg6b2ab8k24x4" path="res://Features/Games/Pool/Components/Balls/Scripts/States/Idle.gd" id="3_gowdo"]
 [ext_resource type="Script" uid="uid://d0l5psv6122rn" path="res://Features/Games/Pool/Components/Balls/Scripts/States/IsMoving.gd" id="4_fcbjq"]
+[ext_resource type="AudioStream" uid="uid://bnm7i5xmyycgi" path="res://Assets/SoundEffects/BallBounce.ogg" id="6_87oc0"]
+[ext_resource type="Script" uid="uid://dbrqaxwp2yl0g" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallBounceAudio.gd" id="6_pgfyo"]
 [ext_resource type="AudioStream" uid="uid://b1bkprdpdor67" path="res://Assets/SoundEffects/BallCollision.ogg" id="6_xsld2"]
-[ext_resource type="Script" uid="uid://yjcyl6ji1ji6" path="res://Features/Games/Pool/Components/Balls/Scripts/Sfx.gd" id="7_pgfyo"]
+[ext_resource type="Script" uid="uid://bt8d07inv38d2" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallCollisionAudio.gd" id="7_87oc0"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_n5t01"]
 friction = 0.4
@@ -76,18 +78,19 @@ debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
 
 [node name="DebugLabel" type="Label3D" parent="."]
 
-[node name="Scripts" type="Node" parent="."]
-
-[node name="BallSoundEffects" type="Node" parent="Scripts" node_paths=PackedStringArray("ball_colliding_sfx", "ball")]
-script = ExtResource("7_pgfyo")
-ball_colliding_sfx = NodePath("../../SFX/BallCollideAnotherBall")
-ball = NodePath("../..")
-metadata/_custom_type_script = "uid://yjcyl6ji1ji6"
-
 [node name="SFX" type="Node3D" parent="."]
 
-[node name="BallCollideAnotherBall" type="AudioStreamPlayer3D" parent="SFX"]
-stream = ExtResource("6_xsld2")
+[node name="BallBounceAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("ball")]
+stream = ExtResource("6_87oc0")
 volume_db = -10.0
+script = ExtResource("6_pgfyo")
+ball = NodePath("../..")
+metadata/_custom_type_script = "uid://dbrqaxwp2yl0g"
+
+[node name="BallCollisionAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("ball")]
+stream = ExtResource("6_xsld2")
+script = ExtResource("7_87oc0")
+ball = NodePath("../..")
+metadata/_custom_type_script = "uid://bt8d07inv38d2"
 
 [connection signal="body_entered" from="Hitbox" to="." method="_on_body_entered"]

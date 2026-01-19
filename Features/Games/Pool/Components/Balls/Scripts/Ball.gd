@@ -28,13 +28,17 @@ const COLORED_BALL_MESHES = [
 @export var jump_efficiency: float = 1.2
 @export var min_jump_angle: float = 25.0
 @export var cue_max_angle: float = 65.0
+@export var floor_tolerance: float = 0.02 
 
 signal stopped_moving(position: Vector3)
 signal striked
 signal ball_contacted(ball: Ball)
+signal jump_started
+signal jump_landed
 
 var radius: float = 0.029 
 var _initial_transform: Transform3D
+var _is_in_air: bool = false
 
 func _ready() -> void:
 	_update_visual()
@@ -137,6 +141,7 @@ func respawn() -> void:
 	global_transform = _initial_transform
 	sleeping = false
 	visible = true
+	_is_in_air = false
 	process_mode = Node.PROCESS_MODE_INHERIT
 
 func _physics_process(delta: float) -> void:
@@ -150,6 +155,29 @@ func _physics_process(delta: float) -> void:
 	var t := inverse_lerp(slow_threshold, stop_threshold, speed)
 	t = clamp(t, 0.0, 1.0)
 	angular_damp = lerp(min_damp, max_damp, t)
+	
+	_check_ground_state()
+
+func _check_ground_state() -> void:
+	var space_state = get_world_3d().direct_space_state
+	
+	var from = global_position 
+	var to = from + Vector3.DOWN * (radius + floor_tolerance)
+	
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	
+	query.exclude = [self.get_rid()]
+	
+	var result = space_state.intersect_ray(query)
+	var is_on_floor = not result.is_empty()
+	
+	if not is_on_floor and not _is_in_air:
+		_is_in_air = true
+		jump_started.emit()
+		
+	elif is_on_floor and _is_in_air:
+		_is_in_air = false
+		jump_landed.emit()
 
 func _on_body_entered(body: Node) -> void:
 	if body is Ball:

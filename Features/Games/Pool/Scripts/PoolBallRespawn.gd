@@ -9,7 +9,7 @@ const BALL_SCENE = preload("uid://cqwu27wd0ddmr")
 @export var balls_quantity: int = 9
 @export var balls_holder: Node3D
 
-var ball_diameter: float = 0.029
+var ball_diameter: float = 0.032
 var balls: Array[Ball] = []
 var cue_ball: Ball = null
 
