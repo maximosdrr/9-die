@@ -1,57 +1,38 @@
-class_name CueIdleState extends State
+class_name CueIdleState
+extends State
 
-@export var spin_sensitivity := 0.001
+const INPUT_SPIN_MODIFIER := "spin_modifier"
+const INPUT_STROKE_MODE := "stroke_mode"
 
 var cue: Cue
-var _spin_modifier_down := false
 
-func _init():
+func _init() -> void:
 	type = State.Type.IDLE
 
-func setup(parent_node: Node3D):
+func setup(parent_node: Node3D) -> void:
 	cue = parent_node as Cue
 
-func enter(_m):
-	_spin_modifier_down = false
-	cue.position.z = cue.ball_radius_offset
-	_apply_spin_to_pose()
+func enter(_msg: Dictionary = {}) -> void:
+	_update_cue_pose()
 
 func handle_input(event: InputEvent) -> void:
 	if not cue.is_multiplayer_authority():
 		return
 
-	if event.is_action_pressed("spin_modifier"):
-		_spin_modifier_down = true
+	if event.is_action_pressed(INPUT_SPIN_MODIFIER):
+		state_machine.change_state(State.Type.CUE_SPINNING, {})
 		get_viewport().set_input_as_handled()
 		return
 
-	if event.is_action_released("spin_modifier"):
-		_spin_modifier_down = false
-		get_viewport().set_input_as_handled()
-		return
-
-	if event.is_action_pressed("stroke_mode"):
+	if event.is_action_pressed(INPUT_STROKE_MODE):
 		state_machine.change_state(State.Type.CUE_CHARGING, {})
 		get_viewport().set_input_as_handled()
 		return
 
-	if event is InputEventMouseMotion and _spin_modifier_down:
-		_apply_spin_motion(event.relative)
-		_apply_spin_to_pose()
-		get_viewport().set_input_as_handled()
+func process(_delta: float) -> void:
+	_update_cue_pose()
 
-func process(_delta):
+func _update_cue_pose() -> void:
 	cue.position.z = cue.ball_radius_offset
-	_apply_spin_to_pose()
-
-func _apply_spin_motion(rel: Vector2):
-	var scaled := rel * spin_sensitivity
-	cue.spin_offset.x += scaled.x
-	cue.spin_offset.y += -scaled.y
-
-	if cue.spin_offset.length() > cue.spin_limit:
-		cue.spin_offset = cue.spin_offset.normalized() * cue.spin_limit
-
-func _apply_spin_to_pose():
 	cue.position.x = cue.spin_offset.x
 	cue.position.y = cue.spin_offset.y
