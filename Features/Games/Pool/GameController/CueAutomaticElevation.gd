@@ -8,7 +8,8 @@ extends Node
 @export var aim_pivot: Node3D
 
 func _physics_process(_delta: float) -> void:
-	_update_cue_angle()
+	pass
+	#_update_cue_angle()
 
 func _update_cue_angle() -> void:
 	if not cue or not cue_handle_sensor or not aim_pivot: return

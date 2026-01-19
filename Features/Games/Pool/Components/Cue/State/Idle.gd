@@ -3,6 +3,7 @@ extends State
 
 const INPUT_SPIN_MODIFIER := "spin_modifier"
 const INPUT_STROKE_MODE := "stroke_mode"
+const INPUT_ELEVATION_MODIFIER := "elevation_modifier"
 
 var cue: Cue
 
@@ -26,6 +27,11 @@ func handle_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed(INPUT_STROKE_MODE):
 		state_machine.change_state(State.Type.CUE_CHARGING, {})
+		get_viewport().set_input_as_handled()
+		return
+	
+	if event.is_action_pressed(INPUT_ELEVATION_MODIFIER):
+		state_machine.change_state(State.Type.CUE_JUMPING, {})
 		get_viewport().set_input_as_handled()
 		return
 

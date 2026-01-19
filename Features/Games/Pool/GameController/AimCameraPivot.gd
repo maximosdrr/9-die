@@ -9,7 +9,6 @@ extends Node3D
 @export var height_offset: float = 0.1
 @export var transition_duration: float = 0.25
 
-# --- LIMITES DE ROTAÇÃO ---
 @export_group("Rotation Limits")
 @export var limit_ceiling_deg: float = -90.0 
 @export var limit_floor_deg: float = 15.0 

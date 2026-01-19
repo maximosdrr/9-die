@@ -12,6 +12,7 @@ const COLORED_BALL_MESHES = [
 	preload("uid://buoe2fsbwjbk1")
 ]
 
+@export var jump_efficiency: float = 0.6
 @export var data: BallResource
 @export var index = 0
 @export var texture_id: int = 0:
@@ -79,7 +80,14 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	if total_force <= 0.0:
 		return
 
-	var raw_dir := Vector3(direction.x, 0.0, direction.z).normalized()
+	var is_jump_shot := direction.y < -0.05
+	
+	var raw_dir: Vector3
+	if is_jump_shot:
+		raw_dir = direction.normalized()
+	else:
+		raw_dir = Vector3(direction.x, 0.0, direction.z).normalized()
+
 	var offset_ratio = hit_offset_local.x / radius
 	
 	var max_angle_deg = data.max_squirt_angle_deg if data else 0.0
@@ -89,15 +97,18 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	var deflection_angle = offset_ratio * max_angle_rad
 	
 	var final_dir = raw_dir.rotated(Vector3.UP, deflection_angle)
+	var linear_impulse = final_dir * total_force
 	
-	var forward = -final_dir
+	if is_jump_shot:
+		linear_impulse.y = abs(linear_impulse.y) * jump_efficiency
+
+	var forward = -Vector3(final_dir.x, 0.0, final_dir.z).normalized() 
 	var up = Vector3.UP
 	var right = forward.cross(up).normalized()
 	up = right.cross(forward).normalized()
 	var aim_basis = Basis(right, up, forward)
 	
 	var hit_offset_world = aim_basis * hit_offset_local
-	var linear_impulse = final_dir * total_force
 	
 	var raw_torque = hit_offset_world.cross(linear_impulse)
 	raw_torque.y = -raw_torque.y

@@ -17,9 +17,15 @@ signal strike_executed(direction: Vector3, force: float, offset: Vector3)
 @export var visual_gap := 0.01
 @export var post_shot_cooldown := 0.25
 
+@export_group("Jump Shot Config")
+@export var min_elevation_deg: float = -45.0
+@export var max_elevation_deg: float = 0.0
+@export var elevation_sensitivity: float = 2.0
+
 var pool_game: PoolGame
 var cue_ball: Ball
 var camera_pivot: AimCameraPivot
+var current_elevation: float = 0.0
 
 var ball_radius_offset: float = 0.04
 var spin_limit: float = 0.02
@@ -55,6 +61,7 @@ func execute_strike(mouse_speed: float) -> bool:
 		strike_executed.emit(strike_data.direction, force, strike_data.hit_offset)
 
 	cue_sfx.emit_strike_sound(strike_data.direction, force, strike_data.hit_offset)
+
 	return true
 
 func _calculate_impulse(input_speed: float) -> float:
@@ -63,10 +70,8 @@ func _calculate_impulse(input_speed: float) -> float:
 
 func _get_strike_vectors() -> Dictionary:
 	var dir := -global_transform.basis.z.normalized()
-	dir.y = 0.0 
-	
 	var hit_offset := Vector3(spin_offset.x, spin_offset.y, 0.0)
-	
+	print(spin_offset.y)
 	return {
 		"direction": dir,
 		"hit_offset": hit_offset
