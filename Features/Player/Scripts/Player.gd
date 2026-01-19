@@ -8,7 +8,7 @@ var id = 1
 @onready var remote_fps: RemoteTransform3D = $FirstPerson/HeadPivot/RemoteFPS
 @onready var player_toggleable: Toggleable = $Scripts/PlayerToggleable
 @onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
-@onready var player_model: MeshInstance3D = $FirstPerson/Model3D
+@onready var player_model: Node3D = $FirstPerson/Model3D
 
 enum ControllerStates { Player, Game }
 
