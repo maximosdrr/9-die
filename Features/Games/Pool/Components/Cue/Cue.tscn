@@ -52,8 +52,9 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D" node_paths=PackedStringArray("cue_sfx", "stroke_network_bridge")]
+[node name="Cue" type="Node3D" node_paths=PackedStringArray("state_machine", "cue_sfx", "stroke_network_bridge")]
 script = ExtResource("1_fst4q")
+state_machine = NodePath("StateMachine")
 cue_sfx = NodePath("Scripts/Sfx")
 stroke_network_bridge = NodePath("Scripts/NetworkBridge")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
