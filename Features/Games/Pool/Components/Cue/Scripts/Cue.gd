@@ -1,141 +1,87 @@
-class_name Cue extends Node3D
+class_name Cue
+extends Node3D
+
+@onready var state_machine: StateMachine = $StateMachine
 
 @export_group("References")
-@export var stroke_system: CueStrokeSystem 
-@export var spin_system: CueSpinSystem
-@export var input_system: CueInputSystem
 @export var cue_sfx: CueSfx
-@export var stroke_network_bridge: CueNetworkStrokeBridge
+@export var stroke_network_bridge: CueNetworkBridge
 
 @export_group("Power Config")
 @export var max_speed_reference: float = 12.0
-@export var force_multiplier: float = 1
+@export var force_multiplier: float = 8.0
 @export var visual_gap: float = 0.01
 @export var post_shot_cooldown: float = 0.25
 
 signal strike_executed
 
-var ball_radius_offset: float = 0.04
-var is_charging: bool = false
-var is_locked: bool = false
-var strike_is_locked: bool = true
 var pool_game: PoolGame
 var cue_ball: Ball
 var camera_pivot: AimCameraPivot
 
-func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot):
-	cue_ball = _pool_game.cue_ball
+var ball_radius_offset: float = 0.04
+var spin_limit: float = 0.02
+var spin_offset: Vector2 = Vector2.ZERO
+
+func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot) -> void:
 	pool_game = _pool_game
 	camera_pivot = _camera_pivot
-	input_system.setup(self)
-	stroke_network_bridge.setup(self)
-	
-	if not pool_game.turn_changed.is_connected(_on_turn_change):
-		pool_game.turn_changed.connect(_on_turn_change)
-	
-	if not pool_game.turn_extended.is_connected(_on_turn_extendes):
-		pool_game.turn_extended.connect(_on_turn_extendes)
+	cue_ball = pool_game.cue_ball
 
-	if int(pool_game.turn_owner.name) == multiplayer.get_unique_id():
-		strike_is_locked = false
+	stroke_network_bridge.setup(self)
+
+	pool_game.turn_changed.connect(_on_turn_change)
+	pool_game.turn_extended.connect(_on_turn_extended)
+	_sync_turn_state_initial()
 
 func _ready() -> void:
-	_update_system_limits()
-	position.z = ball_radius_offset
+	_update_limits_from_ball()
+	_reset_pose_immediate()
 
-func _on_turn_change(next_player_name: String, _context):
-	if int(next_player_name) == multiplayer.get_unique_id():
-		strike_is_locked = false
+func _sync_turn_state_initial() -> void:
+	var my_turn := int(pool_game.turn_owner.name) == multiplayer.get_unique_id()
+	state_machine.change_state(State.Type.IDLE if my_turn else State.Type.CUE_LOCKED, {})
 
-func _on_turn_extendes():
-	strike_is_locked = false
+func _on_turn_change(next_player_name: String, _context) -> void:
+	var my_turn := int(next_player_name) == multiplayer.get_unique_id()
 
-func start_charging() -> void:
-	if is_charging or is_locked or strike_is_locked: return
-	is_charging = true
-	stroke_system.start_charging(position.z)
-
-func cancel_charging() -> void:
-	if is_locked: return
-	is_charging = false
-	stroke_system.stop()
-	_animate_reset_position()
-
-func process_stroke_input(amount: float) -> void:
-	if is_locked: return
-	stroke_system.process_input(amount)
-
-func process_spin_input(relative: Vector2) -> void:
-	if is_charging or is_locked: return
-	spin_system.process_input(relative)
-
-func _process(_delta: float) -> void:
-	if not is_multiplayer_authority():
+	if not my_turn:
+		state_machine.change_state(State.Type.CUE_LOCKED, {})
 		return
 
-	position.x = spin_system.current_offset.x
-	position.y = spin_system.current_offset.y
+	if state_machine.current.type == State.Type.CUE_LOCKED:
+		state_machine.change_state(State.Type.IDLE, {})
 
-	if is_locked: return
+func _on_turn_extended() -> void:
+	if state_machine.current.type == State.Type.CUE_LOCKED:
+		state_machine.change_state(State.Type.IDLE, {})
 
-	if not is_charging:
-		if position.z != ball_radius_offset: position.z = ball_radius_offset
-		return
+func execute_strike(impact_speed: float) -> bool:
+	if not cue_ball:
+		return false
 
-	var desired_z = stroke_system.current_draw
-	desired_z = max(desired_z, ball_radius_offset)
-	position.z = desired_z
+	var raw = clamp(impact_speed / max_speed_reference, 0.0, 1.0)
+	var force := pow(raw, 2.0) * force_multiplier
+	if force <= 0.01:
+		return false
 
-	var avg_velocity = stroke_system.get_average_velocity()
-	
-	if desired_z <= (ball_radius_offset + 0.001) and avg_velocity < -0.1:
-		_execute_strike(abs(avg_velocity))
+	var dir := -global_transform.basis.z.normalized()
+	dir.y = 0.0
+	var hit_offset := Vector3(spin_offset.x, spin_offset.y, 0.0)
 
-func _execute_strike(impact_speed: float) -> void:
-	if not cue_ball: return
-	if strike_is_locked: return
-	
-	is_locked = true 
-	is_charging = false
-	strike_is_locked = true
-	
-	var raw_power = clamp(impact_speed / max_speed_reference, 0.0, 1.0)
-	var final_force = pow(raw_power, 2.0) * force_multiplier
-	
-	print("Strike! Force: %.2f" % final_force)
-	
-	var dir = -global_transform.basis.z.normalized()
-	dir.y = 0 
-	var hit_offset = Vector3(spin_system.current_offset.x, spin_system.current_offset.y, 0.0)
-	
-	if final_force > 0.01:
-		if multiplayer.is_server():
-			cue_ball.strike(dir, final_force, hit_offset)
-		else:
-			strike_executed.emit(dir, final_force, hit_offset)
-		cue_sfx.emit_strike_sound(dir, final_force, hit_offset)
+	if multiplayer.is_server():
+		cue_ball.strike(dir, force, hit_offset)
 	else:
-		strike_is_locked = false
-		
-	
-	stroke_system.stop()
-	_animate_reset_spin()
-	
-	var tween = create_tween()
-	tween.tween_property(self, "position:z", ball_radius_offset, 0.1)
-	
-	get_tree().create_timer(post_shot_cooldown).timeout.connect(func():
-		is_locked = false
-	)
+		strike_executed.emit(dir, force, hit_offset)
 
-func _update_system_limits() -> void:
+	cue_sfx.emit_strike_sound(dir, force, hit_offset)
+	return true
+
+func _update_limits_from_ball() -> void:
 	if cue_ball and is_inside_tree():
 		ball_radius_offset = cue_ball.radius + visual_gap
-		if spin_system:
-			spin_system.update_limit(cue_ball.radius)
+		spin_limit = cue_ball.radius
 
-func _animate_reset_position() -> void:
-	create_tween().tween_property(self, "position:z", ball_radius_offset, 0.2).set_trans(Tween.TRANS_SINE)
-
-func _animate_reset_spin() -> void:
-	create_tween().tween_property(spin_system, "current_offset", Vector2.ZERO, 0.5)
+func _reset_pose_immediate() -> void:
+	position = Vector3(0, 0, ball_radius_offset)
+	spin_offset = Vector2.ZERO

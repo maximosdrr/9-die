@@ -20,6 +20,9 @@ func exit(metadata: Dictionary[Variant, Variant]):
 func setup(parent_node: Node3D):
 	pass
 
+func handle_input(event: InputEvent) -> void:
+	pass
+
 enum Type {
 	IDLE,
 	AIMING,
@@ -27,5 +30,8 @@ enum Type {
 	WAITING_GAME_START,
 	GAME_STARTING,
 	GAME_STARTED,
-	GAME_FINISHED
+	GAME_FINISHED,
+	CUE_CHARGING,
+	CUE_RECOVER,
+	CUE_LOCKED,
 }
