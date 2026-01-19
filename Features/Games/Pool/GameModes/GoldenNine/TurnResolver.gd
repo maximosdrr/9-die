@@ -101,7 +101,7 @@ func _generate_turn_context() -> Dictionary:
 	var current_balls_remaining: Dictionary = balls_in_game.duplicate()
 	
 	if current_balls_remaining.is_empty():
-		push_error("ERRO CRÍTICO: Nenhuma bola registrada no TurnResolver!")
+		push_error("No ball registered yet!")
 
 	var target_ball_index: int = current_balls_remaining.keys().min()
 	var target_ball: Ball = current_balls_remaining[target_ball_index]
