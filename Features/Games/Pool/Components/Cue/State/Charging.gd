@@ -33,9 +33,6 @@ func enter(_msg: Dictionary = {}) -> void:
 	_previous_draw_distance = _current_draw_distance
 	_smoothed_velocity = 0.0
 
-func exit(_msg: Dictionary = {}) -> void:
-	pass
-
 func handle_input(event: InputEvent) -> void:
 	if not cue.is_multiplayer_authority():
 		return
