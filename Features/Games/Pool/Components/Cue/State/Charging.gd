@@ -1,98 +1,103 @@
 class_name CueChargingState
 extends State
 
+const INPUT_SPIN_MODIFIER := "spin_modifier"
+const INPUT_STROKE_MODE := "stroke_mode"
+
+@export_group("Sensitivity")
 @export var spin_sensitivity := 0.001
 @export var stroke_sensitivity := 0.001
+
+@export_group("Physics")
 @export var max_draw_distance := 0.35
-@export var strike_z_eps := 0.001
-@export var strike_vel_threshold := -0.10
-@export var avg_vel_smoothing := 18.0
+@export var strike_contact_threshold := 0.001
+@export var strike_velocity_threshold := -0.10
+@export var velocity_smoothing := 18.0
 
 var cue: Cue
 
-var draw_z: float
-var _prev_draw_z: float
-var _avg_velocity: float
-var _spin_modifier_down := false
+var _current_draw_distance: float
+var _previous_draw_distance: float
+var _smoothed_velocity: float
 
-func _init():
+func _init() -> void:
 	type = State.Type.CUE_CHARGING
 
-func setup(parent_node: Node3D):
+func setup(parent_node: Node3D) -> void:
 	cue = parent_node as Cue
 
-func enter(_m):
-	_spin_modifier_down = false
+func enter(_msg: Dictionary = {}) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	
+	_current_draw_distance = max(cue.position.z, cue.ball_radius_offset)
+	_previous_draw_distance = _current_draw_distance
+	_smoothed_velocity = 0.0
 
-	draw_z = max(cue.position.z, cue.ball_radius_offset)
-	_prev_draw_z = draw_z
-	_avg_velocity = 0.0
-
-func exit(_m):
-	_spin_modifier_down = false
+func exit(_msg: Dictionary = {}) -> void:
+	pass
 
 func handle_input(event: InputEvent) -> void:
 	if not cue.is_multiplayer_authority():
 		return
 
-	if event.is_action_pressed("spin_modifier"):
-		_spin_modifier_down = true
-		get_viewport().set_input_as_handled()
-		return
-
-	if event.is_action_released("spin_modifier"):
-		_spin_modifier_down = false
-		get_viewport().set_input_as_handled()
-		return
-
-	if event.is_action_released("stroke_mode"):
+	if event.is_action_released(INPUT_STROKE_MODE):
 		state_machine.change_state(State.Type.IDLE, {})
 		get_viewport().set_input_as_handled()
 		return
 
 	if event is InputEventMouseMotion:
-		if _spin_modifier_down:
-			_apply_spin_motion(event.relative)
+		var is_spin_mode = Input.is_action_pressed(INPUT_SPIN_MODIFIER)
+		
+		if is_spin_mode:
+			_process_spin_input(event.relative)
 		else:
-			_apply_stroke_motion(event.relative)
+			_process_stroke_input(event.relative)
 
-		_apply_spin_to_pose()
-		cue.position.z = draw_z
+		_update_cue_transform()
 		get_viewport().set_input_as_handled()
 
-func process(delta: float):
-	_update_velocity(delta)
+func process(delta: float) -> void:
+	_calculate_velocity(delta)
 
-	if _should_strike():
-		var ok := cue.execute_strike(abs(_avg_velocity))
-		state_machine.change_state(State.Type.CUE_RECOVER if ok else State.Type.IDLE, {})
+	if _check_strike_condition():
+		var strike_power := absf(_smoothed_velocity)
+		var success := cue.execute_strike(strike_power)
+		
+		var next_state = State.Type.CUE_RECOVER if success else State.Type.IDLE
+		state_machine.change_state(next_state, {})
 
-func _apply_spin_motion(rel: Vector2):
-	var scaled := rel * spin_sensitivity
-	cue.spin_offset.x += scaled.x
-	cue.spin_offset.y += -scaled.y
+func _process_spin_input(relative_motion: Vector2) -> void:
+	var motion_delta := relative_motion * spin_sensitivity
+	
+	cue.spin_offset.x += motion_delta.x
+	cue.spin_offset.y -= motion_delta.y
+	
+	cue.spin_offset = cue.spin_offset.limit_length(cue.spin_limit)
 
-	if cue.spin_offset.length() > cue.spin_limit:
-		cue.spin_offset = cue.spin_offset.normalized() * cue.spin_limit
+func _process_stroke_input(relative_motion: Vector2) -> void:
+	var draw_delta := relative_motion.y * stroke_sensitivity
+	var min_draw := cue.ball_radius_offset
+	var max_draw := cue.ball_radius_offset + max_draw_distance
+	
+	_current_draw_distance = clamp(_current_draw_distance + draw_delta, min_draw, max_draw)
 
-func _apply_stroke_motion(rel: Vector2):
-	var dy := rel.y * stroke_sensitivity
-	draw_z = clamp(draw_z + dy, cue.ball_radius_offset, cue.ball_radius_offset + max_draw_distance)
+func _update_cue_transform() -> void:
+	cue.position.x = cue.spin_offset.x
+	cue.position.y = cue.spin_offset.y
+	cue.position.z = _current_draw_distance
 
-func _update_velocity(delta: float):
+func _calculate_velocity(delta: float) -> void:
 	if delta <= 0.0:
 		return
 
-	var v := (draw_z - _prev_draw_z) / delta
-	_prev_draw_z = draw_z
+	var instant_velocity := (_current_draw_distance - _previous_draw_distance) / delta
+	_previous_draw_distance = _current_draw_distance
 
-	var t = clamp(delta * avg_vel_smoothing, 0.0, 1.0)
-	_avg_velocity = lerp(_avg_velocity, v, t)
+	var weight := clampf(delta * velocity_smoothing, 0.0, 1.0)
+	_smoothed_velocity = lerpf(_smoothed_velocity, instant_velocity, weight)
 
-func _should_strike() -> bool:
-	return draw_z <= (cue.ball_radius_offset + strike_z_eps) and _avg_velocity < strike_vel_threshold
-
-func _apply_spin_to_pose():
-	cue.position.x = cue.spin_offset.x
-	cue.position.y = cue.spin_offset.y
+func _check_strike_condition() -> bool:
+	var is_touching_ball = _current_draw_distance <= (cue.ball_radius_offset + strike_contact_threshold)
+	var is_moving_forward = _smoothed_velocity < strike_velocity_threshold
+	
+	return is_touching_ball and is_moving_forward

@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
 [ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
-[ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Games/Pool/Components/Cue/Scripts/NetworkStrokeBridge.gd" id="6_hxwsn"]
+[ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Games/Pool/Components/Cue/Scripts/NetworkBridge.gd" id="6_hxwsn"]
 [ext_resource type="AudioStream" uid="uid://blc68ac0hdhso" path="res://Assets/SoundEffects/Strike.ogg" id="7_lm3ol"]
 [ext_resource type="Script" uid="uid://dt8xf8l0g7j3c" path="res://Features/Games/Pool/Components/Cue/Scripts/CueSfx.gd" id="7_t7is8"]
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="9_4hlb0"]
@@ -53,8 +53,8 @@ shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
 [node name="Cue" type="Node3D" node_paths=PackedStringArray("cue_sfx", "stroke_network_bridge")]
 script = ExtResource("1_fst4q")
-cue_sfx = NodePath("Scripts/CueSfx")
-stroke_network_bridge = NodePath("Scripts/NetworkStrokeBridge")
+cue_sfx = NodePath("Scripts/Sfx")
+stroke_network_bridge = NodePath("Scripts/NetworkBridge")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
 [node name="CueBody" type="Node3D" parent="."]
@@ -66,15 +66,15 @@ skeleton = NodePath("")
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="NetworkStrokeBridge" type="Node" parent="Scripts"]
-script = ExtResource("6_hxwsn")
-metadata/_custom_type_script = "uid://bnepmph1tr1s2"
-
-[node name="CueSfx" type="Node" parent="Scripts" node_paths=PackedStringArray("strike_sfx", "cue")]
+[node name="Sfx" type="Node" parent="Scripts" node_paths=PackedStringArray("strike_sfx", "cue")]
 script = ExtResource("7_t7is8")
 strike_sfx = NodePath("../../sfx")
-cue = NodePath("../..")
+cue = NodePath("")
 metadata/_custom_type_script = "uid://dt8xf8l0g7j3c"
+
+[node name="NetworkBridge" type="Node" parent="Scripts"]
+script = ExtResource("6_hxwsn")
+metadata/_custom_type_script = "uid://bnepmph1tr1s2"
 
 [node name="sfx" type="AudioStreamPlayer3D" parent="."]
 stream = ExtResource("7_lm3ol")
@@ -99,9 +99,3 @@ metadata/_custom_type_script = "uid://dhwo8nk3d5uwt"
 [node name="CueLockedState" type="Node3D" parent="StateMachine"]
 script = ExtResource("10_nmcgh")
 metadata/_custom_type_script = "uid://c2ws5v0mfcs3m"
-
-[node name="DebugLabel" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.024132852, 0)
-visible = false
-text = "XXXXXXXXXX"
-font_size = 8
