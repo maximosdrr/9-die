@@ -38,9 +38,6 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot) -> void:
 	_update_ball_limits()
 	_update_turn_state()
 
-func _ready() -> void:
-	_reset_pose_local()
-
 func execute_strike(mouse_speed: float) -> bool:
 	if not _can_strike():
 		return false
@@ -90,6 +87,7 @@ func _update_turn_state() -> void:
 
 func _is_my_turn() -> bool:
 	if not pool_game or not pool_game.turn_owner:
+		push_error("Pool game is null! You turn cannot be settle")
 		return false
 		
 	var turn_id := pool_game.turn_owner.name.to_int()
@@ -101,14 +99,6 @@ func _update_ball_limits() -> void:
 		
 	ball_radius_offset = cue_ball.radius + visual_gap
 	spin_limit = cue_ball.radius
-
-func _reset_pose_local() -> void:
-	spin_offset = Vector2.ZERO
-	position = Vector3(0, 0, ball_radius_offset)
-
-func _sync_visual_pose() -> void:
-	position.x = spin_offset.x
-	position.y = spin_offset.y
 
 func _can_strike() -> bool:
 	return is_instance_valid(cue_ball)
