@@ -7,9 +7,9 @@ class_name BallCollisionAudio extends AudioStreamPlayer3D
 @export var max_impact_speed: float = 8.0 
 @export var max_simultaneous_sounds: int = 5
 @export var max_spawn_delay: float = 0.02 
+@export var min_collision_speed: float = 0.05 
 
 @export_group("Volume & Pitch")
-## Diminuí para -35.0 para que toques muito leves sejam realmente sussurros
 @export var min_audible_db: float = -35.0
 @export var pitch_min: float = 0.9
 @export var pitch_max: float = 1.1
@@ -17,17 +17,26 @@ class_name BallCollisionAudio extends AudioStreamPlayer3D
 var _active_sounds: int = 0
 
 func _ready() -> void:
-	if not ball.ball_contacted.is_connected(_on_ball_contacted):
-		ball.ball_contacted.connect(_on_ball_contacted)
+	if not ball and get_parent() is Ball:
+		ball = get_parent()
+
+	if ball:
+		if not ball.ball_contacted.is_connected(_on_ball_contacted):
+			ball.ball_contacted.connect(_on_ball_contacted)
 
 func _on_ball_contacted(other_ball: Ball) -> void:
 	if not stream: return
 
+	if ball.get_instance_id() < other_ball.get_instance_id():
+		return 
+
 	var relative_velocity = ball.linear_velocity - other_ball.linear_velocity
 	var impact_speed = relative_velocity.length()
 	
-	var intensity = clamp(impact_speed / max_impact_speed, 0.0, 1.0)
+	if impact_speed < min_collision_speed:
+		return
 	
+	var intensity = clamp(impact_speed / max_impact_speed, 0.0, 1.0)
 	intensity = intensity * intensity 
 	
 	_spawn_sound_clone(intensity)
@@ -50,7 +59,10 @@ func _spawn_sound_clone(intensity: float) -> void:
 	var target_db = lerp(min_audible_db, volume_db, intensity)
 	sfx.volume_db = target_db
 	
-	sfx.pitch_scale = randf_range(pitch_min, pitch_max)
+	var dynamic_pitch = lerp(pitch_min, pitch_max, intensity)
+	dynamic_pitch += randf_range(-0.02, 0.02)
+	
+	sfx.pitch_scale = dynamic_pitch
 	
 	add_child(sfx)
 	sfx.global_position = ball.global_position
