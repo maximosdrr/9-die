@@ -6,7 +6,7 @@ class_name GameStarting extends State
 var players_ids = []
 
 func _init() -> void:
-	self.type = State.Type.GAME_STARTING
+	self.type = StatesRef.GAME_STARTING
 
 func enter(metadata: Dictionary[Variant, Variant]):
 	assert(metadata.has("players_ids"))
@@ -25,5 +25,5 @@ func _on_time_ends():
 	start_game_ui.hide()
 	var _metadata = {}
 	_metadata.set("players_ids", players_ids)
-	state_machine.change_state(State.Type.GAME_STARTED, _metadata)
+	state_machine.change_state(StatesRef.GAME_STARTED, _metadata)
 	start_game_timer.stop()

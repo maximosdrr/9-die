@@ -21,7 +21,7 @@ var _previous_draw_distance: float
 var _smoothed_velocity: float
 
 func _init() -> void:
-	type = State.Type.CUE_CHARGING
+	type = StatesRef.CUE_CHARGING
 
 func setup(parent_node: Node3D) -> void:
 	cue = parent_node as Cue
@@ -38,7 +38,7 @@ func handle_input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_released(INPUT_STROKE_MODE):
-		state_machine.change_state(State.Type.IDLE, {})
+		state_machine.change_state(StatesRef.CUE_IDLE, {})
 		get_viewport().set_input_as_handled()
 		return
 
@@ -55,7 +55,7 @@ func process(delta: float) -> void:
 		var strike_power := absf(_smoothed_velocity)
 		var success := cue.execute_strike(strike_power)
 		
-		var next_state = State.Type.CUE_RECOVER if success else State.Type.IDLE
+		var next_state = 'CUE_RECOVER' if success else 'IDLE'
 		state_machine.change_state(next_state, {})
 
 func _process_stroke_input(relative_motion: Vector2) -> void:

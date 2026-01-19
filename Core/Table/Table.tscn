@@ -34,7 +34,7 @@ transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1
 
 [node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("public_state_syncronizer")]
 script = ExtResource("5_7vxer")
-initial_state = 3
+initial_state = "GAME_WAITING_START"
 public_state_syncronizer = NodePath("../Scripts/PublicStateSyncronizer")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 

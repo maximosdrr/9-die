@@ -5,7 +5,7 @@ var cue: Cue
 var _tween: Tween
 
 func _init():
-	type = State.Type.CUE_RECOVER
+	type = StatesRef.CUE_RECOVER
 
 func setup(parent_node: Node3D):
 	cue = parent_node as Cue
@@ -36,7 +36,7 @@ func handle_input(event: InputEvent) -> void:
 			cue.get_viewport().set_input_as_handled()
 
 func _on_cooldown_finished():
-	state_machine.change_state(State.Type.CUE_LOCKED, {})
+	state_machine.change_state(StatesRef.CUE_LOCKED, {})
 
 func _reset_elevation() -> void:
 	cue.current_elevation = 0.0

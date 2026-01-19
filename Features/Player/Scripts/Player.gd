@@ -9,6 +9,7 @@ var id = 1
 @onready var player_toggleable: Toggleable = $Scripts/PlayerToggleable
 @onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
 @onready var player_model: Node3D = $FirstPerson/Model3D
+@onready var state_machine: StateMachine = $StateMachine
 
 enum ControllerStates { Player, Game }
 
@@ -23,7 +24,6 @@ func take_control():
 	if !is_multiplayer_authority():
 		return
 	
-	player_model.show()
 	set_physics_process(true)
 	head_pivot.set_process_unhandled_input(true) 
 	
@@ -35,7 +35,6 @@ func give_control():
 	if !is_multiplayer_authority():
 		return
 
-	player_model.hide() 
 	set_physics_process(false)
 	velocity = Vector3.ZERO
 	

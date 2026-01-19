@@ -53,6 +53,7 @@ shape = SubResource("SphereShape3D_bodf6")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("2_eusg5")
+initial_state = "BALL_IDLE"
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]

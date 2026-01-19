@@ -25,7 +25,6 @@ func _on_local_state_change(type, metadata):
 	else:
 		rpc_id(1, "_remote_sync_state", type, metadata)
 
-
 @rpc("any_peer", "call_remote", "reliable")
 func _remote_sync_state(type, metadata):
 	_is_incoming_network_change = true

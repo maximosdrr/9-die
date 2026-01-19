@@ -8,7 +8,7 @@ var stop_check_timer := stop_check_timer_value
 @export var ball: Ball
 
 func _init() -> void:
-	self.type = State.Type.IDLE
+	self.type = StatesRef.BALL_IDLE
 
 func physics_process(delta: float) -> void:
 	stop_check_timer -= delta
@@ -19,4 +19,4 @@ func physics_process(delta: float) -> void:
 	stop_check_timer = stop_check_timer_value
 	
 	if ball.linear_velocity.length() > stop_speed_threshold:
-		state_machine.change_state(State.Type.MOVING, {})
+		state_machine.change_state(StatesRef.BALL_MOVING, {})

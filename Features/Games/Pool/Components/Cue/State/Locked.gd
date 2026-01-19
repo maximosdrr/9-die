@@ -3,7 +3,7 @@ class_name CueLockedState extends State
 var cue: Cue
 
 func _init():
-	type = State.Type.CUE_LOCKED
+	type = StatesRef.CUE_LOCKED
 
 func setup(parent_node: Node3D):
 	cue = parent_node as Cue

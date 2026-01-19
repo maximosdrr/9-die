@@ -6,7 +6,7 @@ class_name WaitingGameStart extends State
 var players_on_influency_area: Array[Node3D] = []
 
 func _init() -> void:
-	self.type = State.Type.WAITING_GAME_START
+	self.type = StatesRef.GAME_WAITING_START
 
 func enter(metadata: Dictionary[Variant, Variant]):
 	var is_restart = metadata.has("is_restart")
@@ -29,7 +29,7 @@ func process(_delta: float) -> void:
 				func (player) : return player.name
 			)
 			metadata.set("players_ids", players_ids)
-			state_machine.change_state(State.Type.GAME_STARTING, metadata)
+			state_machine.change_state(StatesRef.GAME_STARTING, metadata)
 
 func _on_body_enter_in_influence_area(_body: Node3D):
 	var bodies = table_influence.get_overlapping_bodies()

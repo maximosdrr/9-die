@@ -2,7 +2,7 @@ extends Node3D
 
 class_name State
 var state_machine: StateMachine
-var type: Type
+var type: String
 var parent: Node3D
 
 func process(delta: float) -> void:
@@ -22,18 +22,3 @@ func setup(parent_node: Node3D):
 
 func handle_input(event: InputEvent) -> void:
 	pass
-
-enum Type {
-	IDLE,
-	AIMING,
-	MOVING,
-	WAITING_GAME_START,
-	GAME_STARTING,
-	GAME_STARTED,
-	GAME_FINISHED,
-	CUE_CHARGING,
-	CUE_RECOVER,
-	CUE_LOCKED,
-	CUE_SPINNING,
-	CUE_JUMPING,
-}

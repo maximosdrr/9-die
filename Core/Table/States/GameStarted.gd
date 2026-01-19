@@ -3,7 +3,7 @@ class_name GameStarted extends State
 @export var table: Table
 
 func _init() -> void:
-	self.type = State.Type.GAME_STARTED
+	self.type = StatesRef.GAME_STARTED
 
 func enter(metadata: Dictionary[Variant, Variant]):
 	table.players_on_match = []

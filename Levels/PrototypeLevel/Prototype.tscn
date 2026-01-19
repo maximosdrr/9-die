@@ -1,6 +1,5 @@
-[gd_scene load_steps=14 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene load_steps=13 format=3 uid="uid://dvyejk17aixhq"]
 
-[ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_b7m75"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
@@ -21,12 +20,10 @@ sky = SubResource("Sky_5rn6i")
 tonemap_mode = 2
 glow_enabled = true
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5rn6i"]
-albedo_texture = ExtResource("1_b7m75")
-uv1_triplanar = true
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rxpk7"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_fnkl4"]
-material = SubResource("StandardMaterial3D_5rn6i")
+material = SubResource("StandardMaterial3D_rxpk7")
 size = Vector2(50, 50)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_b7m75"]
@@ -88,4 +85,4 @@ spawn_points = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoi
 metadata/_custom_type_script = "uid://cma5b7oyrsijb"
 
 [node name="NightClub" parent="." instance=ExtResource("8_obyne")]
-transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -8.568128, 0, 0.35934448)
+transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -8.568, -0.15, 0.359)
