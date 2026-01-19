@@ -11,7 +11,8 @@ func setup(parent_node: Node3D) -> void:
 	cue = parent_node as Cue
 
 func enter(_msg: Dictionary = {}) -> void:
-	_set_visual_elevation(cue.min_safe_angle)
+	var safe_angle_deg = rad_to_deg(cue.min_safe_angle)
+	_set_visual_elevation(safe_angle_deg)
 
 func handle_input(event: InputEvent) -> void:
 	if not cue.is_multiplayer_authority():
@@ -42,7 +43,8 @@ func _adjust_elevation(direction: int) -> void:
 	var step = direction * cue.elevation_sensitivity
 	var new_angle = cue.current_elevation - step 
 	
-	var clamped_angle = clamp(new_angle, cue.jump_max_angle, -40)
+	var safe_limit_deg = rad_to_deg(cue.min_safe_angle)
+	var clamped_angle = clamp(new_angle, cue.jump_max_angle, safe_limit_deg)
 	
 	_set_visual_elevation(clamped_angle)
 
