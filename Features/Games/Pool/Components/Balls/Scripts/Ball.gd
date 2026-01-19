@@ -26,7 +26,8 @@ const COLORED_BALL_MESHES = [
 
 @export_group("Jump Physics")
 @export var jump_efficiency: float = 1.2
-@export var min_jump_angle: float = 35.0
+@export var min_jump_angle: float = 25.0
+@export var cue_max_angle: float = 65.0
 
 signal stopped_moving(position: Vector3)
 signal striked
@@ -93,9 +94,10 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 
 	if is_valid_jump:
 		raw_dir = raw_normal
-		var angle_range = 85.0 - min_jump_angle
+		var angle_range = cue_max_angle - min_jump_angle
 		var angle_progress = clamp(attack_angle_deg - min_jump_angle, 0.0, angle_range)
-		jump_factor = angle_progress / angle_range # Retorna de 0.0 a 1.0
+		
+		jump_factor = angle_progress / angle_range
 	else:
 		raw_dir = Vector3(direction.x, 0.0, direction.z).normalized()
 
