@@ -1,24 +1,21 @@
-class_name CueAutomaticElevation
-extends Node
+class_name CueAutomaticElevation extends Node
 
 @export var physical_margin: float = 0.08
-
 @export var cue: Cue
 @export var cue_handle_sensor: RayCast3D
 @export var aim_pivot: Node3D
 
 func _physics_process(_delta: float) -> void:
-	_update_cue_angle()
+	_update_safe_angle_limit()
 
-func _update_cue_angle() -> void:
-	if not cue or not cue_handle_sensor or not aim_pivot: return
+func _update_safe_angle_limit() -> void:
+	if not cue or not cue_handle_sensor or not aim_pivot: 
+		return
 	
-	var target_cue_pitch = 0.0
+	var safe_limit = 0.0
 	
 	if cue_handle_sensor.is_colliding():
 		var collision_point = cue_handle_sensor.get_collision_point()
-		
-		# Cálculo puramente físico: Altura do obstáculo + margem física
 		var diff_y = (collision_point.y + physical_margin) - aim_pivot.global_position.y
 		
 		if diff_y > 0:
@@ -27,12 +24,9 @@ func _update_cue_angle() -> void:
 			var distance_to_obstacle = pivot_pos_2d.distance_to(col_pos_2d)
 			
 			distance_to_obstacle = max(distance_to_obstacle, 0.1)
-			
 			var angle_rad = atan2(diff_y, distance_to_obstacle)
-			target_cue_pitch = -abs(angle_rad)
+			
+			safe_limit = -abs(angle_rad)
 	
-	# Limita fisicamente a 45 graus
-	target_cue_pitch = clamp(target_cue_pitch, deg_to_rad(-45.0), 0.0)
-	
-	# Aplica rotação ao taco
-	cue.rotation.x = lerp(cue.rotation.x, target_cue_pitch, 0.2)
+	safe_limit = clamp(safe_limit, deg_to_rad(-45.0), 0.0)
+	cue.min_safe_angle = safe_limit

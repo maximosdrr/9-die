@@ -24,6 +24,11 @@ const COLORED_BALL_MESHES = [
 @onready var state_machine: StateMachine = $StateMachine
 @onready var multiplayer_synchronizer: MultiplayerSynchronizer = $MultiplayerSynchronizer
 
+@export_group("Jump Physics")
+@export var jump_efficiency: float = 1.2
+@export var min_jump_angle: float = 25.0
+@export var cue_max_angle: float = 65.0
+
 signal stopped_moving(position: Vector3)
 signal striked
 signal ball_contacted(ball: Ball)
@@ -79,26 +84,45 @@ func strike(direction: Vector3, total_force: float, hit_offset_local: Vector3 = 
 	if total_force <= 0.0:
 		return
 
-	var raw_dir := Vector3(direction.x, 0.0, direction.z).normalized()
-	var offset_ratio = hit_offset_local.x / radius
+	var raw_normal = direction.normalized()
 	
+	var attack_angle_deg = rad_to_deg(asin(abs(raw_normal.y)))
+	var is_valid_jump = raw_normal.y < 0 and attack_angle_deg >= min_jump_angle
+	
+	var raw_dir: Vector3
+	var jump_factor: float = 0.0
+
+	if is_valid_jump:
+		raw_dir = raw_normal
+		var angle_range = cue_max_angle - min_jump_angle
+		var angle_progress = clamp(attack_angle_deg - min_jump_angle, 0.0, angle_range)
+		
+		jump_factor = angle_progress / angle_range
+	else:
+		raw_dir = Vector3(direction.x, 0.0, direction.z).normalized()
+
+	var offset_ratio = hit_offset_local.x / radius
 	var max_angle_deg = data.max_squirt_angle_deg if data else 0.0
 	var spin_power = data.spin_power_factor if data else 1.0
-	
 	var max_angle_rad = deg_to_rad(max_angle_deg)
 	var deflection_angle = offset_ratio * max_angle_rad
 	
 	var final_dir = raw_dir.rotated(Vector3.UP, deflection_angle)
+	var linear_impulse = final_dir * total_force
 	
-	var forward = -final_dir
+	if is_valid_jump:
+		var vertical_force = abs(linear_impulse.y) * jump_efficiency * jump_factor
+		linear_impulse.y = vertical_force
+	else:
+		linear_impulse.y = 0.0
+
+	var forward = -Vector3(final_dir.x, 0.0, final_dir.z).normalized()
 	var up = Vector3.UP
 	var right = forward.cross(up).normalized()
 	up = right.cross(forward).normalized()
 	var aim_basis = Basis(right, up, forward)
 	
 	var hit_offset_world = aim_basis * hit_offset_local
-	var linear_impulse = final_dir * total_force
-	
 	var raw_torque = hit_offset_world.cross(linear_impulse)
 	raw_torque.y = -raw_torque.y
 	
