@@ -73,8 +73,10 @@ func _on_turn_start(owner_id: String, context: Dictionary) -> void:
 func _handle_ball_replacement(context: Dictionary) -> void:
 	var ball_index: int = context.get("ball_replacement")
 	var target: Ball = cue_ball if ball_index == 0 else balls_in_game[ball_index]
+	var balls: Array[Ball] = context.get("current_balls_remaining") if \
+		context.has("current_balls_remaining") else balls_in_game.values()
 	
-	ball_placement_manager.start_placement(target)
+	ball_placement_manager.start_placement(target, balls)
 	await ball_placement_manager.placement_finished
 
 func _on_strike() -> void:
