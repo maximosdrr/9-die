@@ -12,6 +12,7 @@ extends Node3D
 @export var force_multiplier: float = 8.0
 @export var visual_gap: float = 0.01
 @export var post_shot_cooldown: float = 0.25
+@export var spin_sensitivity := 0.001
 
 signal strike_executed
 
@@ -56,6 +57,15 @@ func _on_turn_extended() -> void:
 	if state_machine.current.type == State.Type.CUE_LOCKED:
 		state_machine.change_state(State.Type.IDLE, {})
 
+func _update_limits_from_ball() -> void:
+	if cue_ball and is_inside_tree():
+		ball_radius_offset = cue_ball.radius + visual_gap
+		spin_limit = cue_ball.radius
+
+func _reset_pose_immediate() -> void:
+	position = Vector3(0, 0, ball_radius_offset)
+	spin_offset = Vector2.ZERO
+
 func execute_strike(impact_speed: float) -> bool:
 	if not cue_ball:
 		return false
@@ -76,12 +86,3 @@ func execute_strike(impact_speed: float) -> bool:
 
 	cue_sfx.emit_strike_sound(dir, force, hit_offset)
 	return true
-
-func _update_limits_from_ball() -> void:
-	if cue_ball and is_inside_tree():
-		ball_radius_offset = cue_ball.radius + visual_gap
-		spin_limit = cue_ball.radius
-
-func _reset_pose_immediate() -> void:
-	position = Vector3(0, 0, ball_radius_offset)
-	spin_offset = Vector2.ZERO

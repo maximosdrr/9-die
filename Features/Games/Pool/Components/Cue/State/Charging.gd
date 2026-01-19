@@ -46,13 +46,8 @@ func handle_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseMotion:
-		var is_spin_mode = Input.is_action_pressed(INPUT_SPIN_MODIFIER)
+		_process_stroke_input(event.relative)
 		
-		if is_spin_mode:
-			_process_spin_input(event.relative)
-		else:
-			_process_stroke_input(event.relative)
-
 		_update_cue_transform()
 		get_viewport().set_input_as_handled()
 
@@ -65,14 +60,6 @@ func process(delta: float) -> void:
 		
 		var next_state = State.Type.CUE_RECOVER if success else State.Type.IDLE
 		state_machine.change_state(next_state, {})
-
-func _process_spin_input(relative_motion: Vector2) -> void:
-	var motion_delta := relative_motion * spin_sensitivity
-	
-	cue.spin_offset.x += motion_delta.x
-	cue.spin_offset.y -= motion_delta.y
-	
-	cue.spin_offset = cue.spin_offset.limit_length(cue.spin_limit)
 
 func _process_stroke_input(relative_motion: Vector2) -> void:
 	var draw_delta := relative_motion.y * stroke_sensitivity
