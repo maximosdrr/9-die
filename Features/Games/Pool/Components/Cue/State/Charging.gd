@@ -55,7 +55,7 @@ func process(delta: float) -> void:
 		var strike_power := absf(_smoothed_velocity)
 		var success := cue.execute_strike(strike_power)
 		
-		var next_state = 'CUE_RECOVER' if success else 'IDLE'
+		var next_state = StatesRef.CUE_RECOVER if success else StatesRef.CUE_IDLE
 		state_machine.change_state(next_state, {})
 
 func _process_stroke_input(relative_motion: Vector2) -> void:

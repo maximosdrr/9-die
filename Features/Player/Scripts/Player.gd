@@ -1,9 +1,5 @@
 class_name Player extends CharacterBody3D
 
-var gravity = 12
-var speed = 3
-var id = 1
-
 @onready var head_pivot: HeadPivot = $FirstPerson/HeadPivot
 @onready var remote_fps: RemoteTransform3D = $FirstPerson/HeadPivot/RemoteFPS
 @onready var player_toggleable: Toggleable = $Scripts/PlayerToggleable
@@ -11,14 +7,19 @@ var id = 1
 @onready var player_model: Node3D = $FirstPerson/Model3D
 @onready var state_machine: StateMachine = $StateMachine
 @onready var debug_label: Label3D = $DebugLabel
+@onready var skeleton: Skeleton3D = $FirstPerson/Model3D/Rig/Skeleton3D
 
 enum ControllerStates { Player, Game }
 
+var gravity = 12
+var speed = 3
+var id = 1
 var current_control_state = ControllerStates.Player
 
 func _ready():
 	if !is_multiplayer_authority():
 		return
+	
 	take_control()
 
 func take_control():
@@ -43,7 +44,6 @@ func give_control():
 	current_control_state = ControllerStates.Game
 
 func _physics_process(delta: float) -> void:
-	debug_label.text = state_machine.current.type
 	if not is_multiplayer_authority():
 		return
 

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://ndviaeb1jyvn"
-path="res://.godot/imported/AnimationLibrary_Godot_Standard.glb-2db559c9248b91028a9e0843b6f328b7.scn"
+uid="uid://rbd3qx7jpelq"
+path="res://.godot/imported/StrikePose.glb-cf6b7313a8a8f2ebd30ac032bd35ebc7.scn"
 
 [deps]
 
-source_file="res://Assets/Characters/Base/AnimationLibrary_Godot_Standard.glb"
-dest_files=["res://.godot/imported/AnimationLibrary_Godot_Standard.glb-2db559c9248b91028a9e0843b6f328b7.scn"]
+source_file="res://Assets/Characters/Base/StrikePose.glb"
+dest_files=["res://.godot/imported/StrikePose.glb-cf6b7313a8a8f2ebd30ac032bd35ebc7.scn"]
 
 [params]
 

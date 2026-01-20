@@ -3,6 +3,7 @@ class_name PoolController extends PlayerGameController
 @onready var remote_aim: RemoteTransform3D = $AimPivot/Elevation/RemoteAim
 @onready var aim_pivot: AimCameraPivot = $AimPivot
 @onready var cue: Cue = $AimPivot/Cue
+@onready var hand_position: Marker3D = $AimPivot/Cue/HandPosition
 
 var pool_game: PoolGame
 var player: Player
@@ -32,6 +33,7 @@ func take_control():
 		return
 	
 	show()
+	player.state_machine.change_state(StatesRef.PLAYER_READY_TO_STRIKE, {})
 	set_process_unhandled_input(true)
 	set_process(true)
 	
@@ -53,6 +55,7 @@ func give_control():
 	
 	aim_pivot.set_process(false)
 	aim_pivot.set_process_unhandled_input(false)
+	player.state_machine.change_state(StatesRef.PLAYER_IDLE, {})
 
 func apply_control(turn_owner_id: String, context: Dictionary):
 	if turn_owner_id == player.name:
@@ -71,3 +74,18 @@ func apply_control(turn_owner_id: String, context: Dictionary):
 
 func _on_turn_change(next_player_name: String, context: Dictionary):
 	apply_control(next_player_name, context)
+
+func _process(delta: float) -> void:
+	if not is_multiplayer_authority() or not player:
+		return
+		
+	if visible:
+		_update_player_ik()
+
+func _update_player_ik():
+	var target_pos = hand_position.global_position
+	var target_rot = hand_position.global_transform.basis.get_rotation_quaternion()
+	
+	var aim_y = aim_pivot.global_rotation.y
+	
+	player.update_pool_stance(target_pos, target_rot, aim_y)

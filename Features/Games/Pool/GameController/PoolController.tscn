@@ -23,6 +23,9 @@ remote_path = NodePath("../../..")
 [node name="Cue" parent="AimPivot" instance=ExtResource("2_fuwyn")]
 transform = Transform3D(1, 0, 0, 0, 0.9999997, 0, 0, 0, 0.9999997, 0, 0, 0)
 
+[node name="HandPosition" type="Marker3D" parent="AimPivot/Cue"]
+transform = Transform3D(1, 0, 0, 0, 1.0000004, 0, 0, 0, 1.0000004, 0, 0, 0.4747917)
+
 [node name="CollisionDetector" type="RayCast3D" parent="AimPivot"]
 target_position = Vector3(0, 0, 1.47)
 collision_mask = 8
