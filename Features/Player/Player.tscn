@@ -25,7 +25,7 @@
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="23_cwv8h"]
 [ext_resource type="Script" uid="uid://ciidl1avc1lpp" path="res://Features/Player/States/Idle.gd" id="24_4ndi6"]
 [ext_resource type="Script" uid="uid://ddnbnq14r1xu" path="res://Features/Player/States/Walking.gd" id="25_4ndi6"]
-[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/Network/PublicStateSyncronizer.gd" id="26_5rlu4"]
+[ext_resource type="Script" uid="uid://b5ic2cn2b3ipw" path="res://Core/StateMachine/Network/AuthorityStateSynchronizer.gd" id="26_5rlu4"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
 radius = 0.23291016
@@ -2985,6 +2985,9 @@ _data = {
 properties/0/path = NodePath(".:position")
 properties/0/spawn = true
 properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D" groups=["player"]]
 collision_layer = 2
@@ -3008,7 +3011,7 @@ metadata/_custom_type_script = "uid://b2jkrngg2mldq"
 remote_path = NodePath("../../..")
 
 [node name="Model3D" type="Node3D" parent="FirstPerson"]
-transform = Transform3D(-0.8885539, 0, -8.742278e-08, 0, 0.8492245, 0, 7.767985e-08, 0, -1, 0, 0, 0)
+transform = Transform3D(-0.8885539, 0, -1.509958e-07, 0, 0.8492245, 0, 1.341679e-07, 0, -1, 0, 0, 0)
 
 [node name="Armature" type="Node3D" parent="FirstPerson/Model3D"]
 transform = Transform3D(0.01, 0, 0, 0, 0, -0.01, 0, 0.01, 0, 0, 0, 0)
@@ -3535,10 +3538,10 @@ replication_config = SubResource("SceneReplicationConfig_wlwl2")
 
 [node name="NotificationPopup" parent="UI" instance=ExtResource("7_4uqpi")]
 
-[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("public_state_syncronizer")]
+[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("authority_state_syncronizer")]
 script = ExtResource("23_cwv8h")
 initial_state = "PLAYER_IDLE"
-public_state_syncronizer = NodePath("PublicStateSyncronizer")
+authority_state_syncronizer = NodePath("AuthorityStateSynchronizer")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="PlayerWalking" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
@@ -3551,6 +3554,10 @@ script = ExtResource("24_4ndi6")
 animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ciidl1avc1lpp"
 
-[node name="PublicStateSyncronizer" type="Node" parent="StateMachine"]
+[node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine"]
 script = ExtResource("26_5rlu4")
-metadata/_custom_type_script = "uid://5qg7w6j3xyja"
+metadata/_custom_type_script = "uid://b5ic2cn2b3ipw"
+
+[node name="DebugLabel" type="Label3D" parent="."]
+transform = Transform3D(0.9945729, 0, 0.10404226, 0, 1, 0, -0.10404226, 0, 0.9945729, 0, 1.2854993, -1.4138058)
+text = "XXXXXXXXXXXXXXXXX"

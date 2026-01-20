@@ -10,6 +10,7 @@ var current_metadata = {}
 @export var enabled: bool = true
 @export var initial_state: String
 @export var public_state_syncronizer: PublicStateSyncronizer = null
+@export var authority_state_syncronizer: AuthorityStateSynchronizer = null
 @export var check_for_multiplayer_authority_on_state_handle_input: bool = false
 
 func _ready() -> void:
@@ -18,8 +19,16 @@ func _ready() -> void:
 	
 	if public_state_syncronizer != null:
 		public_state_syncronizer.setup(self)
+	
+	if authority_state_syncronizer != null:
+		authority_state_syncronizer.setup(self)
 
 func change_state(type: String, metadata: Dictionary[Variant, Variant]):
+	if authority_state_syncronizer != null:
+		if not is_multiplayer_authority() and\
+		not authority_state_syncronizer.is_incoming_network_change:
+			return
+
 	if current.type == type:
 		return
 	
@@ -62,7 +71,6 @@ func _setup_states():
 			state.state_machine = self
 			state.parent = parent
 			state.setup(parent)
-			print(state.type)
 			states.set(state.type, state)
 
 func _setup_initial_state():
