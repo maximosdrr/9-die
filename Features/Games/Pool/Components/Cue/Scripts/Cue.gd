@@ -89,14 +89,13 @@ func _on_turn_extended() -> void:
 	_update_turn_state()
 
 func _update_turn_state() -> void:
-	# Reseta a elevação manual sempre que o turno muda
 	current_elevation = 0.0 
 	
 	if _is_my_turn():
-		if state_machine.current.type == State.Type.CUE_LOCKED:
-			state_machine.change_state(State.Type.IDLE, {})
+		if state_machine.current.type == StatesRef.CUE_LOCKED:
+			state_machine.change_state(StatesRef.CUE_IDLE, {})
 	else:
-		state_machine.change_state(State.Type.CUE_LOCKED, {})
+		state_machine.change_state(StatesRef.CUE_LOCKED, {})
 
 func _is_my_turn() -> bool:
 	if not pool_game or not pool_game.turn_owner:

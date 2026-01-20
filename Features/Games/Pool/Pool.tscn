@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://Features/Games/Pool/Scripts/PoolGame.gd" id="1_jypsj"]
 [ext_resource type="Script" uid="uid://bmv1krpa1tpxy" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.gd" id="3_qmuqs"]
-[ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/BallGirl.gd" id="4_y227s"]
+[ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/OffTableMonitor.gd" id="4_y227s"]
 [ext_resource type="Script" uid="uid://y72pphul62gh" path="res://Features/Games/Pool/GameModes/GoldenNine/TurnResolver.gd" id="5_5ugkb"]
 [ext_resource type="Script" uid="uid://dak3kydlshkpb" path="res://Features/Games/Pool/Scripts/BallsMovementMonitor.gd" id="6_20w0b"]
 [ext_resource type="Script" uid="uid://cm8rk3wxalspc" path="res://Core/Table/GameMode/GameModeHandler.gd" id="8_bojb6"]

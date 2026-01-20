@@ -69,10 +69,9 @@ skeleton = NodePath("")
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="Sfx" type="Node" parent="Scripts" node_paths=PackedStringArray("strike_sfx", "cue")]
+[node name="Sfx" type="Node" parent="Scripts" node_paths=PackedStringArray("strike_sfx")]
 script = ExtResource("7_t7is8")
 strike_sfx = NodePath("../../sfx")
-cue = NodePath("")
 metadata/_custom_type_script = "uid://dt8xf8l0g7j3c"
 
 [node name="NetworkBridge" type="Node" parent="Scripts"]
@@ -84,6 +83,7 @@ stream = ExtResource("7_lm3ol")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("9_4hlb0")
+initial_state = "CUE_IDLE"
 check_for_multiplayer_authority_on_state_handle_input = true
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 

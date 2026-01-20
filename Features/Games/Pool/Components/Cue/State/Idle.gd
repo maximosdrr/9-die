@@ -8,7 +8,7 @@ const INPUT_ELEVATION_MODIFIER := "elevation_modifier"
 var cue: Cue
 
 func _init() -> void:
-	type = State.Type.IDLE
+	type = StatesRef.CUE_IDLE
 
 func setup(parent_node: Node3D) -> void:
 	cue = parent_node as Cue
@@ -21,17 +21,17 @@ func handle_input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed(INPUT_SPIN_MODIFIER):
-		state_machine.change_state(State.Type.CUE_SPINNING, {})
+		state_machine.change_state(StatesRef.CUE_SPINNING, {})
 		get_viewport().set_input_as_handled()
 		return
 
 	if event.is_action_pressed(INPUT_STROKE_MODE):
-		state_machine.change_state(State.Type.CUE_CHARGING, {})
+		state_machine.change_state(StatesRef.CUE_CHARGING, {})
 		get_viewport().set_input_as_handled()
 		return
 	
 	if event.is_action_pressed(INPUT_ELEVATION_MODIFIER):
-		state_machine.change_state(State.Type.CUE_JUMPING, {})
+		state_machine.change_state(StatesRef.CUE_JUMPING, {})
 		get_viewport().set_input_as_handled()
 		return
 
