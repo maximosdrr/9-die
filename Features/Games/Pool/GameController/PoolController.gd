@@ -74,18 +74,3 @@ func apply_control(turn_owner_id: String, context: Dictionary):
 
 func _on_turn_change(next_player_name: String, context: Dictionary):
 	apply_control(next_player_name, context)
-
-func _process(delta: float) -> void:
-	if not is_multiplayer_authority() or not player:
-		return
-		
-	if visible:
-		_update_player_ik()
-
-func _update_player_ik():
-	var target_pos = hand_position.global_position
-	var target_rot = hand_position.global_transform.basis.get_rotation_quaternion()
-	
-	var aim_y = aim_pivot.global_rotation.y
-	
-	player.update_pool_stance(target_pos, target_rot, aim_y)

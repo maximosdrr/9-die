@@ -6,7 +6,6 @@ class_name Player extends CharacterBody3D
 @onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
 @onready var player_model: Node3D = $FirstPerson/Model3D
 @onready var state_machine: StateMachine = $StateMachine
-@onready var debug_label: Label3D = $DebugLabel
 @onready var skeleton: Skeleton3D = $FirstPerson/Model3D/Rig/Skeleton3D
 
 enum ControllerStates { Player, Game }

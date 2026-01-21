@@ -18,11 +18,6 @@ func equip_game_controller(
 	current_controller = controller_instance
 	assert(current_controller is PlayerGameController)
 	
-	current_controller.hide()
-	
-	if not is_multiplayer_authority():
-		context_slot.hide()
-	
 	context_slot.add_child(current_controller)
 	current_controller.setup(owner, table_game)
 
