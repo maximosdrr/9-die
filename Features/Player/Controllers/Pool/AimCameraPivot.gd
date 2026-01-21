@@ -5,37 +5,32 @@ class_name AimCameraPivot extends Node3D
 @export_group("Camera Behavior")
 @export var mouse_sensitivity: float = 0.0015
 @export var distance_from_ball: float = 0.55
-@export var height_offset: float = 0.1
-@export var transition_duration: float = 0.2
+@export var height_offset: float = -0.2
+@export var transition_duration: float = 0.1
 
 @export_group("Rotation Limits")
 @export var limit_ceiling_deg: float = -90.0 
 @export var limit_floor_deg: float = 15.0 
-@export var max_neck_look_up_deg: float = -20.0
 
-@export var cue_offset_deg: float = -5.0
-
-@export_group("Player Orbit")
-@export var player_orbit_distance: float = 0.8
-@export var player_side_offset: float = 0.25
-
-var cue: Cue 
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
-var _head_angle: float = 0.0
 var _camera_node: Node3D
 
 var target: Ball
 var pool_game: PoolGame
 var _tween: Tween
-var player: Player
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED:
+		if not scale.is_equal_approx(Vector3.ONE):
+			print("🚨 ESCALA ALTERADA PARA: ", scale)
+			print("QUEM FEZ ISSO?")
+			print_stack()
+
+			
 func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	target = _pool_game.cue_ball
 	pool_game = _pool_game
-	cue = _pool_controller.cue
-	player = _pool_controller.player
-
 	_connect_signals()
 	
 	if target:
@@ -45,10 +40,17 @@ func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 
 func _ready() -> void:
 	set_as_top_level(true)
+	scale = Vector3.ONE
+	rotation = Vector3(0.0, rotation.y, 0.0)
+	
 	_initialize_positions()
-	set_process(false)
+	
+	set_physics_process(false)
+	set_notify_transform(true)
 
 func _connect_signals() -> void:
+	if not pool_game: return
+	
 	var events = [
 		[pool_game.turn_changed, _on_turn_changed],
 		[pool_game.turn_extended, _on_turn_extended],
@@ -59,25 +61,10 @@ func _connect_signals() -> void:
 		if not event[0].is_connected(event[1]):
 			event[0].connect(event[1])
 
-func _update_player_orbit() -> void:
-	if not player: return
-	if player.current_control_state != Player.ControllerStates.Game: return
-	
-	player.global_rotation.y = rotation.y
-	
-	var current_player_y = player.global_position.y
-	var local_offset = Vector3(player_side_offset, 0, player_orbit_distance)
-	var rotated_offset = local_offset.rotated(Vector3.UP, rotation.y)
-	var target_pos = global_position + rotated_offset
-	
-	target_pos.y = current_player_y
-	
-	player.global_position = target_pos
-	
 func _initialize_positions() -> void:
 	_rot_y = rotation.y
 	if elevation_node:
-		_rot_x = elevation_node.rotation.x
+		#_rot_x = elevation_node.rotation.x
 		var cam_child = elevation_node.get_child(0)
 		if cam_child:
 			_camera_node = cam_child
@@ -86,16 +73,16 @@ func _initialize_positions() -> void:
 
 func _physics_process(_delta: float) -> void:
 	if not is_multiplayer_authority(): return
-	var dynamic_limit = _calculate_dynamic_limit()
-	if _rot_x > dynamic_limit:
-		_rot_x = lerp(_rot_x, dynamic_limit, 0.1)
-		elevation_node.rotation.x = _rot_x
-	_update_player_orbit()
+	
+	if target:
+		global_position = target.global_position
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority(): return
+	
 	if event is InputEventMouseButton:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	elif event.is_action_pressed("ui_cancel"):
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
@@ -109,49 +96,17 @@ func _apply_rotation(relative_motion: Vector2) -> void:
 	_rot_y -= relative_motion.x * mouse_sensitivity
 	rotation.y = _rot_y
 	
-	_update_player_orbit()
-	
 	if not elevation_node: return
 
-	var delta_mouse = relative_motion.y * mouse_sensitivity
-	var current_limit = _calculate_dynamic_limit()
-	
-	if _head_angle < -0.0001 and delta_mouse < 0:
-		_head_angle -= delta_mouse
-		
-		if _head_angle > 0:
-			var remainder = -_head_angle
-			_head_angle = 0.0
-			_rot_x += remainder
-	else:
-		_rot_x += delta_mouse
-	
-	if _rot_x > current_limit:
-		var excess = _rot_x - current_limit
-		_rot_x = current_limit
-		_head_angle -= excess
-	
-	_head_angle = max(_head_angle, deg_to_rad(max_neck_look_up_deg))
-	_rot_x = clamp(_rot_x, deg_to_rad(limit_ceiling_deg), current_limit)
+	_rot_x -= relative_motion.y * mouse_sensitivity
+	_rot_x = clamp(_rot_x, deg_to_rad(limit_ceiling_deg), deg_to_rad(limit_floor_deg))
 	
 	elevation_node.rotation.x = _rot_x
-	
-	if _camera_node:
-		_camera_node.rotation.x = -_head_angle
 
-func _calculate_dynamic_limit() -> float:
-	if not cue: return deg_to_rad(limit_floor_deg)
-	
-	var cue_limit = cue.rotation.x - deg_to_rad(cue_offset_deg)
-	
-	var floor_limit = deg_to_rad(limit_floor_deg)
-	
-	return min(cue_limit, floor_limit)
 
 func _on_placement_finished():
 	await get_tree().create_timer(1).timeout
 	_move_smoothly_to_target()
-	set_process(false)
 	set_physics_process(true)
 
 func _on_turn_extended():
@@ -162,6 +117,10 @@ func _on_turn_changed(_next_player_name: String, _context):
 
 func _move_smoothly_to_target():
 	if not target: return
+	
+	if pool_game and pool_game.cue_ball:
+		target = pool_game.cue_ball
+
 	if _tween: _tween.kill()
 	_tween = create_tween()
 	_tween.set_trans(Tween.TRANS_CUBIC)

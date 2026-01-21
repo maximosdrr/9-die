@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://wvnfd2cxaeuh"]
+
+[ext_resource type="Script" uid="uid://b4ixi03kyeqyy" path="res://Features/Player/Controllers/Pool/PoolController.gd" id="1_xnddr"]
+
+[node name="PoolController" type="Node3D"]
+script = ExtResource("1_xnddr")
+metadata/_custom_type_script = "uid://b4ixi03kyeqyy"

@@ -1,17 +1,17 @@
 [gd_scene load_steps=16 format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
-[ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.gd" id="1_fst4q"]
-[ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Games/Pool/Components/Cue/Scripts/NetworkBridge.gd" id="6_hxwsn"]
+[ext_resource type="Script" uid="uid://dyye3x8q5giqw" path="res://Features/Player/Controllers/Pool/Cue/Scripts/Cue.gd" id="1_fst4q"]
+[ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Player/Controllers/Pool/Cue/Scripts/NetworkBridge.gd" id="6_hxwsn"]
 [ext_resource type="AudioStream" uid="uid://blc68ac0hdhso" path="res://Assets/SoundEffects/Strike.ogg" id="7_lm3ol"]
-[ext_resource type="Script" uid="uid://dt8xf8l0g7j3c" path="res://Features/Games/Pool/Components/Cue/Scripts/CueSfx.gd" id="7_t7is8"]
+[ext_resource type="Script" uid="uid://dt8xf8l0g7j3c" path="res://Features/Player/Controllers/Pool/Cue/Scripts/CueSfx.gd" id="7_t7is8"]
 [ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="9_4hlb0"]
-[ext_resource type="Script" uid="uid://dludhl7lxlriu" path="res://Features/Games/Pool/Components/Cue/State/Idle.gd" id="10_bgumn"]
-[ext_resource type="Script" uid="uid://c2ws5v0mfcs3m" path="res://Features/Games/Pool/Components/Cue/State/Locked.gd" id="10_nmcgh"]
-[ext_resource type="Script" uid="uid://cevposxtfgfim" path="res://Features/Games/Pool/Components/Cue/State/Spin.gd" id="11_q2pvu"]
-[ext_resource type="Script" uid="uid://nccbtpvm881h" path="res://Features/Games/Pool/Components/Cue/State/Recover.gd" id="11_wdj6g"]
-[ext_resource type="Script" uid="uid://dhwo8nk3d5uwt" path="res://Features/Games/Pool/Components/Cue/State/Charging.gd" id="12_0pypa"]
-[ext_resource type="Script" uid="uid://d4mvb32s55f25" path="res://Features/Games/Pool/Components/Cue/State/Jump.gd" id="12_bgumn"]
+[ext_resource type="Script" uid="uid://dludhl7lxlriu" path="res://Features/Player/Controllers/Pool/Cue/State/Idle.gd" id="10_bgumn"]
+[ext_resource type="Script" uid="uid://c2ws5v0mfcs3m" path="res://Features/Player/Controllers/Pool/Cue/State/Locked.gd" id="10_nmcgh"]
+[ext_resource type="Script" uid="uid://cevposxtfgfim" path="res://Features/Player/Controllers/Pool/Cue/State/Spin.gd" id="11_q2pvu"]
+[ext_resource type="Script" uid="uid://nccbtpvm881h" path="res://Features/Player/Controllers/Pool/Cue/State/Recover.gd" id="11_wdj6g"]
+[ext_resource type="Script" uid="uid://dhwo8nk3d5uwt" path="res://Features/Player/Controllers/Pool/Cue/State/Charging.gd" id="12_0pypa"]
+[ext_resource type="Script" uid="uid://d4mvb32s55f25" path="res://Features/Player/Controllers/Pool/Cue/State/Jump.gd" id="12_bgumn"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -54,6 +54,7 @@ blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
 [node name="Cue" type="Node3D" node_paths=PackedStringArray("state_machine", "cue_sfx", "stroke_network_bridge")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
 script = ExtResource("1_fst4q")
 state_machine = NodePath("StateMachine")
 cue_sfx = NodePath("Scripts/Sfx")

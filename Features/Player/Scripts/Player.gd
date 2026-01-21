@@ -2,11 +2,11 @@ class_name Player extends CharacterBody3D
 
 @onready var head_pivot: HeadPivot = $FirstPerson/HeadPivot
 @onready var remote_fps: RemoteTransform3D = $FirstPerson/HeadPivot/RemoteFPS
-@onready var player_toggleable: Toggleable = $Scripts/PlayerToggleable
-@onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
 @onready var player_model: Node3D = $FirstPerson/Model3D
 @onready var state_machine: StateMachine = $StateMachine
 @onready var skeleton: Skeleton3D = $FirstPerson/Model3D/Rig/Skeleton3D
+
+@export var pool_controller: PoolController
 
 enum ControllerStates { Player, Game }
 
@@ -14,6 +14,7 @@ var gravity = 12
 var speed = 3
 var id = 1
 var current_control_state = ControllerStates.Player
+var current_table_game: TableGame = null
 
 func _ready():
 	if !is_multiplayer_authority():

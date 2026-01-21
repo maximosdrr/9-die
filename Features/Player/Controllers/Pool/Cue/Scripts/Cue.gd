@@ -1,5 +1,4 @@
-class_name Cue
-extends Node3D
+class_name Cue extends Node3D
 
 signal strike_executed(direction: Vector3, force: float, offset: Vector3)
 
@@ -24,7 +23,6 @@ signal strike_executed(direction: Vector3, force: float, offset: Vector3)
 
 var pool_game: PoolGame
 var cue_ball: Ball
-var camera_pivot: AimCameraPivot
 
 var current_elevation: float = 0.0
 var min_safe_angle: float = 0.0
@@ -33,9 +31,8 @@ var ball_radius_offset: float = 0.04
 var spin_limit: float = 0.02
 var spin_offset: Vector2 = Vector2.ZERO
 
-func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot) -> void:
+func setup(_pool_game: PoolGame) -> void:
 	pool_game = _pool_game
-	camera_pivot = _camera_pivot
 	cue_ball = pool_game.cue_ball
 
 	stroke_network_bridge.setup(self)

@@ -34,21 +34,17 @@ func setup_match(players: Array, first_turn_owner: String) -> void:
 	match_started.emit(players, str(first_turn_owner))
 
 func _on_match_starts(players_ids: Array, first_turn_owner: String):
-	for p_id in players_ids:
-		var p_node = PlayerRegistry.get_player_by_id(p_id)
+	for player_id in players_ids:
+		var player_node = PlayerRegistry.get_player_by_id(player_id)
 		
-		if p_node:
-			p_node.game_handler.equip_game_controller(
-				table.game_controller_scene,
-				self
-			)
+		if player_node:
+			player_node.current_table_game = self
+			player_node.pool_controller.setup(self)
 	
-	if player and player.game_handler.current_controller:
-		player.game_handler.current_controller.apply_control(first_turn_owner, {})
+	player.pool_controller.apply_control(first_turn_owner, {})
 
 func _on_match_is_over(_winner: String, _context: Dictionary):
-	player.game_handler.current_controller.give_control()
-	player.game_handler.unequip_current_controller()
+	player.pool_controller.give_control()
 	player.take_control()
 	
 	if multiplayer.is_server():
