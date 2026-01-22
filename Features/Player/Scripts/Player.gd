@@ -10,7 +10,6 @@ var id = 1
 @onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
 @onready var player_model: Node3D = $FirstPerson/Model3D
 @onready var state_machine: StateMachine = $StateMachine
-@onready var skeleton: Skeleton3D = $FirstPerson/Model3D/Rig/Skeleton3D
 
 enum ControllerStates { Player, Game }
 
