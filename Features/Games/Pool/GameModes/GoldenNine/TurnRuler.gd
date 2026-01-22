@@ -30,7 +30,7 @@ func rule(context: Dictionary) -> Actions:
 		if balls_scored.has(9):
 			return Actions.END_GAME_FATAL_FOUL
 
-		return Actions.CALL_NEXT_TURN
+		return Actions.CALL_CUE_BALL_REPLACEMENT
 	
 	if balls_scored.has(9):
 		return Actions.END_GAME_PLAYER_WIN
