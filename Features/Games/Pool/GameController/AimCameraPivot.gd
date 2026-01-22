@@ -1,5 +1,4 @@
-class_name AimCameraPivot
-extends Node3D
+class_name AimCameraPivot extends Node3D
 
 @onready var elevation_node: Node3D = $Elevation
 
@@ -16,6 +15,10 @@ extends Node3D
 
 @export var cue_offset_deg: float = -5.0
 
+@export_group("Player Positioning")
+@export var player_orbit_distance: float = 1.5 
+@export var player_floor_height: float = 0.0
+
 var cue: Cue 
 var _rot_y: float = 0.0
 var _rot_x: float = 0.0
@@ -25,22 +28,24 @@ var _camera_node: Node3D
 var target: Ball
 var pool_game: PoolGame
 var _tween: Tween
+var player: Player
 
 
 func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	target = _pool_game.cue_ball
 	pool_game = _pool_game
 	cue = _pool_controller.cue
+	player = _pool_controller.player
+	
 	_connect_signals()
+	
 	if target:
 		await get_tree().create_timer(1.5).timeout
 		global_position = target.global_position
-		set_physics_process(true)
 
 func _ready() -> void:
 	set_as_top_level(true)
 	_initialize_positions()
-	set_process(false)
 
 func _connect_signals() -> void:
 	var events = [
@@ -64,12 +69,18 @@ func _initialize_positions() -> void:
 			cam_child.position.y = height_offset
 
 func _physics_process(_delta: float) -> void:
+	if not is_multiplayer_authority(): return
+	
 	var dynamic_limit = _calculate_dynamic_limit()
+	
 	if _rot_x > dynamic_limit:
 		_rot_x = lerp(_rot_x, dynamic_limit, 0.1)
 		elevation_node.rotation.x = _rot_x
+	
+	_sync_player_model_rotation()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not is_multiplayer_authority(): return
 	if event is InputEventMouseButton:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	elif event.is_action_pressed("ui_cancel"):
@@ -86,6 +97,8 @@ func _apply_rotation(relative_motion: Vector2) -> void:
 	rotation.y = _rot_y
 	
 	if not elevation_node: return
+	
+	_sync_player_model_rotation()
 
 	var delta_mouse = relative_motion.y * mouse_sensitivity
 	var current_limit = _calculate_dynamic_limit()
@@ -123,6 +136,7 @@ func _calculate_dynamic_limit() -> float:
 	return min(cue_limit, floor_limit)
 
 func _on_placement_finished():
+	print("cai aqui")
 	await get_tree().create_timer(1).timeout
 	_move_smoothly_to_target()
 	set_process(false)
@@ -141,3 +155,14 @@ func _move_smoothly_to_target():
 	_tween.set_trans(Tween.TRANS_CUBIC)
 	_tween.set_ease(Tween.EASE_OUT)
 	_tween.tween_property(self, "global_position", target.global_position, transition_duration)
+
+func _sync_player_model_rotation() -> void:
+	if not player: return
+
+	player.global_rotation.y = global_rotation.y
+
+	var direction_back = global_transform.basis.z.normalized()
+	var final_pos = global_position + (direction_back * player_orbit_distance)
+	
+	final_pos.y = player_floor_height
+	player.global_position = final_pos
