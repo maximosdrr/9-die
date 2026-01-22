@@ -1,5 +1,4 @@
-class_name Cue
-extends Node3D
+class_name Cue extends Node3D
 
 signal strike_executed(direction: Vector3, force: float, offset: Vector3)
 

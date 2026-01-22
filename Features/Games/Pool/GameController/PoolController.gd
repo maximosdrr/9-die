@@ -36,7 +36,11 @@ func take_control():
 	set_process(true)
 	
 	aim_pivot.set_process(true) 
+	aim_pivot.set_physics_process(true)
 	aim_pivot.set_process_unhandled_input(true)
+
+	player.player_model.hide()
+	player.state_machine.change_state(StatesRef.PLAYER_STRIKE, {})
 	
 	Global.camera.set_global_camera_fov(60)
 	Global.camera.transition_to(remote_aim)
@@ -52,7 +56,11 @@ func give_control():
 	set_process(false)
 	
 	aim_pivot.set_process(false)
+	aim_pivot.set_physics_process(false)
 	aim_pivot.set_process_unhandled_input(false)
+	
+	player.player_model.show()
+	player.state_machine.change_state(StatesRef.PLAYER_IDLE, {})
 
 func apply_control(turn_owner_id: String, context: Dictionary):
 	if turn_owner_id == player.name:
