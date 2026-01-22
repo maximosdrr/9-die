@@ -98,7 +98,7 @@ func call_match_over(winner: String, context: Dictionary):
 	apply_match_over(winner, context)
 
 func apply_match_over(winner: String, context: Dictionary):
-	table.state_machine.change_state(StatesRef.GAME_STARTING, {
+	table.state_machine.change_state(StatesRef.GAME_WAITING_START, {
 		"is_restart": true
 	})
 	match_over.emit(winner, context)

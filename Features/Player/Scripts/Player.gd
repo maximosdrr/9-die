@@ -10,6 +10,7 @@ var id = 1
 @onready var game_handler: PlayerGameHandler = $Scripts/PlayerGameHandler
 @onready var player_model: Node3D = $FirstPerson/Model3D
 @onready var state_machine: StateMachine = $StateMachine
+@onready var skeleton: Skeleton3D = $FirstPerson/Model3D/Rig/Skeleton3D
 
 enum ControllerStates { Player, Game }
 
@@ -18,6 +19,7 @@ var current_control_state = ControllerStates.Player
 func _ready():
 	if !is_multiplayer_authority():
 		return
+	
 	take_control()
 
 func take_control():
@@ -44,7 +46,7 @@ func give_control():
 func _physics_process(delta: float) -> void:
 	if not is_multiplayer_authority():
 		return
-
+	
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	else:

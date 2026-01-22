@@ -16,7 +16,7 @@ class_name AimCameraPivot extends Node3D
 @export var cue_offset_deg: float = -5.0
 
 @export_group("Player Positioning")
-@export var player_orbit_distance: float = 1.5 
+@export var player_orbit_distance: float = 1.2
 @export var player_floor_height: float = 0.0
 
 var cue: Cue 
@@ -162,7 +162,7 @@ func _sync_player_model_rotation() -> void:
 	player.global_rotation.y = global_rotation.y
 
 	var direction_back = global_transform.basis.z.normalized()
-	var final_pos = global_position + (direction_back * player_orbit_distance)
+	var final_pos = global_position + (direction_back * 1.2)
 	
 	final_pos.y = player_floor_height
 	player.global_position = final_pos
