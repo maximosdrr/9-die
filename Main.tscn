@@ -1,8 +1,10 @@
-[gd_scene load_steps=4 format=3 uid="uid://cpcgmxhx118au"]
+[gd_scene load_steps=6 format=3 uid="uid://cpcgmxhx118au"]
 
-[ext_resource type="PackedScene" uid="uid://dvyejk17aixhq" path="res://Levels/PrototypeLevel/Prototype.tscn" id="1_glv2v"]
-[ext_resource type="Script" uid="uid://d3s7x3nx46872" path="res://Features/Camera/GlobalCamera.gd" id="1_uu6xs"]
-[ext_resource type="PackedScene" uid="uid://1dvuajp6hw21" path="res://Features/Ui/Menus/Menu.tscn" id="3_r0du0"]
+[ext_resource type="PackedScene" uid="uid://dvyejk17aixhq" path="res://levels/prototype/prototye.tscn" id="1_glv2v"]
+[ext_resource type="Script" uid="uid://d3s7x3nx46872" path="res://entities/camera/GlobalCamera.gd" id="1_uu6xs"]
+[ext_resource type="PackedScene" uid="uid://1dvuajp6hw21" path="res://entities/menus/main/menu.tscn" id="3_r0du0"]
+[ext_resource type="PackedScene" uid="uid://7hl8vlf8xjkn" path="res://entities/menus/invite/invite.tscn" id="4_cm0pq"]
+[ext_resource type="PackedScene" uid="uid://d0k0d2lw4t0w3" path="res://entities/menus/invite/invite_confirmation.tscn" id="5_fos0i"]
 
 [node name="Main" type="Node3D"]
 
@@ -14,3 +16,8 @@ metadata/_custom_type_script = "uid://d3s7x3nx46872"
 
 [node name="Menu" parent="." node_paths=PackedStringArray("initial_level") instance=ExtResource("3_r0du0")]
 initial_level = NodePath("../Prototype")
+
+[node name="InviteMenu" parent="." instance=ExtResource("4_cm0pq")]
+
+[node name="InviteConfirmation" parent="." node_paths=PackedStringArray("invite_menu") instance=ExtResource("5_fos0i")]
+invite_menu = NodePath("../InviteMenu")

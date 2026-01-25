@@ -1,0 +1,36 @@
+[gd_scene load_steps=5 format=3 uid="uid://vr3ram3d1ioc"]
+
+[ext_resource type="Script" uid="uid://ca7so7568ql4e" path="res://entities/pool/controller/aim_camera_pivot.gd" id="1_vuqwp"]
+[ext_resource type="Script" uid="uid://b4ixi03kyeqyy" path="res://entities/pool/controller/pool_controller.gd" id="1_xnddr"]
+[ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://entities/pool/cue/cue.tscn" id="2_fuwyn"]
+[ext_resource type="Script" uid="uid://cjpjim2qe7pk3" path="res://entities/pool/controller/cue_automatic_elevation.gd" id="5_hjkil"]
+
+[node name="PoolController" type="Node3D"]
+script = ExtResource("1_xnddr")
+metadata/_custom_type_script = "uid://b4ixi03kyeqyy"
+
+[node name="AimPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
+script = ExtResource("1_vuqwp")
+metadata/_custom_type_script = "uid://ca7so7568ql4e"
+
+[node name="Elevation" type="Node3D" parent="AimPivot"]
+
+[node name="RemoteAim" type="RemoteTransform3D" parent="AimPivot/Elevation"]
+remote_path = NodePath("../../..")
+
+[node name="Cue" parent="AimPivot" instance=ExtResource("2_fuwyn")]
+transform = Transform3D(1, 0, 0, 0, 0.9999997, 0, 0, 0, 0.9999997, 0, 0, 0)
+
+[node name="CollisionDetector" type="RayCast3D" parent="AimPivot"]
+target_position = Vector3(0, 0, 1.47)
+collision_mask = 8
+
+[node name="Scripts" type="Node" parent="."]
+
+[node name="CueAutomaticElevantion" type="Node" parent="Scripts" node_paths=PackedStringArray("cue", "cue_handle_sensor", "aim_pivot")]
+script = ExtResource("5_hjkil")
+cue = NodePath("../../AimPivot/Cue")
+cue_handle_sensor = NodePath("../../AimPivot/CollisionDetector")
+aim_pivot = NodePath("../../AimPivot")
+metadata/_custom_type_script = "uid://cjpjim2qe7pk3"

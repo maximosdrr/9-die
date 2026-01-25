@@ -1,0 +1,52 @@
+[gd_scene load_steps=2 format=3 uid="uid://d0k0d2lw4t0w3"]
+
+[ext_resource type="Script" uid="uid://ca43fwe8qv1f2" path="res://entities/menus/invite/invite_confirmation.gd" id="1_38bsd"]
+
+[node name="InviteConfirmation" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_38bsd")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 280.0
+offset_top = 513.0
+offset_right = 935.0
+offset_bottom = 614.0
+
+[node name="MessageBox" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 284.0
+offset_top = 518.0
+offset_right = 931.0
+offset_bottom = 569.0
+
+[node name="Message" type="Label" parent="MessageBox"]
+layout_mode = 2
+text = "would you Like to accept this invitation ?"
+horizontal_alignment = 1
+
+[node name="ConfirmBox" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 670.0
+offset_top = 566.0
+offset_right = 890.0
+offset_bottom = 597.0
+
+[node name="ConfirmButton" type="Button" parent="ConfirmBox"]
+layout_mode = 2
+text = "Confirm"
+
+[node name="DeclineBox" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 302.0
+offset_top = 566.0
+offset_right = 522.0
+offset_bottom = 597.0
+
+[node name="DeclineButton" type="Button" parent="DeclineBox"]
+layout_mode = 2
+text = "Decline"
+
+[node name="ShowTime" type="Timer" parent="."]
+wait_time = 10.0

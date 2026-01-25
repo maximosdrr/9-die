@@ -1,0 +1,83 @@
+[gd_scene load_steps=11 format=3 uid="uid://dvyejk17aixhq"]
+
+[ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://assets/Textures/PrototypeTextures/texture_08.svg" id="1_yconc"]
+[ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://entities/pool/pool.tscn" id="4_kie85"]
+[ext_resource type="Script" uid="uid://cma5b7oyrsijb" path="res://systems/multiplayer_level/network_level_manager.gd" id="5_s6lm4"]
+[ext_resource type="Script" uid="uid://beujd6xojmcbc" path="res://autoload/players_container/players_container.gd" id="5_wwpfk"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_5rn6i"]
+sky_material = SubResource("ProceduralSkyMaterial_b7m75")
+
+[sub_resource type="Environment" id="Environment_4e5w7"]
+background_mode = 2
+sky = SubResource("Sky_5rn6i")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rxpk7"]
+albedo_texture = ExtResource("1_yconc")
+uv1_triplanar = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_fnkl4"]
+material = SubResource("StandardMaterial3D_rxpk7")
+size = Vector2(50, 50)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_b7m75"]
+size = Vector3(49.328125, 0.01953125, 50.00792)
+
+[node name="Prototype" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_4e5w7")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_fnkl4")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D"]
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
+shape = SubResource("BoxShape3D_b7m75")
+
+[node name="Multiplayer" type="Node3D" parent="."]
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="Multiplayer"]
+spawn_path = NodePath("../PlayersContainer")
+
+[node name="SpawnPoints" type="Node3D" parent="Multiplayer"]
+
+[node name="Marker3D" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, -1)
+
+[node name="Marker3D2" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, 1)
+
+[node name="Marker3D3" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, 1)
+
+[node name="Marker3D4" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, -1)
+
+[node name="PlayersContainer" type="Node3D" parent="Multiplayer"]
+script = ExtResource("5_wwpfk")
+metadata/_custom_type_script = "uid://beujd6xojmcbc"
+
+[node name="Scripts" type="Node" parent="Multiplayer"]
+
+[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" node_paths=PackedStringArray("players_container", "multiplayer_spawner", "spawn_points")]
+script = ExtResource("5_s6lm4")
+players_container = NodePath("../../PlayersContainer")
+multiplayer_spawner = NodePath("../../MultiplayerSpawner")
+spawn_points = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")]
+metadata/_custom_type_script = "uid://cma5b7oyrsijb"
+
+[node name="PoolGame" parent="." instance=ExtResource("4_kie85")]

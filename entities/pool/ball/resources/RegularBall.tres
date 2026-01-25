@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BallResource" load_steps=2 format=3 uid="uid://umg6l17oxgvf"]
+
+[ext_resource type="Script" uid="uid://b18ax0wydcqg1" path="res://entities/pool/ball/scripts/ball_resource.gd" id="2_cumvy"]
+
+[resource]
+script = ExtResource("2_cumvy")
+name = "PrototypeBall"
+gravity_scale = 2.0
+linear_damp = 0.3
+angular_damp = 0.5
+metadata/_custom_type_script = "uid://b18ax0wydcqg1"

@@ -1,0 +1,71 @@
+[gd_scene load_steps=10 format=3 uid="uid://du67ww01g04ae"]
+
+[ext_resource type="Script" uid="uid://c2r67kx8wl0t0" path="res://entities/pool/systems/pool_game.gd" id="1_jypsj"]
+[ext_resource type="Script" uid="uid://bmv1krpa1tpxy" path="res://entities/pool/systems/pool_ball_respawn.gd" id="3_qmuqs"]
+[ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://entities/pool/systems/off_table_monitor.gd" id="4_y227s"]
+[ext_resource type="Script" uid="uid://dak3kydlshkpb" path="res://entities/pool/systems/balls_movement_monitor.gd" id="6_20w0b"]
+[ext_resource type="Script" uid="uid://crg0rtdoeameh" path="res://systems/match/match_manager.gd" id="7_4o4g5"]
+[ext_resource type="Script" uid="uid://b26iaj5fixb40" path="res://entities/pool/systems/ball_placement_manager.gd" id="8_rm535"]
+[ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://entities/pool/controller/pool_controller.tscn" id="9_pvoc4"]
+[ext_resource type="PackedScene" uid="uid://bcdgwpk5bpi3w" path="res://entities/pool/table/table.tscn" id="13_nqd1a"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pvoc4"]
+size = Vector3(2.019699, 1, 3.9931793)
+
+[node name="PoolGame" type="Node3D" node_paths=PackedStringArray("pool_table")]
+script = ExtResource("1_jypsj")
+pool_table = NodePath("Table1")
+metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
+
+[node name="BallsHolderMultiplayerSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("uid://cqwu27wd0ddmr")
+spawn_path = NodePath("../BallsHolder")
+
+[node name="BallsHolder" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
+
+[node name="Scripts" type="Node" parent="."]
+
+[node name="PoolBallRespawn" type="Node" parent="Scripts" node_paths=PackedStringArray("balls_holder")]
+script = ExtResource("3_qmuqs")
+balls_holder = NodePath("../../BallsHolder")
+metadata/_custom_type_script = "uid://bmv1krpa1tpxy"
+
+[node name="OffTableMonitor" type="Node" parent="Scripts"]
+script = ExtResource("4_y227s")
+metadata/_custom_type_script = "uid://b7qoe402kd725"
+
+[node name="BallsMovementMonitor" type="Node" parent="Scripts"]
+script = ExtResource("6_20w0b")
+metadata/_custom_type_script = "uid://dak3kydlshkpb"
+
+[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("overhead_view_remote")]
+script = ExtResource("8_rm535")
+overhead_view_remote = NodePath("../../Pivot/RemoteTop")
+metadata/_custom_type_script = "uid://b26iaj5fixb40"
+
+[node name="Table1" parent="." instance=ExtResource("13_nqd1a")]
+
+[node name="Pivot" type="Node3D" parent="."]
+transform = Transform3D(-4.371139e-08, -0.99999994, 0, -4.371139e-08, 1.9106853e-15, 0.99999994, -1, 4.3711385e-08, -4.3711385e-08, 0, 2.5, 0)
+
+[node name="RemoteTop" type="RemoteTransform3D" parent="Pivot"]
+remote_path = NodePath("../..")
+
+[node name="Camera3D" type="Camera3D" parent="Pivot"]
+
+[node name="MatchManager" type="Node" parent="."]
+script = ExtResource("7_4o4g5")
+metadata/_custom_type_script = "uid://crg0rtdoeameh"
+
+[node name="PoolController" parent="." node_paths=PackedStringArray("pool_game") instance=ExtResource("9_pvoc4")]
+transform = Transform3D(1, 0, 0, 0, 0.99429333, 0.10668057, 0, -0.10668057, 0.99429333, 0, 1.0032564, 0.88157266)
+pool_game = NodePath("..")
+
+[node name="TakeControlArea" type="Area3D" parent="."]
+collision_layer = 16
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="TakeControlArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.00078582764, 0.7715782, -0.012107849)
+shape = SubResource("BoxShape3D_pvoc4")

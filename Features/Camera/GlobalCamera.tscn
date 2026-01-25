@@ -1,7 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://dlx8m1lmxc1uq"]
-
-[ext_resource type="Script" uid="uid://d3s7x3nx46872" path="res://Features/Camera/GlobalCamera.gd" id="1_nwxvp"]
-
-[node name="GlobalCamera" type="Camera3D"]
-script = ExtResource("1_nwxvp")
-metadata/_custom_type_script = "uid://d3s7x3nx46872"

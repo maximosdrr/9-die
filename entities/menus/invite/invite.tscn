@@ -1,0 +1,111 @@
+[gd_scene load_steps=2 format=3 uid="uid://7hl8vlf8xjkn"]
+
+[ext_resource type="Script" uid="uid://cgsbmt2ybpl8w" path="res://entities/menus/invite/invite_menu.gd" id="1_55n11"]
+
+[node name="InviteMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_55n11")
+
+[node name="Inviting" type="Control" parent="."]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Background" type="Panel" parent="Inviting"]
+layout_mode = 0
+offset_right = 275.0
+offset_bottom = 646.0
+
+[node name="TitleBox" type="VBoxContainer" parent="Inviting"]
+layout_mode = 0
+offset_right = 274.0
+offset_bottom = 27.0
+
+[node name="MenuTitle" type="Label" parent="Inviting/TitleBox"]
+layout_mode = 2
+text = "Invite Players"
+horizontal_alignment = 1
+
+[node name="TablesContainer" type="ScrollContainer" parent="Inviting"]
+custom_minimum_size = Vector2(10, 300)
+layout_mode = 0
+offset_left = 2.0
+offset_top = 314.0
+offset_right = 277.0
+offset_bottom = 614.0
+
+[node name="List" type="HBoxContainer" parent="Inviting/TablesContainer"]
+layout_mode = 2
+
+[node name="PlayersContainer" type="ScrollContainer" parent="Inviting"]
+custom_minimum_size = Vector2(10, 300)
+layout_mode = 0
+offset_left = 2.0
+offset_top = 30.0
+offset_right = 277.0
+offset_bottom = 330.0
+
+[node name="List" type="HBoxContainer" parent="Inviting/PlayersContainer"]
+layout_mode = 2
+
+[node name="Actions" type="VBoxContainer" parent="Inviting"]
+layout_mode = 0
+offset_left = 1.0
+offset_top = 614.0
+offset_right = 277.0
+offset_bottom = 646.0
+
+[node name="SendInvites" type="Button" parent="Inviting/Actions"]
+layout_mode = 2
+text = "Send"
+
+[node name="StartMatch" type="Control" parent="."]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Background" type="Panel" parent="StartMatch"]
+layout_mode = 0
+offset_left = 224.0
+offset_top = 488.0
+offset_right = 1021.0
+offset_bottom = 605.0
+
+[node name="TitleBox" type="VBoxContainer" parent="StartMatch"]
+layout_mode = 0
+offset_left = 226.0
+offset_top = 493.0
+offset_right = 1020.0
+offset_bottom = 520.0
+
+[node name="MenuTitle" type="Label" parent="StartMatch/TitleBox"]
+layout_mode = 2
+text = "Players"
+horizontal_alignment = 1
+
+[node name="PlayersPlaceholder" type="VBoxContainer" parent="StartMatch"]
+layout_mode = 0
+offset_left = 337.0
+offset_top = 527.0
+offset_right = 911.0
+offset_bottom = 566.0
+
+[node name="Label" type="Label" parent="StartMatch/PlayersPlaceholder"]
+layout_mode = 2
+text = "No one have accepted your invitation yet!"
+horizontal_alignment = 1
+
+[node name="StartMatch" type="VBoxContainer" parent="StartMatch"]
+layout_mode = 0
+offset_left = 457.0
+offset_top = 570.0
+offset_right = 811.0
+offset_bottom = 601.0
+
+[node name="StartMatchButton" type="Button" parent="StartMatch/StartMatch"]
+layout_mode = 2
+text = "Start"
+
+[node name="StartMatchTimer" type="Timer" parent="StartMatch"]
+wait_time = 15.0
