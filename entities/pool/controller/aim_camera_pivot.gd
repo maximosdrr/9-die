@@ -43,8 +43,6 @@ func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 		player = node
 		break
 	
-	_connect_signals()
-	
 	if target:
 		global_position = target.global_position
 
@@ -52,17 +50,14 @@ func _ready() -> void:
 	set_as_top_level(true)
 	_initialize_positions()
 
-func _connect_signals() -> void:
-	pass
-	#var events = [
-		#[pool_game.turn_changed, _on_turn_changed],
-		#[pool_game.turn_extended, _on_turn_extended],
-		#[pool_game.ball_placement_manager.placement_finished, _on_placement_finished]
-	#]
-	#
-	#for event in events:
-		#if not event[0].is_connected(event[1]):
-			#event[0].connect(event[1])
+func move_to_target():
+	if not target: return
+	if _tween: _tween.kill()
+	_tween = create_tween()
+	_tween.set_trans(Tween.TRANS_CUBIC)
+	_tween.set_ease(Tween.EASE_OUT)
+	_tween.tween_property(self, "global_position", target.global_position, transition_duration)
+
 
 func _initialize_positions() -> void:
 	_rot_y = rotation.y
@@ -140,27 +135,6 @@ func _calculate_dynamic_limit() -> float:
 	var floor_limit = deg_to_rad(limit_floor_deg)
 	
 	return min(cue_limit, floor_limit)
-
-func _on_placement_finished():
-	print("cai aqui")
-	await get_tree().create_timer(1).timeout
-	_move_smoothly_to_target()
-	set_process(false)
-	set_physics_process(true)
-
-func _on_turn_extended():
-	_move_smoothly_to_target()
-
-func _on_turn_changed(_next_player_name: String, _context):
-	_move_smoothly_to_target()
-
-func _move_smoothly_to_target():
-	if not target: return
-	if _tween: _tween.kill()
-	_tween = create_tween()
-	_tween.set_trans(Tween.TRANS_CUBIC)
-	_tween.set_ease(Tween.EASE_OUT)
-	_tween.tween_property(self, "global_position", target.global_position, transition_duration)
 
 func _sync_player_model_rotation() -> void:
 	if not player: return

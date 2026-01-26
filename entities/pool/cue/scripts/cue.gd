@@ -1,6 +1,7 @@
 class_name Cue extends Node3D
 
 signal strike_executed(direction: Vector3, force: float, offset: Vector3)
+signal start_track
 
 @export_group("References")
 @export var state_machine: StateMachine
@@ -42,7 +43,7 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot) -> void:
 func lock_cue():
 	state_machine.change_state(StatesRef.CUE_LOCKED, {})
 
-func unlock_cue():
+func release_cue():
 	state_machine.change_state(StatesRef.CUE_IDLE, {})
 
 func _process(delta: float) -> void:
@@ -57,6 +58,7 @@ func execute_strike(mouse_speed: float) -> bool:
 
 	var strike_data := _get_strike_vectors()
 	
+	start_track.emit()
 	if multiplayer.is_server():
 		cue_ball.strike(strike_data.direction, force, strike_data.hit_offset)
 	else:

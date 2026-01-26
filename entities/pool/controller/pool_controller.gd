@@ -31,3 +31,6 @@ func drop_control():
 	hide()
 	
 	Global.camera.set_global_camera_fov(75)
+
+func move_to_cue_ball():
+	aim_pivot.move_to_target()
