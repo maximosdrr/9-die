@@ -38,21 +38,18 @@ func setup(_pool_game: PoolGame, _camera_pivot: AimCameraPivot) -> void:
 	cue_ball = pool_game.cue_ball
 
 	stroke_network_bridge.setup(self)
-	
-	#pool_game.turn_changed.connect(_on_turn_changed)
-	#pool_game.turn_extended.connect(_on_turn_extended)
-	
-	_update_ball_limits()
-	#_update_turn_state()
+
+func lock_cue():
+	state_machine.change_state(StatesRef.CUE_LOCKED, {})
+
+func unlock_cue():
+	state_machine.change_state(StatesRef.CUE_IDLE, {})
 
 func _process(delta: float) -> void:
 	var target_rotation_rad = min(deg_to_rad(current_elevation), min_safe_angle)
 	rotation.x = lerp(rotation.x, target_rotation_rad, 10.0 * delta)
 
 func execute_strike(mouse_speed: float) -> bool:
-	if not _can_strike():
-		return false
-
 	var force := _calculate_impulse(mouse_speed)
 	
 	if force <= min_force_threshold:
@@ -81,33 +78,7 @@ func _get_strike_vectors() -> Dictionary:
 		"hit_offset": hit_offset
 	}
 
-func _on_turn_changed(_new_player: String, _context: Dictionary) -> void:
-	_update_turn_state()
-
-func _on_turn_extended() -> void:
-	_update_turn_state()
-
-func _update_turn_state() -> void:
-	current_elevation = 0.0 
-	
-	if _is_my_turn():
-		if state_machine.current.type == StatesRef.CUE_LOCKED:
-			state_machine.change_state(StatesRef.CUE_IDLE, {})
-	else:
-		state_machine.change_state(StatesRef.CUE_LOCKED, {})
-
-func _is_my_turn() -> bool:
-	var turn_owner = pool_game.match_manager.turn_owner
-	if not turn_owner:
-		return false
-
-	var turn_id = int(turn_owner)
-	return turn_id == multiplayer.get_unique_id()
-
 func _update_ball_limits() -> void:
 	if not cue_ball: return
 	ball_radius_offset = cue_ball.radius + visual_gap
 	spin_limit = cue_ball.radius
-
-func _can_strike() -> bool:
-	return is_instance_valid(cue_ball)

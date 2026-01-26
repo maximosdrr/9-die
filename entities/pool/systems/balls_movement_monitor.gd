@@ -13,10 +13,14 @@ var is_moving_state = false
 signal balls_stopped
 signal balls_moving
 
+func _ready() -> void:
+	set_process(false)
+
 func setup(_pool_game: PoolGame):
 	pool_game = _pool_game
 	balls = _pool_game.balls.duplicate()
 	balls.append(pool_game.cue_ball)
+	set_process(true)
 
 func _process(delta: float) -> void:
 	if _ball_check_timer > 0:

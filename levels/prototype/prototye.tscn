@@ -81,3 +81,6 @@ spawn_points = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoi
 metadata/_custom_type_script = "uid://cma5b7oyrsijb"
 
 [node name="PoolGame" parent="." instance=ExtResource("4_kie85")]
+
+[node name="PoolGame2" parent="." instance=ExtResource("4_kie85")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.66962, 0, 0)

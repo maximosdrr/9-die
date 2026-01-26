@@ -30,7 +30,6 @@ var pool_game: PoolGame
 var _tween: Tween
 var player: Player
 
-
 func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	target = _pool_game.cue_ball
 	pool_game = _pool_game
@@ -47,7 +46,6 @@ func setup(_pool_game: PoolGame, _pool_controller: PoolController):
 	_connect_signals()
 	
 	if target:
-		await get_tree().create_timer(1.5).timeout
 		global_position = target.global_position
 
 func _ready() -> void:

@@ -34,6 +34,7 @@ func _take_control():
 func _drop_control():
 	player.head_pivot.set_process_unhandled_input(true)
 	player.table.game_controller.drop_control()
+	Global.camera.transition_to(player.remote_fps)
 	current_game_mode = GameMode.PLAYER
 
 

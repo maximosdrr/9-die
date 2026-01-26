@@ -35,7 +35,7 @@ offset_top = 314.0
 offset_right = 277.0
 offset_bottom = 614.0
 
-[node name="List" type="HBoxContainer" parent="Inviting/TablesContainer"]
+[node name="List" type="VBoxContainer" parent="Inviting/TablesContainer"]
 layout_mode = 2
 
 [node name="PlayersContainer" type="ScrollContainer" parent="Inviting"]
@@ -46,7 +46,7 @@ offset_top = 30.0
 offset_right = 277.0
 offset_bottom = 330.0
 
-[node name="List" type="HBoxContainer" parent="Inviting/PlayersContainer"]
+[node name="List" type="VBoxContainer" parent="Inviting/PlayersContainer"]
 layout_mode = 2
 
 [node name="Actions" type="VBoxContainer" parent="Inviting"]

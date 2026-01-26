@@ -10,26 +10,17 @@ var turn_metadata: Dictionary = {}
 var turn_history: Array[Dictionary] = []
 var turn_order: Array[String] = []
 var current_turn = 0
+var players: Array[String] = []
 
-func start_match(players: Array[String], metadata: Dictionary = {}):
-	_server_distribute_start_match.rpc_id(
+func start_match(_players: Array[String], metadata: Dictionary = {}):
+	_server_distribute_start_match_request.rpc_id(
 		MultiplayerPeer.TARGET_PEER_SERVER,
-		players, 
+		_players, 
 		metadata
 	)
 
 func call_next_turn(metadata: Dictionary = {}):
-	if not match_already_started: return
-	
-	turn_history.append(turn_metadata)
-	
-	current_turn += 1
-	var next_player_index = current_turn % turn_order.size()
-	turn_owner = turn_order[next_player_index]
-	
-	turn_metadata = metadata
-	
-	turn_changed.emit(turn_owner)
+	_server_distribute_next_turn_request(metadata)
 
 func end_match():
 	match_already_started = false
@@ -42,23 +33,25 @@ func end_match():
 
 #region Start Match Network
 @rpc('any_peer', 'call_local', 'reliable')
-func _server_distribute_start_match(players: Array[String], metadata: Dictionary = {}):
+func _server_distribute_start_match_request(_players: Array[String], metadata: Dictionary = {}):
 	if not multiplayer.is_server():
 		return
 		
-	_send_client_start_match_request.rpc(players, metadata)
+	_client_receive_start_match_request.rpc(_players, metadata)
 
 @rpc('authority', 'call_local', 'reliable')
-func _send_client_start_match_request(players: Array[String], metadata: Dictionary = {}):
-	_start_match(players, metadata)
+func _client_receive_start_match_request(_players: Array[String], metadata: Dictionary = {}):
+	_start_match(_players, metadata)
 
-func _start_match(players: Array[String], metadata: Dictionary = {}):
+func _start_match(_players: Array[String], metadata: Dictionary = {}):
 	if match_already_started: return
 	
 	turn_order.clear()
 	turn_history.clear()
+	players.clear()
 
-	turn_order.append_array(players)
+	turn_order.append_array(_players)
+	players = _players
 	
 	turn_owner = turn_order[0]
 	turn_metadata = metadata
@@ -67,4 +60,30 @@ func _start_match(players: Array[String], metadata: Dictionary = {}):
 	match_already_started = true
 	match_started.emit()
 	
+#endregion
+
+#region Next turn Network
+@rpc('any_peer', 'call_local', 'reliable')
+func _server_distribute_next_turn_request(metadata: Dictionary):
+	if not multiplayer.is_server():
+		return
+	
+	_client_receive_next_turn_request.rpc(metadata)
+
+@rpc('authority', 'call_local', 'reliable')
+func _client_receive_next_turn_request(metadata: Dictionary):
+	_call_next_turn(metadata)
+
+func _call_next_turn(metadata: Dictionary):
+	if not match_already_started: return
+	
+	turn_history.append(turn_metadata)
+	
+	current_turn += 1
+	var next_player_index = current_turn % turn_order.size()
+	turn_owner = turn_order[next_player_index]
+	
+	turn_metadata = metadata
+	
+	turn_changed.emit(turn_owner)
 #endregion

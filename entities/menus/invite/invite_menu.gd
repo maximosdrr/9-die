@@ -2,8 +2,8 @@ class_name InviteMenu extends Control
 
 @export var invite_confirmation: InviteConfirmationMenu
 
-@onready var player_list: HBoxContainer = $Inviting/PlayersContainer/List
-@onready var table_list: HBoxContainer = $Inviting/TablesContainer/List
+@onready var player_list: VBoxContainer = $Inviting/PlayersContainer/List
+@onready var table_list: VBoxContainer = $Inviting/TablesContainer/List
 @onready var send_invites: Button = $Inviting/Actions/SendInvites
 @onready var start_match: Control = $StartMatch
 @onready var inviting: Control = $Inviting
@@ -169,3 +169,5 @@ func _on_match_start_button_pressed():
 	if target_table is Table:
 		players_confirmed.append(str(multiplayer.get_unique_id()))
 		target_table.start_match(players_confirmed)
+		start_match_timer.stop()
+		_on_start_match_timer_ends()

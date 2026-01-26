@@ -23,13 +23,10 @@ spawn_path = NodePath("../BallsHolder")
 
 [node name="BallsHolder" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.35997045)
+script = ExtResource("3_qmuqs")
+metadata/_custom_type_script = "uid://bmv1krpa1tpxy"
 
 [node name="Scripts" type="Node" parent="."]
-
-[node name="PoolBallRespawn" type="Node" parent="Scripts" node_paths=PackedStringArray("balls_holder")]
-script = ExtResource("3_qmuqs")
-balls_holder = NodePath("../../BallsHolder")
-metadata/_custom_type_script = "uid://bmv1krpa1tpxy"
 
 [node name="OffTableMonitor" type="Node" parent="Scripts"]
 script = ExtResource("4_y227s")

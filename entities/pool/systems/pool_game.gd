@@ -1,9 +1,9 @@
 class_name PoolGame extends Table
 
-@onready var pool_ball_respawn: PoolBallRespawn = $Scripts/PoolBallRespawn
 @onready var off_table_monitor: OffTableMonitor = $Scripts/OffTableMonitor
 @onready var balls_movement_monitor: BallsMovementMonitor = $Scripts/BallsMovementMonitor
 @onready var ball_placement_manager: BallPlacementManager = $Scripts/BallPlacementManager
+@onready var balls_holder: BallHolder = $BallsHolder
 
 @onready var _match_manager: MatchManager = $MatchManager
 @onready var _game_controller: PoolController = $PoolController
@@ -22,11 +22,27 @@ func _ready() -> void:
 	score_monitor = pool_table.score_monitor
 	off_table_monitor.setup(pool_table.ball_off_monitor)
 	
+	#Connect signals
+	match_manager.match_started.connect(_on_match_starts)
+	match_manager.turn_changed.connect(_on_turn_changes)
+	balls_movement_monitor.balls_stopped.connect(_on_turn_resolves)
+	
 	name = 'Pool_%s' % [get_instance_id()]
 
-
 func start_match(_players: Array[String]):
-	players = _players
-	match_manager.start_match(players, {})
-	pool_ball_respawn.start_game()
+	match_manager.start_match(_players, {})
+	balls_holder.spawn_balls()
+
+func _on_match_starts():
+	await balls_holder.table_ready
+	cue_ball = balls_holder.get_cue_ball()
+	balls = balls_holder.get_normal_balls()
+	game_controller.setup()
+	balls_movement_monitor.setup(self)
 	
+func _on_turn_changes(new_owner_id: String):
+	game_controller.set_multiplayer_authority(int(new_owner_id))
+
+func _on_turn_resolves():
+	if multiplayer.is_server():
+		match_manager.call_next_turn({})
