@@ -31,6 +31,7 @@ func _ready() -> void:
 	match_manager.match_over.connect(_on_match_is_over)
 	game_controller.cue.start_track.connect(_track_turn)
 	off_table_monitor.ball_fell_off.connect(_on_ball_dropped_off)
+	pool_table.score_monitor.body_entered.connect(_on_ball_pocketed)
 	
 	name = 'Pool_%s' % [get_instance_id()]
 
@@ -61,13 +62,18 @@ func _on_turn_changes(new_owner_id: String):
 	game_controller.set_multiplayer_authority(int(new_owner_id))
 	
 	if new_owner_id != str(multiplayer.get_unique_id()):
+		if player != null:
+			player.game_controller_manager._drop_control()
 		return
 	
 	if match_manager.turn_metadata.has("replace_ball"):
 		_game_controller.cue.lock_cue()
 		ball_placement_manager.start_placement(cue_ball, balls)
 		await ball_placement_manager.placement_finished
-		
+	
+	if player != null:
+		player.game_controller_manager._take_control()
+	
 	await get_tree().create_timer(1.5).timeout
 	game_controller.move_to_cue_ball()
 	_game_controller.cue.release_cue()
@@ -75,10 +81,11 @@ func _on_turn_changes(new_owner_id: String):
 func _track_turn():
 	turn_data = PoolTurnData.new()
 	turn_data.target_ball = _get_target_ball()
-	pool_table.score_monitor.body_entered.connect(_on_ball_pocketed)
+	
 	await balls_movement_monitor.balls_stopped
-	pool_table.score_monitor.body_entered.disconnect(_on_ball_pocketed)
+	
 	var turn_action = golden_nine_mode.resolve_turn(turn_data)
+	
 	print("turn action: ", turn_action)
 	_resolve_turn(turn_action)
 
@@ -122,4 +129,7 @@ func _resolve_turn(command: String):
 
 func _on_match_is_over(metadata: Dictionary):
 	print("Match is over! ", metadata)
+	if player:
+		player.game_controller_manager._drop_control()
+
 	balls_holder.clear_table()

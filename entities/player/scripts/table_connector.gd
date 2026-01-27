@@ -21,6 +21,7 @@ func _on_enter_table(area: Area3D):
 		return
 	
 	player.table = table
+	table.player = player
 
 func _on_exit_table(area: Area3D):
 	if not is_multiplayer_authority():
@@ -33,5 +34,5 @@ func _on_exit_table(area: Area3D):
 	
 	if table.get_instance_id() == player.table.get_instance_id():
 		player.table = null
-	
+		table.player = null
 	

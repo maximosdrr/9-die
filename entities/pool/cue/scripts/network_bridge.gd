@@ -4,7 +4,8 @@ var cue: Cue
 
 func setup(_cue: Cue):
 	cue = _cue
-	cue.strike_executed.connect(_call_strike)
+	if not cue.strike_executed.is_connected(_call_strike):
+		cue.strike_executed.connect(_call_strike)
 
 @rpc("any_peer", "call_remote", "reliable")
 func request_strike(dir: Vector3, final_force: float, hit_offset: Vector3):

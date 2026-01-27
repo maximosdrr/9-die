@@ -1,4 +1,4 @@
-[gd_scene load_steps=46 format=4 uid="uid://dq4mwkkjaq18o"]
+[gd_scene format=4 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" uid="uid://def4sbadiuagc" path="res://entities/player/scripts/player.gd" id="1_wlwl2"]
 [ext_resource type="Script" uid="uid://b2jkrngg2mldq" path="res://entities/player/scripts/head_pivot.gd" id="2_bd6kk"]
@@ -3575,66 +3575,64 @@ properties/1/replication_mode = 1
 [sub_resource type="BoxShape3D" id="BoxShape3D_221hk"]
 size = Vector3(0.9603882, 1.4790039, 1)
 
-[node name="Player" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D" unique_id=607779773]
 collision_layer = 2
 collision_mask = 15
 script = ExtResource("1_wlwl2")
 metadata/_custom_type_script = "uid://def4sbadiuagc"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=789716647]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.752433, 0)
 shape = SubResource("CapsuleShape3D_qhdlv")
 
-[node name="FirstPerson" type="Node3D" parent="."]
+[node name="FirstPerson" type="Node3D" parent="." unique_id=512356945]
 
-[node name="HeadPivot" type="Node3D" parent="FirstPerson" node_paths=PackedStringArray("camera_mount")]
+[node name="HeadPivot" type="Node3D" parent="FirstPerson" unique_id=2010245979 node_paths=PackedStringArray("camera_mount")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6957902, -0.3429405)
 script = ExtResource("2_bd6kk")
 camera_mount = NodePath("RemoteFPS")
 metadata/_custom_type_script = "uid://b2jkrngg2mldq"
 
-[node name="RemoteFPS" type="RemoteTransform3D" parent="FirstPerson/HeadPivot"]
+[node name="RemoteFPS" type="RemoteTransform3D" parent="FirstPerson/HeadPivot" unique_id=1844490057]
 remote_path = NodePath("../../..")
 
-[node name="Model3D" type="Node3D" parent="FirstPerson"]
+[node name="Model3D" type="Node3D" parent="FirstPerson" unique_id=1863447811]
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="FirstPerson/Model3D"]
-libraries = {
-&"": SubResource("AnimationLibrary_hjfkd")
-}
+[node name="AnimationPlayer" type="AnimationPlayer" parent="FirstPerson/Model3D" unique_id=1300873328]
+libraries/ = SubResource("AnimationLibrary_hjfkd")
 
-[node name="Sketchfab_model" type="Node3D" parent="FirstPerson/Model3D"]
+[node name="Sketchfab_model" type="Node3D" parent="FirstPerson/Model3D" unique_id=2047590797]
 
-[node name="8307396e38014b519e7e4d898f7e8304_fbx" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model"]
+[node name="8307396e38014b519e7e4d898f7e8304_fbx" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model" unique_id=1472198465]
 transform = Transform3D(0.01, 0, 0, 0, 0.009999999, 0, 0, 0, 0.009999999, 0, 0, 0)
 
-[node name="Object_2" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx"]
+[node name="Object_2" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx" unique_id=1509409934]
 
-[node name="RootNode" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2"]
+[node name="RootNode" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2" unique_id=653403758]
 
-[node name="Object_4" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode"]
+[node name="Object_4" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode" unique_id=57990269]
 
-[node name="Body" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Body" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=1422298907]
 
-[node name="Bottoms" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Bottoms" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=966776587]
 
-[node name="default" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="default" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=992405247]
 
-[node name="Eyelashes" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Eyelashes" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=450720334]
 
-[node name="Hats" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Hats" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=2031104833]
 
-[node name="Object_11" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Object_11" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=127631316]
 
-[node name="Object_14" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Object_14" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=660303830]
 
-[node name="Object_8" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Object_8" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=671332984]
 
-[node name="Shoes" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Shoes" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=577498201]
 
-[node name="Tops" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Tops" type="Node3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=2009919447]
 
-[node name="Skeleton3D" type="Skeleton3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4"]
+[node name="Skeleton3D" type="Skeleton3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4" unique_id=1025859119]
 bones/0/name = "_rootJoint"
 bones/0/parent = -1
 bones/0/rest = Transform3D(-0.9999382, -1.4424333e-10, 0.011110707, -2.36064e-10, 1, -8.26285e-09, -0.011110707, -8.264963e-09, -0.99993825, 0, 0, 0)
@@ -4098,82 +4096,82 @@ bones/65/position = Vector3(-11.594224, -11.062555, 1.13228)
 bones/65/rotation = Quaternion(0.016531197, 0.7034564, 0.7089708, -0.047289997)
 bones/65/scale = Vector3(0.99999994, 0.99999994, 1)
 
-[node name="Object_10" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_10" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=1863130456]
 mesh = SubResource("ArrayMesh_wysxs")
 skin = SubResource("Skin_ru22s")
 
-[node name="Object_12" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_12" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=1019852759]
 mesh = SubResource("ArrayMesh_jaats")
 skin = SubResource("Skin_ru22s")
 
-[node name="Object_13" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_13" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=1625173322]
 mesh = SubResource("ArrayMesh_182vi")
 skin = SubResource("Skin_ru22s")
 
-[node name="Object_15" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_15" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=542827681]
 mesh = SubResource("ArrayMesh_finhf")
 skin = SubResource("Skin_ru22s")
 
-[node name="Object_6" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_6" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=11247494]
 mesh = SubResource("ArrayMesh_lyv4o")
 skin = SubResource("Skin_ru22s")
 
-[node name="Object_7" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_7" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=1107158177]
 mesh = SubResource("ArrayMesh_x5i1m")
 skin = SubResource("Skin_ru22s")
 
-[node name="Object_9" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D"]
+[node name="Object_9" type="MeshInstance3D" parent="FirstPerson/Model3D/Sketchfab_model/8307396e38014b519e7e4d898f7e8304_fbx/Object_2/RootNode/Object_4/Skeleton3D" unique_id=461664036]
 mesh = SubResource("ArrayMesh_01y8q")
 skin = SubResource("Skin_ru22s")
 
-[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1549103563]
 replication_config = SubResource("SceneReplicationConfig_wlwl2")
 
-[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("authority_state_syncronizer")]
+[node name="StateMachine" type="Node3D" parent="." unique_id=387328004 node_paths=PackedStringArray("authority_state_syncronizer")]
 script = ExtResource("23_cwv8h")
 initial_state = "PLAYER_IDLE"
 authority_state_syncronizer = NodePath("AuthorityStateSynchronizer")
 check_for_multiplayer_authority_on_state_handle_input = true
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="PlayerWalking" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
+[node name="PlayerWalking" type="Node3D" parent="StateMachine" unique_id=1813342865 node_paths=PackedStringArray("animation_player")]
 script = ExtResource("25_4ndi6")
 animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ddnbnq14r1xu"
 
-[node name="PlayerIdle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
+[node name="PlayerIdle" type="Node3D" parent="StateMachine" unique_id=1277713196 node_paths=PackedStringArray("animation_player")]
 script = ExtResource("24_4ndi6")
 animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ciidl1avc1lpp"
 
-[node name="PlayerStrike" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
+[node name="PlayerStrike" type="Node3D" parent="StateMachine" unique_id=1014654839 node_paths=PackedStringArray("animation_player")]
 script = ExtResource("12_1luhw")
 animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ciahrsc5cs6uv"
 
-[node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine"]
+[node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine" unique_id=1209787015]
 script = ExtResource("26_5rlu4")
 metadata/_custom_type_script = "uid://b5ic2cn2b3ipw"
 
-[node name="DebugLabel" type="Label3D" parent="."]
+[node name="DebugLabel" type="Label3D" parent="." unique_id=1998459771]
 transform = Transform3D(-0.99982, 0, 0.018970653, 0, 1, 0, -0.018970653, 0, -0.99982, 0, 1.9713662, 0)
 text = "Player name"
 
-[node name="TableDetector" type="Area3D" parent="."]
+[node name="TableDetector" type="Area3D" parent="." unique_id=2112073292]
 collision_layer = 0
 collision_mask = 16
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="TableDetector"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="TableDetector" unique_id=713267682]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.019805908, 1.0627307, 0)
 shape = SubResource("BoxShape3D_221hk")
 
-[node name="TableConnector" type="Node" parent="." node_paths=PackedStringArray("table_detector", "player")]
+[node name="TableConnector" type="Node" parent="." unique_id=912277960 node_paths=PackedStringArray("table_detector", "player")]
 script = ExtResource("23_ghoj8")
 table_detector = NodePath("../TableDetector")
 player = NodePath("..")
 metadata/_custom_type_script = "uid://7kl3mgn06cs3"
 
-[node name="GameControllerManager" type="Node" parent="." node_paths=PackedStringArray("player")]
+[node name="GameControllerManager" type="Node" parent="." unique_id=1597856796 node_paths=PackedStringArray("player")]
 script = ExtResource("24_t1t22")
 player = NodePath("..")
 metadata/_custom_type_script = "uid://nbtm21u2ng78"

@@ -10,6 +10,7 @@ var id = 1
 @onready var state_machine: StateMachine = $StateMachine
 @onready var debug_label: Label3D = $DebugLabel
 @onready var table_detector: Area3D = $TableDetector
+@onready var game_controller_manager: GameControllerManager = $GameControllerManager
 
 var table: Table
 
