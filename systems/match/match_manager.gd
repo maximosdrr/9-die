@@ -20,7 +20,7 @@ func start_match(_players: Array[String], metadata: Dictionary = {}):
 	)
 
 func call_next_turn(metadata: Dictionary = {}):
-	_server_distribute_next_turn_request(metadata)
+	_server_distribute_next_turn_request.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, metadata)
 
 func end_match():
 	match_already_started = false

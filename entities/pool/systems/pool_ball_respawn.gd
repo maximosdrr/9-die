@@ -37,7 +37,6 @@ func get_normal_balls():
 
 @rpc('any_peer', 'call_local', 'reliable')
 func _request_server_start_game() -> void:
-	print("Hey! I have being called by ", multiplayer.get_remote_sender_id())
 	if multiplayer.is_server():
 		clear_table()
 		_spawn_cue_ball()

@@ -15,6 +15,7 @@ func _ready() -> void:
 	show_time.timeout.connect(_on_show_time_is_over)
 	invite_menu.invites_sent.connect(_on_invite_received)
 	confirm_button.pressed.connect(_on_confirm_button_is_pressed)
+	decline_button.pressed.connect(_on_reject_button_is_pressed)
 
 func _on_invite_received(players: Array[String], selected_table: String):
 	self.visible = true
