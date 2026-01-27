@@ -2,7 +2,7 @@ class_name MatchManager extends Node
 
 signal match_started
 signal turn_changed(new_owner_id)
-signal match_over
+signal match_over(metadata: Dictionary)
 
 var match_already_started = false
 var turn_owner = null
@@ -22,14 +22,8 @@ func start_match(_players: Array[String], metadata: Dictionary = {}):
 func call_next_turn(metadata: Dictionary = {}):
 	_server_distribute_next_turn_request.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, metadata)
 
-func end_match():
-	match_already_started = false
-	current_turn = 0
-	turn_owner = null
-	turn_metadata = {}
-	turn_history.clear()
-	turn_order.clear()
-	match_over.emit()
+func end_match(metadata: Dictionary = {}):
+	_server_distribute_match_over_request.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, metadata)
 
 #region Start Match Network
 @rpc('any_peer', 'call_local', 'reliable')
@@ -86,4 +80,25 @@ func _call_next_turn(metadata: Dictionary):
 	turn_metadata = metadata
 	
 	turn_changed.emit(turn_owner)
+#endregion
+
+#region End Match Network
+@rpc("any_peer", "call_local", "reliable")
+func _server_distribute_match_over_request(metadata: Dictionary):
+	if not multiplayer.is_server():
+		return
+	
+	_client_receive_match_over_request.rpc(metadata)
+
+func _client_receive_match_over_request(metadata: Dictionary):
+	_end_match(metadata)
+
+func _end_match(metadata: Dictionary = {}):
+	match_already_started = false
+	current_turn = 0
+	turn_owner = null
+	turn_metadata = {}
+	turn_history.clear()
+	turn_order.clear()
+	match_over.emit(metadata)
 #endregion

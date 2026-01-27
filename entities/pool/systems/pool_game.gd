@@ -53,6 +53,7 @@ func _on_match_starts():
 	game_controller.set_multiplayer_authority(int(match_manager.turn_owner))
 	await get_tree().create_timer(1.5).timeout
 	game_controller.move_to_cue_ball()
+	print("Match started ", match_manager.turn_owner)
 	
 func _on_turn_changes(new_owner_id: String):
 	print("Turn changed ", new_owner_id)
@@ -77,7 +78,7 @@ func _track_turn():
 	await balls_movement_monitor.balls_stopped
 	pool_table.score_monitor.body_entered.disconnect(_on_ball_pocketed)
 	var turn_action = golden_nine_mode.resolve_turn(turn_data)
-	print("turn action: ", turn_action, " Turn owner: ", multiplayer.get_unique_id())
+	print("turn action: ", turn_action)
 	_resolve_turn(turn_action)
 
 func _on_cue_ball_touch_other_ball(ball: Ball):
@@ -101,8 +102,7 @@ func _on_ball_dropped_off(ball: Ball):
 
 func _resolve_turn(command: String):
 	if command == PoolTurnCommands.CALL_NEXT_TURN:
-		if multiplayer.is_server():
-			match_manager.call_next_turn({})
+		match_manager.call_next_turn({})
 	if command == PoolTurnCommands.CALL_EXTEND_TURN:
 		game_controller.cue.release_cue()
 		game_controller.move_to_cue_ball()
@@ -111,11 +111,11 @@ func _resolve_turn(command: String):
 			"replace_ball": true
 		})
 	if command == PoolTurnCommands.CALL_MATCH_OVER_LOSER:
-		#TODO Loser do something
-		if multiplayer.is_server():
-			balls_holder.clear_table()
+		match_manager.end_match({
+			"looser": str(multiplayer.get_unique_id())
+		})
 	if command == PoolTurnCommands.CALL_MATCH_OVER_WINNER:
-		#TODO Winner do something
-		if multiplayer.is_server():
-			balls_holder.clear_table()
+		match_manager.end_match({
+			"winner": str(multiplayer.get_unique_id())
+		})
 	
