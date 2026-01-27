@@ -90,6 +90,7 @@ func _server_distribute_match_over_request(metadata: Dictionary):
 	
 	_client_receive_match_over_request.rpc(metadata)
 
+@rpc("authority", "call_local", "reliable")
 func _client_receive_match_over_request(metadata: Dictionary):
 	_end_match(metadata)
 

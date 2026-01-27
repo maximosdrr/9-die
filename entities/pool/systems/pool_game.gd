@@ -28,6 +28,7 @@ func _ready() -> void:
 	#Connect signals
 	match_manager.match_started.connect(_on_match_starts)
 	match_manager.turn_changed.connect(_on_turn_changes)
+	match_manager.match_over.connect(_on_match_is_over)
 	game_controller.cue.start_track.connect(_track_turn)
 	off_table_monitor.ball_fell_off.connect(_on_ball_dropped_off)
 	
@@ -118,4 +119,7 @@ func _resolve_turn(command: String):
 		match_manager.end_match({
 			"winner": str(multiplayer.get_unique_id())
 		})
-	
+
+func _on_match_is_over(metadata: Dictionary):
+	print("Match is over! ", metadata)
+	balls_holder.clear_table()
