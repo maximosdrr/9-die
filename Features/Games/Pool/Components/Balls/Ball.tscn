@@ -1,14 +1,14 @@
 [gd_scene load_steps=14 format=3 uid="uid://cqwu27wd0ddmr"]
 
-[ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.gd" id="1_eusg5"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.cs" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
 [ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="2_eusg5"]
-[ext_resource type="Script" uid="uid://dg6b2ab8k24x4" path="res://Features/Games/Pool/Components/Balls/Scripts/States/Idle.gd" id="3_gowdo"]
-[ext_resource type="Script" uid="uid://d0l5psv6122rn" path="res://Features/Games/Pool/Components/Balls/Scripts/States/IsMoving.gd" id="4_fcbjq"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/States/BallIdleState.cs" id="3_gowdo"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/States/BallMovingState.cs" id="4_fcbjq"]
 [ext_resource type="AudioStream" uid="uid://bnm7i5xmyycgi" path="res://Assets/SoundEffects/BallBounce.ogg" id="6_87oc0"]
-[ext_resource type="Script" uid="uid://dbrqaxwp2yl0g" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallBounceAudio.gd" id="6_pgfyo"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallBounceAudio.cs" id="6_pgfyo"]
 [ext_resource type="AudioStream" uid="uid://b1bkprdpdor67" path="res://Assets/SoundEffects/BallCollision.ogg" id="6_xsld2"]
-[ext_resource type="Script" uid="uid://bt8d07inv38d2" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallCollisionAudio.gd" id="7_87oc0"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallCollisionAudio.cs" id="7_87oc0"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_n5t01"]
 friction = 0.4
@@ -94,4 +94,4 @@ script = ExtResource("7_87oc0")
 ball = NodePath("../..")
 metadata/_custom_type_script = "uid://bt8d07inv38d2"
 
-[connection signal="body_entered" from="Hitbox" to="." method="_on_body_entered"]
+[connection signal="body_entered" from="Hitbox" to="." method="OnBodyEntered"]

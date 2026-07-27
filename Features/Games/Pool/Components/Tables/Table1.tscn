@@ -1,8 +1,8 @@
 [gd_scene load_steps=40 format=3 uid="uid://bcdgwpk5bpi3w"]
 
 [ext_resource type="PackedScene" uid="uid://cvpr4cxhmjyri" path="res://Assets/PoolGame/Scenes/PoolTableModel.tscn" id="1_ej02f"]
-[ext_resource type="Script" uid="uid://cgrjunhp6qhbg" path="res://Features/Games/Pool/Components/Tables/PoolGameTable.gd" id="1_h7p6q"]
-[ext_resource type="Script" uid="uid://chiuo5s528lxj" path="res://Features/Games/Pool/Scripts/GroundScoreMonitor.gd" id="2_h7p6q"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Tables/PoolGameTable.cs" id="1_h7p6q"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolScoreMonitor.cs" id="2_h7p6q"]
 [ext_resource type="AudioStream" uid="uid://llwrgy5p7clt" path="res://Assets/SoundEffects/BallHitHole.ogg" id="4_cgd1i"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_cgd1i"]
@@ -366,5 +366,5 @@ debug_color = Color(0.99554795, 0, 0.2113306, 0.41960785)
 stream = ExtResource("4_cgd1i")
 max_polyphony = 4
 
-[connection signal="body_entered" from="ScoreMonitor" to="ScoreMonitor" method="_on_body_entered"]
-[connection signal="body_entered" from="Pockets/Detectors" to="." method="_on_pockets_detectors_ball_entered"]
+[connection signal="body_entered" from="ScoreMonitor" to="ScoreMonitor" method="OnBodyEntered"]
+[connection signal="body_entered" from="Pockets/Detectors" to="." method="OnPocketsDetectorsBallEntered"]

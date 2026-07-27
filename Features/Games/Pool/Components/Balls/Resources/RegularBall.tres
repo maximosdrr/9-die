@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="BallResource" load_steps=2 format=3 uid="uid://umg6l17oxgvf"]
 
-[ext_resource type="Script" uid="uid://b18ax0wydcqg1" path="res://Features/Games/Pool/Components/Balls/Scripts/BallResource.gd" id="2_cumvy"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/BallResource.cs" id="2_cumvy"]
 
 [resource]
 script = ExtResource("2_cumvy")
