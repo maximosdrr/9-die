@@ -4,9 +4,13 @@ public partial class SteamGlobals : Node
 {
     public static SteamGlobals Instance { get; private set; }
 
-    public override void _Ready()
+    public override void _EnterTree()
     {
         Instance = this;
+    }
+
+    public override void _Ready()
+    {
         InitializeSteam();
     }
 

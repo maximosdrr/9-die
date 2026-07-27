@@ -3,7 +3,7 @@
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
-[ext_resource type="Script" path="res://Core/Level/NetworkLevelManager.cs" id="5_s6lm4"]
+[ext_resource type="Script" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
 [ext_resource type="Script" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://k7svtxq6fvcc" path="res://Assets/Levels/NightClub/NightClub.tscn" id="8_obyne"]
 
@@ -49,8 +49,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.
 shape = SubResource("BoxShape3D_b7m75")
 
 [node name="Table" parent="." instance=ExtResource("3_4e5w7")]
-game_controller_scene = ExtResource("4_y12w2")
-table_game_scene = ExtResource("5_rxpk7")
+GameControllerScene = ExtResource("4_y12w2")
+TableGameScene = ExtResource("5_rxpk7")
 
 [node name="Multiplayer" type="Node3D" parent="."]
 
@@ -77,11 +77,11 @@ metadata/_custom_type_script = "uid://beujd6xojmcbc"
 
 [node name="Scripts" type="Node" parent="Multiplayer"]
 
-[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" node_paths=PackedStringArray("players_container", "multiplayer_spawner", "spawn_points")]
+[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner")]
 script = ExtResource("5_s6lm4")
-players_container = NodePath("../../PlayersContainer")
-multiplayer_spawner = NodePath("../../MultiplayerSpawner")
-spawn_points = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")]
+PlayersContainer = NodePath("../../PlayersContainer")
+MultiplayerSpawner = NodePath("../../MultiplayerSpawner")
+SpawnPointPaths = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")]
 metadata/_custom_type_script = "uid://cma5b7oyrsijb"
 
 [node name="NightClub" parent="." instance=ExtResource("8_obyne")]

@@ -30,10 +30,10 @@ properties/2/replication_mode = 1
 properties/3/path = NodePath(".:rotation")
 properties/3/spawn = true
 properties/3/replication_mode = 1
-properties/4/path = NodePath(".:texture_id")
+properties/4/path = NodePath(".:TextureId")
 properties/4/spawn = true
 properties/4/replication_mode = 1
-properties/5/path = NodePath(".:index")
+properties/5/path = NodePath(".:Index")
 properties/5/spawn = true
 properties/5/replication_mode = 1
 
@@ -53,17 +53,17 @@ shape = SubResource("SphereShape3D_bodf6")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("2_eusg5")
-initial_state = "BALL_IDLE"
+InitialState = "BALL_IDLE"
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]
+[node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Ball")]
 script = ExtResource("3_gowdo")
-ball = NodePath("../..")
+Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://dg6b2ab8k24x4"
 
-[node name="Moving" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]
+[node name="Moving" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Ball")]
 script = ExtResource("4_fcbjq")
-ball = NodePath("../..")
+Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://d0l5psv6122rn"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
@@ -81,17 +81,17 @@ debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
 
 [node name="SFX" type="Node3D" parent="."]
 
-[node name="BallBounceAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("ball")]
+[node name="BallBounceAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("Ball")]
 stream = ExtResource("6_87oc0")
 volume_db = -10.0
 script = ExtResource("6_pgfyo")
-ball = NodePath("../..")
+Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://dbrqaxwp2yl0g"
 
-[node name="BallCollisionAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("ball")]
+[node name="BallCollisionAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("Ball")]
 stream = ExtResource("6_xsld2")
 script = ExtResource("7_87oc0")
-ball = NodePath("../..")
+Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://bt8d07inv38d2"
 
 [connection signal="body_entered" from="Hitbox" to="." method="OnBodyEntered"]

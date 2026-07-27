@@ -14,9 +14,9 @@
 [ext_resource type="PackedScene" uid="uid://bcdgwpk5bpi3w" path="res://Features/Games/Pool/Components/Tables/Table1.tscn" id="13_nqd1a"]
 [ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineBallFellOffListener.cs" id="14_nqd1a"]
 
-[node name="PoolGame" type="Node3D" node_paths=PackedStringArray("pool_table")]
+[node name="PoolGame" type="Node3D" node_paths=PackedStringArray("PoolTable")]
 script = ExtResource("1_jypsj")
-pool_table = NodePath("Table1")
+PoolTable = NodePath("Table1")
 metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
 
 [node name="BallsHolderMultiplayerSpawner" type="MultiplayerSpawner" parent="."]
@@ -28,9 +28,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, 0.8117826, -0.3599704
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="PoolBallRespawn" type="Node" parent="Scripts" node_paths=PackedStringArray("balls_holder")]
+[node name="PoolBallRespawn" type="Node" parent="Scripts" node_paths=PackedStringArray("BallsHolder")]
 script = ExtResource("3_qmuqs")
-balls_holder = NodePath("../../BallsHolder")
+BallsHolder = NodePath("../../BallsHolder")
 metadata/_custom_type_script = "uid://bmv1krpa1tpxy"
 
 [node name="OffTableMonitor" type="Node" parent="Scripts"]
@@ -41,14 +41,14 @@ metadata/_custom_type_script = "uid://b7qoe402kd725"
 script = ExtResource("6_20w0b")
 metadata/_custom_type_script = "uid://dak3kydlshkpb"
 
-[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("overhead_view_remote")]
+[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("OverheadViewRemote")]
 script = ExtResource("8_rm535")
-overhead_view_remote = NodePath("../../Pivot/RemoteTop")
+OverheadViewRemote = NodePath("../../Pivot/RemoteTop")
 metadata/_custom_type_script = "uid://b26iaj5fixb40"
 
-[node name="GameModeHandler" type="Node" parent="." node_paths=PackedStringArray("current_game_mode")]
+[node name="GameModeHandler" type="Node" parent="." node_paths=PackedStringArray("CurrentGameMode")]
 script = ExtResource("8_bojb6")
-current_game_mode = NodePath("GoldenNine")
+CurrentGameMode = NodePath("GoldenNine")
 metadata/_custom_type_script = "uid://cm8rk3wxalspc"
 
 [node name="GoldenNine" type="Node" parent="GameModeHandler"]
@@ -59,11 +59,11 @@ metadata/_custom_type_script = "uid://c7lqh1twjwxm"
 script = ExtResource("8_yqm70")
 metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
 
-[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("turn_ruler", "off_table_monitor", "ball_placement_manager")]
+[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("TurnRuler", "OffTableMonitor", "BallPlacementManager")]
 script = ExtResource("5_5ugkb")
-turn_ruler = NodePath("../Ruler")
-off_table_monitor = NodePath("../../../Scripts/OffTableMonitor")
-ball_placement_manager = NodePath("../../../Scripts/BallPlacementManager")
+TurnRuler = NodePath("../Ruler")
+OffTableMonitor = NodePath("../../../Scripts/OffTableMonitor")
+BallPlacementManager = NodePath("../../../Scripts/BallPlacementManager")
 metadata/_custom_type_script = "uid://y72pphul62gh"
 
 [node name="GoldenNineCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]

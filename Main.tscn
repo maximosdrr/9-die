@@ -12,5 +12,5 @@ metadata/_custom_type_script = "uid://d3s7x3nx46872"
 
 [node name="Prototype" parent="." instance=ExtResource("1_glv2v")]
 
-[node name="Menu" parent="." node_paths=PackedStringArray("initial_level") instance=ExtResource("3_r0du0")]
-initial_level = NodePath("../Prototype")
+[node name="Menu" parent="." node_paths=PackedStringArray("InitialLevel") instance=ExtResource("3_r0du0")]
+InitialLevel = NodePath("../Prototype")

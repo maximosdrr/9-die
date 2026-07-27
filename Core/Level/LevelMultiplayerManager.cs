@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class LevelMultiplayerManager : Node
@@ -7,10 +8,15 @@ public partial class LevelMultiplayerManager : Node
 
     [Export] public PlayersContainer PlayersContainer;
     [Export] public MultiplayerSpawner MultiplayerSpawner;
-    [Export] public Godot.Collections.Array<Marker3D> SpawnPoints;
+    [Export] public Godot.Collections.Array<NodePath> SpawnPointPaths = new();
+
+    private readonly List<Marker3D> _spawnPoints = new();
 
     public override void _Ready()
     {
+        foreach (var path in SpawnPointPaths)
+            _spawnPoints.Add(GetNode<Marker3D>(path));
+
         MultiplayerSpawner.SpawnFunction = new Callable(this, MethodName.InitializePlayerNode);
         MultiplayerSpawner.SpawnPath = PlayersContainer.GetPath();
 
@@ -44,16 +50,16 @@ public partial class LevelMultiplayerManager : Node
         playerInstance.Id = peerId;
         playerInstance.SetMultiplayerAuthority(peerId);
 
-        if (SpawnPoints.Count == 0)
+        if (_spawnPoints.Count == 0)
         {
             GD.PushError("There's no spawn points yet");
             return null;
         }
 
         var playersCount = PlayersContainer.GetChildCount();
-        var spawnIndex = playersCount % SpawnPoints.Count;
+        var spawnIndex = playersCount % _spawnPoints.Count;
 
-        var spawnPoint = SpawnPoints[spawnIndex];
+        var spawnPoint = _spawnPoints[spawnIndex];
         playerInstance.GlobalTransform = spawnPoint.GlobalTransform;
 
         return playerInstance;

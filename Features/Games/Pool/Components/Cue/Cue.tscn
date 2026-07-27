@@ -53,11 +53,11 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D" node_paths=PackedStringArray("state_machine", "cue_sfx", "stroke_network_bridge")]
+[node name="Cue" type="Node3D" node_paths=PackedStringArray("StateMachine", "CueSfx", "StrokeNetworkBridge")]
 script = ExtResource("1_fst4q")
-state_machine = NodePath("StateMachine")
-cue_sfx = NodePath("Scripts/Sfx")
-stroke_network_bridge = NodePath("Scripts/NetworkBridge")
+StateMachine = NodePath("StateMachine")
+CueSfx = NodePath("Scripts/Sfx")
+StrokeNetworkBridge = NodePath("Scripts/NetworkBridge")
 metadata/_custom_type_script = "uid://dyye3x8q5giqw"
 
 [node name="CueBody" type="Node3D" parent="."]
@@ -69,9 +69,9 @@ skeleton = NodePath("")
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="Sfx" type="Node" parent="Scripts" node_paths=PackedStringArray("strike_sfx")]
+[node name="Sfx" type="Node" parent="Scripts" node_paths=PackedStringArray("StrikeSfx")]
 script = ExtResource("7_t7is8")
-strike_sfx = NodePath("../../sfx")
+StrikeSfx = NodePath("../../sfx")
 metadata/_custom_type_script = "uid://dt8xf8l0g7j3c"
 
 [node name="NetworkBridge" type="Node" parent="Scripts"]
@@ -83,8 +83,8 @@ stream = ExtResource("7_lm3ol")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("9_4hlb0")
-initial_state = "CUE_IDLE"
-check_for_multiplayer_authority_on_state_handle_input = true
+InitialState = "CUE_IDLE"
+CheckForMultiplayerAuthorityOnStateHandleInput = true
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Idle" type="Node3D" parent="StateMachine"]

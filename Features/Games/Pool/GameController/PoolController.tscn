@@ -31,15 +31,15 @@ collision_mask = 8
 
 [node name="AimToggleable" type="Node" parent="Scripts"]
 script = ExtResource("3_fuwyn")
-initial_state = 1
-targets = Array[NodePath]([NodePath("../../Aim")])
-toggle_visible = true
-disable_cameras = true
+InitialState = 1
+Targets = Array[NodePath]([NodePath("../../Aim")])
+ToggleVisible = true
+DisableCameras = true
 metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
-[node name="CueAutomaticElevantion" type="Node" parent="Scripts" node_paths=PackedStringArray("cue", "cue_handle_sensor", "aim_pivot")]
+[node name="CueAutomaticElevantion" type="Node" parent="Scripts" node_paths=PackedStringArray("Cue", "CueHandleSensor", "AimPivot")]
 script = ExtResource("5_hjkil")
-cue = NodePath("../../AimPivot/Cue")
-cue_handle_sensor = NodePath("../../AimPivot/CollisionDetector")
-aim_pivot = NodePath("../../AimPivot")
+Cue = NodePath("../../AimPivot/Cue")
+CueHandleSensor = NodePath("../../AimPivot/CollisionDetector")
+AimPivot = NodePath("../../AimPivot")
 metadata/_custom_type_script = "uid://cjpjim2qe7pk3"

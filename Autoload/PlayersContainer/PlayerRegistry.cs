@@ -6,7 +6,7 @@ public partial class PlayerRegistry : Node
 
     public Node3D PlayersContainer;
 
-    public override void _Ready()
+    public override void _EnterTree()
     {
         Instance = this;
     }

@@ -8,7 +8,7 @@ public partial class BallsMovementMonitor : Node
     [Export] public float StopTolerance = 0.5f;
 
     public PoolGame PoolGame;
-    public Array<Ball> Balls;
+    public Array<Ball> Balls = new();
 
     private float _ballCheckTimer = 0.0f;
     private float _stopToleranceTimer = 0.0f;

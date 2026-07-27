@@ -6,10 +6,13 @@ public partial class NetworkManager : Node
 
     public NetworkProvider NetworkProvider;
 
-    public override void _Ready()
+    public override void _EnterTree()
     {
         Instance = this;
+    }
 
+    public override void _Ready()
+    {
         NetworkProvider = new ENetNetworkProvider();
         // NetworkProvider = new SteamNetworkProvider();
         AddChild(NetworkProvider);

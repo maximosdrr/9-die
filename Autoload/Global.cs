@@ -6,7 +6,7 @@ public partial class Global : Node
 
     public GlobalCamera Camera;
 
-    public override void _Ready()
+    public override void _EnterTree()
     {
         Instance = this;
     }

@@ -3587,10 +3587,10 @@ shape = SubResource("CapsuleShape3D_qhdlv")
 
 [node name="FirstPerson" type="Node3D" parent="."]
 
-[node name="HeadPivot" type="Node3D" parent="FirstPerson" node_paths=PackedStringArray("camera_mount")]
+[node name="HeadPivot" type="Node3D" parent="FirstPerson" node_paths=PackedStringArray("CameraMount")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4170828, -0.3429405)
 script = ExtResource("2_bd6kk")
-camera_mount = NodePath("RemoteFPS")
+CameraMount = NodePath("RemoteFPS")
 metadata/_custom_type_script = "uid://b2jkrngg2mldq"
 
 [node name="RemoteFPS" type="RemoteTransform3D" parent="FirstPerson/HeadPivot"]
@@ -4134,21 +4134,21 @@ metadata/_custom_type_script = "uid://dedgretocnokg"
 
 [node name="PlayerToggleable" type="Node" parent="Scripts"]
 script = ExtResource("6_wlwl2")
-targets = Array[NodePath]([NodePath("../../FirstPerson"), NodePath("../../CollisionShape3D")])
-toggle_visible = true
-disable_cameras = true
+Targets = Array[NodePath]([NodePath("../../FirstPerson"), NodePath("../../CollisionShape3D")])
+ToggleVisible = true
+DisableCameras = true
 metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
-[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("context_slot", "player")]
+[node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("ContextSlot", "Player")]
 script = ExtResource("5_llsyq")
-context_slot = NodePath("../../GameContextSlot")
-player = NodePath("../..")
+ContextSlot = NodePath("../../GameContextSlot")
+Player = NodePath("../..")
 metadata/_custom_type_script = "uid://ce01x24p570hc"
 
-[node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("player", "game_context_slot")]
+[node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("Player", "GameContextSlot")]
 script = ExtResource("6_4uqpi")
-player = NodePath("../..")
-game_context_slot = NodePath("../../GameContextSlot")
+Player = NodePath("../..")
+GameContextSlot = NodePath("../../GameContextSlot")
 metadata/_custom_type_script = "uid://dw5st23gr02tm"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
@@ -4158,25 +4158,25 @@ replication_config = SubResource("SceneReplicationConfig_wlwl2")
 
 [node name="NotificationPopup" parent="UI" instance=ExtResource("7_4uqpi")]
 
-[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("authority_state_syncronizer")]
+[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("AuthorityStateSynchronizer")]
 script = ExtResource("23_cwv8h")
-initial_state = "PLAYER_IDLE"
-authority_state_syncronizer = NodePath("AuthorityStateSynchronizer")
+InitialState = "PLAYER_IDLE"
+AuthorityStateSynchronizer = NodePath("AuthorityStateSynchronizer")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="PlayerWalking" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
+[node name="PlayerWalking" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("25_4ndi6")
-animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ddnbnq14r1xu"
 
-[node name="PlayerIdle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
+[node name="PlayerIdle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("24_4ndi6")
-animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ciidl1avc1lpp"
 
-[node name="PlayerStrike" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("animation_player")]
+[node name="PlayerStrike" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("12_1luhw")
-animation_player = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
 metadata/_custom_type_script = "uid://ciahrsc5cs6uv"
 
 [node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine"]
