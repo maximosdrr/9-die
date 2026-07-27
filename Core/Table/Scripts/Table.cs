@@ -37,16 +37,17 @@ public partial class Table : Node3D
     public override void _Ready()
     {
         TableGameHandler = GetNode<Node3D>("TableGameHandler");
-        PlayerGameControllerHandler = GetNode<Node3D>("PlayerGameControllerHandler");
-        TableInfluence = GetNode<Area3D>("TableInfluence");
-        StateMachine = GetNode<StateMachine>("StateMachine");
-        DebugLabel = GetNode<Label3D>("DebugLabel");
 
         if (Engine.IsEditorHint())
         {
             RebuildEditorPreview();
             return;
         }
+
+        PlayerGameControllerHandler = GetNode<Node3D>("PlayerGameControllerHandler");
+        TableInfluence = GetNode<Area3D>("TableInfluence");
+        StateMachine = GetNode<StateMachine>("StateMachine");
+        DebugLabel = GetNode<Label3D>("DebugLabel");
 
         SpawnRuntimeGame();
     }

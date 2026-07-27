@@ -1,17 +1,17 @@
-[gd_scene load_steps=16 format=4 uid="uid://dr4okuny0mqw0"]
+[gd_scene format=4 uid="uid://dr4okuny0mqw0"]
 
 [ext_resource type="Texture2D" uid="uid://dxx62uhpw0coo" path="res://Assets/Poolstick/Poolstick_poolstick01_base_color.png" id="1_6slcf"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.cs" id="1_fst4q"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/Scripts/CueNetworkBridge.cs" id="6_hxwsn"]
+[ext_resource type="Script" uid="uid://dx6ks63ip5ku6" path="res://Features/Games/Pool/Components/Cue/Scripts/Cue.cs" id="1_fst4q"]
+[ext_resource type="Script" uid="uid://cxvugjsme8hk1" path="res://Features/Games/Pool/Components/Cue/Scripts/CueNetworkBridge.cs" id="6_hxwsn"]
 [ext_resource type="AudioStream" uid="uid://blc68ac0hdhso" path="res://Assets/SoundEffects/Strike.ogg" id="7_lm3ol"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/Scripts/CueSfx.cs" id="7_t7is8"]
-[ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="9_4hlb0"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/State/CueIdleState.cs" id="10_bgumn"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/State/CueLockedState.cs" id="10_nmcgh"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/State/CueSpinState.cs" id="11_q2pvu"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/State/CueRecoverState.cs" id="11_wdj6g"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/State/CueChargingState.cs" id="12_0pypa"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/State/CueJumpState.cs" id="12_bgumn"]
+[ext_resource type="Script" uid="uid://psnm8p1elpm8" path="res://Features/Games/Pool/Components/Cue/Scripts/CueSfx.cs" id="7_t7is8"]
+[ext_resource type="Script" uid="uid://dney6axk25oyx" path="res://Core/StateMachine/StateMachine.cs" id="9_4hlb0"]
+[ext_resource type="Script" uid="uid://cno7itxt6uof6" path="res://Features/Games/Pool/Components/Cue/State/CueIdleState.cs" id="10_bgumn"]
+[ext_resource type="Script" uid="uid://cnv72s14oval6" path="res://Features/Games/Pool/Components/Cue/State/CueLockedState.cs" id="10_nmcgh"]
+[ext_resource type="Script" uid="uid://c6qfvq6y8m6a7" path="res://Features/Games/Pool/Components/Cue/State/CueSpinState.cs" id="11_q2pvu"]
+[ext_resource type="Script" uid="uid://dfxhs3eie4rr8" path="res://Features/Games/Pool/Components/Cue/State/CueRecoverState.cs" id="11_wdj6g"]
+[ext_resource type="Script" uid="uid://b2xqsvodauu2d" path="res://Features/Games/Pool/Components/Cue/State/CueChargingState.cs" id="12_0pypa"]
+[ext_resource type="Script" uid="uid://dcd74y23ntd4h" path="res://Features/Games/Pool/Components/Cue/State/CueJumpState.cs" id="12_bgumn"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3p8eb"]
 resource_name = "poolstick01_base_color"
@@ -53,60 +53,51 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_ahhtq")
 
-[node name="Cue" type="Node3D" node_paths=PackedStringArray("StateMachine", "CueSfx", "StrokeNetworkBridge")]
+[node name="Cue" type="Node3D" unique_id=565891053 node_paths=PackedStringArray("StateMachine", "CueSfx", "StrokeNetworkBridge")]
 script = ExtResource("1_fst4q")
 StateMachine = NodePath("StateMachine")
 CueSfx = NodePath("Scripts/Sfx")
 StrokeNetworkBridge = NodePath("Scripts/NetworkBridge")
-metadata/_custom_type_script = "uid://dyye3x8q5giqw"
+ForceMultiplier = 28.0
 
-[node name="CueBody" type="Node3D" parent="."]
+[node name="CueBody" type="Node3D" parent="." unique_id=1159276380]
 
-[node name="Model3D" type="MeshInstance3D" parent="CueBody"]
+[node name="Model3D" type="MeshInstance3D" parent="CueBody" unique_id=550917693]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 1.47)
 mesh = SubResource("ArrayMesh_m6ccd")
 skeleton = NodePath("")
 
-[node name="Scripts" type="Node" parent="."]
+[node name="Scripts" type="Node" parent="." unique_id=1644365730]
 
-[node name="Sfx" type="Node" parent="Scripts" node_paths=PackedStringArray("StrikeSfx")]
+[node name="Sfx" type="Node" parent="Scripts" unique_id=34795937 node_paths=PackedStringArray("StrikeSfx")]
 script = ExtResource("7_t7is8")
 StrikeSfx = NodePath("../../sfx")
-metadata/_custom_type_script = "uid://dt8xf8l0g7j3c"
 
-[node name="NetworkBridge" type="Node" parent="Scripts"]
+[node name="NetworkBridge" type="Node" parent="Scripts" unique_id=492919905]
 script = ExtResource("6_hxwsn")
-metadata/_custom_type_script = "uid://bnepmph1tr1s2"
 
-[node name="sfx" type="AudioStreamPlayer3D" parent="."]
+[node name="sfx" type="AudioStreamPlayer3D" parent="." unique_id=430641580]
 stream = ExtResource("7_lm3ol")
 
-[node name="StateMachine" type="Node3D" parent="."]
+[node name="StateMachine" type="Node3D" parent="." unique_id=967140414]
 script = ExtResource("9_4hlb0")
 InitialState = "CUE_IDLE"
 CheckForMultiplayerAuthorityOnStateHandleInput = true
-metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="Idle" type="Node3D" parent="StateMachine"]
+[node name="Idle" type="Node3D" parent="StateMachine" unique_id=1738078010]
 script = ExtResource("10_bgumn")
-metadata/_custom_type_script = "uid://dludhl7lxlriu"
 
-[node name="Recover" type="Node3D" parent="StateMachine"]
+[node name="Recover" type="Node3D" parent="StateMachine" unique_id=591075219]
 script = ExtResource("11_wdj6g")
-metadata/_custom_type_script = "uid://nccbtpvm881h"
 
-[node name="Charging" type="Node3D" parent="StateMachine"]
+[node name="Charging" type="Node3D" parent="StateMachine" unique_id=372260448]
 script = ExtResource("12_0pypa")
-metadata/_custom_type_script = "uid://dhwo8nk3d5uwt"
 
-[node name="Locked" type="Node3D" parent="StateMachine"]
+[node name="Locked" type="Node3D" parent="StateMachine" unique_id=529959312]
 script = ExtResource("10_nmcgh")
-metadata/_custom_type_script = "uid://c2ws5v0mfcs3m"
 
-[node name="Spin" type="Node3D" parent="StateMachine"]
+[node name="Spin" type="Node3D" parent="StateMachine" unique_id=1281228130]
 script = ExtResource("11_q2pvu")
-metadata/_custom_type_script = "uid://cevposxtfgfim"
 
-[node name="Jump" type="Node3D" parent="StateMachine"]
+[node name="Jump" type="Node3D" parent="StateMachine" unique_id=1207434792]
 script = ExtResource("12_bgumn")
-metadata/_custom_type_script = "uid://d4mvb32s55f25"
