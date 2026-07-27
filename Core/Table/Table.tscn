@@ -1,13 +1,13 @@
 [gd_scene load_steps=10 format=3 uid="uid://km1p4vfi4o1w"]
 
-[ext_resource type="Script" uid="uid://bv6q1nmd0jclt" path="res://Core/Table/Scripts/Table.gd" id="1_iqaas"]
+[ext_resource type="Script" path="res://Core/Table/Scripts/Table.cs" id="1_iqaas"]
 [ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Table/UI/StartGameUI.tscn" id="4_jynrt"]
-[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="5_7vxer"]
-[ext_resource type="Script" uid="uid://dq0i14kh66qsi" path="res://Core/Table/States/GameWaiting.gd" id="6_njalx"]
-[ext_resource type="Script" uid="uid://ci7kc3583eis2" path="res://Core/Table/States/GameStarted.gd" id="7_dge2g"]
-[ext_resource type="Script" uid="uid://dlox0xg6s8lr7" path="res://Core/Table/States/GameStarting.gd" id="7_hu1vg"]
-[ext_resource type="Script" uid="uid://5qg7w6j3xyja" path="res://Core/StateMachine/Network/PublicStateSyncronizer.gd" id="7_r1yk8"]
-[ext_resource type="Script" uid="uid://cm8rk3wxalspc" path="res://Core/Table/GameMode/GameModeHandler.gd" id="8_hu1vg"]
+[ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="5_7vxer"]
+[ext_resource type="Script" path="res://Core/Table/States/WaitingGameStart.cs" id="6_njalx"]
+[ext_resource type="Script" path="res://Core/Table/States/GameStarted.cs" id="7_dge2g"]
+[ext_resource type="Script" path="res://Core/Table/States/GameStarting.cs" id="7_hu1vg"]
+[ext_resource type="Script" path="res://Core/StateMachine/Network/PublicStateSyncronizer.cs" id="7_r1yk8"]
+[ext_resource type="Script" path="res://Core/Table/GameMode/GameModeHandler.cs" id="8_hu1vg"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
 size = Vector3(5, 2, 5)

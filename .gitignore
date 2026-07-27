@@ -1,3 +1,13 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Godot Mono/C# specific ignores
+.mono/
+data_*/
+
+# C# build artifacts
+bin/
+obj/
+*.sln.orig
+*.tmp_proj

@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://b7qoe402kd725" path="res://Features/Games/Pool/Scripts/OffTableMonitor.gd" id="4_y227s"]
 [ext_resource type="Script" uid="uid://y72pphul62gh" path="res://Features/Games/Pool/GameModes/GoldenNine/TurnResolver.gd" id="5_5ugkb"]
 [ext_resource type="Script" uid="uid://dak3kydlshkpb" path="res://Features/Games/Pool/Scripts/BallsMovementMonitor.gd" id="6_20w0b"]
-[ext_resource type="Script" uid="uid://cm8rk3wxalspc" path="res://Core/Table/GameMode/GameModeHandler.gd" id="8_bojb6"]
+[ext_resource type="Script" path="res://Core/Table/GameMode/GameModeHandler.cs" id="8_bojb6"]
 [ext_resource type="Script" uid="uid://b26iaj5fixb40" path="res://Features/Games/Pool/Scripts/BallPlacementManager.gd" id="8_rm535"]
 [ext_resource type="Script" uid="uid://c3oml4nmfm8ni" path="res://Features/Games/Pool/GameModes/GoldenNine/TurnRuler.gd" id="8_yqm70"]
 [ext_resource type="Script" uid="uid://c7lqh1twjwxm" path="res://Features/Games/Pool/GameModes/GoldenNine/GameMode.gd" id="9_nppf3"]

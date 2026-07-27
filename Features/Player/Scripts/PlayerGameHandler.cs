@@ -1,0 +1,43 @@
+using Godot;
+
+[GlobalClass]
+public partial class PlayerGameHandler : Node
+{
+    [Export] public Node3D ContextSlot;
+    [Export] public Player Player;
+
+    public PlayerGameController CurrentController = null;
+
+    public void EquipGameController(PackedScene controllerScene, TableGame tableGame)
+    {
+        UnequipCurrentController();
+
+        var controllerInstance = controllerScene.Instantiate();
+        controllerInstance.Name = "ActiveController";
+        controllerInstance.SetMultiplayerAuthority(int.Parse((string)Player.Name));
+
+        CurrentController = (PlayerGameController)controllerInstance;
+
+        CurrentController.Hide();
+
+        if (!IsMultiplayerAuthority())
+            ContextSlot.Hide();
+
+        ContextSlot.AddChild(CurrentController);
+        CurrentController.Setup((Player)Owner, tableGame);
+    }
+
+    public void UnequipCurrentController()
+    {
+        if (CurrentController == null)
+            return;
+
+        var currentControllerParent = CurrentController.GetParent();
+
+        if (currentControllerParent != null)
+            currentControllerParent.RemoveChild(CurrentController);
+
+        CurrentController.QueueFree();
+        CurrentController = null;
+    }
+}

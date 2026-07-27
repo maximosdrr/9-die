@@ -3,8 +3,8 @@
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
-[ext_resource type="Script" uid="uid://cma5b7oyrsijb" path="res://Core/Level/NetworkLevelManager.gd" id="5_s6lm4"]
-[ext_resource type="Script" uid="uid://beujd6xojmcbc" path="res://Autoload/PlayersContainer/PlayersContainer.gd" id="5_wwpfk"]
+[ext_resource type="Script" path="res://Core/Level/NetworkLevelManager.cs" id="5_s6lm4"]
+[ext_resource type="Script" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://k7svtxq6fvcc" path="res://Assets/Levels/NightClub/NightClub.tscn" id="8_obyne"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]

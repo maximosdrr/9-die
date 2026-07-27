@@ -12,16 +12,20 @@ config_version=5
 
 config/name="9Die"
 run/main_scene="uid://cpcgmxhx118au"
-config/features=PackedStringArray("4.5", "Forward Plus")
+config/features=PackedStringArray("4.5", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
-Groups="*res://Autoload/Groups.gd"
-Global="*res://Autoload/Global.gd"
-NetworkManager="*res://Autoload/Network/NetworkManager.gd"
-SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.gd"
-PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.gd"
+Groups="*res://Autoload/GameGroups.cs"
+Global="*res://Autoload/Global.cs"
+NetworkManager="*res://Autoload/Network/NetworkManager.cs"
+SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.cs"
+PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.cs"
+
+[dotnet]
+
+project/assembly_name="9Die"
 
 [input]
 

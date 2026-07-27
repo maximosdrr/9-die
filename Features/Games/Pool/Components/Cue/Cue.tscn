@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://bnepmph1tr1s2" path="res://Features/Games/Pool/Components/Cue/Scripts/NetworkBridge.gd" id="6_hxwsn"]
 [ext_resource type="AudioStream" uid="uid://blc68ac0hdhso" path="res://Assets/SoundEffects/Strike.ogg" id="7_lm3ol"]
 [ext_resource type="Script" uid="uid://dt8xf8l0g7j3c" path="res://Features/Games/Pool/Components/Cue/Scripts/CueSfx.gd" id="7_t7is8"]
-[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="9_4hlb0"]
+[ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="9_4hlb0"]
 [ext_resource type="Script" uid="uid://dludhl7lxlriu" path="res://Features/Games/Pool/Components/Cue/State/Idle.gd" id="10_bgumn"]
 [ext_resource type="Script" uid="uid://c2ws5v0mfcs3m" path="res://Features/Games/Pool/Components/Cue/State/Locked.gd" id="10_nmcgh"]
 [ext_resource type="Script" uid="uid://cevposxtfgfim" path="res://Features/Games/Pool/Components/Cue/State/Spin.gd" id="11_q2pvu"]
