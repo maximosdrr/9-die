@@ -40,9 +40,10 @@ metadata/_custom_type_script = "uid://b7qoe402kd725"
 script = ExtResource("6_20w0b")
 metadata/_custom_type_script = "uid://dak3kydlshkpb"
 
-[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("OverheadViewRemote")]
+[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("OverheadViewRemote", "TableOrigin")]
 script = ExtResource("8_rm535")
 OverheadViewRemote = NodePath("../../Pivot/RemoteTop")
+TableOrigin = NodePath("../..")
 metadata/_custom_type_script = "uid://b26iaj5fixb40"
 
 [node name="GameModeHandler" type="Node" parent="." node_paths=PackedStringArray("CurrentGameMode")]
