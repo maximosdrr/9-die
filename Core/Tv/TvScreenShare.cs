@@ -17,8 +17,14 @@ public partial class TvScreenShare : MeshInstance3D
 	[Signal]
 	public delegate void SharerChangedEventHandler(int sharerId);
 
+	[Export] public Area3D InteractionArea;
+	[Export] public PoolStartGameUI InteractionPrompt;
+
 	public int SharerId { get; private set; } = 0;
 	public ImageTexture Texture => _texture;
+	public bool IsLocalPlayerInRange { get; private set; }
+
+	private bool _promptSuppressed;
 
 	private MeshInstance3D _screenMeshInstance;
 	private StandardMaterial3D _screenMaterial;
@@ -41,6 +47,7 @@ public partial class TvScreenShare : MeshInstance3D
 		if (Global.Instance.TvScreen == this)
 			Global.Instance.TvScreen = null;
 
+		DisconnectSignals();
 		StopLocalCapture();
 	}
 
@@ -60,7 +67,8 @@ public partial class TvScreenShare : MeshInstance3D
 		_audioPlayer.Play();
 		_audioPlayback = (AudioStreamGeneratorPlayback)_audioPlayer.GetStreamPlayback();
 
-		SetProcess(false);
+		InteractionPrompt.Hide();
+		ConnectSignals();
 
 		if (OS.GetName() == "Windows")
 		{
@@ -70,6 +78,72 @@ public partial class TvScreenShare : MeshInstance3D
 
 		NetworkManager.Instance.NetworkProvider.PlayerConnected += OnPlayerConnected;
 		NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
+	}
+
+	private void ConnectSignals()
+	{
+		SignalUtil.ConnectGuarded(InteractionArea, Area3D.SignalName.BodyEntered, new Callable(this, MethodName.OnBodyEnteredInteractionArea));
+		SignalUtil.ConnectGuarded(InteractionArea, Area3D.SignalName.BodyExited, new Callable(this, MethodName.OnBodyExitedInteractionArea));
+	}
+
+	private void DisconnectSignals()
+	{
+		SignalUtil.DisconnectGuarded(InteractionArea, Area3D.SignalName.BodyEntered, new Callable(this, MethodName.OnBodyEnteredInteractionArea));
+		SignalUtil.DisconnectGuarded(InteractionArea, Area3D.SignalName.BodyExited, new Callable(this, MethodName.OnBodyExitedInteractionArea));
+	}
+
+	private void OnBodyEnteredInteractionArea(Node3D body)
+	{
+		if (body is Player player && player.IsMultiplayerAuthority())
+		{
+			IsLocalPlayerInRange = true;
+			UpdateInteractionPrompt();
+		}
+	}
+
+	private void OnBodyExitedInteractionArea(Node3D body)
+	{
+		if (body is Player player && player.IsMultiplayerAuthority())
+		{
+			IsLocalPlayerInRange = false;
+			UpdateInteractionPrompt();
+		}
+	}
+
+	// Called by TvShareButton whenever it opens/closes the source picker or the viewing overlay
+	// — while either is open, the local player already has the corresponding UI in front of
+	// them, so the world-space prompt offering that same action would just be redundant.
+	public void SetPromptSuppressed(bool suppressed)
+	{
+		_promptSuppressed = suppressed;
+		UpdateInteractionPrompt();
+	}
+
+	private void UpdateInteractionPrompt()
+	{
+		if (!IsLocalPlayerInRange || _promptSuppressed)
+		{
+			InteractionPrompt.Hide();
+			return;
+		}
+
+		var isLocalSharer = SharerId != 0 && SharerId == Multiplayer.GetUniqueId();
+
+		if (isLocalSharer)
+		{
+			InteractionPrompt.SetText("Pressione F para parar de compartilhar");
+			InteractionPrompt.Show();
+		}
+		else if (SharerId == 0)
+		{
+			InteractionPrompt.SetText("Pressione F para compartilhar a tela");
+			InteractionPrompt.Show();
+		}
+		else
+		{
+			InteractionPrompt.SetText("Pressione F para assistir em tela cheia");
+			InteractionPrompt.Show();
+		}
 	}
 
 	public void RequestStartSharing(IntPtr windowHandle = default)
@@ -152,11 +226,6 @@ public partial class TvScreenShare : MeshInstance3D
 		var isLocalSharer = sharerId != 0 && sharerId == Multiplayer.GetUniqueId();
 		var isRemoteViewer = sharerId != 0 && !isLocalSharer;
 
-		// Viewers now need _Process too, to drain the playout buffer each frame — before the
-		// buffer existed, a received frame was displayed directly and instantly from the RPC
-		// handler, no per-frame polling needed.
-		SetProcess(sharerId != 0);
-
 		if (isLocalSharer)
 			StartLocalCapture();
 		else
@@ -171,6 +240,8 @@ public partial class TvScreenShare : MeshInstance3D
 			_playoutBuffer?.Clear();
 			_playoutBuffer = null;
 		}
+
+		UpdateInteractionPrompt();
 
 		EmitSignal(SignalName.SharerChanged, sharerId);
 	}

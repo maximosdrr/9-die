@@ -7,8 +7,7 @@ public partial class TvShareButton : CanvasLayer
     private const int ThumbnailWidth = 320;
     private const int ThumbnailHeight = 180;
 
-    private Button _button;
-    private Label _statusLabel;
+    private Button _stopSharingButton;
     private Control _overlay;
     private TextureRect _overlayTextureRect;
     private Control _sourcePicker;
@@ -17,8 +16,7 @@ public partial class TvShareButton : CanvasLayer
 
     public override void _Ready()
     {
-        _button = GetNode<Button>("Panel/VBoxContainer/ShareButton");
-        _statusLabel = GetNode<Label>("Panel/VBoxContainer/StatusLabel");
+        _stopSharingButton = GetNode<Button>("StopSharingButton");
         _overlay = GetNode<Control>("Overlay");
         _overlayTextureRect = GetNode<TextureRect>("Overlay/TextureRect");
         _sourcePicker = GetNode<Control>("SourcePicker");
@@ -31,11 +29,10 @@ public partial class TvShareButton : CanvasLayer
             return;
         }
 
-        _button.Visible = OS.GetName() == "Windows";
-        _button.Pressed += OnButtonPressed;
+        _stopSharingButton.Pressed += () => Global.Instance.TvScreen.RequestStopSharing();
 
         Global.Instance.TvScreen.SharerChanged += OnSharerChanged;
-        UpdateUi(Global.Instance.TvScreen.SharerId);
+        OnSharerChanged(Global.Instance.TvScreen.SharerId);
     }
 
     public override void _ExitTree()
@@ -48,6 +45,11 @@ public partial class TvShareButton : CanvasLayer
     {
         if (_overlay.Visible && _overlayTextureRect.Texture == null)
             RefreshOverlayTexture();
+
+        // If the player walks away from the TV while the picker is open, close it — picking a
+        // source while no longer standing at the TV would be an inconsistent state.
+        if (_sourcePicker.Visible && !Global.Instance.TvScreen.IsLocalPlayerInRange)
+            CloseSourcePicker();
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -72,6 +74,16 @@ public partial class TvShareButton : CanvasLayer
                 ToggleOverlay();
             GetViewport().SetInputAsHandled();
         }
+        else if (@event.IsActionPressed("interact") && Global.Instance.TvScreen.IsLocalPlayerInRange)
+        {
+            if (_isSharing)
+                Global.Instance.TvScreen.RequestStopSharing();
+            else if (Global.Instance.TvScreen.SharerId == 0)
+                OpenSourcePicker();
+            else
+                ToggleOverlay(); // someone else is sharing on this TV — F watches, same as view_tv
+            GetViewport().SetInputAsHandled();
+        }
         else if (_sourcePicker.Visible && @event.IsActionPressed("ui_cancel"))
         {
             CloseSourcePicker();
@@ -84,23 +96,21 @@ public partial class TvShareButton : CanvasLayer
         }
     }
 
-    private void OnButtonPressed()
-    {
-        if (_isSharing)
-            Global.Instance.TvScreen.RequestStopSharing();
-        else
-            OpenSourcePicker();
-    }
-
     private void OpenSourcePicker()
     {
         PopulateSourceGrid();
         _sourcePicker.Visible = true;
+        // The game normally runs with the mouse captured/hidden (FPS-style look) — without
+        // freeing it here, the player would have no visible cursor to pick a thumbnail with.
+        Input.MouseMode = Input.MouseModeEnum.Visible;
+        Global.Instance.TvScreen.SetPromptSuppressed(true);
     }
 
     private void CloseSourcePicker()
     {
         _sourcePicker.Visible = false;
+        Input.MouseMode = Input.MouseModeEnum.Captured;
+        Global.Instance.TvScreen.SetPromptSuppressed(false);
     }
 
     private void PopulateSourceGrid()
@@ -175,7 +185,8 @@ public partial class TvShareButton : CanvasLayer
 
     private void OnSharerChanged(int sharerId)
     {
-        UpdateUi(sharerId);
+        _isSharing = sharerId == Multiplayer.GetUniqueId();
+        _stopSharingButton.Visible = _isSharing;
 
         if (sharerId == 0)
             CloseOverlay();
@@ -195,11 +206,13 @@ public partial class TvShareButton : CanvasLayer
     {
         _overlay.Visible = true;
         RefreshOverlayTexture();
+        Global.Instance.TvScreen.SetPromptSuppressed(true);
     }
 
     private void CloseOverlay()
     {
         _overlay.Visible = false;
+        Global.Instance.TvScreen.SetPromptSuppressed(false);
     }
 
     private void RefreshOverlayTexture()
@@ -207,32 +220,5 @@ public partial class TvShareButton : CanvasLayer
         var texture = Global.Instance.TvScreen.Texture;
         if (texture != null)
             _overlayTextureRect.Texture = texture;
-    }
-
-    private void UpdateUi(int sharerId)
-    {
-        var myId = Multiplayer.GetUniqueId();
-        _isSharing = sharerId == myId;
-
-        if (_isSharing)
-        {
-            _button.Text = "Parar de Compartilhar";
-            _button.Disabled = false;
-            _statusLabel.Text = "🔴 Compartilhando sua tela";
-            _statusLabel.Visible = true;
-        }
-        else if (sharerId != 0)
-        {
-            _button.Text = "Compartilhar Tela";
-            _button.Disabled = true;
-            _statusLabel.Text = "Outro jogador está compartilhando (aperte V pra ver)";
-            _statusLabel.Visible = true;
-        }
-        else
-        {
-            _button.Text = "Compartilhar Tela";
-            _button.Disabled = false;
-            _statusLabel.Visible = false;
-        }
     }
 }
