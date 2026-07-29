@@ -1,0 +1,87 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Features/Player/Components/UI/TvShareButton.cs" id="1_tvshr"]
+
+[node name="TvShareButton" type="CanvasLayer"]
+script = ExtResource("1_tvshr")
+
+[node name="StopSharingButton" type="Button" parent="."]
+visible = false
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -220.0
+offset_top = -60.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "Parar de Compartilhar"
+
+[node name="Overlay" type="Control" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Backdrop" type="ColorRect" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.75)
+mouse_filter = 2
+
+[node name="TextureRect" type="TextureRect" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 60.0
+offset_top = 60.0
+offset_right = -60.0
+offset_bottom = -60.0
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="SourcePicker" type="Control" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Backdrop" type="ColorRect" parent="SourcePicker"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.75)
+mouse_filter = 2
+
+[node name="CenterContainer" type="CenterContainer" parent="SourcePicker"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="SourcePicker/CenterContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="SourcePicker/CenterContainer/Panel"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="SourcePicker/CenterContainer/Panel/VBoxContainer"]
+layout_mode = 2
+text = "Escolha o que compartilhar"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="SourcePicker/CenterContainer/Panel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 360)
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="SourcePicker/CenterContainer/Panel/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 2
