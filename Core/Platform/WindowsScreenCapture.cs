@@ -41,6 +41,21 @@ public static class WindowsScreenCapture
     [DllImport("gdi32.dll")]
     private static extern bool GdiFlush();
 
+    [DllImport("gdi32.dll")]
+    private static extern int SetStretchBltMode(IntPtr hdc, int mode);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool SetBrushOrgEx(IntPtr hdc, int nXOrg, int nYOrg, out Point oldOrg);
+
+    private const int Halftone = 4;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
 
@@ -123,6 +138,14 @@ public static class WindowsScreenCapture
                 return false;
 
             oldBitmap = SelectObject(hdcMem, hBitmap);
+
+            // The default stretch mode (BLACKONWHITE) is a legacy mode for monochrome bitmaps —
+            // it does not properly blend/average colors when shrinking, which visibly degrades
+            // detail (especially text) before the frame ever reaches the video encoder. HALFTONE
+            // produces a proper area-averaged downscale; per MSDN, SetBrushOrgEx must be called
+            // right after selecting HALFTONE or the output can shift.
+            SetStretchBltMode(hdcMem, Halftone);
+            SetBrushOrgEx(hdcMem, 0, 0, out _);
 
             if (!StretchBlt(hdcMem, 0, 0, targetWidth, targetHeight, hdcScreen, 0, 0, screenWidth, screenHeight, SrcCopy))
                 return false;
