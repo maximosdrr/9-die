@@ -29,6 +29,7 @@ public partial class TvScreenShare : MeshInstance3D
 	private SystemAudioCapture _audioCapture;
 	private ScreenCaptureWorker _videoCapture;
 	private IntPtr _pendingCaptureWindow;
+	private VideoPlayoutBuffer _playoutBuffer;
 
 	public override void _EnterTree()
 	{
@@ -149,12 +150,27 @@ public partial class TvScreenShare : MeshInstance3D
 		}
 
 		var isLocalSharer = sharerId != 0 && sharerId == Multiplayer.GetUniqueId();
-		SetProcess(isLocalSharer);
+		var isRemoteViewer = sharerId != 0 && !isLocalSharer;
+
+		// Viewers now need _Process too, to drain the playout buffer each frame — before the
+		// buffer existed, a received frame was displayed directly and instantly from the RPC
+		// handler, no per-frame polling needed.
+		SetProcess(sharerId != 0);
 
 		if (isLocalSharer)
 			StartLocalCapture();
 		else
 			StopLocalCapture();
+
+		if (isRemoteViewer)
+		{
+			_playoutBuffer ??= new VideoPlayoutBuffer();
+		}
+		else
+		{
+			_playoutBuffer?.Clear();
+			_playoutBuffer = null;
+		}
 
 		EmitSignal(SignalName.SharerChanged, sharerId);
 	}
@@ -217,7 +233,16 @@ public partial class TvScreenShare : MeshInstance3D
 	public override void _Process(double delta)
 	{
 		ProcessVideoCapture();
+		ProcessPlayout();
 		ProcessAudioCapture();
+	}
+
+	private void ProcessPlayout()
+	{
+		if (_playoutBuffer == null || !_playoutBuffer.TryDequeueDue(out var encodedBytes))
+			return;
+
+		DisplayFrame(encodedBytes);
 	}
 
 	private void ProcessVideoCapture()
@@ -292,7 +317,7 @@ public partial class TvScreenShare : MeshInstance3D
 		if (senderId != SharerId)
 			return;
 
-		DisplayFrame(encodedBytes);
+		_playoutBuffer?.Enqueue(encodedBytes);
 
 		foreach (var peerId in Multiplayer.GetPeers())
 			if (peerId != senderId)
@@ -302,7 +327,7 @@ public partial class TvScreenShare : MeshInstance3D
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = FrameTransferChannel)]
 	private void SendFrame(byte[] encodedBytes)
 	{
-		DisplayFrame(encodedBytes);
+		_playoutBuffer?.Enqueue(encodedBytes);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = AudioTransferChannel)]

@@ -17,6 +17,13 @@ public sealed class ScreenCaptureWorker : IDisposable
     private volatile bool _running;
     private volatile bool _sourceLost;
 
+    // Lossy at high quality: lossless WebP's compressor does a much heavier multi-pass search
+    // (backward references, color cache) than lossy's single-pass transform, which was the real
+    // bottleneck capping the achieved frame rate far below TargetFps regardless of CPU power —
+    // the earlier "cartoon" quality complaints turned out to be caused by the GDI stretch mode
+    // and material bloom, both already fixed independently, so this should still look sharp.
+    private const float WebpQuality = 0.9f;
+
     private readonly int _width;
     private readonly int _height;
     private readonly int _frameIntervalMs;
@@ -43,6 +50,8 @@ public sealed class ScreenCaptureWorker : IDisposable
     private void Run()
     {
         var consecutiveFailures = 0;
+        var framesSinceReport = 0;
+        var reportWindowStart = System.Environment.TickCount;
 
         while (_running)
         {
@@ -59,12 +68,10 @@ public sealed class ScreenCaptureWorker : IDisposable
                     consecutiveFailures = 0;
 
                     var image = Image.CreateFromData(_width, _height, false, Image.Format.Rgba8, rgba);
-                    // Lossless: lossy WebP always chroma-subsamples (4:2:0), which smears color
-                    // at sharp text/UI edges. Desktop content is exactly the case lossless WebP
-                    // compresses well (flat colors, repeated patterns), and bandwidth is not a
-                    // constraint here.
-                    var encoded = image.SaveWebpToBuffer(false);
+                    var encoded = image.SaveWebpToBuffer(true, WebpQuality);
                     _frames.Enqueue(encoded);
+
+                    framesSinceReport++;
                 }
                 else if (_windowHandle != IntPtr.Zero)
                 {
@@ -78,7 +85,21 @@ public sealed class ScreenCaptureWorker : IDisposable
                 // A single dropped frame is harmless; the next iteration just tries again.
             }
 
-            var elapsed = System.Environment.TickCount - start;
+            var now = System.Environment.TickCount;
+
+            // Cheap, always-on diagnostic: makes the *actual* sustained capture+encode rate
+            // visible in the output console, instead of guessing from how the video "feels".
+            if (now - reportWindowStart >= 1000)
+            {
+                var elapsedSeconds = (now - reportWindowStart) / 1000.0;
+                var achievedFps = framesSinceReport / elapsedSeconds;
+                var targetFps = 1000.0 / _frameIntervalMs;
+                GD.Print($"[TvScreenCapture] {achievedFps:F1} fps (alvo: {targetFps:F1})");
+                framesSinceReport = 0;
+                reportWindowStart = now;
+            }
+
+            var elapsed = now - start;
             var sleepMs = _frameIntervalMs - elapsed;
             if (sleepMs > 0)
                 Thread.Sleep(sleepMs);
