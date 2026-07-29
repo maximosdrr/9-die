@@ -1,10 +1,10 @@
 [gd_scene load_steps=6 format=3 uid="uid://vr3ram3d1ioc"]
 
-[ext_resource type="Script" uid="uid://ca7so7568ql4e" path="res://Features/Games/Pool/GameController/AimCameraPivot.gd" id="1_vuqwp"]
-[ext_resource type="Script" uid="uid://b4ixi03kyeqyy" path="res://Features/Games/Pool/GameController/PoolController.gd" id="1_xnddr"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameController/AimCameraPivot.cs" id="1_vuqwp"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameController/PoolController.cs" id="1_xnddr"]
 [ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Games/Pool/Components/Cue/Cue.tscn" id="2_fuwyn"]
-[ext_resource type="Script" uid="uid://bf4tbhk58pgub" path="res://Core/ToggleNode/Toggleable.gd" id="3_fuwyn"]
-[ext_resource type="Script" uid="uid://cjpjim2qe7pk3" path="res://Features/Games/Pool/GameController/CueAutomaticElevation.gd" id="5_hjkil"]
+[ext_resource type="Script" path="res://Core/ToggleNode/Toggleable.cs" id="3_fuwyn"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameController/CueAutomaticElevation.cs" id="5_hjkil"]
 
 [node name="PoolController" type="Node3D"]
 script = ExtResource("1_xnddr")
@@ -31,15 +31,15 @@ collision_mask = 8
 
 [node name="AimToggleable" type="Node" parent="Scripts"]
 script = ExtResource("3_fuwyn")
-initial_state = 1
-targets = Array[NodePath]([NodePath("../../Aim")])
-toggle_visible = true
-disable_cameras = true
+InitialState = 1
+Targets = Array[NodePath]([NodePath("../../Aim")])
+ToggleVisible = true
+DisableCameras = true
 metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
-[node name="CueAutomaticElevantion" type="Node" parent="Scripts" node_paths=PackedStringArray("cue", "cue_handle_sensor", "aim_pivot")]
+[node name="CueAutomaticElevantion" type="Node" parent="Scripts" node_paths=PackedStringArray("Cue", "CueHandleSensor", "AimPivot")]
 script = ExtResource("5_hjkil")
-cue = NodePath("../../AimPivot/Cue")
-cue_handle_sensor = NodePath("../../AimPivot/CollisionDetector")
-aim_pivot = NodePath("../../AimPivot")
+Cue = NodePath("../../AimPivot/Cue")
+CueHandleSensor = NodePath("../../AimPivot/CollisionDetector")
+AimPivot = NodePath("../../AimPivot")
 metadata/_custom_type_script = "uid://cjpjim2qe7pk3"

@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://oeifsxwu2bfd"]
 
-[ext_resource type="Script" uid="uid://byndv3sfqqa1s" path="res://Features/Player/Components/UI/NotificationPopup.gd" id="1_415yu"]
+[ext_resource type="Script" path="res://Features/Player/Components/UI/NotificationPopup.cs" id="1_415yu"]
 
 [node name="NotificationPopup" type="PanelContainer"]
 script = ExtResource("1_415yu")

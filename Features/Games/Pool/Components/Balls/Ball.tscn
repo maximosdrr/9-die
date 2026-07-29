@@ -1,10 +1,14 @@
-[gd_scene load_steps=10 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=14 format=3 uid="uid://cqwu27wd0ddmr"]
 
-[ext_resource type="Script" uid="uid://crufycb4ylox5" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.gd" id="1_eusg5"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.cs" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
-[ext_resource type="Script" uid="uid://c4pej4f3ph1k7" path="res://Core/StateMachine/StateMachine.gd" id="2_eusg5"]
-[ext_resource type="Script" uid="uid://dg6b2ab8k24x4" path="res://Features/Games/Pool/Components/Balls/Scripts/States/Idle.gd" id="3_gowdo"]
-[ext_resource type="Script" uid="uid://d0l5psv6122rn" path="res://Features/Games/Pool/Components/Balls/Scripts/States/IsMoving.gd" id="4_fcbjq"]
+[ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="2_eusg5"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/States/BallIdleState.cs" id="3_gowdo"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/States/BallMovingState.cs" id="4_fcbjq"]
+[ext_resource type="AudioStream" uid="uid://bnm7i5xmyycgi" path="res://Assets/SoundEffects/BallBounce.ogg" id="6_87oc0"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallBounceAudio.cs" id="6_pgfyo"]
+[ext_resource type="AudioStream" uid="uid://b1bkprdpdor67" path="res://Assets/SoundEffects/BallCollision.ogg" id="6_xsld2"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallCollisionAudio.cs" id="7_87oc0"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_n5t01"]
 friction = 0.4
@@ -26,6 +30,12 @@ properties/2/replication_mode = 1
 properties/3/path = NodePath(".:rotation")
 properties/3/spawn = true
 properties/3/replication_mode = 1
+properties/4/path = NodePath(".:TextureId")
+properties/4/spawn = true
+properties/4/replication_mode = 1
+properties/5/path = NodePath(".:Index")
+properties/5/spawn = true
+properties/5/replication_mode = 1
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_5qcrw"]
 radius = 0.029
@@ -43,16 +53,17 @@ shape = SubResource("SphereShape3D_bodf6")
 
 [node name="StateMachine" type="Node3D" parent="."]
 script = ExtResource("2_eusg5")
+InitialState = "BALL_IDLE"
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]
+[node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Ball")]
 script = ExtResource("3_gowdo")
-ball = NodePath("../..")
+Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://dg6b2ab8k24x4"
 
-[node name="Moving" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("ball")]
+[node name="Moving" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Ball")]
 script = ExtResource("4_fcbjq")
-ball = NodePath("../..")
+Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://d0l5psv6122rn"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
@@ -68,4 +79,19 @@ debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
 
 [node name="DebugLabel" type="Label3D" parent="."]
 
-[connection signal="body_entered" from="Hitbox" to="." method="_on_body_entered"]
+[node name="SFX" type="Node3D" parent="."]
+
+[node name="BallBounceAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("Ball")]
+stream = ExtResource("6_87oc0")
+volume_db = -10.0
+script = ExtResource("6_pgfyo")
+Ball = NodePath("../..")
+metadata/_custom_type_script = "uid://dbrqaxwp2yl0g"
+
+[node name="BallCollisionAudio" type="AudioStreamPlayer3D" parent="SFX" node_paths=PackedStringArray("Ball")]
+stream = ExtResource("6_xsld2")
+script = ExtResource("7_87oc0")
+Ball = NodePath("../..")
+metadata/_custom_type_script = "uid://bt8d07inv38d2"
+
+[connection signal="body_entered" from="Hitbox" to="." method="OnBodyEntered"]
