@@ -1,11 +1,11 @@
 using Godot;
 
 [GlobalClass]
-public partial class GoldenNineScoreListener : Node
+public partial class PoolScoreListener : Node
 {
-    public GoldenNineTurnResolver TurnResolver;
+    public PoolTurnResolver TurnResolver;
 
-    public void Setup(GoldenNineTurnResolver turnResolver)
+    public void Setup(PoolTurnResolver turnResolver)
     {
         TurnResolver = turnResolver;
 

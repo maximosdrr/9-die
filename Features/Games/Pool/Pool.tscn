@@ -3,16 +3,16 @@
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolGame.cs" id="1_jypsj"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.cs" id="3_qmuqs"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/OffTableMonitor.cs" id="4_y227s"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineTurnResolver.cs" id="5_5ugkb"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/PoolTurnResolver.cs" id="5_5ugkb"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/BallsMovementMonitor.cs" id="6_20w0b"]
 [ext_resource type="Script" path="res://Core/Table/GameMode/GameModeHandler.cs" id="8_bojb6"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/BallPlacementManager.cs" id="8_rm535"]
 [ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineTurnRuler.cs" id="8_yqm70"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineGameMode.cs" id="9_nppf3"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineCueBallContactListener.cs" id="12_8ji62"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineScoreListener.cs" id="13_ib5tq"]
+[ext_resource type="Script" path="res://Core/Table/GameMode/GameMode.cs" id="9_nppf3"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/Listeners/PoolCueBallContactListener.cs" id="12_8ji62"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/Listeners/PoolScoreListener.cs" id="13_ib5tq"]
 [ext_resource type="PackedScene" uid="uid://bcdgwpk5bpi3w" path="res://Features/Games/Pool/Components/Tables/Table1.tscn" id="13_nqd1a"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineBallFellOffListener.cs" id="14_nqd1a"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/Listeners/PoolBallFellOffListener.cs" id="14_nqd1a"]
 
 [node name="PoolGame" type="Node3D" node_paths=PackedStringArray("PoolTable")]
 script = ExtResource("1_jypsj")
@@ -53,7 +53,7 @@ metadata/_custom_type_script = "uid://cm8rk3wxalspc"
 
 [node name="GoldenNine" type="Node" parent="GameModeHandler"]
 script = ExtResource("9_nppf3")
-metadata/_custom_type_script = "uid://c7lqh1twjwxm"
+metadata/_custom_type_script = "uid://cbbgxnphhve44"
 
 [node name="Ruler" type="Node" parent="GameModeHandler/GoldenNine"]
 script = ExtResource("8_yqm70")
@@ -64,19 +64,19 @@ script = ExtResource("5_5ugkb")
 TurnRuler = NodePath("../Ruler")
 OffTableMonitor = NodePath("../../../Scripts/OffTableMonitor")
 BallPlacementManager = NodePath("../../../Scripts/BallPlacementManager")
-metadata/_custom_type_script = "uid://y72pphul62gh"
+metadata/_custom_type_script = "uid://dia1p1hxycici"
 
-[node name="GoldenNineCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
+[node name="PoolCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
 script = ExtResource("12_8ji62")
-metadata/_custom_type_script = "uid://c8itq3mj32nfw"
+metadata/_custom_type_script = "uid://crmuily3um6bc"
 
-[node name="GoldenNineScoreListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
+[node name="PoolScoreListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
 script = ExtResource("13_ib5tq")
-metadata/_custom_type_script = "uid://dt5fcc3asoxbn"
+metadata/_custom_type_script = "uid://cf7i8qqjq52uk"
 
-[node name="GoldenNineBallFellOffListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
+[node name="PoolBallFellOffListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
 script = ExtResource("14_nqd1a")
-metadata/_custom_type_script = "uid://clogi8r4yr41e"
+metadata/_custom_type_script = "uid://cenj22x32gdfn"
 
 [node name="Table1" parent="." instance=ExtResource("13_nqd1a")]
 

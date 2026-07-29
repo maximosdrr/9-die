@@ -22,7 +22,7 @@ public partial class ControlSwitch : Node
             return;
         }
 
-        var currentGameController = gameContextChildren[0] as PlayerGameController;
+        var currentGameController = gameContextChildren[0] as PoolController;
 
         if (currentGameController == null)
             return;
@@ -33,13 +33,13 @@ public partial class ControlSwitch : Node
             SwitchToPlayer(currentGameController);
     }
 
-    private void SwitchToPlayer(PlayerGameController gameController)
+    private void SwitchToPlayer(PoolController gameController)
     {
         gameController.GiveControl();
         Player.TakeControl();
     }
 
-    private void SwitchToGame(PlayerGameController gameController)
+    private void SwitchToGame(PoolController gameController)
     {
         if (!gameController.CanTakeControl)
         {

@@ -6,7 +6,7 @@ public partial class PlayerGameHandler : Node
     [Export] public Node3D ContextSlot;
     [Export] public Player Player;
 
-    public PlayerGameController CurrentController = null;
+    public PoolController CurrentController = null;
 
     public void EquipGameController(PackedScene controllerScene, TableGame tableGame)
     {
@@ -16,7 +16,7 @@ public partial class PlayerGameHandler : Node
         controllerInstance.Name = "ActiveController";
         controllerInstance.SetMultiplayerAuthority(int.Parse((string)Player.Name));
 
-        CurrentController = (PlayerGameController)controllerInstance;
+        CurrentController = (PoolController)controllerInstance;
 
         CurrentController.Hide();
 

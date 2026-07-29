@@ -3,15 +3,15 @@ using Godot.Collections;
 using System.Threading.Tasks;
 
 [GlobalClass]
-public partial class GoldenNineTurnResolver : TurnResolver
+public partial class PoolTurnResolver : TurnResolver
 {
     [Export] public TurnRuler TurnRuler;
     [Export] public OffTableMonitor OffTableMonitor;
     [Export] public BallPlacementManager BallPlacementManager;
 
-    public GoldenNineCueBallContactListener CueBallContactListener;
-    public GoldenNineScoreListener ScoreListener;
-    public GoldenNineBallFellOffListener BallFellOffListener;
+    public PoolCueBallContactListener CueBallContactListener;
+    public PoolScoreListener ScoreListener;
+    public PoolBallFellOffListener BallFellOffListener;
 
     public PoolGame PoolGame;
     public Ball CueBall;
@@ -23,9 +23,9 @@ public partial class GoldenNineTurnResolver : TurnResolver
 
     public override void _Ready()
     {
-        CueBallContactListener = GetNode<GoldenNineCueBallContactListener>("GoldenNineCueBallContactListener");
-        ScoreListener = GetNode<GoldenNineScoreListener>("GoldenNineScoreListener");
-        BallFellOffListener = GetNode<GoldenNineBallFellOffListener>("GoldenNineBallFellOffListener");
+        CueBallContactListener = GetNode<PoolCueBallContactListener>("PoolCueBallContactListener");
+        ScoreListener = GetNode<PoolScoreListener>("PoolScoreListener");
+        BallFellOffListener = GetNode<PoolBallFellOffListener>("PoolBallFellOffListener");
     }
 
     public override void Setup(TableGame tableGame)
@@ -106,11 +106,7 @@ public partial class GoldenNineTurnResolver : TurnResolver
         var context = GenerateTurnContext();
         var action = TurnRuler.Rule(context);
 
-        var currentBallsRemainingDict = (Dictionary)context["current_balls_remaining"];
-        var newBallsInGame = new Dictionary<int, Ball>();
-        foreach (var key in currentBallsRemainingDict.Keys)
-            newBallsInGame[(int)key] = (Ball)currentBallsRemainingDict[key];
-        BallsInGame = newBallsInGame;
+        BallsInGame = context.CurrentBallsRemaining;
 
         ApplyTurnAction(action);
     }
@@ -122,9 +118,9 @@ public partial class GoldenNineTurnResolver : TurnResolver
         FirstBallHit = null;
     }
 
-    private Dictionary GenerateTurnContext()
+    private TurnContext GenerateTurnContext()
     {
-        var currentBallsRemaining = new Dictionary();
+        var currentBallsRemaining = new Dictionary<int, Ball>();
         foreach (var kvp in BallsInGame)
             currentBallsRemaining[kvp.Key] = kvp.Value;
 
@@ -140,17 +136,17 @@ public partial class GoldenNineTurnResolver : TurnResolver
         foreach (var ball in BallsOffTableList)
             currentBallsRemaining.Remove(ball.Index);
 
-        var ballsScoredDict = new Dictionary();
+        var ballsScored = new Dictionary<int, Ball>();
         foreach (var kvp in BallsScored)
-            ballsScoredDict[kvp.Key] = kvp.Value;
+            ballsScored[kvp.Key] = kvp.Value;
 
-        return new Dictionary
+        return new TurnContext
         {
-            ["balls_scored"] = ballsScoredDict,
-            ["first_ball_touched"] = FirstBallHit,
-            ["balls_off_table"] = new Array<Ball>(BallsOffTableList),
-            ["target_ball"] = targetBall,
-            ["current_balls_remaining"] = currentBallsRemaining,
+            BallsScored = ballsScored,
+            FirstBallTouched = FirstBallHit,
+            BallsOffTable = new Array<Ball>(BallsOffTableList),
+            TargetBall = targetBall,
+            CurrentBallsRemaining = currentBallsRemaining,
         };
     }
 

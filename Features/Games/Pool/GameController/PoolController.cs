@@ -2,8 +2,10 @@ using Godot;
 using Godot.Collections;
 
 [GlobalClass]
-public partial class PoolController : PlayerGameController
+public partial class PoolController : Node3D
 {
+	public bool CanTakeControl = false;
+
 	public RemoteTransform3D RemoteAim;
 	public AimCameraPivot AimPivot;
 	public Cue Cue;
@@ -18,7 +20,7 @@ public partial class PoolController : PlayerGameController
 		Cue = GetNode<Cue>("AimPivot/Cue");
 	}
 
-	public override void Setup(Player parent, TableGame tableGame)
+	public void Setup(Player parent, TableGame tableGame)
 	{
 		Player = parent;
 		PoolGame = tableGame as PoolGame;
@@ -29,7 +31,7 @@ public partial class PoolController : PlayerGameController
 		PoolGame.TurnChanged += OnTurnChange;
 	}
 
-	public override void TakeControl()
+	public void TakeControl()
 	{
 		if (!IsMultiplayerAuthority())
 			return;
@@ -62,7 +64,7 @@ public partial class PoolController : PlayerGameController
 		Input.MouseMode = Input.MouseModeEnum.Captured;
 	}
 
-	public override void GiveControl()
+	public void GiveControl()
 	{
 		if (!IsMultiplayerAuthority())
 			return;
@@ -80,7 +82,7 @@ public partial class PoolController : PlayerGameController
 		Player.StateMachine.ChangeState(StatesRef.PlayerIdle, new Dictionary());
 	}
 
-	public override async void ApplyControl(string turnOwnerId, Dictionary context)
+	public async void ApplyControl(string turnOwnerId, Dictionary context)
 	{
 		if (turnOwnerId == (string)Player.Name)
 		{
