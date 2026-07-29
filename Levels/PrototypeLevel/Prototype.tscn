@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://dvyejk17aixhq"]
 
+[ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://bi043ow7ejyth" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
 [ext_resource type="Script" uid="uid://b0l5erqwe6mqt" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
-[ext_resource type="PackedScene" uid="uid://k7svtxq6fvcc" path="res://Assets/Levels/NightClub/NightClub.tscn" id="8_obyne"]
 [ext_resource type="Script" uid="uid://b4e3ksh2drivj" path="res://Levels/PrototypeLevel/Scripts/TvScreenShare.cs" id="9_tvscr"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
@@ -22,6 +22,8 @@ tonemap_mode = 2
 glow_enabled = true
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rxpk7"]
+albedo_texture = ExtResource("1_wwpfk")
+uv2_triplanar = true
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_fnkl4"]
 material = SubResource("StandardMaterial3D_rxpk7")
@@ -37,7 +39,7 @@ roughness = 0.3
 
 [sub_resource type="BoxMesh" id="BoxMesh_tvfrm"]
 material = SubResource("StandardMaterial3D_tvfrm")
-size = Vector3(1, 0.6, 0.06)
+size = Vector3(6.2778015, 2.5781007, 0.06)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tvscr"]
 shading_mode = 0
@@ -101,16 +103,13 @@ PlayersContainer = NodePath("../../PlayersContainer")
 MultiplayerSpawner = NodePath("../../MultiplayerSpawner")
 SpawnPointPaths = Array[NodePath]([NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")])
 
-[node name="NightClub" parent="." unique_id=1795330639 instance=ExtResource("8_obyne")]
-transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -8.568, -0.15, 0.359)
-
 [node name="TV" type="MeshInstance3D" parent="." unique_id=407462442]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, -2.0771053)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8405304, 2.2890503, -6.046292)
 mesh = SubResource("BoxMesh_tvfrm")
 script = ExtResource("9_tvscr")
 
 [node name="Screen" type="MeshInstance3D" parent="TV" unique_id=1905886578]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.031)
+transform = Transform3D(6.841464, 0, 0, 0, 4.5844007, 0, 0, 0, 1, 0, 0, 0.031000137)
 material_override = SubResource("StandardMaterial3D_tvscr")
 mesh = SubResource("QuadMesh_tvscr")
 

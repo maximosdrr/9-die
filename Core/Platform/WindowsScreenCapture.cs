@@ -64,6 +64,18 @@ public static class WindowsScreenCapture
     private static extern bool IsWindow(IntPtr hwnd);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hwnd, uint uCmd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int nIndex);
+
+    private const uint GwOwner = 4;
+    private const int GwlExstyle = -20;
+    private const long WsExToolwindow = 0x00000080;
+    private const long WsExAppwindow = 0x00040000;
+    private const int MinCapturableSize = 100;
+
+    [DllImport("user32.dll")]
     private static extern int GetWindowTextLength(IntPtr hwnd);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -241,10 +253,12 @@ public static class WindowsScreenCapture
     }
 
     /// <summary>
-    /// Lists top-level windows suitable for sharing: visible, with a non-empty title, not the
-    /// game's own window, and not DWM-"cloaked" (suspended UWP apps and assorted shell windows
-    /// report as visible but have no real content to show — without this filter they show up as
-    /// ghost entries).
+    /// Lists top-level windows suitable for sharing, using the same heuristic Windows itself
+    /// uses for the taskbar/Alt-Tab list (which is what Discord's picker mirrors too): visible,
+    /// unowned top-level windows (excludes dialogs/tooltips/popups owned by another window),
+    /// excluding floating tool windows (WS_EX_TOOLWINDOW without WS_EX_APPWINDOW), DWM-"cloaked"
+    /// windows (suspended UWP apps and assorted shell windows report as visible but have no real
+    /// content), tiny placeholder windows, and the game's own window.
     /// </summary>
     public static List<WindowInfo> EnumerateCapturableWindows(IntPtr excludeHwnd)
     {
@@ -255,12 +269,27 @@ public static class WindowsScreenCapture
             if (hwnd == excludeHwnd || !IsWindowVisible(hwnd))
                 return true;
 
+            if (GetWindow(hwnd, GwOwner) != IntPtr.Zero)
+                return true;
+
+            var exStyle = GetWindowLongPtr(hwnd, GwlExstyle).ToInt64();
+            if ((exStyle & WsExToolwindow) != 0 && (exStyle & WsExAppwindow) == 0)
+                return true;
+
             var length = GetWindowTextLength(hwnd);
             if (length == 0)
                 return true;
 
             if (DwmGetWindowAttribute(hwnd, DwmwaCloaked, out var cloaked, sizeof(int)) == 0 && cloaked != 0)
                 return true;
+
+            if (GetWindowRect(hwnd, out var rect))
+            {
+                var width = rect.Right - rect.Left;
+                var height = rect.Bottom - rect.Top;
+                if (width < MinCapturableSize || height < MinCapturableSize)
+                    return true;
+            }
 
             var builder = new StringBuilder(length + 1);
             GetWindowText(hwnd, builder, builder.Capacity);
