@@ -61,6 +61,10 @@ Achados numa segunda passada depois de confirmar o escopo com o dono do projeto 
 - [x] [pool-16 - Tipar o contexto de turno (TurnContext)](pool-16-tipar-contexto-turno.md)
 - [x] [pool-17 - Renomear resolver/listeners de GoldenNine pra genérico](pool-17-generalizar-resolver-listeners.md)
 
+## 🔵 Revisão de arquitetura (perguntas do dono do projeto)
+
+- [x] [pool-18 - Revisão: relação Balls/Cue/Table e necessidade do GameController](pool-18-revisao-balls-cue-tables-gamecontroller.md)
+
 ## 🟡🟢 Simplificação e limpeza (agrupados por área)
 
 - [Infraestrutura — simplificação e limpeza](infra-simplificacao.md) (Autoload, Network, StateMachine, Util)

@@ -10,6 +10,9 @@ public partial class CueAutomaticElevation : Node
 
     public override void _PhysicsProcess(double delta)
     {
+        if (!IsMultiplayerAuthority())
+            return;
+
         UpdateSafeAngleLimit();
     }
 

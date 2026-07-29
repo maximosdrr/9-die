@@ -2,11 +2,13 @@
 
 Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza) da área de player/UI/câmera. Itens 🟠 dessa mesma área estão em arquivos próprios: [player-1](player-1-mouse-capture-sem-dono.md), [player-2](player-2-game-handler-owner-vs-player.md).
 
-## 🟡 PLAYER-3 — `ControlSwitch` rederiva o controller ativo em vez de usar `PlayerGameHandler.CurrentController`
+## 🟡 PLAYER-3 — `ControlSwitch` rederiva o controller ativo em vez de usar `PlayerGameHandler.CurrentController` (parcialmente resolvido)
 
-`Features/Player/Scripts/ControlSwitch.cs:17-25` lê `GameContextSlot.GetChildren()[0]` na mão, duplicando o que `PlayerGameHandler.CurrentController` já rastreia como fonte única de verdade. Também lê `Input.IsActionJustPressed` global em vez de checar o `@event` recebido (diferente de `HeadPivot`/`AimCameraPivot`), rodando o corpo inteiro em todo input não tratado.
+**Resolvido em 29/07/2026** (via [pool-18](pool-18-revisao-balls-cue-tables-gamecontroller.md), item C): `ControlSwitch` agora lê `Player.GameHandler.CurrentController` direto, sem `GetChildren()[0]`; `[Export] GameContextSlot` removido.
 
-**Direção**: usar `Player.GameHandler.CurrentController`; trocar pra `@event.IsActionPressed(...)`.
+**Ainda em aberto**: `ControlSwitch._UnhandledInput` continua lendo `Input.IsActionJustPressed("switch_control")` global em vez de checar o `@event` recebido (diferente de `HeadPivot`/`AimCameraPivot`), rodando o corpo inteiro em todo input não tratado. Não fazia parte do escopo do pool-18.
+
+**Direção restante**: trocar pra `@event.IsActionPressed(...)`.
 
 ## 🟡 PLAYER-4 — `Player.cs` é uma casca fina — todo mundo mexe direto nos campos públicos
 
@@ -28,4 +30,4 @@ Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza) da área de player/
 - `LobbyMenu.InitialLevel` (`[Export]`, `LobbyMenu.cs:7`) nunca referenciado no código.
 - `Player.Gravity`/`Player.Speed` são campos públicos simples, não `[Export]`, inconsistente com o resto dos tunáveis do projeto.
 - `LobbyMenu`: `_hostButton`/`_joinSessionLocal` ficam `Disabled=true` após clique e nunca são reabilitados se a operação falhar — sem feedback, sem retry.
-- `GameContextSlot` (`Player.tscn:4130-4132`) tem o script base `PlayerGameController` anexado direto no nó, mesmo sendo tratado só como container pelos consumidores — vestigial, confunde.
+- ~~`GameContextSlot` tem o script base `PlayerGameController` anexado direto no nó~~ — já resolvido no [POOL-14](pool-14-colapsar-playergamecontroller.md) (script removido, virou `Node3D` puro).

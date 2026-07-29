@@ -143,4 +143,9 @@ public partial class Cue : Node3D
     {
         return IsInstanceValid(CueBall);
     }
+
+    public void SnapToRestPose()
+    {
+        Position = new Vector3(SpinOffset.X, SpinOffset.Y, BallRadiusOffset);
+    }
 }

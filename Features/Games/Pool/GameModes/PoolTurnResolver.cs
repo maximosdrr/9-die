@@ -6,8 +6,6 @@ using System.Threading.Tasks;
 public partial class PoolTurnResolver : TurnResolver
 {
     [Export] public TurnRuler TurnRuler;
-    [Export] public OffTableMonitor OffTableMonitor;
-    [Export] public BallPlacementManager BallPlacementManager;
 
     public PoolCueBallContactListener CueBallContactListener;
     public PoolScoreListener ScoreListener;
@@ -91,8 +89,8 @@ public partial class PoolTurnResolver : TurnResolver
         var target = ballIndex == 0 ? CueBall : BallsInGame[ballIndex];
         var balls = new Array<Ball>(BallsInGame.Values);
 
-        BallPlacementManager.StartPlacement(target, balls);
-        await ToSignal(BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
+        PoolGame.BallPlacementManager.StartPlacement(target, balls);
+        await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
     }
 
     private async void OnStrike()

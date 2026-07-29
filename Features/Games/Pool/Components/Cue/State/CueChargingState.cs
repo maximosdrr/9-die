@@ -44,9 +44,6 @@ public partial class CueChargingState : State
 
     public override void HandleInput(InputEvent @event)
     {
-        if (!Cue.IsMultiplayerAuthority())
-            return;
-
         if (@event.IsActionReleased(InputStrokeMode))
         {
             StateMachine.ChangeState(StatesRef.CueIdle, new Dictionary());

@@ -59,11 +59,9 @@ metadata/_custom_type_script = "uid://cbbgxnphhve44"
 script = ExtResource("8_yqm70")
 metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
 
-[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("TurnRuler", "OffTableMonitor", "BallPlacementManager")]
+[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("TurnRuler")]
 script = ExtResource("5_5ugkb")
 TurnRuler = NodePath("../Ruler")
-OffTableMonitor = NodePath("../../../Scripts/OffTableMonitor")
-BallPlacementManager = NodePath("../../../Scripts/BallPlacementManager")
 metadata/_custom_type_script = "uid://dia1p1hxycici"
 
 [node name="PoolCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]

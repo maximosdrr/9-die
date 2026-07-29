@@ -4143,10 +4143,9 @@ ContextSlot = NodePath("../../GameContextSlot")
 Player = NodePath("../..")
 metadata/_custom_type_script = "uid://ce01x24p570hc"
 
-[node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("Player", "GameContextSlot")]
+[node name="ControlSwitch" type="Node" parent="Scripts" node_paths=PackedStringArray("Player")]
 script = ExtResource("6_4uqpi")
 Player = NodePath("../..")
-GameContextSlot = NodePath("../../GameContextSlot")
 metadata/_custom_type_script = "uid://dw5st23gr02tm"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
