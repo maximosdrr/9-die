@@ -42,12 +42,12 @@ Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza) da lógica de sinuc
 
 - `TurnRuler.Actions.CallGoldenBallReplacement` declarado, nunca produzido nem tratado (`Core/Table/GameMode/TurnRuler.cs` vs `GoldenNineTurnResolver.ApplyTurnAction`).
 - `EndGameFatalFoul` não chama `Reset()` (diferente de `EndGamePlayerWin`) — hoje inofensivo mas assimétrico.
-- Estado de bola "score" detectado por dois caminhos diferentes (`PoolScoreMonitor`, conectado via `.tscn`; `GoldenNineScoreListener`, conectado via código) — difícil rastrear "o que acontece quando uma bola é pontuada" só lendo o código.
+- Estado de bola "score" ainda detectado por dois caminhos diferentes: `PoolScoreMonitor` (conectado via `.tscn`) e `PoolTurnResolver.OnBallTouchScoreGround` (conectado via código, desde 29/07/2026 — antes era o listener separado `PoolScoreListener`, colapsado no [pool-19](pool-19-arquitetura-cue-table-gamemode.md)) — continua difícil rastrear "o que acontece quando uma bola é pontuada" só lendo o código, mas isso é um achado pré-existente, não piorou.
 - `BallResource.Model`/`.Name` nunca lidos — `Ball.cs` usa arrays estáticos próprios pra visual, ignorando o resource.
 - `PoolStartGameUI.CanBeShow` setado, nunca lido.
 - ~~`GameModeHandler.Switch`/`.Modes` nunca chamados fora da própria classe.~~ — removidos em 29/07/2026, ver [pool-18](pool-18-revisao-balls-cue-tables-gamecontroller.md).
 - `ball.GetMeta("in_pocket", ...)` (`PoolGameTable.cs`) — bag dinâmico do GDScript em vez de um `bool` tipado no `Ball`.
-- Nó `CueAutomaticElevantion` (typo, falta um "n") em `PoolController.tscn:40`.
+- ~~Nó `CueAutomaticElevantion` (typo, falta um "n") em `PoolController.tscn:40`~~ — moot, o nó inteiro (e a classe `CueAutomaticElevation`) foi removido em 29/07/2026 no [pool-19](pool-19-arquitetura-cue-table-gamemode.md) (a lógica virou parte de `Cue.cs`).
 - `TableGame.CallMatchOver` só encaminha pra `ApplyMatchOver` sem fazer nada a mais — quebra a convenção `Call*`/`Apply*` que o resto do arquivo segue.
 - ~~`Features/Games/Pool/Pool.tscn` referencia `OffTableMonitor`/`BallPlacementManager` por NodePath relativo de 3 níveis, enquanto `PoolBallFellOffListener` acessa os mesmos objetos via `TurnResolver.PoolGame.OffTableMonitor`~~ — resolvido em 29/07/2026 via [pool-18](pool-18-revisao-balls-cue-tables-gamecontroller.md): os `[Export] NodePath` removidos de `PoolTurnResolver`, agora só lê `PoolGame.OffTableMonitor`/`PoolGame.BallPlacementManager`.
 - `BallBounceAudio`/`BallCollisionAudio` duplicam ~30 linhas de "clonar AudioStreamPlayer3D, tocar, liberar" cada um.

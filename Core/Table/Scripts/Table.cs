@@ -7,16 +7,12 @@ public partial class Table : Node3D
     public Godot.Collections.Array<string> PlayersOnMatch = new();
 
     public Node3D TableGameHandler;
-    public Node3D PlayerGameControllerHandler;
     public Area3D TableInfluence;
     public StateMachine StateMachine;
     public Label3D DebugLabel;
 
     [ExportCategory("NetworkConfiguration")]
     [Export] public bool EnableNetworkTurnSyncronization = true;
-
-    [ExportCategory("Scenes")]
-    [Export] public PackedScene GameControllerScene;
 
     private PackedScene _tableGameScene;
     [Export]
@@ -44,7 +40,6 @@ public partial class Table : Node3D
             return;
         }
 
-        PlayerGameControllerHandler = GetNode<Node3D>("PlayerGameControllerHandler");
         TableInfluence = GetNode<Area3D>("TableInfluence");
         StateMachine = GetNode<StateMachine>("StateMachine");
         DebugLabel = GetNode<Label3D>("DebugLabel");
@@ -74,12 +69,6 @@ public partial class Table : Node3D
 
         TableGameHandler.AddChild(tableGameInstance);
         CurrentTableGame = tableGame;
-
-        if (GameControllerScene == null)
-        {
-            GD.PushError("Player game controller is null!");
-            return;
-        }
     }
 
     private void RebuildEditorPreview()

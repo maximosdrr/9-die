@@ -64,6 +64,7 @@ Achados numa segunda passada depois de confirmar o escopo com o dono do projeto 
 ## 🔵 Revisão de arquitetura (perguntas do dono do projeto)
 
 - [x] [pool-18 - Revisão: relação Balls/Cue/Table e necessidade do GameController](pool-18-revisao-balls-cue-tables-gamecontroller.md)
+- [x] [pool-19 - Análise profunda: a construção de Cue/Ball/Table/GameMode faz sentido?](pool-19-arquitetura-cue-table-gamemode.md)
 
 ## 🟡🟢 Simplificação e limpeza (agrupados por área)
 

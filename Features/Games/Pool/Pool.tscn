@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=12 format=3 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolGame.cs" id="1_jypsj"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.cs" id="3_qmuqs"]
@@ -9,14 +9,13 @@
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/BallPlacementManager.cs" id="8_rm535"]
 [ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineTurnRuler.cs" id="8_yqm70"]
 [ext_resource type="Script" path="res://Core/Table/GameMode/GameMode.cs" id="9_nppf3"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/Listeners/PoolCueBallContactListener.cs" id="12_8ji62"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/Listeners/PoolScoreListener.cs" id="13_ib5tq"]
 [ext_resource type="PackedScene" uid="uid://bcdgwpk5bpi3w" path="res://Features/Games/Pool/Components/Tables/Table1.tscn" id="13_nqd1a"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/Listeners/PoolBallFellOffListener.cs" id="14_nqd1a"]
+[ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="15_ctrlr"]
 
 [node name="PoolGame" type="Node3D" node_paths=PackedStringArray("PoolTable")]
 script = ExtResource("1_jypsj")
 PoolTable = NodePath("Table1")
+GameControllerScene = ExtResource("15_ctrlr")
 metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
 
 [node name="BallsHolderMultiplayerSpawner" type="MultiplayerSpawner" parent="."]
@@ -63,18 +62,6 @@ metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
 script = ExtResource("5_5ugkb")
 TurnRuler = NodePath("../Ruler")
 metadata/_custom_type_script = "uid://dia1p1hxycici"
-
-[node name="PoolCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
-script = ExtResource("12_8ji62")
-metadata/_custom_type_script = "uid://crmuily3um6bc"
-
-[node name="PoolScoreListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
-script = ExtResource("13_ib5tq")
-metadata/_custom_type_script = "uid://cf7i8qqjq52uk"
-
-[node name="PoolBallFellOffListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
-script = ExtResource("14_nqd1a")
-metadata/_custom_type_script = "uid://cenj22x32gdfn"
 
 [node name="Table1" parent="." instance=ExtResource("13_nqd1a")]
 
