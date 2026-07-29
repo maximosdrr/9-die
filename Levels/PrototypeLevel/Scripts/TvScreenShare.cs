@@ -28,6 +28,7 @@ public partial class TvScreenShare : MeshInstance3D
     private AudioStreamGeneratorPlayback _audioPlayback;
     private SystemAudioCapture _audioCapture;
     private ScreenCaptureWorker _videoCapture;
+    private IntPtr _pendingCaptureWindow;
 
     public override void _EnterTree()
     {
@@ -70,8 +71,13 @@ public partial class TvScreenShare : MeshInstance3D
         NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
     }
 
-    public void RequestStartSharing()
+    public void RequestStartSharing(IntPtr windowHandle = default)
     {
+        // Which window (if any) is purely local to this machine's capture step — it never needs
+        // to travel over the network, so it's just stashed here for StartLocalCapture to pick up
+        // once the host confirms this peer as the sharer.
+        _pendingCaptureWindow = windowHandle;
+
         if (Multiplayer.IsServer())
             TryStartShare(Multiplayer.GetUniqueId());
         else
@@ -177,7 +183,7 @@ public partial class TvScreenShare : MeshInstance3D
     private void StartLocalCapture()
     {
         if (_videoCapture == null)
-            _videoCapture = new ScreenCaptureWorker(CaptureWidth, CaptureHeight, TargetFps);
+            _videoCapture = new ScreenCaptureWorker(CaptureWidth, CaptureHeight, TargetFps, _pendingCaptureWindow);
 
         if (_audioCapture != null)
             return;
@@ -216,7 +222,17 @@ public partial class TvScreenShare : MeshInstance3D
 
     private void ProcessVideoCapture()
     {
-        if (_videoCapture == null || !_videoCapture.TryDequeueLatestFrame(out var encodedBytes))
+        if (_videoCapture == null)
+            return;
+
+        if (_videoCapture.SourceLost)
+        {
+            GD.PushWarning("A janela compartilhada foi fechada ou ficou inacessivel; parando o compartilhamento.");
+            RequestStopSharing();
+            return;
+        }
+
+        if (!_videoCapture.TryDequeueLatestFrame(out var encodedBytes))
             return;
 
         DisplayFrame(encodedBytes);

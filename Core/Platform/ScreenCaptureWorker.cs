@@ -15,16 +15,25 @@ public sealed class ScreenCaptureWorker : IDisposable
     private readonly Thread _thread;
     private readonly ConcurrentQueue<byte[]> _frames = new();
     private volatile bool _running;
+    private volatile bool _sourceLost;
 
     private readonly int _width;
     private readonly int _height;
     private readonly int _frameIntervalMs;
+    private readonly IntPtr _windowHandle;
+    private readonly int _failureThreshold;
 
-    public ScreenCaptureWorker(int width, int height, double targetFps)
+    public bool SourceLost => _sourceLost;
+
+    public ScreenCaptureWorker(int width, int height, double targetFps, IntPtr windowHandle = default)
     {
         _width = width;
         _height = height;
         _frameIntervalMs = Math.Max(1, (int)(1000.0 / targetFps));
+        _windowHandle = windowHandle;
+        // ~2 seconds of consecutive failed captures — long enough to ignore a single missed
+        // frame, short enough that a closed/gone window is noticed quickly.
+        _failureThreshold = Math.Max(1, 2000 / _frameIntervalMs);
 
         _running = true;
         _thread = new Thread(Run) { IsBackground = true, Name = "TvScreenCapture" };
@@ -33,14 +42,22 @@ public sealed class ScreenCaptureWorker : IDisposable
 
     private void Run()
     {
+        var consecutiveFailures = 0;
+
         while (_running)
         {
             var start = System.Environment.TickCount;
 
             try
             {
-                if (WindowsScreenCapture.TryCapturePrimaryScreen(_width, _height, out var rgba))
+                var captured = _windowHandle == IntPtr.Zero
+                    ? WindowsScreenCapture.TryCapturePrimaryScreen(_width, _height, out var rgba)
+                    : WindowsScreenCapture.TryCaptureWindow(_windowHandle, _width, _height, out rgba);
+
+                if (captured)
                 {
+                    consecutiveFailures = 0;
+
                     var image = Image.CreateFromData(_width, _height, false, Image.Format.Rgba8, rgba);
                     // Lossless: lossy WebP always chroma-subsamples (4:2:0), which smears color
                     // at sharp text/UI edges. Desktop content is exactly the case lossless WebP
@@ -48,6 +65,12 @@ public sealed class ScreenCaptureWorker : IDisposable
                     // constraint here.
                     var encoded = image.SaveWebpToBuffer(false);
                     _frames.Enqueue(encoded);
+                }
+                else if (_windowHandle != IntPtr.Zero)
+                {
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= _failureThreshold)
+                        _sourceLost = true;
                 }
             }
             catch
