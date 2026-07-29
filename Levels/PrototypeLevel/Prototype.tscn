@@ -1,11 +1,12 @@
-[gd_scene load_steps=13 format=3 uid="uid://dvyejk17aixhq"]
+[gd_scene format=3 uid="uid://dvyejk17aixhq"]
 
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
-[ext_resource type="Script" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
-[ext_resource type="Script" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
+[ext_resource type="Script" uid="uid://bi043ow7ejyth" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
+[ext_resource type="Script" uid="uid://b0l5erqwe6mqt" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://k7svtxq6fvcc" path="res://Assets/Levels/NightClub/NightClub.tscn" id="8_obyne"]
+[ext_resource type="Script" uid="uid://b4e3ksh2drivj" path="res://Levels/PrototypeLevel/Scripts/TvScreenShare.cs" id="9_tvscr"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -29,60 +30,88 @@ size = Vector2(50, 50)
 [sub_resource type="BoxShape3D" id="BoxShape3D_b7m75"]
 size = Vector3(49.328125, 0.01953125, 50.00792)
 
-[node name="Prototype" type="Node3D"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tvfrm"]
+albedo_color = Color(0.03, 0.03, 0.03, 1)
+metallic = 0.6
+roughness = 0.3
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[sub_resource type="BoxMesh" id="BoxMesh_tvfrm"]
+material = SubResource("StandardMaterial3D_tvfrm")
+size = Vector3(1, 0.6, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tvscr"]
+shading_mode = 0
+albedo_color = Color(0.05, 0.05, 0.05, 1)
+
+[sub_resource type="QuadMesh" id="QuadMesh_tvscr"]
+material = SubResource("StandardMaterial3D_tvscr")
+size = Vector2(0.88, 0.5)
+
+[node name="Prototype" type="Node3D" unique_id=124612571]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=881540219]
 environment = SubResource("Environment_4e5w7")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=239950014]
 transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
 shadow_enabled = true
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1926946533]
 mesh = SubResource("PlaneMesh_fnkl4")
 
-[node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D"]
+[node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D" unique_id=2055625058]
 collision_mask = 2
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D" unique_id=937634531]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
 shape = SubResource("BoxShape3D_b7m75")
 
-[node name="Table" parent="." instance=ExtResource("3_4e5w7")]
+[node name="Table" parent="." unique_id=542657396 instance=ExtResource("3_4e5w7")]
 GameControllerScene = ExtResource("4_y12w2")
 TableGameScene = ExtResource("5_rxpk7")
 
-[node name="Multiplayer" type="Node3D" parent="."]
+[node name="Multiplayer" type="Node3D" parent="." unique_id=1197676481]
 
-[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="Multiplayer"]
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="Multiplayer" unique_id=1780705806]
 spawn_path = NodePath("../PlayersContainer")
 
-[node name="SpawnPoints" type="Node3D" parent="Multiplayer"]
+[node name="SpawnPoints" type="Node3D" parent="Multiplayer" unique_id=516166924]
 
-[node name="Marker3D" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+[node name="Marker3D" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=304752431]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, -1)
 
-[node name="Marker3D2" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+[node name="Marker3D2" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=2119021465]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, 1)
 
-[node name="Marker3D3" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+[node name="Marker3D3" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=1627808005]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, 1)
 
-[node name="Marker3D4" type="Marker3D" parent="Multiplayer/SpawnPoints"]
+[node name="Marker3D4" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=1019544287]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, -1)
 
-[node name="PlayersContainer" type="Node3D" parent="Multiplayer"]
+[node name="PlayersContainer" type="Node3D" parent="Multiplayer" unique_id=546046805]
 script = ExtResource("5_wwpfk")
-metadata/_custom_type_script = "uid://beujd6xojmcbc"
 
-[node name="Scripts" type="Node" parent="Multiplayer"]
+[node name="Scripts" type="Node" parent="Multiplayer" unique_id=1085703195]
 
-[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner")]
+[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" unique_id=1519149147 node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner")]
 script = ExtResource("5_s6lm4")
 PlayersContainer = NodePath("../../PlayersContainer")
 MultiplayerSpawner = NodePath("../../MultiplayerSpawner")
-SpawnPointPaths = [NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")]
-metadata/_custom_type_script = "uid://cma5b7oyrsijb"
+SpawnPointPaths = Array[NodePath]([NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")])
 
-[node name="NightClub" parent="." instance=ExtResource("8_obyne")]
+[node name="NightClub" parent="." unique_id=1795330639 instance=ExtResource("8_obyne")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -8.568, -0.15, 0.359)
+
+[node name="TV" type="MeshInstance3D" parent="." unique_id=407462442]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, -2.0771053)
+mesh = SubResource("BoxMesh_tvfrm")
+script = ExtResource("9_tvscr")
+
+[node name="Screen" type="MeshInstance3D" parent="TV" unique_id=1905886578]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.031)
+material_override = SubResource("StandardMaterial3D_tvscr")
+mesh = SubResource("QuadMesh_tvscr")
+
+[node name="Audio" type="AudioStreamPlayer3D" parent="TV" unique_id=732764005]
+unit_size = 3.0

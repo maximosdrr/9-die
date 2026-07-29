@@ -1,4 +1,4 @@
-[gd_scene load_steps=48 format=4 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=49 format=4 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" path="res://Features/Player/Scripts/Player.cs" id="1_wlwl2"]
 [ext_resource type="Script" path="res://Features/Player/Scripts/HeadPivot.cs" id="2_bd6kk"]
@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://0xjgjvsfmvwu" path="res://Assets/Characters/Base/Character_Image_6.png" id="6_de82q"]
 [ext_resource type="Script" path="res://Core/ToggleNode/Toggleable.cs" id="6_wlwl2"]
 [ext_resource type="PackedScene" uid="uid://oeifsxwu2bfd" path="res://Features/Player/Components/UI/NotificationPopup.tscn" id="7_4uqpi"]
+[ext_resource type="PackedScene" path="res://Features/Player/Components/UI/TvShareButton.tscn" id="7_tvshr"]
 [ext_resource type="Texture2D" uid="uid://b6jqtm575xaub" path="res://Assets/Characters/Base/Character_Image_7_7.png" id="7_5rj7x"]
 [ext_resource type="Texture2D" uid="uid://3ytfag0bo7n5" path="res://Assets/Characters/Base/Character_Image_8.png" id="8_pjnld"]
 [ext_resource type="Texture2D" uid="uid://cact0nu6f7bxv" path="res://Assets/Characters/Base/Character_Image_9.png" id="9_orvq6"]
@@ -4157,6 +4158,8 @@ replication_config = SubResource("SceneReplicationConfig_wlwl2")
 [node name="UI" type="Node3D" parent="."]
 
 [node name="NotificationPopup" parent="UI" instance=ExtResource("7_4uqpi")]
+
+[node name="TvShareButton" parent="UI" instance=ExtResource("7_tvshr")]
 
 [node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("AuthorityStateSynchronizer")]
 script = ExtResource("23_cwv8h")
