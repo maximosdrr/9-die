@@ -11,8 +11,8 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -260.0
-offset_top = -90.0
+offset_left = -280.0
+offset_top = -110.0
 offset_right = -20.0
 offset_bottom = -20.0
 grow_horizontal = 0
@@ -31,3 +31,29 @@ visible = false
 text = "🔴 Compartilhando sua tela"
 horizontal_alignment = 1
 autowrap_mode = 2
+
+[node name="Overlay" type="Control" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Backdrop" type="ColorRect" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.75)
+mouse_filter = 2
+
+[node name="TextureRect" type="TextureRect" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 60.0
+offset_top = 60.0
+offset_right = -60.0
+offset_bottom = -60.0
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2

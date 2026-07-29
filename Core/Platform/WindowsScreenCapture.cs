@@ -22,7 +22,8 @@ public static class WindowsScreenCapture
     private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
 
     [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateCompatibleBitmap(IntPtr hdc, int width, int height);
+    private static extern IntPtr CreateDIBSection(IntPtr hdc, ref BitmapInfoHeader bmi, uint usage,
+        out IntPtr bits, IntPtr hSection, uint offset);
 
     [DllImport("gdi32.dll")]
     private static extern IntPtr SelectObject(IntPtr hdc, IntPtr hObject);
@@ -38,8 +39,24 @@ public static class WindowsScreenCapture
         IntPtr hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, uint rop);
 
     [DllImport("gdi32.dll")]
-    private static extern int GetDIBits(IntPtr hdc, IntPtr hbmp, uint start, uint lines,
-        IntPtr lpBits, ref BitmapInfoHeader bmi, uint usage);
+    private static extern bool GdiFlush();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
+
+    private const uint WdaExcludeFromCapture = 0x00000011;
+
+    /// <summary>
+    /// Marks a window (identified by its native HWND) so it never appears in any screen
+    /// capture, including this class's own TryCapturePrimaryScreen. Meant to be called once
+    /// with the game's own window handle, so a player sharing their whole screen can never
+    /// accidentally capture their own game window showing the TV showing itself (an infinite
+    /// feedback loop). Requires Windows 10 2004+; returns false harmlessly on older systems.
+    /// </summary>
+    public static bool ExcludeWindowFromCapture(IntPtr hwnd)
+    {
+        return SetWindowDisplayAffinity(hwnd, WdaExcludeFromCapture);
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct BitmapInfoHeader
@@ -60,6 +77,13 @@ public static class WindowsScreenCapture
     /// <summary>
     /// Captures the primary monitor, downscaled to targetWidth x targetHeight, as top-down RGBA8 bytes
     /// ready for Godot's Image.CreateFromData(..., Image.Format.Rgba8, ...). Windows-only.
+    ///
+    /// Uses CreateDIBSection (a bitmap backed by a known, directly-addressable 32bpp buffer) instead of
+    /// CreateCompatibleBitmap + GetDIBits: the latter requires GDI to convert from whatever
+    /// device-dependent format the compatible bitmap actually ended up in, which on some GPU
+    /// drivers (especially combined with StretchBlt downscaling and a top-down/negative-height
+    /// request) produces corrupted/garbled pixel data. Writing StretchBlt's output directly into a
+    /// DIB section sidesteps that conversion step entirely.
     /// </summary>
     public static bool TryCapturePrimaryScreen(int targetWidth, int targetHeight, out byte[] rgbaPixels)
     {
@@ -77,21 +101,11 @@ public static class WindowsScreenCapture
         var hdcMem = IntPtr.Zero;
         var hBitmap = IntPtr.Zero;
         var oldBitmap = IntPtr.Zero;
-        var unmanagedBuffer = IntPtr.Zero;
 
         try
         {
             hdcMem = CreateCompatibleDC(hdcScreen);
             if (hdcMem == IntPtr.Zero)
-                return false;
-
-            hBitmap = CreateCompatibleBitmap(hdcScreen, targetWidth, targetHeight);
-            if (hBitmap == IntPtr.Zero)
-                return false;
-
-            oldBitmap = SelectObject(hdcMem, hBitmap);
-
-            if (!StretchBlt(hdcMem, 0, 0, targetWidth, targetHeight, hdcScreen, 0, 0, screenWidth, screenHeight, SrcCopy))
                 return false;
 
             var header = new BitmapInfoHeader
@@ -104,16 +118,22 @@ public static class WindowsScreenCapture
                 biCompression = BiRgb,
             };
 
-            var stride = targetWidth * 4;
-            var bufferSize = stride * targetHeight;
-            unmanagedBuffer = Marshal.AllocHGlobal(bufferSize);
-
-            var linesCopied = GetDIBits(hdcMem, hBitmap, 0, (uint)targetHeight, unmanagedBuffer, ref header, DibRgbColors);
-            if (linesCopied == 0)
+            hBitmap = CreateDIBSection(hdcScreen, ref header, DibRgbColors, out var bitsPtr, IntPtr.Zero, 0);
+            if (hBitmap == IntPtr.Zero || bitsPtr == IntPtr.Zero)
                 return false;
 
+            oldBitmap = SelectObject(hdcMem, hBitmap);
+
+            if (!StretchBlt(hdcMem, 0, 0, targetWidth, targetHeight, hdcScreen, 0, 0, screenWidth, screenHeight, SrcCopy))
+                return false;
+
+            GdiFlush();
+
+            var stride = targetWidth * 4;
+            var bufferSize = stride * targetHeight;
+
             var bgra = new byte[bufferSize];
-            Marshal.Copy(unmanagedBuffer, bgra, 0, bufferSize);
+            Marshal.Copy(bitsPtr, bgra, 0, bufferSize);
 
             var rgba = new byte[bufferSize];
             for (var i = 0; i < bufferSize; i += 4)
@@ -129,8 +149,6 @@ public static class WindowsScreenCapture
         }
         finally
         {
-            if (unmanagedBuffer != IntPtr.Zero)
-                Marshal.FreeHGlobal(unmanagedBuffer);
             if (oldBitmap != IntPtr.Zero)
                 SelectObject(hdcMem, oldBitmap);
             if (hBitmap != IntPtr.Zero)

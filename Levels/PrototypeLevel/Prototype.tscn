@@ -67,6 +67,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.
 shape = SubResource("BoxShape3D_b7m75")
 
 [node name="Table" parent="." unique_id=542657396 instance=ExtResource("3_4e5w7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.1467185, 0, 0)
 GameControllerScene = ExtResource("4_y12w2")
 TableGameScene = ExtResource("5_rxpk7")
 

@@ -7,10 +7,9 @@ using System.Runtime.InteropServices;
 [GlobalClass]
 public partial class TvScreenShare : MeshInstance3D
 {
-    private const int CaptureWidth = 384;
-    private const int CaptureHeight = 216;
-    private const float JpegQuality = 0.5f;
-    private const double TargetFps = 8.0;
+    private const int CaptureWidth = 1280;
+    private const int CaptureHeight = 720;
+    private const double TargetFps = 15.0;
     private const int FrameTransferChannel = 1;
     private const int AudioTransferChannel = 2;
     private const int AudioMixRate = 48000;
@@ -19,15 +18,16 @@ public partial class TvScreenShare : MeshInstance3D
     public delegate void SharerChangedEventHandler(int sharerId);
 
     public int SharerId { get; private set; } = 0;
+    public ImageTexture Texture => _texture;
 
     private MeshInstance3D _screenMeshInstance;
     private StandardMaterial3D _screenMaterial;
     private ImageTexture _texture;
-    private double _captureAccumulator = 0.0;
 
     private AudioStreamPlayer3D _audioPlayer;
     private AudioStreamGeneratorPlayback _audioPlayback;
     private SystemAudioCapture _audioCapture;
+    private ScreenCaptureWorker _videoCapture;
 
     public override void _EnterTree()
     {
@@ -46,6 +46,7 @@ public partial class TvScreenShare : MeshInstance3D
     {
         _screenMeshInstance = GetNode<MeshInstance3D>("Screen");
         _screenMaterial = (StandardMaterial3D)_screenMeshInstance.MaterialOverride;
+        _screenMaterial.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic;
 
         _audioPlayer = GetNode<AudioStreamPlayer3D>("Audio");
         var generator = new AudioStreamGenerator
@@ -58,6 +59,12 @@ public partial class TvScreenShare : MeshInstance3D
         _audioPlayback = (AudioStreamGeneratorPlayback)_audioPlayer.GetStreamPlayback();
 
         SetProcess(false);
+
+        if (OS.GetName() == "Windows")
+        {
+            var hwnd = (IntPtr)DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle, (int)DisplayServer.MainWindowId);
+            WindowsScreenCapture.ExcludeWindowFromCapture(hwnd);
+        }
 
         NetworkManager.Instance.NetworkProvider.PlayerConnected += OnPlayerConnected;
         NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
@@ -169,6 +176,9 @@ public partial class TvScreenShare : MeshInstance3D
 
     private void StartLocalCapture()
     {
+        if (_videoCapture == null)
+            _videoCapture = new ScreenCaptureWorker(CaptureWidth, CaptureHeight, TargetFps);
+
         if (_audioCapture != null)
             return;
 
@@ -187,6 +197,9 @@ public partial class TvScreenShare : MeshInstance3D
 
     private void StopLocalCapture()
     {
+        _videoCapture?.Dispose();
+        _videoCapture = null;
+
         if (_audioCapture == null)
             return;
 
@@ -197,33 +210,25 @@ public partial class TvScreenShare : MeshInstance3D
 
     public override void _Process(double delta)
     {
-        ProcessVideoCapture(delta);
+        ProcessVideoCapture();
         ProcessAudioCapture();
     }
 
-    private void ProcessVideoCapture(double delta)
+    private void ProcessVideoCapture()
     {
-        _captureAccumulator += delta;
-        if (_captureAccumulator < 1.0 / TargetFps)
-            return;
-        _captureAccumulator = 0.0;
-
-        if (!WindowsScreenCapture.TryCapturePrimaryScreen(CaptureWidth, CaptureHeight, out var rgba))
+        if (_videoCapture == null || !_videoCapture.TryDequeueLatestFrame(out var encodedBytes))
             return;
 
-        var image = Image.CreateFromData(CaptureWidth, CaptureHeight, false, Image.Format.Rgba8, rgba);
-        var jpegBytes = image.SaveJpgToBuffer(JpegQuality);
-
-        DisplayFrame(jpegBytes);
+        DisplayFrame(encodedBytes);
 
         if (Multiplayer.IsServer())
         {
             foreach (var peerId in Multiplayer.GetPeers())
-                RpcId(peerId, MethodName.SendFrame, jpegBytes);
+                RpcId(peerId, MethodName.SendFrame, encodedBytes);
         }
         else
         {
-            RpcId(1, MethodName.SubmitFrame, jpegBytes);
+            RpcId(1, MethodName.SubmitFrame, encodedBytes);
         }
     }
 
@@ -247,8 +252,9 @@ public partial class TvScreenShare : MeshInstance3D
         if (monoInt16.Length == 0)
             return;
 
-        PlayAudioChunk(monoInt16);
-
+        // Deliberately not calling PlayAudioChunk here: the sharer already hears this audio
+        // directly from their own system output, so looping it back through the TV speaker
+        // would double it up as an echo. Only relay it to everyone else.
         if (Multiplayer.IsServer())
         {
             foreach (var peerId in Multiplayer.GetPeers())
@@ -261,7 +267,7 @@ public partial class TvScreenShare : MeshInstance3D
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = FrameTransferChannel)]
-    private void SubmitFrame(byte[] jpegBytes)
+    private void SubmitFrame(byte[] encodedBytes)
     {
         if (!Multiplayer.IsServer())
             return;
@@ -270,17 +276,17 @@ public partial class TvScreenShare : MeshInstance3D
         if (senderId != SharerId)
             return;
 
-        DisplayFrame(jpegBytes);
+        DisplayFrame(encodedBytes);
 
         foreach (var peerId in Multiplayer.GetPeers())
             if (peerId != senderId)
-                RpcId(peerId, MethodName.SendFrame, jpegBytes);
+                RpcId(peerId, MethodName.SendFrame, encodedBytes);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = FrameTransferChannel)]
-    private void SendFrame(byte[] jpegBytes)
+    private void SendFrame(byte[] encodedBytes)
     {
-        DisplayFrame(jpegBytes);
+        DisplayFrame(encodedBytes);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = AudioTransferChannel)]
@@ -306,20 +312,22 @@ public partial class TvScreenShare : MeshInstance3D
         PlayAudioChunk(monoInt16);
     }
 
-    private void DisplayFrame(byte[] jpegBytes)
+    private void DisplayFrame(byte[] encodedBytes)
     {
         var image = new Image();
-        var err = image.LoadJpgFromBuffer(jpegBytes);
+        var err = image.LoadWebpFromBuffer(encodedBytes);
         if (err != Error.Ok)
             return;
+
+        // Without mipmaps, viewing this texture on a small/distant 3D surface (or at a steep
+        // angle) causes shimmering/aliasing since the GPU can't minify it properly.
+        image.GenerateMipmaps();
 
         if (_texture == null)
         {
             _texture = ImageTexture.CreateFromImage(image);
             _screenMaterial.AlbedoColor = Colors.White;
             _screenMaterial.AlbedoTexture = _texture;
-            _screenMaterial.EmissionEnabled = true;
-            _screenMaterial.EmissionTexture = _texture;
         }
         else
         {
@@ -329,11 +337,13 @@ public partial class TvScreenShare : MeshInstance3D
 
     private void ClearScreen()
     {
+        // The screen material is Unshaded, so AlbedoTexture alone is enough to display the
+        // captured frame at full brightness; Emission was only adding a second, unnecessary
+        // brightness pass that pushed the scene's global glow/bloom into blowing out bright
+        // desktop content (white backgrounds, text) into a hazy halo.
         _texture = null;
         _screenMaterial.AlbedoColor = new Color(0.05f, 0.05f, 0.05f);
         _screenMaterial.AlbedoTexture = null;
-        _screenMaterial.EmissionEnabled = false;
-        _screenMaterial.EmissionTexture = null;
     }
 
     private void PlayAudioChunk(byte[] monoInt16)
