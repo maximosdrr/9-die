@@ -29,6 +29,9 @@ public partial class TableGame : Node3D
     [Signal]
     public delegate void PlayerRemovedFromMatchEventHandler(string playerId, Array turnOrder);
 
+    [Signal]
+    public delegate void PlayerReclaimedEventHandler(string oldPlayerId, string newPlayerId, Array turnOrder);
+
     public virtual void Setup(Table table)
     {
         Table = table;
@@ -44,7 +47,18 @@ public partial class TableGame : Node3D
         if (!Multiplayer.IsServer())
             return;
 
-        RemovePlayerFromMatch(peerId.ToString(), "opponent_disconnected");
+        var playerId = peerId.ToString();
+        if (!TurnOrder.Contains(playerId))
+            return;
+
+        var token = ReconnectionManager.Instance.GetToken(peerId);
+        if (string.IsNullOrEmpty(token))
+        {
+            RemovePlayerFromMatch(playerId, "opponent_disconnected");
+            return;
+        }
+
+        ReconnectionManager.Instance.BeginGracePeriod(token, playerId, this);
     }
 
     public void RequestSurrender(string playerId)
@@ -115,6 +129,33 @@ public partial class TableGame : Node3D
         Table.PlayersOnMatch.Remove(playerId);
 
         EmitSignal(SignalName.PlayerRemovedFromMatch, playerId, turnOrder);
+    }
+
+    // Called by ReconnectionManager once a reconnecting peer's token matches a
+    // slot that's still within its grace period — hands the match state back to
+    // the newly spawned Player node for that peer instead of forfeiting.
+    public void ReclaimSlot(string oldPlayerId, string newPlayerId)
+    {
+        if (!Multiplayer.IsServer())
+            return;
+
+        var index = TurnOrder.IndexOf(oldPlayerId);
+        if (index == -1)
+            return;
+
+        var newTurnOrder = new Array(TurnOrder);
+        newTurnOrder[index] = newPlayerId;
+
+        ApplyPlayerReclaimed(oldPlayerId, newPlayerId, newTurnOrder);
+    }
+
+    public void ApplyPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder)
+    {
+        TurnOrder = turnOrder;
+        Table.PlayersOnMatch.Remove(oldPlayerId);
+        Table.PlayersOnMatch.Add(newPlayerId);
+
+        EmitSignal(SignalName.PlayerReclaimed, oldPlayerId, newPlayerId, turnOrder);
     }
 
     private void SetupNetworkTurnSyncronization(TableGame tableGame)

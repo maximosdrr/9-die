@@ -6,8 +6,7 @@ Os itens 100% concluídos (01,02,03,04,05,06,09 + todos os 🔴/🟠 críticos o
 
 ## Prioridade Baixa (robustez e polimento)
 
-- [07 - Reconexão / espectador](07-reconexao-espectador.md) — espectador já funciona; reconexão de verdade adiada
-- [08 - Ativar Steam como provider de rede](08-ativar-steam-provider.md) — bloqueado por App ID real do Steamworks
+- [08 - Ativar Steam como provider de rede](08-ativar-steam-provider.md) — ativado e testado até onde dá sozinho (hospedar já funciona); falta confirmar join com uma segunda identidade Steam
 
 ---
 

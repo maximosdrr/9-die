@@ -39,6 +39,7 @@ public partial class PoolGame : TableGame
         MatchOver += OnMatchIsOver;
         MatchStarted += OnMatchStarts;
         PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
+        PlayerReclaimed += OnPlayerReclaimed;
     }
 
     public override void SetCamera(GlobalCamera camera)
@@ -117,5 +118,24 @@ public partial class PoolGame : TableGame
         leavingPlayer.GameHandler.CurrentController.GiveControl();
         leavingPlayer.GameHandler.UnequipCurrentController();
         leavingPlayer.TakeControl();
+    }
+
+    private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder)
+    {
+        var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
+        if (newPlayer == null)
+            return;
+
+        newPlayer.GameHandler.EquipGameController(GameControllerScene, this, Camera);
+
+        // The old player's node is already gone by now, so TurnOwner (if it was
+        // theirs) is a stale reference — this just checks whose turn it names,
+        // same pattern RemovePlayerFromMatch already relies on being safe here.
+        var wasTurnOwner = TurnOwner != null && (string)TurnOwner.Name == oldPlayerId;
+        if (!wasTurnOwner)
+            return;
+
+        TurnOwner = newPlayer;
+        newPlayer.GameHandler.CurrentController?.ApplyControl(newPlayerId, new Dictionary());
     }
 }

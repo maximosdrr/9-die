@@ -1,25 +1,24 @@
 # 08 — Ativar Steam como provider de rede
 
 **Prioridade**: Baixa (robustez e polimento)
-**Status**: 🔵 Investigado em 29/07/2026, não ativado (fora do alcance desta sessão)
+**Status**: 🟡 Parcialmente resolvido em 30/07/2026 — ativado e testado ao vivo até onde dá com uma única conta
 
-## Achado
+## Achado original (29/07/2026)
 
-`SteamNetworkProvider.cs` está 100% implementado (lobby, host, join, lista de lobbies) mas desligado — `NetworkManager` usa `ENetNetworkProvider` (ver [infra-3](infra-3-transporte-rede-steam-morto-localhost.md)). Os binários do addon `godotsteam` pra Windows existem de verdade em `addons/godotsteam/win64/` (`libgodotsteam.windows.template_debug.x86_64.dll`, `..._release...`, `steam_api64.dll`) — não é um addon quebrado, só não usado (o arquivo deletado no início desta sessão, `~libgodotsteam.windows.template_debug.x86_64.dll` com til, era um arquivo de lock/backup solto, não a DLL real).
+`SteamNetworkProvider.cs` está 100% implementado (lobby, host, join, lista de lobbies) mas estava desligado — `NetworkManager` usava `ENetNetworkProvider` fixo. Os binários do addon `godotsteam` pra Windows existem de verdade em `addons/godotsteam/win64/` — não é um addon quebrado, só não usado.
 
-## Por que não ativei
+## O que mudou em 30/07/2026
 
-Ativar Steam de verdade não é só trocar uma linha no `NetworkManager` — precisa de:
-1. Um **App ID real** do Steamworks (hoje `steam_appid.txt` tem `480`, o App ID de teste público da Valve, ver [repo-4](repo-limpeza.md)).
-2. Cadastro do jogo no painel do Steamworks (fora do meu alcance — é uma conta/processo do dono do projeto, não código).
-3. **Teste ao vivo com contas Steam reais** pra confirmar que lobby/host/join funcionam de ponta a ponta — não dá pra validar isso sem rodar dois clientes com Steam de verdade, o que não é possível nesta sessão.
+O switch Steam-vs-ENet virou uma flag única (`network/transport` no `project.godot`, ver [infra-3](infra-3-transporte-rede-steam-morto-localhost.md)) em vez de uma linha comentada — então "ativar" já não é mais um bloqueio de código, é só trocar `transport="steam"`.
 
-Ligar o switch sem poder testar contra uma sessão Steam real seria pior que não mexer — um bug de wiring passaria despercebido até alguém tentar usar de verdade.
+**Testado ao vivo pelo dono do projeto**: com `transport="steam"`, o SDK inicializa (`Steam Initialized. User ID: ...`), hospedar cria a lobby corretamente (`Host Session Started... Lobby ID: 109775244837391072`) — usando o App ID de teste público da Valve (`480`, já em `steam_appid.txt`, ver [repo-4](repo-limpeza.md)), que é exatamente pra isso que existe. Achamos e corrigimos ao vivo um bug real nesse teste: Lobby ID do Steam é 64 bits, mas `lobbyId` era `int` (32 bits) na cadeia toda — corrigido pra `ulong`, ver [infra-3](infra-3-transporte-rede-steam-morto-localhost.md).
+
+**Ainda não confirmado**: o `joinLobby` completando de ponta a ponta — precisa de uma segunda identidade Steam real (Steam não deixa a mesma conta ser host e convidado da mesma sala), que o dono do projeto ainda não tem disponível pra testar.
 
 ## Decisão
 
-Nenhum código alterado. Quando/se isso for retomado, o primeiro passo é o dono do projeto conseguir um App ID de teste no Steamworks — sem isso não tem como validar nada.
+Cadastro de App ID de produção no painel do Steamworks continua fora do meu alcance (conta/processo do dono do projeto, não código) — mas isso só importa pra publicar de verdade, não pra continuar testando (o App ID de teste 480 já é suficiente pro desenvolvimento). O que falta agora é só a confirmação do join com 2 identidades reais.
 
 ## Verificação
 
-N/A — nenhuma mudança de código neste item.
+`dotnet build` limpo (via infra-3). Hospedar confirmado ao vivo. Join como convidado ainda não confirmado — falta segunda conta/segundo tester.

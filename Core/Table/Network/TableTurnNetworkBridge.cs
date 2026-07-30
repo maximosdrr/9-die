@@ -15,6 +15,7 @@ public partial class TableTurnNetworkBridge : Node
         SignalUtil.ConnectGuarded(TableGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtendedServerSide));
         SignalUtil.ConnectGuarded(TableGame, TableGame.SignalName.MatchOver, new Callable(this, MethodName.OnMatchOverServerSide));
         SignalUtil.ConnectGuarded(TableGame, TableGame.SignalName.PlayerRemovedFromMatch, new Callable(this, MethodName.OnPlayerRemovedFromMatchServerSide));
+        SignalUtil.ConnectGuarded(TableGame, TableGame.SignalName.PlayerReclaimed, new Callable(this, MethodName.OnPlayerReclaimedServerSide));
     }
 
     private void OnMatchStartedServerSide(Array playersIds, string firstPlayer)
@@ -47,6 +48,12 @@ public partial class TableTurnNetworkBridge : Node
             Rpc(MethodName.RpcSyncPlayerRemoved, playerId, turnOrder);
     }
 
+    private void OnPlayerReclaimedServerSide(string oldPlayerId, string newPlayerId, Array turnOrder)
+    {
+        if (Multiplayer.IsServer())
+            Rpc(MethodName.RpcSyncPlayerReclaimed, oldPlayerId, newPlayerId, turnOrder);
+    }
+
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void RpcSyncMatchSetup(Array playersIds, string firstPlayer)
     {
@@ -75,5 +82,11 @@ public partial class TableTurnNetworkBridge : Node
     private void RpcSyncPlayerRemoved(string playerId, Array turnOrder)
     {
         TableGame.ApplyPlayerRemoved(playerId, turnOrder);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RpcSyncPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder)
+    {
+        TableGame.ApplyPlayerReclaimed(oldPlayerId, newPlayerId, turnOrder);
     }
 }
