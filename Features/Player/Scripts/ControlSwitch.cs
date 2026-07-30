@@ -4,7 +4,6 @@ using Godot;
 public partial class ControlSwitch : Node
 {
     [Export] public Player Player;
-    [Export] public Node3D GameContextSlot;
 
     public override void _UnhandledInput(InputEvent @event)
     {
@@ -14,15 +13,7 @@ public partial class ControlSwitch : Node
         if (!Input.IsActionJustPressed("switch_control"))
             return;
 
-        var gameContextChildren = GameContextSlot.GetChildren();
-
-        if (gameContextChildren.Count == 0)
-        {
-            GD.PushError("No children in player game controller context yet!");
-            return;
-        }
-
-        var currentGameController = gameContextChildren[0] as PlayerGameController;
+        var currentGameController = Player.GameHandler.CurrentController;
 
         if (currentGameController == null)
             return;
@@ -33,13 +24,13 @@ public partial class ControlSwitch : Node
             SwitchToPlayer(currentGameController);
     }
 
-    private void SwitchToPlayer(PlayerGameController gameController)
+    private void SwitchToPlayer(PoolController gameController)
     {
         gameController.GiveControl();
         Player.TakeControl();
     }
 
-    private void SwitchToGame(PlayerGameController gameController)
+    private void SwitchToGame(PoolController gameController)
     {
         if (!gameController.CanTakeControl)
         {

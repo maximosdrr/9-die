@@ -16,8 +16,6 @@ size = Vector3(5, 2, 5)
 script = ExtResource("1_iqaas")
 metadata/_custom_type_script = "uid://dc6wx0dbfqcw0"
 
-[node name="PlayerGameControllerHandler" type="Node3D" parent="."]
-
 [node name="TableGameHandler" type="Node3D" parent="."]
 
 [node name="TableInfluence" type="Area3D" parent="."]

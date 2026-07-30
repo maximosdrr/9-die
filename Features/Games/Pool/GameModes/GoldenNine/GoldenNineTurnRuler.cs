@@ -1,5 +1,4 @@
 using Godot;
-using Godot.Collections;
 using System.Linq;
 
 [GlobalClass]
@@ -10,12 +9,12 @@ public partial class GoldenNineTurnRuler : TurnRuler
         Type = RulerType.GoldenNine;
     }
 
-    public override Actions Rule(Dictionary context)
+    public override Actions Rule(TurnContext context)
     {
-        var ballsScored = (Dictionary)context["balls_scored"];
-        var firstBallTouched = context["first_ball_touched"].As<Ball>();
-        var ballsOffTable = (Array<Ball>)context["balls_off_table"];
-        var targetBall = context["target_ball"].As<Ball>();
+        var ballsScored = context.BallsScored;
+        var firstBallTouched = context.FirstBallTouched;
+        var ballsOffTable = context.BallsOffTable;
+        var targetBall = context.TargetBall;
 
         if (ballsScored.ContainsKey(0))
         {

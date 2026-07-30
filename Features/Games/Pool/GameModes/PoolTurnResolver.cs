@@ -3,15 +3,9 @@ using Godot.Collections;
 using System.Threading.Tasks;
 
 [GlobalClass]
-public partial class GoldenNineTurnResolver : TurnResolver
+public partial class PoolTurnResolver : TurnResolver
 {
     [Export] public TurnRuler TurnRuler;
-    [Export] public OffTableMonitor OffTableMonitor;
-    [Export] public BallPlacementManager BallPlacementManager;
-
-    public GoldenNineCueBallContactListener CueBallContactListener;
-    public GoldenNineScoreListener ScoreListener;
-    public GoldenNineBallFellOffListener BallFellOffListener;
 
     public PoolGame PoolGame;
     public Ball CueBall;
@@ -21,21 +15,10 @@ public partial class GoldenNineTurnResolver : TurnResolver
     public Array<Ball> BallsOffTableList = new();
     public Ball FirstBallHit = null;
 
-    public override void _Ready()
-    {
-        CueBallContactListener = GetNode<GoldenNineCueBallContactListener>("GoldenNineCueBallContactListener");
-        ScoreListener = GetNode<GoldenNineScoreListener>("GoldenNineScoreListener");
-        BallFellOffListener = GetNode<GoldenNineBallFellOffListener>("GoldenNineBallFellOffListener");
-    }
-
     public override void Setup(TableGame tableGame)
     {
         PoolGame = (PoolGame)tableGame;
         CueBall = PoolGame.CueBall;
-
-        ScoreListener.Setup(this);
-        CueBallContactListener.Setup(this);
-        BallFellOffListener.Setup(this);
 
         BallsInGame.Clear();
 
@@ -65,6 +48,8 @@ public partial class GoldenNineTurnResolver : TurnResolver
 
         SignalUtil.ConnectGuarded(PoolGame.CueBall, Ball.SignalName.Striked, new Callable(this, MethodName.OnStrike));
         SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
+        SignalUtil.ConnectGuarded(PoolGame.ScoreMonitor, Area3D.SignalName.BodyEntered, new Callable(this, MethodName.OnBallTouchScoreGround));
+        SignalUtil.ConnectGuarded(PoolGame.OffTableMonitor, OffTableMonitor.SignalName.BallFellOff, new Callable(this, MethodName.OnBallFellOff));
     }
 
     private void DisconnectSignals()
@@ -74,6 +59,26 @@ public partial class GoldenNineTurnResolver : TurnResolver
 
         SignalUtil.DisconnectGuarded(PoolGame.CueBall, Ball.SignalName.Striked, new Callable(this, MethodName.OnStrike));
         SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
+        SignalUtil.DisconnectGuarded(PoolGame.ScoreMonitor, Area3D.SignalName.BodyEntered, new Callable(this, MethodName.OnBallTouchScoreGround));
+        SignalUtil.DisconnectGuarded(PoolGame.OffTableMonitor, OffTableMonitor.SignalName.BallFellOff, new Callable(this, MethodName.OnBallFellOff));
+    }
+
+    private void OnBallTouchScoreGround(Node3D body)
+    {
+        if (body is Ball ball)
+            BallsScored[ball.Index] = ball;
+    }
+
+    private void OnBallFellOff(Ball ball)
+    {
+        if (!BallsOffTableList.Contains(ball))
+            BallsOffTableList.Add(ball);
+    }
+
+    private void OnCueBallContact(Ball ball)
+    {
+        if (FirstBallHit == null)
+            FirstBallHit = ball;
     }
 
     private void OnTurnStart(string ownerId, Dictionary context)
@@ -91,26 +96,22 @@ public partial class GoldenNineTurnResolver : TurnResolver
         var target = ballIndex == 0 ? CueBall : BallsInGame[ballIndex];
         var balls = new Array<Ball>(BallsInGame.Values);
 
-        BallPlacementManager.StartPlacement(target, balls);
-        await ToSignal(BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
+        PoolGame.BallPlacementManager.StartPlacement(target, balls);
+        await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
     }
 
     private async void OnStrike()
     {
         ResetTurnState();
 
-        CueBallContactListener.StartListeningCollisions();
+        SignalUtil.ConnectGuarded(CueBall, Ball.SignalName.BallContacted, new Callable(this, MethodName.OnCueBallContact));
         await ToSignal(PoolGame.BallsMovementMonitor, BallsMovementMonitor.SignalName.BallsStopped);
-        CueBallContactListener.StopListeningCollisions();
+        SignalUtil.DisconnectGuarded(CueBall, Ball.SignalName.BallContacted, new Callable(this, MethodName.OnCueBallContact));
 
         var context = GenerateTurnContext();
         var action = TurnRuler.Rule(context);
 
-        var currentBallsRemainingDict = (Dictionary)context["current_balls_remaining"];
-        var newBallsInGame = new Dictionary<int, Ball>();
-        foreach (var key in currentBallsRemainingDict.Keys)
-            newBallsInGame[(int)key] = (Ball)currentBallsRemainingDict[key];
-        BallsInGame = newBallsInGame;
+        BallsInGame = context.CurrentBallsRemaining;
 
         ApplyTurnAction(action);
     }
@@ -122,9 +123,9 @@ public partial class GoldenNineTurnResolver : TurnResolver
         FirstBallHit = null;
     }
 
-    private Dictionary GenerateTurnContext()
+    private TurnContext GenerateTurnContext()
     {
-        var currentBallsRemaining = new Dictionary();
+        var currentBallsRemaining = new Dictionary<int, Ball>();
         foreach (var kvp in BallsInGame)
             currentBallsRemaining[kvp.Key] = kvp.Value;
 
@@ -140,17 +141,17 @@ public partial class GoldenNineTurnResolver : TurnResolver
         foreach (var ball in BallsOffTableList)
             currentBallsRemaining.Remove(ball.Index);
 
-        var ballsScoredDict = new Dictionary();
+        var ballsScored = new Dictionary<int, Ball>();
         foreach (var kvp in BallsScored)
-            ballsScoredDict[kvp.Key] = kvp.Value;
+            ballsScored[kvp.Key] = kvp.Value;
 
-        return new Dictionary
+        return new TurnContext
         {
-            ["balls_scored"] = ballsScoredDict,
-            ["first_ball_touched"] = FirstBallHit,
-            ["balls_off_table"] = new Array<Ball>(BallsOffTableList),
-            ["target_ball"] = targetBall,
-            ["current_balls_remaining"] = currentBallsRemaining,
+            BallsScored = ballsScored,
+            FirstBallTouched = FirstBallHit,
+            BallsOffTable = new Array<Ball>(BallsOffTableList),
+            TargetBall = targetBall,
+            CurrentBallsRemaining = currentBallsRemaining,
         };
     }
 

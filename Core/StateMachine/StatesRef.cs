@@ -3,10 +3,6 @@ using Godot;
 [GlobalClass]
 public partial class StatesRef : RefCounted
 {
-    // BALL
-    public const string BallIdle = "BALL_IDLE";
-    public const string BallMoving = "BALL_MOVING";
-
     // CUE
     public const string CueCharging = "CUE_CHARGING";
     public const string CueIdle = "CUE_IDLE";

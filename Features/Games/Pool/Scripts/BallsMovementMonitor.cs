@@ -4,14 +4,13 @@ using Godot.Collections;
 [GlobalClass]
 public partial class BallsMovementMonitor : Node
 {
-    [Export] public float BallCheckDelay = 0.1f;
     [Export] public float StopTolerance = 0.5f;
 
     public PoolGame PoolGame;
     public Array<Ball> Balls = new();
 
-    private float _ballCheckTimer = 0.0f;
-    private float _stopToleranceTimer = 0.0f;
+    private int _movingCount = 0;
+    private ulong _stopWaitToken = 0;
     public bool IsMovingState = false;
 
     [Signal] public delegate void BallsStoppedEventHandler();
@@ -22,54 +21,43 @@ public partial class BallsMovementMonitor : Node
         PoolGame = poolGame;
         Balls = new Array<Ball>(poolGame.Balls);
         Balls.Add(poolGame.CueBall);
-    }
 
-    public override void _Process(double delta)
-    {
-        if (_ballCheckTimer > 0)
-        {
-            _ballCheckTimer -= (float)delta;
-            return;
-        }
-
-        _ballCheckTimer = BallCheckDelay;
-
-        var anyBallMoving = false;
+        _movingCount = 0;
+        IsMovingState = false;
 
         foreach (var ball in Balls)
         {
-            if (!IsInstanceValid(ball))
-                continue;
-
-            if (ball.LinearVelocity.Length() > 0.01f)
-            {
-                anyBallMoving = true;
-                break;
-            }
+            SignalUtil.ConnectGuarded(ball, Ball.SignalName.StartedMoving, new Callable(this, MethodName.OnBallStartedMoving));
+            SignalUtil.ConnectGuarded(ball, Ball.SignalName.StoppedMoving, new Callable(this, MethodName.OnBallStoppedMoving));
         }
+    }
 
-        if (anyBallMoving)
+    private void OnBallStartedMoving()
+    {
+        _movingCount++;
+        _stopWaitToken++;
+
+        if (!IsMovingState)
         {
-            _stopToleranceTimer = StopTolerance;
-
-            if (!IsMovingState)
-            {
-                IsMovingState = true;
-                EmitSignal(SignalName.BallsMoving);
-            }
+            IsMovingState = true;
+            EmitSignal(SignalName.BallsMoving);
         }
-        else
-        {
-            if (IsMovingState)
-            {
-                _stopToleranceTimer -= BallCheckDelay;
+    }
 
-                if (_stopToleranceTimer <= 0)
-                {
-                    IsMovingState = false;
-                    EmitSignal(SignalName.BallsStopped);
-                }
-            }
-        }
+    private async void OnBallStoppedMoving(Vector3 position)
+    {
+        _movingCount = Mathf.Max(0, _movingCount - 1);
+
+        if (_movingCount > 0)
+            return;
+
+        var myToken = ++_stopWaitToken;
+        await ToSignal(GetTree().CreateTimer(StopTolerance), SceneTreeTimer.SignalName.Timeout);
+
+        if (myToken != _stopWaitToken || _movingCount > 0 || !IsMovingState)
+            return;
+
+        IsMovingState = false;
+        EmitSignal(SignalName.BallsStopped);
     }
 }

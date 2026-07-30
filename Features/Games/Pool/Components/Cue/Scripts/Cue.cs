@@ -11,12 +11,13 @@ public partial class Cue : Node3D
     [Export] public StateMachine StateMachine;
     [Export] public CueSfx CueSfx;
     [Export] public CueNetworkBridge StrokeNetworkBridge;
-    [Export] public CueAutomaticElevation AutomaticElevation;
+    [Export] public RayCast3D CueHandleSensor;
 
     [ExportGroup("Physics Config")]
     [Export] public float MaxSpeedReference = 12.0f;
     [Export] public float ForceMultiplier = 8.0f;
     [Export] public float MinForceThreshold = 0.01f;
+    [Export] public float ElevationSensorMargin = 0.08f;
 
     [ExportGroup("Visual Config")]
     [Export] public float VisualGap = 0.01f;
@@ -59,6 +60,43 @@ public partial class Cue : Node3D
         var rot = Rotation;
         rot.X = Mathf.Lerp(rot.X, targetRotationRad, 10.0f * (float)delta);
         Rotation = rot;
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (!IsMultiplayerAuthority())
+            return;
+
+        UpdateSafeAngleLimit();
+    }
+
+    private void UpdateSafeAngleLimit()
+    {
+        if (CueHandleSensor == null || CameraPivot == null)
+            return;
+
+        var safeLimit = 0.0f;
+
+        if (CueHandleSensor.IsColliding())
+        {
+            var collisionPoint = CueHandleSensor.GetCollisionPoint();
+            var diffY = (collisionPoint.Y + ElevationSensorMargin) - CameraPivot.GlobalPosition.Y;
+
+            if (diffY > 0)
+            {
+                var pivotPos2D = new Vector2(CameraPivot.GlobalPosition.X, CameraPivot.GlobalPosition.Z);
+                var colPos2D = new Vector2(collisionPoint.X, collisionPoint.Z);
+                var distanceToObstacle = pivotPos2D.DistanceTo(colPos2D);
+
+                distanceToObstacle = Mathf.Max(distanceToObstacle, 0.1f);
+                var angleRad = Mathf.Atan2(diffY, distanceToObstacle);
+
+                safeLimit = -Mathf.Abs(angleRad);
+            }
+        }
+
+        safeLimit = Mathf.Clamp(safeLimit, Mathf.DegToRad(-45.0f), 0.0f);
+        MinSafeAngle = safeLimit;
     }
 
     public bool ExecuteStrike(float mouseSpeed)
@@ -142,5 +180,10 @@ public partial class Cue : Node3D
     private bool CanStrike()
     {
         return IsInstanceValid(CueBall);
+    }
+
+    public void SnapToRestPose()
+    {
+        Position = new Vector3(SpinOffset.X, SpinOffset.Y, BallRadiusOffset);
     }
 }

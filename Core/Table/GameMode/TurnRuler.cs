@@ -1,5 +1,4 @@
 using Godot;
-using Godot.Collections;
 
 [GlobalClass]
 public partial class TurnRuler : Node
@@ -22,7 +21,7 @@ public partial class TurnRuler : Node
 
     public RulerType Type;
 
-    public virtual Actions Rule(Dictionary context)
+    public virtual Actions Rule(TurnContext context)
     {
         return default;
     }

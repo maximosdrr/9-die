@@ -1,22 +1,21 @@
-[gd_scene load_steps=14 format=3 uid="uid://du67ww01g04ae"]
+[gd_scene load_steps=12 format=3 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolGame.cs" id="1_jypsj"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.cs" id="3_qmuqs"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/OffTableMonitor.cs" id="4_y227s"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineTurnResolver.cs" id="5_5ugkb"]
+[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/PoolTurnResolver.cs" id="5_5ugkb"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/BallsMovementMonitor.cs" id="6_20w0b"]
 [ext_resource type="Script" path="res://Core/Table/GameMode/GameModeHandler.cs" id="8_bojb6"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Scripts/BallPlacementManager.cs" id="8_rm535"]
 [ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineTurnRuler.cs" id="8_yqm70"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/GoldenNineGameMode.cs" id="9_nppf3"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineCueBallContactListener.cs" id="12_8ji62"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineScoreListener.cs" id="13_ib5tq"]
+[ext_resource type="Script" path="res://Core/Table/GameMode/GameMode.cs" id="9_nppf3"]
 [ext_resource type="PackedScene" uid="uid://bcdgwpk5bpi3w" path="res://Features/Games/Pool/Components/Tables/Table1.tscn" id="13_nqd1a"]
-[ext_resource type="Script" path="res://Features/Games/Pool/GameModes/GoldenNine/Listeners/GoldenNineBallFellOffListener.cs" id="14_nqd1a"]
+[ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="15_ctrlr"]
 
 [node name="PoolGame" type="Node3D" node_paths=PackedStringArray("PoolTable")]
 script = ExtResource("1_jypsj")
 PoolTable = NodePath("Table1")
+GameControllerScene = ExtResource("15_ctrlr")
 metadata/_custom_type_script = "uid://c2r67kx8wl0t0"
 
 [node name="BallsHolderMultiplayerSpawner" type="MultiplayerSpawner" parent="."]
@@ -41,9 +40,10 @@ metadata/_custom_type_script = "uid://b7qoe402kd725"
 script = ExtResource("6_20w0b")
 metadata/_custom_type_script = "uid://dak3kydlshkpb"
 
-[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("OverheadViewRemote")]
+[node name="BallPlacementManager" type="Node" parent="Scripts" node_paths=PackedStringArray("OverheadViewRemote", "TableOrigin")]
 script = ExtResource("8_rm535")
 OverheadViewRemote = NodePath("../../Pivot/RemoteTop")
+TableOrigin = NodePath("../..")
 metadata/_custom_type_script = "uid://b26iaj5fixb40"
 
 [node name="GameModeHandler" type="Node" parent="." node_paths=PackedStringArray("CurrentGameMode")]
@@ -53,30 +53,16 @@ metadata/_custom_type_script = "uid://cm8rk3wxalspc"
 
 [node name="GoldenNine" type="Node" parent="GameModeHandler"]
 script = ExtResource("9_nppf3")
-metadata/_custom_type_script = "uid://c7lqh1twjwxm"
+metadata/_custom_type_script = "uid://cbbgxnphhve44"
 
 [node name="Ruler" type="Node" parent="GameModeHandler/GoldenNine"]
 script = ExtResource("8_yqm70")
 metadata/_custom_type_script = "uid://c3oml4nmfm8ni"
 
-[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("TurnRuler", "OffTableMonitor", "BallPlacementManager")]
+[node name="Resolver" type="Node" parent="GameModeHandler/GoldenNine" node_paths=PackedStringArray("TurnRuler")]
 script = ExtResource("5_5ugkb")
 TurnRuler = NodePath("../Ruler")
-OffTableMonitor = NodePath("../../../Scripts/OffTableMonitor")
-BallPlacementManager = NodePath("../../../Scripts/BallPlacementManager")
-metadata/_custom_type_script = "uid://y72pphul62gh"
-
-[node name="GoldenNineCueBallContactListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
-script = ExtResource("12_8ji62")
-metadata/_custom_type_script = "uid://c8itq3mj32nfw"
-
-[node name="GoldenNineScoreListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
-script = ExtResource("13_ib5tq")
-metadata/_custom_type_script = "uid://dt5fcc3asoxbn"
-
-[node name="GoldenNineBallFellOffListener" type="Node" parent="GameModeHandler/GoldenNine/Resolver"]
-script = ExtResource("14_nqd1a")
-metadata/_custom_type_script = "uid://clogi8r4yr41e"
+metadata/_custom_type_script = "uid://dia1p1hxycici"
 
 [node name="Table1" parent="." instance=ExtResource("13_nqd1a")]
 

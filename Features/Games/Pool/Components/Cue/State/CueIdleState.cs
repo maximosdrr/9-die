@@ -22,14 +22,11 @@ public partial class CueIdleState : State
 
     public override void Enter(Dictionary metadata)
     {
-        UpdateCuePose();
+        Cue.SnapToRestPose();
     }
 
     public override void HandleInput(InputEvent @event)
     {
-        if (!Cue.IsMultiplayerAuthority())
-            return;
-
         if (@event.IsActionPressed(InputSpinModifier))
         {
             StateMachine.ChangeState(StatesRef.CueSpinning, new Dictionary());
@@ -54,15 +51,6 @@ public partial class CueIdleState : State
 
     public override void Process(double delta)
     {
-        UpdateCuePose();
-    }
-
-    private void UpdateCuePose()
-    {
-        var pos = Cue.Position;
-        pos.Z = Cue.BallRadiusOffset;
-        pos.X = Cue.SpinOffset.X;
-        pos.Y = Cue.SpinOffset.Y;
-        Cue.Position = pos;
+        Cue.SnapToRestPose();
     }
 }

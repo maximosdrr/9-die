@@ -33,7 +33,6 @@ public partial class Ball : RigidBody3D
     }
 
     public CollisionShape3D CollisionShape;
-    public StateMachine StateMachine;
     public MultiplayerSynchronizer MultiplayerSynchronizerNode;
 
     [ExportGroup("Jump Physics")]
@@ -42,20 +41,26 @@ public partial class Ball : RigidBody3D
     [Export] public float CueMaxAngle = 65.0f;
     [Export] public float FloorTolerance = 0.02f;
 
+    [ExportGroup("Movement Detection")]
+    [Export] public float StopSpeedThreshold = 0.01f;
+    [Export] public float StopCheckInterval = 0.1f;
+
     [Signal] public delegate void StoppedMovingEventHandler(Vector3 position);
+    [Signal] public delegate void StartedMovingEventHandler();
     [Signal] public delegate void StrikedEventHandler();
     [Signal] public delegate void BallContactedEventHandler(Ball ball);
     [Signal] public delegate void JumpStartedEventHandler();
     [Signal] public delegate void JumpLandedEventHandler();
 
     public float Radius = 0.029f;
+    public bool IsMoving = false;
     private Transform3D _initialTransform;
     private bool _isInAir = false;
+    private float _stopCheckTimer = 0.0f;
 
     public override void _Ready()
     {
         CollisionShape = GetNode<CollisionShape3D>("CollisionShape3D");
-        StateMachine = GetNode<StateMachine>("StateMachine");
         MultiplayerSynchronizerNode = GetNode<MultiplayerSynchronizer>("MultiplayerSynchronizer");
 
         UpdateVisual();
@@ -195,7 +200,29 @@ public partial class Ball : RigidBody3D
         t = Mathf.Clamp(t, 0.0f, 1.0f);
         AngularDamp = Mathf.Lerp(minDamp, maxDamp, t);
 
-        CheckGroundState();
+        if (_isInAir || speed > stopThreshold)
+            CheckGroundState();
+
+        UpdateMovementState(speed, delta);
+    }
+
+    private void UpdateMovementState(float speed, double delta)
+    {
+        _stopCheckTimer -= (float)delta;
+        if (_stopCheckTimer > 0)
+            return;
+        _stopCheckTimer = StopCheckInterval;
+
+        var isMovingNow = speed > StopSpeedThreshold;
+        if (isMovingNow == IsMoving)
+            return;
+
+        IsMoving = isMovingNow;
+
+        if (IsMoving)
+            EmitSignal(SignalName.StartedMoving);
+        else
+            EmitSignal(SignalName.StoppedMoving, GlobalPosition);
     }
 
     private void CheckGroundState()

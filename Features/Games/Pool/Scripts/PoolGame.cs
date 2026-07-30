@@ -7,6 +7,7 @@ public partial class PoolGame : TableGame
     public PoolBallRespawn PoolBallRespawn;
     public OffTableMonitor OffTableMonitor;
     [Export] public PoolGameTable PoolTable;
+    [Export] public PackedScene GameControllerScene;
 
     public BallsMovementMonitor BallsMovementMonitor;
     public BallPlacementManager BallPlacementManager;
@@ -54,7 +55,7 @@ public partial class PoolGame : TableGame
             var pNode = PlayerRegistry.Instance.GetPlayerById(pId);
 
             if (pNode != null)
-                pNode.GameHandler.EquipGameController(Table.GameControllerScene, this);
+                pNode.GameHandler.EquipGameController(GameControllerScene, this);
         }
 
         if (Player != null && Player.GameHandler.CurrentController != null)

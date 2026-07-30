@@ -2,7 +2,6 @@
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
-[ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Features/Games/Pool/GameController/PoolController.tscn" id="4_y12w2"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://bi043ow7ejyth" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
 [ext_resource type="Script" uid="uid://b0l5erqwe6mqt" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
@@ -53,7 +52,6 @@ shape = SubResource("BoxShape3D_b7m75")
 
 [node name="Table" parent="." unique_id=542657396 instance=ExtResource("3_4e5w7")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.1467185, 0, 0)
-GameControllerScene = ExtResource("4_y12w2")
 TableGameScene = ExtResource("5_rxpk7")
 
 [node name="Multiplayer" type="Node3D" parent="." unique_id=1197676481]

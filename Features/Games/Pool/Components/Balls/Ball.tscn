@@ -1,10 +1,7 @@
-[gd_scene load_steps=14 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=11 format=3 uid="uid://cqwu27wd0ddmr"]
 
 [ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.cs" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
-[ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="2_eusg5"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/States/BallIdleState.cs" id="3_gowdo"]
-[ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/States/BallMovingState.cs" id="4_fcbjq"]
 [ext_resource type="AudioStream" uid="uid://bnm7i5xmyycgi" path="res://Assets/SoundEffects/BallBounce.ogg" id="6_87oc0"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallBounceAudio.cs" id="6_pgfyo"]
 [ext_resource type="AudioStream" uid="uid://b1bkprdpdor67" path="res://Assets/SoundEffects/BallCollision.ogg" id="6_xsld2"]
@@ -50,21 +47,6 @@ metadata/_custom_type_script = "uid://crufycb4ylox5"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_bodf6")
-
-[node name="StateMachine" type="Node3D" parent="."]
-script = ExtResource("2_eusg5")
-InitialState = "BALL_IDLE"
-metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
-
-[node name="Idle" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Ball")]
-script = ExtResource("3_gowdo")
-Ball = NodePath("../..")
-metadata/_custom_type_script = "uid://dg6b2ab8k24x4"
-
-[node name="Moving" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Ball")]
-script = ExtResource("4_fcbjq")
-Ball = NodePath("../..")
-metadata/_custom_type_script = "uid://d0l5psv6122rn"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 replication_config = SubResource("SceneReplicationConfig_5qcrw")

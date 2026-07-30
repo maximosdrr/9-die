@@ -18,25 +18,11 @@ public partial class CueLockedState : State
 
     public override void Enter(Dictionary metadata)
     {
-        var pos = Cue.Position;
-        pos.Z = Cue.BallRadiusOffset;
-        Cue.Position = pos;
-        ApplySpinToPose();
+        Cue.SnapToRestPose();
     }
 
     public override void Process(double delta)
     {
-        var pos = Cue.Position;
-        pos.Z = Cue.BallRadiusOffset;
-        Cue.Position = pos;
-        ApplySpinToPose();
-    }
-
-    private void ApplySpinToPose()
-    {
-        var pos = Cue.Position;
-        pos.X = Cue.SpinOffset.X;
-        pos.Y = Cue.SpinOffset.Y;
-        Cue.Position = pos;
+        Cue.SnapToRestPose();
     }
 }
