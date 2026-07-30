@@ -13,4 +13,5 @@ public sealed class TurnContext
     public Array<Ball> BallsOffTable;
     public Ball TargetBall;
     public Dictionary<int, Ball> CurrentBallsRemaining;
+    public bool AnyRailContact;
 }

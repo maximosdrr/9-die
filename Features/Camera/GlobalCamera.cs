@@ -18,18 +18,7 @@ public partial class GlobalCamera : Camera3D
         Fov = DefaultFov;
     }
 
-    public override void _EnterTree()
-    {
-        Global.Instance.Camera = this;
-    }
-
-    public override void _ExitTree()
-    {
-        if (Global.Instance.Camera == this)
-            Global.Instance.Camera = null;
-    }
-
-    public void TransitionTo(RemoteTransform3D newRemote, float duration = 0.0f)
+    public void TransitionTo(RemoteTransform3D newRemote)
     {
         if (CurrentRemote != null && IsInstanceValid(CurrentRemote))
             DisableRemote(CurrentRemote);

@@ -40,6 +40,8 @@ radius = 0.029
 [node name="Ball" type="RigidBody3D"]
 collision_layer = 4
 collision_mask = 13
+contact_monitor = true
+max_contacts_reported = 8
 physics_material_override = SubResource("PhysicsMaterial_n5t01")
 script = ExtResource("1_eusg5")
 data = ExtResource("2_5qcrw")
@@ -77,3 +79,4 @@ Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://bt8d07inv38d2"
 
 [connection signal="body_entered" from="Hitbox" to="." method="OnBodyEntered"]
+[connection signal="body_entered" from="." to="." method="OnRigidBodyContactEntered"]

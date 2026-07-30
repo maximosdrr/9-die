@@ -15,8 +15,11 @@ public partial class CueSfx : Node
 
     public void EmitStrikeSound(Vector3 dir, float finalForce, Vector3 hitOffset)
     {
-        StrikeSfx.VolumeDb = Mathf.Lerp(MinDb, MaxDb, finalForce);
-        StrikeSfx.PitchScale = Mathf.Lerp(MinPitch, MaxPitch, finalForce);
+        var maxForce = Cue != null && Cue.ForceMultiplier > 0f ? Cue.ForceMultiplier : 1f;
+        var normalizedForce = Mathf.Clamp(finalForce / maxForce, 0f, 1f);
+
+        StrikeSfx.VolumeDb = Mathf.Lerp(MinDb, MaxDb, normalizedForce);
+        StrikeSfx.PitchScale = Mathf.Lerp(MinPitch, MaxPitch, normalizedForce);
         StrikeSfx.Play();
     }
 }

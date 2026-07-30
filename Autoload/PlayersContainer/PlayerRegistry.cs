@@ -18,6 +18,12 @@ public partial class PlayerRegistry : Node
 
     public Player GetPlayerById(string id)
     {
+        if (!HasContainer())
+        {
+            GD.PushError("PlayersContainer not set yet");
+            return null;
+        }
+
         foreach (var node in PlayersContainer.GetChildren())
         {
             if (node is not Player player)

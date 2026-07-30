@@ -7,7 +7,6 @@ public partial class TurnRuler : Node
     {
         CallFoul,
         CallCueBallReplacement,
-        CallGoldenBallReplacement,
         CallNextTurn,
         ExtendTurn,
         EndGameFatalFoul,

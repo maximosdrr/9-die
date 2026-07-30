@@ -1,4 +1,4 @@
-[gd_scene load_steps=49 format=4 uid="uid://dq4mwkkjaq18o"]
+[gd_scene load_steps=50 format=4 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" path="res://Features/Player/Scripts/Player.cs" id="1_wlwl2"]
 [ext_resource type="Script" path="res://Features/Player/Scripts/HeadPivot.cs" id="2_bd6kk"]
@@ -8,9 +8,8 @@
 [ext_resource type="Script" path="res://Features/Player/Scripts/PlayerGameHandler.cs" id="5_llsyq"]
 [ext_resource type="Script" path="res://Features/Player/Scripts/ControlSwitch.cs" id="6_4uqpi"]
 [ext_resource type="Texture2D" uid="uid://0xjgjvsfmvwu" path="res://Assets/Characters/Base/Character_Image_6.png" id="6_de82q"]
-[ext_resource type="Script" path="res://Core/ToggleNode/Toggleable.cs" id="6_wlwl2"]
-[ext_resource type="PackedScene" uid="uid://oeifsxwu2bfd" path="res://Features/Player/Components/UI/NotificationPopup.tscn" id="7_4uqpi"]
 [ext_resource type="PackedScene" path="res://Features/Player/Components/UI/TvShareButton.tscn" id="7_tvshr"]
+[ext_resource type="PackedScene" path="res://Features/Player/Components/UI/PlayerHud.tscn" id="7_plhud"]
 [ext_resource type="Texture2D" uid="uid://b6jqtm575xaub" path="res://Assets/Characters/Base/Character_Image_7_7.png" id="7_5rj7x"]
 [ext_resource type="Texture2D" uid="uid://3ytfag0bo7n5" path="res://Assets/Characters/Base/Character_Image_8.png" id="8_pjnld"]
 [ext_resource type="Texture2D" uid="uid://cact0nu6f7bxv" path="res://Assets/Characters/Base/Character_Image_9.png" id="9_orvq6"]
@@ -3574,6 +3573,9 @@ properties/0/replication_mode = 1
 properties/1/path = NodePath(".:rotation")
 properties/1/spawn = true
 properties/1/replication_mode = 1
+properties/2/path = NodePath(".:Nickname")
+properties/2/spawn = true
+properties/2/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D" groups=["player"]]
 collision_layer = 2
@@ -4130,13 +4132,6 @@ skin = SubResource("Skin_ru22s")
 
 [node name="Scripts" type="Node" parent="."]
 
-[node name="PlayerToggleable" type="Node" parent="Scripts"]
-script = ExtResource("6_wlwl2")
-Targets = Array[NodePath]([NodePath("../../FirstPerson"), NodePath("../../CollisionShape3D")])
-ToggleVisible = true
-DisableCameras = true
-metadata/_custom_type_script = "uid://bf4tbhk58pgub"
-
 [node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("ContextSlot", "Player")]
 script = ExtResource("5_llsyq")
 ContextSlot = NodePath("../../GameContextSlot")
@@ -4153,9 +4148,9 @@ replication_config = SubResource("SceneReplicationConfig_wlwl2")
 
 [node name="UI" type="Node3D" parent="."]
 
-[node name="NotificationPopup" parent="UI" instance=ExtResource("7_4uqpi")]
-
 [node name="TvShareButton" parent="UI" instance=ExtResource("7_tvshr")]
+
+[node name="PlayerHud" parent="UI" instance=ExtResource("7_plhud")]
 
 [node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("AuthorityStateSynchronizer")]
 script = ExtResource("23_cwv8h")

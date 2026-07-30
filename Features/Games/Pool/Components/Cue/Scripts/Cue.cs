@@ -47,11 +47,20 @@ public partial class Cue : Node3D
 
         StrokeNetworkBridge.Setup(this);
 
-        PoolGame.TurnChanged += OnTurnChanged;
-        PoolGame.TurnExtended += OnTurnExtended;
+        SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+        SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 
         UpdateBallLimits();
         UpdateTurnState();
+    }
+
+    public override void _ExitTree()
+    {
+        if (PoolGame == null)
+            return;
+
+        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
     }
 
     public override void _Process(double delta)
@@ -139,7 +148,7 @@ public partial class Cue : Node3D
         UpdateTurnState();
     }
 
-    private void OnTurnExtended()
+    private void OnTurnExtended(Dictionary context)
     {
         UpdateTurnState();
     }

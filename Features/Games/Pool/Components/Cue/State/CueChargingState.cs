@@ -35,7 +35,7 @@ public partial class CueChargingState : State
 
     public override void Enter(Dictionary metadata)
     {
-        Input.MouseMode = Input.MouseModeEnum.Captured;
+        InputFocus.Capture();
 
         _currentDrawDistance = Mathf.Max(Cue.Position.Z, Cue.BallRadiusOffset);
         _previousDrawDistance = _currentDrawDistance;

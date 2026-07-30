@@ -1,0 +1,152 @@
+using Godot;
+using Godot.Collections;
+
+[GlobalClass]
+public partial class PlayerHud : CanvasLayer
+{
+	public Player Player;
+	[Export] public Label TurnLabel;
+	[Export] public Label TargetBallLabel;
+	[Export] public Label TimerLabel;
+	[Export] public VBoxContainer ScoreList;
+	[Export] public Button SurrenderButton;
+
+	private static readonly Color YourTurnColor = new(1.0f, 0.478431f, 0.2f);
+	private static readonly Color NormalTextColor = new(0.933333f, 0.956863f, 0.984314f);
+	private static readonly Color DimTextColor = new(0.678431f, 0.752941f, 0.839216f);
+
+	private PoolGame _poolGame;
+	private float _turnSeconds;
+
+	public override void _Ready()
+	{
+		Visible = false;
+		SurrenderButton.Pressed += OnSurrenderPressed;
+	}
+
+	private void OnSurrenderPressed()
+	{
+		if (_poolGame == null || Player == null)
+			return;
+
+		_poolGame.RequestSurrender((string)Player.Name);
+	}
+
+	public void Initialize(Player player)
+	{
+		Player = player;
+
+		if (!Player.IsMultiplayerAuthority())
+		{
+			SetProcess(false);
+			return;
+		}
+
+		SignalUtil.ConnectGuarded(Player.GameHandler, PlayerGameHandler.SignalName.ControllerEquipped, new Callable(this, MethodName.OnControllerEquipped));
+		SignalUtil.ConnectGuarded(Player.GameHandler, PlayerGameHandler.SignalName.ControllerUnequipped, new Callable(this, MethodName.OnControllerUnequipped));
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_poolGame == null)
+			return;
+
+		_turnSeconds += (float)delta;
+		TimerLabel.Text = FormatTime(_turnSeconds);
+	}
+
+	private void OnControllerEquipped(TableGame tableGame)
+	{
+		if (tableGame is not PoolGame poolGame)
+			return;
+
+		_poolGame = poolGame;
+		Visible = true;
+		_turnSeconds = 0;
+
+		SignalUtil.ConnectGuarded(_poolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+		SignalUtil.ConnectGuarded(_poolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+		SignalUtil.ConnectGuarded(_poolGame, PoolGame.SignalName.HudStateUpdated, new Callable(this, MethodName.OnHudStateUpdated));
+
+		Refresh();
+	}
+
+	private void OnControllerUnequipped()
+	{
+		if (_poolGame != null)
+		{
+			SignalUtil.DisconnectGuarded(_poolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+			SignalUtil.DisconnectGuarded(_poolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+			SignalUtil.DisconnectGuarded(_poolGame, PoolGame.SignalName.HudStateUpdated, new Callable(this, MethodName.OnHudStateUpdated));
+		}
+
+		_poolGame = null;
+		Visible = false;
+	}
+
+	private void OnTurnChanged(string nextPlayerId, Dictionary context)
+	{
+		_turnSeconds = 0;
+		Refresh();
+	}
+
+	private void OnTurnExtended(Dictionary context)
+	{
+		_turnSeconds = 0;
+		Refresh();
+	}
+
+	private void OnHudStateUpdated()
+	{
+		Refresh();
+	}
+
+	private void Refresh()
+	{
+		if (_poolGame == null || !IsInstanceValid(_poolGame) || _poolGame.TurnOwner == null)
+			return;
+
+		var isYourTurn = (string)_poolGame.TurnOwner.Name == Player.Name;
+
+		TurnLabel.Text = isYourTurn ? "Sua vez!" : $"Vez de {GetPlayerLabel((string)_poolGame.TurnOwner.Name)}";
+		TurnLabel.AddThemeColorOverride("font_color", isYourTurn ? YourTurnColor : NormalTextColor);
+
+		TargetBallLabel.Text = _poolGame.CurrentTargetBallIndex > 0
+			? $"Bola-alvo: {_poolGame.CurrentTargetBallIndex}"
+			: "";
+
+		RefreshScoreList();
+	}
+
+	private void RefreshScoreList()
+	{
+		foreach (var child in ScoreList.GetChildren())
+			child.QueueFree();
+
+		foreach (var playerIdVariant in _poolGame.TurnOrder)
+		{
+			var playerId = (string)playerIdVariant;
+			var pocketed = _poolGame.BallsPocketedByPlayer.TryGetValue(playerId, out var balls) ? balls.Count : 0;
+
+			var row = new Label();
+			row.Text = $"{GetPlayerLabel(playerId)}: {pocketed} bola(s)";
+			row.AddThemeFontSizeOverride("font_size", 15);
+			row.AddThemeColorOverride("font_color", DimTextColor);
+			ScoreList.AddChild(row);
+		}
+	}
+
+	private string GetPlayerLabel(string playerId)
+	{
+		var player = PlayerRegistry.Instance.GetPlayerById(playerId);
+		return player != null && !string.IsNullOrWhiteSpace(player.Nickname) ? player.Nickname : $"Jogador {playerId}";
+	}
+
+	private static string FormatTime(float seconds)
+	{
+		var totalSeconds = Mathf.FloorToInt(seconds);
+		var minutes = totalSeconds / 60;
+		var secs = totalSeconds % 60;
+		return $"{minutes:00}:{secs:00}";
+	}
+}

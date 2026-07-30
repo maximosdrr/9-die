@@ -36,17 +36,46 @@ public partial class WaitingGameStart : State
         DisconnectSignals();
     }
 
-    public override void Process(double delta)
+    public override void HandleInput(InputEvent @event)
     {
-        if (Input.IsActionJustPressed("start_game"))
-        {
-            if (PlayersOnInfluencyArea.Count >= 1)
-            {
-                var playersIds = new Array(PlayersOnInfluencyArea.Select(p => Variant.From((string)p.Name)));
-                var metadata = new Dictionary { ["players_ids"] = playersIds };
-                StateMachine.ChangeState(StatesRef.GameStarting, metadata);
-            }
-        }
+        if (!@event.IsActionPressed("start_game") || PlayersOnInfluencyArea.Count == 0)
+            return;
+
+        RequestStartGame();
+        GetViewport().SetInputAsHandled();
+    }
+
+    private void RequestStartGame()
+    {
+        if (Multiplayer.IsServer())
+            TryStartGame(Multiplayer.GetUniqueId());
+        else
+            RpcId(1, MethodName.RequestStartGameOnServer);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RequestStartGameOnServer()
+    {
+        if (!Multiplayer.IsServer())
+            return;
+
+        TryStartGame(Multiplayer.GetRemoteSenderId());
+    }
+
+    private void TryStartGame(int requesterId)
+    {
+        var bodies = TableInfluence.GetOverlappingBodies();
+        var playersHere = bodies.OfType<Player>().ToList();
+
+        if (playersHere.Count == 0)
+            return;
+
+        if (!playersHere.Any(p => (string)p.Name == requesterId.ToString()))
+            return;
+
+        var playersIds = new Array(playersHere.Select(p => Variant.From((string)p.Name)));
+        var metadata = new Dictionary { ["players_ids"] = playersIds };
+        StateMachine.ChangeState(StatesRef.GameStarting, metadata);
     }
 
     private void OnBodyEnterInInfluenceArea(Node3D body)

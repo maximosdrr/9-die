@@ -2,13 +2,36 @@ using Godot;
 
 public partial class Global : Node
 {
+    private const string ReconnectTokenPath = "user://reconnect_token.txt";
+
     public static Global Instance { get; private set; }
 
-    public GlobalCamera Camera;
-    public TvScreenShare TvScreen;
+    public string LocalNickname = "";
+    public string ReconnectToken { get; private set; }
 
     public override void _EnterTree()
     {
         Instance = this;
+        ReconnectToken = LoadOrCreateReconnectToken();
+    }
+
+    // Stable identity across reconnections — the game has no login system, only
+    // the peer ID the transport assigns per connection, which changes every time
+    // someone reconnects. This token, persisted locally, is what lets the server
+    // recognize "this new peer is the same person who just dropped".
+    private static string LoadOrCreateReconnectToken()
+    {
+        if (FileAccess.FileExists(ReconnectTokenPath))
+        {
+            using var existing = FileAccess.Open(ReconnectTokenPath, FileAccess.ModeFlags.Read);
+            var token = existing.GetAsText().Trim();
+            if (!string.IsNullOrEmpty(token))
+                return token;
+        }
+
+        var newToken = System.Guid.NewGuid().ToString("N");
+        using var file = FileAccess.Open(ReconnectTokenPath, FileAccess.ModeFlags.Write);
+        file.StoreString(newToken);
+        return newToken;
     }
 }

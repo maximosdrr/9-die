@@ -4,11 +4,13 @@ using System.Collections.Generic;
 [GlobalClass]
 public partial class LevelMultiplayerManager : Node
 {
-	private static readonly PackedScene PlayerScene = GD.Load<PackedScene>("uid://dq4mwkkjaq18o");
-
+	[Export] public PackedScene PlayerScene;
 	[Export] public PlayersContainer PlayersContainer;
 	[Export] public MultiplayerSpawner MultiplayerSpawner;
 	[Export] public Godot.Collections.Array<NodePath> SpawnPointPaths = new();
+	[Export] public TvScreenShare TvScreen;
+
+	public GlobalCamera Camera;
 
 	private readonly List<Marker3D> _spawnPoints = new();
 
@@ -33,6 +35,9 @@ public partial class LevelMultiplayerManager : Node
 
 	private void OnPlayerDisconnect(int peerId)
 	{
+		if (!IsMultiplayerAuthority())
+			return;
+
 		GD.Print($"Server - Player disconnected Peer ID: {peerId}");
 
 		if (PlayersContainer.HasNode(peerId.ToString()))
@@ -49,6 +54,8 @@ public partial class LevelMultiplayerManager : Node
 		playerInstance.Name = peerId.ToString();
 		playerInstance.Id = peerId;
 		playerInstance.SetMultiplayerAuthority(peerId);
+		playerInstance.Camera = Camera;
+		playerInstance.TvScreen = TvScreen;
 
 		if (_spawnPoints.Count == 0)
 		{

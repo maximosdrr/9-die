@@ -14,6 +14,8 @@ public partial class TvShareButton : CanvasLayer
     private GridContainer _sourceGrid;
     private bool _isSharing = false;
 
+    public TvScreenShare TvScreen;
+
     public override void _Ready()
     {
         _stopSharingButton = GetNode<Button>("StopSharingButton");
@@ -21,6 +23,14 @@ public partial class TvShareButton : CanvasLayer
         _overlayTextureRect = GetNode<TextureRect>("Overlay/TextureRect");
         _sourcePicker = GetNode<Control>("SourcePicker");
         _sourceGrid = GetNode<GridContainer>("SourcePicker/CenterContainer/Panel/VBoxContainer/ScrollContainer/Grid");
+    }
+
+    // Godot calls _Ready() bottom-up (children before parents), so TvShareButton._Ready()
+    // runs before Player._Ready() can assign TvScreen. Player calls this explicitly instead,
+    // after TvScreen is set — same pattern as PlayerHud.Initialize().
+    public void Initialize(TvScreenShare tvScreen)
+    {
+        TvScreen = tvScreen;
 
         if (!IsMultiplayerAuthority())
         {
@@ -29,16 +39,16 @@ public partial class TvShareButton : CanvasLayer
             return;
         }
 
-        _stopSharingButton.Pressed += () => Global.Instance.TvScreen.RequestStopSharing();
+        _stopSharingButton.Pressed += () => TvScreen.RequestStopSharing();
 
-        Global.Instance.TvScreen.SharerChanged += OnSharerChanged;
-        OnSharerChanged(Global.Instance.TvScreen.SharerId);
+        TvScreen.SharerChanged += OnSharerChanged;
+        OnSharerChanged(TvScreen.SharerId);
     }
 
     public override void _ExitTree()
     {
-        if (Global.Instance?.TvScreen != null)
-            Global.Instance.TvScreen.SharerChanged -= OnSharerChanged;
+        if (TvScreen != null)
+            TvScreen.SharerChanged -= OnSharerChanged;
     }
 
     public override void _Process(double delta)
@@ -48,7 +58,7 @@ public partial class TvShareButton : CanvasLayer
 
         // If the player walks away from the TV while the picker is open, close it — picking a
         // source while no longer standing at the TV would be an inconsistent state.
-        if (_sourcePicker.Visible && !Global.Instance.TvScreen.IsLocalPlayerInRange)
+        if (_sourcePicker.Visible && !TvScreen.IsLocalPlayerInRange)
             CloseSourcePicker();
     }
 
@@ -70,15 +80,15 @@ public partial class TvShareButton : CanvasLayer
 
         if (@event.IsActionPressed("view_tv"))
         {
-            if (Global.Instance.TvScreen.SharerId != 0)
+            if (TvScreen.SharerId != 0)
                 ToggleOverlay();
             GetViewport().SetInputAsHandled();
         }
-        else if (@event.IsActionPressed("interact") && Global.Instance.TvScreen.IsLocalPlayerInRange)
+        else if (@event.IsActionPressed("interact") && TvScreen.IsLocalPlayerInRange)
         {
             if (_isSharing)
-                Global.Instance.TvScreen.RequestStopSharing();
-            else if (Global.Instance.TvScreen.SharerId == 0)
+                TvScreen.RequestStopSharing();
+            else if (TvScreen.SharerId == 0)
                 OpenSourcePicker();
             else
                 ToggleOverlay(); // someone else is sharing on this TV — F watches, same as view_tv
@@ -102,15 +112,15 @@ public partial class TvShareButton : CanvasLayer
         _sourcePicker.Visible = true;
         // The game normally runs with the mouse captured/hidden (FPS-style look) — without
         // freeing it here, the player would have no visible cursor to pick a thumbnail with.
-        Input.MouseMode = Input.MouseModeEnum.Visible;
-        Global.Instance.TvScreen.SetPromptSuppressed(true);
+        InputFocus.Release();
+        TvScreen.SetPromptSuppressed(true);
     }
 
     private void CloseSourcePicker()
     {
         _sourcePicker.Visible = false;
-        Input.MouseMode = Input.MouseModeEnum.Captured;
-        Global.Instance.TvScreen.SetPromptSuppressed(false);
+        InputFocus.Capture();
+        TvScreen.SetPromptSuppressed(false);
     }
 
     private void PopulateSourceGrid()
@@ -150,7 +160,7 @@ public partial class TvShareButton : CanvasLayer
         };
         card.Pressed += () =>
         {
-            Global.Instance.TvScreen.RequestStartSharing(handle);
+            TvScreen.RequestStartSharing(handle);
             CloseSourcePicker();
         };
 
@@ -206,18 +216,18 @@ public partial class TvShareButton : CanvasLayer
     {
         _overlay.Visible = true;
         RefreshOverlayTexture();
-        Global.Instance.TvScreen.SetPromptSuppressed(true);
+        TvScreen.SetPromptSuppressed(true);
     }
 
     private void CloseOverlay()
     {
         _overlay.Visible = false;
-        Global.Instance.TvScreen.SetPromptSuppressed(false);
+        TvScreen.SetPromptSuppressed(false);
     }
 
     private void RefreshOverlayTexture()
     {
-        var texture = Global.Instance.TvScreen.Texture;
+        var texture = TvScreen.Texture;
         if (texture != null)
             _overlayTextureRect.Texture = texture;
     }

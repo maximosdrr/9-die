@@ -21,15 +21,20 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Groups="*res://Autoload/GameGroups.cs"
 Global="*res://Autoload/Global.cs"
 NetworkManager="*res://Autoload/Network/NetworkManager.cs"
+ReconnectionManager="*res://Autoload/ReconnectionManager.cs"
+MatchRanking="*res://Autoload/MatchRanking.cs"
 SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.cs"
 PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.cs"
 
 [dotnet]
 
 project/assembly_name="9Die"
+
+[gui]
+
+theme/custom="res://Features/Ui/Theme/GameTheme.tres"
 
 [input]
 
@@ -93,7 +98,6 @@ interact={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":70,"key_label":0,"unicode":102,"location":0,"echo":false,"script":null)
 ]
 }
-
 [layer_names]
 
 3d_physics/layer_1="Ground"
@@ -104,6 +108,10 @@ interact={
 
 [physics]
 
+; Bem acima do default (60) de propósito: sinuca depende de resposta de colisão
+; precisa entre esferas pequenas e rápidas contra colisores finos (tabelas,
+; caçapas) — um tick rate baixo aumenta o risco de tunneling/overlap perdido
+; num impacto forte. Não "corrigir" de volta pro default sem validar antes.
 common/physics_ticks_per_second=580
 common/physics_jitter_fix=1.0
 3d/solver/solver_iterations=24
@@ -113,9 +121,25 @@ common/physics_interpolation=true
 
 anti_aliasing/quality/msaa_3d=2
 
+[network]
+
+; Escolhe o transporte de multiplayer: "enet" (IP direto, padrão) ou "steam"
+; (lobbies do Steam). Uma única flag troca tanto o NetworkProvider quanto a
+; inicialização do SteamGlobals — ver NetworkManager.cs/SteamGlobals.cs.
+; "steam" exige um App ID Steamworks real; sem isso a inicialização falha.
+transport="steam"
+
+; Tamanho máximo de sala, aplicado nos dois transportes: vira max_clients no
+; ENetMultiplayerPeer.create_server e cMaxMembers no createLobby do Steam.
+max_players=12
+
+; Canais ENet (ENetMultiplayerPeer.create_server/create_client). Só se aplica
+; ao transporte "enet" acima — SteamMultiplayerPeer não tem conceito de canal
+; (confirmado na doc do GodotSteam: limitação do próprio socket system do
+; Steam), então esse valor é ignorado quando transport="steam".
+max_channels=4
+
 [steam]
 
 initialization/app_id=0
-initialization/initialize_on_startup=false
 initialization/embed_callbacks=false
-multiplayer_peer/max_channels=4

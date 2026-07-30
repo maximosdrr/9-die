@@ -12,6 +12,7 @@ public partial class PoolController : Node3D
 
 	public PoolGame PoolGame;
 	public Player Player;
+	public GlobalCamera Camera;
 
 	public override void _Ready()
 	{
@@ -20,15 +21,24 @@ public partial class PoolController : Node3D
 		Cue = GetNode<Cue>("AimPivot/Cue");
 	}
 
-	public void Setup(Player parent, TableGame tableGame)
+	public void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
 	{
 		Player = parent;
 		PoolGame = tableGame as PoolGame;
+		Camera = camera;
 
 		_ = AimPivot.Setup(PoolGame, this);
 		Cue.Setup(PoolGame, AimPivot);
 
-		PoolGame.TurnChanged += OnTurnChange;
+		SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChange));
+	}
+
+	public override void _ExitTree()
+	{
+		if (PoolGame == null)
+			return;
+
+		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChange));
 	}
 
 	public void TakeControl()
@@ -56,12 +66,11 @@ public partial class PoolController : Node3D
 		AimPivot.SetPhysicsProcess(true);
 		AimPivot.SetProcessUnhandledInput(true);
 
-		Player.PlayerModel.Hide();
-		Player.StateMachine.ChangeState(StatesRef.PlayerStrike, new Dictionary());
+		Player.EnterGameControllerMode();
 
-		Global.Instance.Camera.SetGlobalCameraFov(60);
-		Global.Instance.Camera.TransitionTo(RemoteAim);
-		Input.MouseMode = Input.MouseModeEnum.Captured;
+		Camera?.SetGlobalCameraFov(60);
+		Camera?.TransitionTo(RemoteAim);
+		InputFocus.Capture();
 	}
 
 	public void GiveControl()
@@ -70,7 +79,7 @@ public partial class PoolController : Node3D
 			return;
 
 		Hide();
-		Global.Instance.Camera.SetGlobalCameraFov(75);
+		Camera?.SetGlobalCameraFov(75);
 		SetProcessUnhandledInput(false);
 		SetProcess(false);
 
@@ -78,8 +87,7 @@ public partial class PoolController : Node3D
 		AimPivot.SetPhysicsProcess(false);
 		AimPivot.SetProcessUnhandledInput(false);
 
-		Player.PlayerModel.Show();
-		Player.StateMachine.ChangeState(StatesRef.PlayerIdle, new Dictionary());
+		Player.ExitGameControllerMode();
 	}
 
 	public async void ApplyControl(string turnOwnerId, Dictionary context)

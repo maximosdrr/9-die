@@ -11,6 +11,10 @@ public partial class SteamGlobals : Node
 
     public override void _Ready()
     {
+        var transport = (string)ProjectSettings.GetSetting("network/transport", "enet");
+        if (transport != "steam")
+            return;
+
         InitializeSteam();
     }
 

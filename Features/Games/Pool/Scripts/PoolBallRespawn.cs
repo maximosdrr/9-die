@@ -92,6 +92,11 @@ public partial class PoolBallRespawn : Node
         EmitSignal(SignalName.TableReady, CueBall, Balls);
     }
 
+    public Vector3 GetFootSpotGlobalPosition()
+    {
+        return BallsHolder.ToGlobal(FootSpot);
+    }
+
     public async Task<(Ball CueBall, Array<Ball> Balls)> WaitTableReady()
     {
         if (_readyEmitted && CueBall != null && Balls.Count >= BallsQuantity)

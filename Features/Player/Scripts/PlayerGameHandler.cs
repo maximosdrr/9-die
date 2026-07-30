@@ -8,13 +8,19 @@ public partial class PlayerGameHandler : Node
 
     public PoolController CurrentController = null;
 
-    public void EquipGameController(PackedScene controllerScene, TableGame tableGame)
+    [Signal]
+    public delegate void ControllerEquippedEventHandler(TableGame tableGame);
+
+    [Signal]
+    public delegate void ControllerUnequippedEventHandler();
+
+    public void EquipGameController(PackedScene controllerScene, TableGame tableGame, GlobalCamera camera)
     {
         UnequipCurrentController();
 
         var controllerInstance = controllerScene.Instantiate();
         controllerInstance.Name = "ActiveController";
-        controllerInstance.SetMultiplayerAuthority(int.Parse((string)Player.Name));
+        controllerInstance.SetMultiplayerAuthority(Player.Id);
 
         CurrentController = (PoolController)controllerInstance;
 
@@ -24,7 +30,9 @@ public partial class PlayerGameHandler : Node
             ContextSlot.Hide();
 
         ContextSlot.AddChild(CurrentController);
-        CurrentController.Setup((Player)Owner, tableGame);
+        CurrentController.Setup(Player, tableGame, camera);
+
+        EmitSignal(SignalName.ControllerEquipped, tableGame);
     }
 
     public void UnequipCurrentController()
@@ -39,5 +47,7 @@ public partial class PlayerGameHandler : Node
 
         CurrentController.QueueFree();
         CurrentController = null;
+
+        EmitSignal(SignalName.ControllerUnequipped);
     }
 }

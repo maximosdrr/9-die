@@ -10,7 +10,7 @@ public partial class ControlSwitch : Node
         if (!IsMultiplayerAuthority())
             return;
 
-        if (!Input.IsActionJustPressed("switch_control"))
+        if (!@event.IsActionPressed("switch_control"))
             return;
 
         var currentGameController = Player.GameHandler.CurrentController;
@@ -22,6 +22,8 @@ public partial class ControlSwitch : Node
             SwitchToGame(currentGameController);
         else
             SwitchToPlayer(currentGameController);
+
+        GetViewport().SetInputAsHandled();
     }
 
     private void SwitchToPlayer(PoolController gameController)

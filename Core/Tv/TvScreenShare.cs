@@ -14,11 +14,23 @@ public partial class TvScreenShare : MeshInstance3D
 	private const int AudioTransferChannel = 2;
 	private const int AudioMixRate = 48000;
 
+	// Steam's P2P transport gives SteamMultiplayerPeer only one real connection per remote peer,
+	// so even distinct Godot TransferChannels still share its send/receive queue underneath —
+	// a queued frame can delay unrelated gameplay RPCs behind it. On Steam we bypass
+	// MultiplayerApi entirely for video/audio and talk to each peer's Steam ID directly over
+	// its own P2P session (still relayed through the host, same star topology as the RPC path),
+	// so a saturated stream can never back up gameplay traffic. ENet already gives independent
+	// channels for free, so it keeps using the RPC path below unchanged.
+	private const int SteamP2PVideoChannel = 10;
+	private const int SteamP2PAudioChannel = 11;
+
 	[Signal]
 	public delegate void SharerChangedEventHandler(int sharerId);
 
 	[Export] public Area3D InteractionArea;
 	[Export] public PoolStartGameUI InteractionPrompt;
+
+	public static bool IsAvailable => OS.GetName() == "Windows";
 
 	public int SharerId { get; private set; } = 0;
 	public ImageTexture Texture => _texture;
@@ -37,18 +49,17 @@ public partial class TvScreenShare : MeshInstance3D
 	private IntPtr _pendingCaptureWindow;
 	private VideoPlayoutBuffer _playoutBuffer;
 
-	public override void _EnterTree()
-	{
-		Global.Instance.TvScreen = this;
-	}
+	private SteamNetworkProvider _steamProvider;
+	private GodotObject _steam;
+	private long _p2pSendReliableWithBuffering;
 
 	public override void _ExitTree()
 	{
-		if (Global.Instance.TvScreen == this)
-			Global.Instance.TvScreen = null;
-
 		DisconnectSignals();
 		StopLocalCapture();
+
+		if (_steam != null)
+			SignalUtil.DisconnectGuarded(_steam, "p2p_session_request", new Callable(this, MethodName.OnP2PSessionRequest));
 	}
 
 	public override void _Ready()
@@ -68,16 +79,33 @@ public partial class TvScreenShare : MeshInstance3D
 		_audioPlayback = (AudioStreamGeneratorPlayback)_audioPlayer.GetStreamPlayback();
 
 		InteractionPrompt.Hide();
-		ConnectSignals();
 
-		if (OS.GetName() == "Windows")
+		if (IsAvailable)
 		{
+			ConnectSignals();
+
 			var hwnd = (IntPtr)DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle, (int)DisplayServer.MainWindowId);
 			WindowsScreenCapture.ExcludeWindowFromCapture(hwnd);
 		}
 
 		NetworkManager.Instance.NetworkProvider.PlayerConnected += OnPlayerConnected;
 		NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
+
+		_steamProvider = NetworkManager.Instance.NetworkProvider as SteamNetworkProvider;
+		if (_steamProvider != null)
+		{
+			_steam = Engine.GetSingleton("Steam");
+			_p2pSendReliableWithBuffering = _steam.Get("P2P_SEND_RELIABLE_WITH_BUFFERING").AsInt64();
+			SignalUtil.ConnectGuarded(_steam, "p2p_session_request", new Callable(this, MethodName.OnP2PSessionRequest));
+			_steam.Call("allowP2PPacketRelay", true);
+		}
+	}
+
+	// Steam requires explicitly accepting an incoming P2P session the first time a remote peer
+	// sends us anything on this API, otherwise the packets are silently dropped.
+	private void OnP2PSessionRequest(ulong remoteSteamId)
+	{
+		_steam.Call("acceptP2PSessionWithUser", remoteSteamId);
 	}
 
 	private void ConnectSignals()
@@ -220,7 +248,16 @@ public partial class TvScreenShare : MeshInstance3D
 		if (sharerId == 0)
 		{
 			ClearScreen();
+
+			// AudioStreamGeneratorPlayback refuses to clear its ring buffer while actively
+			// playing (Godot's clear_buffer() asserts !active), so the player has to be
+			// stopped first and restarted afterwards so it keeps accepting pushes for the
+			// next viewing session. Play() may hand back a new playback instance, so it's
+			// re-fetched rather than assumed to be the same object.
+			_audioPlayer.Stop();
 			_audioPlayback?.ClearBuffer();
+			_audioPlayer.Play();
+			_audioPlayback = (AudioStreamGeneratorPlayback)_audioPlayer.GetStreamPlayback();
 		}
 
 		var isLocalSharer = sharerId != 0 && sharerId == Multiplayer.GetUniqueId();
@@ -303,9 +340,91 @@ public partial class TvScreenShare : MeshInstance3D
 
 	public override void _Process(double delta)
 	{
+		ProcessSteamIncoming();
 		ProcessVideoCapture();
 		ProcessPlayout();
 		ProcessAudioCapture();
+	}
+
+	// Drains both raw Steam P2P channels. Only relevant when running over Steam — over ENet,
+	// incoming video/audio still arrives through the ordinary RPC methods below.
+	private void ProcessSteamIncoming()
+	{
+		if (_steamProvider == null)
+			return;
+
+		DrainSteamChannel(SteamP2PVideoChannel, isAudio: false);
+		DrainSteamChannel(SteamP2PAudioChannel, isAudio: true);
+	}
+
+	private void DrainSteamChannel(int channel, bool isAudio)
+	{
+		while (true)
+		{
+			var availableSize = _steam.Call("getAvailableP2PPacketSize", channel).AsInt32();
+			if (availableSize <= 0)
+				return;
+
+			var packet = _steam.Call("readP2PPacket", availableSize, channel).AsGodotDictionary();
+
+			// getAvailableP2PPacketSize can report a packet that readP2PPacket then fails to
+			// produce (e.g. it hasn't fully landed yet) — that comes back as an empty
+			// Dictionary, not an exception, so this has to be checked explicitly rather than
+			// indexing straight into it. Bail out for this frame and let the next _Process
+			// tick retry instead of spinning on the same stale size.
+			if (!packet.ContainsKey("data") || !packet.ContainsKey("remote_steam_id"))
+				return;
+
+			var data = packet["data"].AsByteArray();
+			var remoteSteamId = packet["remote_steam_id"].AsUInt64();
+
+			if (Multiplayer.IsServer())
+			{
+				var senderId = _steamProvider.GetPeerId(remoteSteamId);
+				if (senderId != SharerId)
+					continue;
+
+				if (isAudio)
+					PlayAudioChunk(data);
+				else
+					_playoutBuffer?.Enqueue(data);
+
+				foreach (var peerId in Multiplayer.GetPeers())
+					if (peerId != senderId)
+						SendSteamPacket(channel, peerId, data);
+			}
+			else
+			{
+				if (isAudio)
+					PlayAudioChunk(data);
+				else
+					_playoutBuffer?.Enqueue(data);
+			}
+		}
+	}
+
+	// Mirrors the "server relays to every other peer, everyone else only talks to the host"
+	// star topology the RPC path below uses, just addressed by Steam ID instead of Godot peer id.
+	private void BroadcastSteamPacket(int channel, byte[] data)
+	{
+		if (Multiplayer.IsServer())
+		{
+			foreach (var peerId in Multiplayer.GetPeers())
+				SendSteamPacket(channel, peerId, data);
+		}
+		else
+		{
+			SendSteamPacket(channel, 1, data);
+		}
+	}
+
+	private void SendSteamPacket(int channel, int peerId, byte[] data)
+	{
+		var steamId = _steamProvider.GetSteamId(peerId);
+		if (steamId == 0)
+			return;
+
+		_steam.Call("sendP2PPacket", steamId, data, _p2pSendReliableWithBuffering, channel);
 	}
 
 	private void ProcessPlayout()
@@ -332,6 +451,12 @@ public partial class TvScreenShare : MeshInstance3D
 			return;
 
 		DisplayFrame(encodedBytes);
+
+		if (_steamProvider != null)
+		{
+			BroadcastSteamPacket(SteamP2PVideoChannel, encodedBytes);
+			return;
+		}
 
 		if (Multiplayer.IsServer())
 		{
@@ -367,6 +492,12 @@ public partial class TvScreenShare : MeshInstance3D
 		// Deliberately not calling PlayAudioChunk here: the sharer already hears this audio
 		// directly from their own system output, so looping it back through the TV speaker
 		// would double it up as an echo. Only relay it to everyone else.
+		if (_steamProvider != null)
+		{
+			BroadcastSteamPacket(SteamP2PAudioChannel, monoInt16);
+			return;
+		}
+
 		if (Multiplayer.IsServer())
 		{
 			foreach (var peerId in Multiplayer.GetPeers())

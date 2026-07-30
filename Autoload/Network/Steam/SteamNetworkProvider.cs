@@ -3,6 +3,8 @@ using Godot;
 [GlobalClass]
 public partial class SteamNetworkProvider : NetworkProvider
 {
+    public override bool SupportsSessionBrowsing => true;
+
     public override void _Ready()
     {
         base._Ready();
@@ -20,7 +22,7 @@ public partial class SteamNetworkProvider : NetworkProvider
         steam.Call("createLobby", lobbyTypePublic, MaxPlayers);
     }
 
-    public override void JoinSession(int lobbyId, string hostAddress = "", int port = -1)
+    public override void JoinSession(ulong lobbyId, string hostAddress = "", int port = -1)
     {
         var steam = Engine.GetSingleton("Steam");
         steam.Call("joinLobby", lobbyId);
@@ -36,6 +38,13 @@ public partial class SteamNetworkProvider : NetworkProvider
         steam.Call("addRequestLobbyListStringFilter", GameIdKey, GameIdValue, comparisonEqual);
         steam.Call("requestLobbyList");
     }
+
+    // Lets callers (e.g. TvScreenShare) address peers directly over Steam's raw P2P networking
+    // instead of Godot's high-level MultiplayerApi, which SteamMultiplayerPeer funnels through a
+    // single underlying connection regardless of the RPC transfer channel used.
+    public ulong GetSteamId(int peerId) => Peer.Call("get_steam_id_for_peer_id", peerId).AsUInt64();
+
+    public int GetPeerId(ulong steamId) => Peer.Call("get_peer_id_for_steam_id", steamId).AsInt32();
 
     private void OnLobbyMatchList(Godot.Collections.Array lobbies)
     {
@@ -65,7 +74,7 @@ public partial class SteamNetworkProvider : NetworkProvider
 
         var peerId = Multiplayer.GetUniqueId();
 
-        EmitSignal(SignalName.LobbyCreated, (int)lobbyId, peerId);
+        EmitSignal(SignalName.LobbyCreated, lobbyId, peerId);
         EmitSignal(SignalName.PlayerConnected, peerId);
 
         var startMessage = $"Host Session Started. Peer ID: {peerId} Lobby ID: {lobbyId}";
@@ -100,7 +109,7 @@ public partial class SteamNetworkProvider : NetworkProvider
             Multiplayer.MultiplayerPeer = Peer;
             var peerId = Multiplayer.GetUniqueId();
 
-            EmitSignal(SignalName.LobbySessionJoined, (int)lobbyId, peerId, (int)hostId);
+            EmitSignal(SignalName.LobbySessionJoined, lobbyId, peerId, (int)hostId);
             EmitSignal(SignalName.PlayerConnected, peerId);
 
             var startMessage = $"Client Session Started. Connected to Host: {hostId} . Peer ID: {peerId} ";

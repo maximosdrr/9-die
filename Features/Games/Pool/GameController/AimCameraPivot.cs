@@ -64,6 +64,16 @@ public partial class AimCameraPivot : Node3D
         SignalUtil.ConnectGuarded(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished, new Callable(this, MethodName.OnPlacementFinished));
     }
 
+    public override void _ExitTree()
+    {
+        if (PoolGame == null)
+            return;
+
+        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+        SignalUtil.DisconnectGuarded(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished, new Callable(this, MethodName.OnPlacementFinished));
+    }
+
     private void InitializePositions()
     {
         _rotY = Rotation.Y;
@@ -109,11 +119,11 @@ public partial class AimCameraPivot : Node3D
             return;
 
         if (@event is InputEventMouseButton)
-            Input.MouseMode = Input.MouseModeEnum.Captured;
+            InputFocus.Capture();
         else if (@event.IsActionPressed("ui_cancel"))
-            Input.MouseMode = Input.MouseModeEnum.Visible;
+            InputFocus.Release();
 
-        if (Input.MouseMode != Input.MouseModeEnum.Captured)
+        if (!InputFocus.IsCaptured)
             return;
 
         if (@event is InputEventMouseMotion motion)
@@ -192,7 +202,7 @@ public partial class AimCameraPivot : Node3D
         SetPhysicsProcess(true);
     }
 
-    private void OnTurnExtended()
+    private void OnTurnExtended(Godot.Collections.Dictionary context)
     {
         MoveSmoothlyToTarget();
     }

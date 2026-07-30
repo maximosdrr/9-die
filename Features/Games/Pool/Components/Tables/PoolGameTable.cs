@@ -15,6 +15,8 @@ public partial class PoolGameTable : StaticBody3D
         ScoreMonitor = GetNode<PoolScoreMonitor>("ScoreMonitor");
         BallOffMonitor = GetNode<Area3D>("BallOffMonitor");
         BallPocketedAudio = GetNode<AudioStreamPlayer3D>("BallPocketed");
+
+        GetNode<Node3D>("Rails").AddToGroup("Cushion");
     }
 
     private void OnPocketsDetectorsBallEntered(Node3D body)
