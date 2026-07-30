@@ -2,6 +2,7 @@
 
 **Área**: Infraestrutura (Level)
 **Prioridade**: 🟠 Bug
+**Status**: ✅ Resolvido em 29/07/2026 — `if (!IsMultiplayerAuthority()) return;` adicionado no início, espelhando `OnPlayerConnect`.
 
 ## Problema
 

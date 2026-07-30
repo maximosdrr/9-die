@@ -2,6 +2,7 @@
 
 **Área**: Lógica de Sinuca (Regras Golden Nine)
 **Prioridade**: 🟠 Bug
+**Status**: ✅ Resolvido em 29/07/2026 — o arquivo/classe mudou de nome desde que essa tarefa foi escrita (agora é `PoolTurnResolver.ApplyTurnAction`, ver [pool-17](pool-17-generalizar-resolver-listeners.md)), mas o bug continuava lá. Adicionado `GetOpponentId()` (mesma lógica de índice que `TableGame.CallNextTurn` já usa pra achar o próximo da rodada) — `EndGameFatalFoul` agora passa o oponente, não `TurnOwner`.
 
 ## Problema
 

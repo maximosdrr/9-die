@@ -23,9 +23,9 @@ public partial class NetworkManager : Node
         NetworkProvider.CreateHost(7777);
     }
 
-    public void JoinSession(int lobbyId = 0)
+    public void JoinSession(int lobbyId = 0, string hostAddress = "127.0.0.1")
     {
-        NetworkProvider.JoinSession(lobbyId, "127.0.0.1", 7777);
+        NetworkProvider.JoinSession(lobbyId, hostAddress, 7777);
     }
 
     public void RefreshLobbyList()

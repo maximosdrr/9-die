@@ -17,11 +17,7 @@ public partial class GoldenNineTurnRuler : TurnRuler
         var targetBall = context.TargetBall;
 
         if (ballsScored.ContainsKey(0))
-        {
-            if (ballsScored.ContainsKey(9))
-                return Actions.EndGameFatalFoul;
             return Actions.CallCueBallReplacement;
-        }
 
         if (firstBallTouched == null)
             return Actions.CallCueBallReplacement;
@@ -37,18 +33,16 @@ public partial class GoldenNineTurnRuler : TurnRuler
         }
 
         if (targetBall.Index != firstBallTouched.Index)
-        {
-            if (ballsScored.ContainsKey(9))
-                return Actions.EndGameFatalFoul;
-
             return Actions.CallCueBallReplacement;
-        }
 
         if (ballsScored.ContainsKey(9))
             return Actions.EndGamePlayerWin;
 
         if (ballsScored.Count > 0)
             return Actions.ExtendTurn;
+
+        if (!context.AnyRailContact)
+            return Actions.CallCueBallReplacement;
 
         return Actions.CallNextTurn;
     }

@@ -2,6 +2,7 @@
 
 **Área**: Infraestrutura (StateMachine/Network)
 **Prioridade**: 🔴 Crítico
+**Status**: ✅ Resolvido em 29/07/2026 — `Table.tscn` trocou `PublicStateSyncronizer` por `AuthorityStateSynchronizer` (mesmo padrão que `Player.tscn` já usava corretamente), autoridade da `Table` continua a padrão (1/servidor, nunca reatribuída). Com isso, `PublicStateSyncronizer` ficou sem nenhum consumidor — removido inteiramente (arquivo + `.uid` + o campo `[Export]` correspondente em `StateMachine.cs`), o que também resolve o [infra-5](infra-simplificacao.md) (duplicação entre os dois synchronizers) por eliminação de um dos dois. Ver [pool-3](pool-3-start-game-client-driven.md) pro ajuste necessário no fluxo de "aperte F" que essa troca exigiu.
 
 ## Problema
 

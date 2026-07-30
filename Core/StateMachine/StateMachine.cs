@@ -14,7 +14,6 @@ public partial class StateMachine : Node3D
 
     [Export] public bool Enabled = true;
     [Export] public string InitialState;
-    [Export] public PublicStateSyncronizer PublicStateSyncronizer;
     [Export] public AuthorityStateSynchronizer AuthorityStateSynchronizer;
     [Export] public bool CheckForMultiplayerAuthorityOnStateHandleInput = false;
 
@@ -23,7 +22,6 @@ public partial class StateMachine : Node3D
         SetupStates();
         SetupInitialState();
 
-        PublicStateSyncronizer?.Setup(this);
         AuthorityStateSynchronizer?.Setup(this);
     }
 

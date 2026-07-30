@@ -2,6 +2,7 @@
 
 **Área**: Lógica de Sinuca (Cue)
 **Prioridade**: 🔴 Crítico
+**Status**: ✅ Resolvido em 29/07/2026 — `RequestStrike` agora valida `Multiplayer.GetRemoteSenderId() == GetMultiplayerAuthority()` (remetente é dono desse Cue) e `senderId == PoolGame.TurnOwner` (é a vez dele) antes de aplicar. Força clampada em `[0, Cue.ForceMultiplier]`, direção normalizada (ou fallback pro forward do Cue se vier degenerada), offset de spin limitado a `Cue.SpinLimit`.
 
 ## Problema
 

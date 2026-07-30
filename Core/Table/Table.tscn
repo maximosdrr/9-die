@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://km1p4vfi4o1w"]
+[gd_scene load_steps=11 format=3 uid="uid://km1p4vfi4o1w"]
 
 [ext_resource type="Script" path="res://Core/Table/Scripts/Table.cs" id="1_iqaas"]
 [ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Table/UI/StartGameUI.tscn" id="4_jynrt"]
@@ -6,7 +6,8 @@
 [ext_resource type="Script" path="res://Core/Table/States/WaitingGameStart.cs" id="6_njalx"]
 [ext_resource type="Script" path="res://Core/Table/States/GameStarted.cs" id="7_dge2g"]
 [ext_resource type="Script" path="res://Core/Table/States/GameStarting.cs" id="7_hu1vg"]
-[ext_resource type="Script" path="res://Core/StateMachine/Network/PublicStateSyncronizer.cs" id="7_r1yk8"]
+[ext_resource type="Script" path="res://Core/Table/States/GameFinished.cs" id="9_gmfin"]
+[ext_resource type="Script" path="res://Core/StateMachine/Network/AuthorityStateSynchronizer.cs" id="7_r1yk8"]
 [ext_resource type="Script" path="res://Core/Table/GameMode/GameModeHandler.cs" id="8_hu1vg"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
@@ -30,10 +31,10 @@ shape = SubResource("BoxShape3D_i6bfp")
 [node name="PoolStartGameUI" parent="UI" instance=ExtResource("4_jynrt")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1.3847563, 0)
 
-[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("PublicStateSyncronizer")]
+[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("AuthorityStateSynchronizer")]
 script = ExtResource("5_7vxer")
 InitialState = "GAME_WAITING_START"
-PublicStateSyncronizer = NodePath("../Scripts/PublicStateSyncronizer")
+AuthorityStateSynchronizer = NodePath("AuthorityStateSynchronizer")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Waiting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("TableInfluence", "StartGameUI")]
@@ -53,16 +54,23 @@ script = ExtResource("7_dge2g")
 Table = NodePath("../..")
 metadata/_custom_type_script = "uid://ci7kc3583eis2"
 
+[node name="Finished" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("StartGameUI", "ReturnTimer")]
+script = ExtResource("9_gmfin")
+StartGameUI = NodePath("../../UI/PoolStartGameUI")
+ReturnTimer = NodePath("../../Timers/EndMatchTimer")
+metadata/_custom_type_script = "uid://dvlfoopdta03f"
+
+[node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine"]
+script = ExtResource("7_r1yk8")
+metadata/_custom_type_script = "uid://b5ic2cn2b3ipw"
+
 [node name="Timers" type="Node3D" parent="."]
 
 [node name="StartGameTimer" type="Timer" parent="Timers"]
 wait_time = 3.0
 
-[node name="Scripts" type="Node" parent="."]
-
-[node name="PublicStateSyncronizer" type="Node" parent="Scripts"]
-script = ExtResource("7_r1yk8")
-metadata/_custom_type_script = "uid://5qg7w6j3xyja"
+[node name="EndMatchTimer" type="Timer" parent="Timers"]
+wait_time = 5.0
 
 [node name="DebugLabel" type="Label3D" parent="."]
 transform = Transform3D(-0.99999994, 0, -8.742277e-08, 0, 1, 0, 8.742277e-08, 0, -0.99999994, 0.32073355, 1.3412044, -0.04745817)

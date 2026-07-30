@@ -16,7 +16,23 @@ public partial class CueNetworkBridge : Node
     {
         if (!Multiplayer.IsServer())
             return;
-        Cue.CueBall.Strike(dir, finalForce, hitOffset);
+
+        var senderId = Multiplayer.GetRemoteSenderId();
+
+        if (senderId != GetMultiplayerAuthority())
+            return;
+
+        if (Cue.PoolGame?.TurnOwner == null || (string)Cue.PoolGame.TurnOwner.Name != senderId.ToString())
+            return;
+
+        if (!IsInstanceValid(Cue.CueBall))
+            return;
+
+        var safeDir = dir.Length() > 0.0001f ? dir.Normalized() : -Cue.GlobalTransform.Basis.Z.Normalized();
+        var safeForce = Mathf.Clamp(finalForce, 0.0f, Cue.ForceMultiplier);
+        var safeOffset = hitOffset.LimitLength(Cue.SpinLimit);
+
+        Cue.CueBall.Strike(safeDir, safeForce, safeOffset);
     }
 
     private void CallStrike(Vector3 dir, float finalForce, Vector3 hitOffset)

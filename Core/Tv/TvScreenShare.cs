@@ -20,6 +20,8 @@ public partial class TvScreenShare : MeshInstance3D
 	[Export] public Area3D InteractionArea;
 	[Export] public PoolStartGameUI InteractionPrompt;
 
+	public static bool IsAvailable => OS.GetName() == "Windows";
+
 	public int SharerId { get; private set; } = 0;
 	public ImageTexture Texture => _texture;
 	public bool IsLocalPlayerInRange { get; private set; }
@@ -68,10 +70,11 @@ public partial class TvScreenShare : MeshInstance3D
 		_audioPlayback = (AudioStreamGeneratorPlayback)_audioPlayer.GetStreamPlayback();
 
 		InteractionPrompt.Hide();
-		ConnectSignals();
 
-		if (OS.GetName() == "Windows")
+		if (IsAvailable)
 		{
+			ConnectSignals();
+
 			var hwnd = (IntPtr)DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle, (int)DisplayServer.MainWindowId);
 			WindowsScreenCapture.ExcludeWindowFromCapture(hwnd);
 		}

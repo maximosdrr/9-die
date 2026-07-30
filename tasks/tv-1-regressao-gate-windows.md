@@ -2,6 +2,7 @@
 
 **Área**: TV (Core/Tv, TvShareButton)
 **Prioridade**: 🔴 Crítico
+**Status**: ✅ Resolvido em 29/07/2026 — `TvScreenShare.IsAvailable` (static, `OS.GetName() == "Windows"`) adicionado; `ConnectSignals()` (que liga o `InteractionArea`) só roda se `IsAvailable`. Fora do Windows, `IsLocalPlayerInRange` nunca vira `true`, o que já cascateia corretamente pro `TvShareButton` (que já gateava nisso) — o prompt nunca aparece e o picker nunca abre, sem precisar duplicar o check lá. Ver visualizar já continua funcionando fora do Windows (decodificação de WebP é cross-platform, só a *captura* é Windows-only).
 
 ## Problema
 

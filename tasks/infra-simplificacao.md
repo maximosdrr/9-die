@@ -8,11 +8,11 @@ Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza/nomenclatura) da ár
 
 **Direção**: ou formalizar como service locator com null-safety consistente, ou parar de usar como local de auto-registro e passar as referências explicitamente (`[Export]`).
 
-## 🟡 INFRA-5 — `AuthorityStateSynchronizer`/`PublicStateSyncronizer` são ~90% código duplicado
+## ✅ INFRA-5 — `AuthorityStateSynchronizer`/`PublicStateSyncronizer` são ~90% código duplicado
 
-`Core/StateMachine/Network/*.cs` — mesma estrutura (`Setup`, `OnClientConnect`, `OnLocalStateChange`, `RemoteSyncState`), únicas diferenças são o guard de autoridade (ver [infra-1](infra-1-table-state-sync-sem-validacao.md)). Nomes nem concordam na grafia (`Synchronizer` vs `Syncronizer`).
+**Resolvido em 29/07/2026** (via [infra-1](infra-1-table-state-sync-sem-validacao.md)) — a correção do infra-1 trocou o único consumidor de `PublicStateSyncronizer` (a `Table`) pro `AuthorityStateSynchronizer`, deixando `PublicStateSyncronizer` sem nenhum uso — removido inteiramente em vez de colapsado. A duplicação sumiu por eliminação de um dos dois, não por fusão.
 
-**Direção**: colapsar em uma classe com flag `RequireAuthority`/`EnforceAuthority`, corrigindo o typo de nome.
+~~`Core/StateMachine/Network/*.cs` — mesma estrutura (`Setup`, `OnClientConnect`, `OnLocalStateChange`, `RemoteSyncState`), únicas diferenças são o guard de autoridade. Nomes nem concordam na grafia (`Synchronizer` vs `Syncronizer`).~~
 
 ## 🟡 INFRA-6 — `StateMachine` frágil: crash silencioso em `InitialState` mal digitado, ordem de sinal errada
 

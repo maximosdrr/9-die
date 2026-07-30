@@ -2,6 +2,7 @@
 
 **Área**: Player
 **Prioridade**: 🟠 Bug
+**Status**: ✅ Resolvido em 29/07/2026 — `(Player)Owner` trocado por `Player` (o campo já existente).
 
 ## Problema
 

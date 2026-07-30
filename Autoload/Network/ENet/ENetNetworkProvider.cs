@@ -22,9 +22,10 @@ public partial class ENetNetworkProvider : NetworkProvider
             var msg = "Invalid port";
             GD.PushError(msg);
             EmitSignal(SignalName.ConnectionFailed, msg);
+            return;
         }
 
-        _enet.CreateServer(port);
+        _enet.CreateServer(port, MaxPlayers);
         Multiplayer.MultiplayerPeer = _enet;
 
         var peerId = Multiplayer.GetUniqueId();
@@ -43,6 +44,7 @@ public partial class ENetNetworkProvider : NetworkProvider
             var msg = "Port or Client address invalid";
             GD.PushError(msg);
             EmitSignal(SignalName.ConnectionFailed, msg);
+            return;
         }
 
         _enet.CreateClient(hostAddress, port);

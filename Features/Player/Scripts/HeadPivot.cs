@@ -34,6 +34,7 @@ public partial class HeadPivot : Node3D
         if (@event.IsActionPressed("ui_cancel"))
         {
             Input.MouseMode = Input.MouseModeEnum.Visible;
+            GetViewport().SetInputAsHandled();
             return;
         }
 
@@ -42,6 +43,7 @@ public partial class HeadPivot : Node3D
             if (Input.MouseMode != Input.MouseModeEnum.Captured)
             {
                 Input.MouseMode = Input.MouseModeEnum.Captured;
+                GetViewport().SetInputAsHandled();
                 return;
             }
         }

@@ -2,6 +2,8 @@
 
 **Área**: Infraestrutura (Network)
 **Prioridade**: 🟠 Bug
+**Status**: 🟡 Parcialmente resolvido em 29/07/2026 — corrigidos os bugs concretos: `CreateHost`/`JoinSession` do `ENetNetworkProvider` agora dão `return` de verdade depois do erro de validação (antes seguiam executando mesmo assim); `CreateServer` passa `MaxPlayers` (4) como `maxClients` (antes usava o default do Godot, 32 — nada impedia um 5º peer). `NetworkManager.JoinSession` ganhou um parâmetro `hostAddress` (default `127.0.0.1`, mantendo o botão `JoinSessionLocal` funcionando igual) — a plumbing pra conectar num host remoto real agora existe.
+**Não resolvido, de propósito**: não existe UI pra digitar um IP remoto (`LobbyMenu`/`Menu.tscn` só tem o botão local + lista de lobby do Steam, que está morta) — isso é trabalho de UI novo, não um bug pontual, deixei de fora pra não inventar uma tela sem ter sido pedido. Decisão Steam-vs-ENet também não foi tomada (Steam continua desligado, código morto intacto — já coberto pelo [infra-9](infra-simplificacao.md)).
 
 ## Problema
 

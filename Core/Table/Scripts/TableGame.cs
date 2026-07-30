@@ -32,6 +32,38 @@ public partial class TableGame : Node3D
         TableInfluenceArea = table.TableInfluence;
         SetupNetworkTurnSyncronization(this);
         ConnectSignals();
+
+        NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
+    }
+
+    private void OnPlayerDisconnected(int peerId)
+    {
+        if (!Multiplayer.IsServer())
+            return;
+
+        if (TurnOwner == null || TurnOrder.Count == 0)
+            return;
+
+        var disconnectedId = peerId.ToString();
+
+        if (!TurnOrder.Contains(disconnectedId))
+            return;
+
+        string remainingId = null;
+        foreach (var idVariant in TurnOrder)
+        {
+            var id = (string)idVariant;
+            if (id != disconnectedId)
+            {
+                remainingId = id;
+                break;
+            }
+        }
+
+        if (remainingId == null)
+            return;
+
+        CallMatchOver(remainingId, new Dictionary { ["reason"] = "opponent_disconnected" });
     }
 
     private void SetupNetworkTurnSyncronization(TableGame tableGame)
@@ -134,7 +166,8 @@ public partial class TableGame : Node3D
 
     public void ApplyMatchOver(string winner, Dictionary context)
     {
-        Table.StateMachine.ChangeState(StatesRef.GameWaitingStart, new Dictionary { ["is_restart"] = true });
+        context["winner"] = winner;
+        Table.StateMachine.ChangeState(StatesRef.GameFinished, context);
         EmitSignal(SignalName.MatchOver, winner, context);
     }
 }

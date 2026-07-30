@@ -2,6 +2,7 @@
 
 **Área**: Lógica de Sinuca (Cue SFX)
 **Prioridade**: 🟠 Bug
+**Status**: ✅ Resolvido em 29/07/2026 — normalização feita dentro do próprio `CueSfx.EmitStrikeSound` (que já tinha uma referência a `Cue`): `finalForce / Cue.ForceMultiplier`, clampado em `[0,1]` antes dos dois `Lerp`. Ponto único de verdade — `Cue.ExecuteStrike` continua passando a força bruta como sempre, sem precisar saber sobre normalização.
 
 ## Problema
 

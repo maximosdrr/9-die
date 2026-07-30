@@ -51,6 +51,7 @@ public partial class Ball : RigidBody3D
     [Signal] public delegate void BallContactedEventHandler(Ball ball);
     [Signal] public delegate void JumpStartedEventHandler();
     [Signal] public delegate void JumpLandedEventHandler();
+    [Signal] public delegate void TouchedRailEventHandler();
 
     public float Radius = 0.029f;
     public bool IsMoving = false;
@@ -254,5 +255,11 @@ public partial class Ball : RigidBody3D
     {
         if (body is Ball ball)
             EmitSignal(SignalName.BallContacted, ball);
+    }
+
+    private void OnRigidBodyContactEntered(Node body)
+    {
+        if (body is Node3D node3D && node3D.IsInGroup("Cushion"))
+            EmitSignal(SignalName.TouchedRail);
     }
 }

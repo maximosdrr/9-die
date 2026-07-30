@@ -27,11 +27,20 @@ public partial class BallPlacementManager : Node
 	private bool _isPlacing = false;
 	private RemoteTransform3D _previousCameraRemote;
 
+	private int _authorizedPlacerId = 0;
+	private Ball _authorizedBall;
+
 	private Vector3 TableCenter => TableOrigin != null ? TableOrigin.GlobalPosition : Vector3.Zero;
 
 	public override void _Ready()
 	{
 		SetProcessUnhandledInput(false);
+	}
+
+	public void AuthorizePlacement(int playerId, Ball ball)
+	{
+		_authorizedPlacerId = playerId;
+		_authorizedBall = ball;
 	}
 
 	public void StartPlacement(Ball ballToPlace, Array<Ball> existingBalls)
@@ -43,7 +52,7 @@ public partial class BallPlacementManager : Node
 		_otherBalls = existingBalls;
 		_isPlacing = true;
 
-		Rpc(MethodName.SetBallPlacementState, _ball.GetPath(), Multiplayer.GetUniqueId(), true, _ball.GlobalPosition);
+		RequestPlacementState(_ball.GetPath(), true, _ball.GlobalPosition);
 		SetInputActive(true);
 		SwitchCameraMode(true);
 		SetProcessUnhandledInput(true);
@@ -93,7 +102,7 @@ public partial class BallPlacementManager : Node
 		SetInputActive(false);
 
 		if (IsInstanceValid(_ball))
-			Rpc(MethodName.SetBallPlacementState, _ball.GetPath(), 1, false, _ball.GlobalPosition);
+			RequestPlacementState(_ball.GetPath(), false, _ball.GlobalPosition);
 
 		SwitchCameraMode(false);
 		_ball = null;
@@ -200,7 +209,43 @@ public partial class BallPlacementManager : Node
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	private void RequestPlacementState(NodePath ballPath, bool isFrozen, Vector3 pos)
+	{
+		if (Multiplayer.IsServer())
+			TryApplyPlacementState(Multiplayer.GetUniqueId(), ballPath, isFrozen, pos);
+		else
+			RpcId(1, MethodName.RequestSetBallPlacementState, ballPath, isFrozen, pos);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	private void RequestSetBallPlacementState(NodePath ballPath, bool isFrozen, Vector3 pos)
+	{
+		if (!Multiplayer.IsServer())
+			return;
+
+		TryApplyPlacementState(Multiplayer.GetRemoteSenderId(), ballPath, isFrozen, pos);
+	}
+
+	private void TryApplyPlacementState(int requesterId, NodePath ballPath, bool isFrozen, Vector3 pos)
+	{
+		if (requesterId != _authorizedPlacerId)
+			return;
+
+		var requestedBall = GetNodeOrNull<Ball>(ballPath);
+		if (requestedBall == null || requestedBall != _authorizedBall)
+			return;
+
+		var newAuthority = isFrozen ? requesterId : 1;
+		Rpc(MethodName.SetBallPlacementState, ballPath, newAuthority, isFrozen, pos);
+
+		if (!isFrozen)
+		{
+			_authorizedPlacerId = 0;
+			_authorizedBall = null;
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void SetBallPlacementState(NodePath ballPath, int newAuthority, bool isFrozen, Vector3 finalPos)
 	{
 		var ballNode = GetNodeOrNull<Ball>(ballPath);

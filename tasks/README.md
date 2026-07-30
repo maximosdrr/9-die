@@ -2,17 +2,9 @@
 
 Levantamento do que falta para uma partida de sinuca ser jogável do início ao fim, feito em 27/07/2026 logo após a conversão do projeto de GDScript para C#. A arquitetura central (física, tacada, turnos, sincronização de rede) já está implementada e portada — o que falta aqui é o que fica em volta dela.
 
-## Prioridade Alta (bloqueia uma partida completa)
-
-- [01 - Tela de fim de partida](01-tela-fim-de-partida.md)
-- [02 - Jogador desconecta e trava o jogo](02-desconexao-trava-jogo.md)
-- [03 - Regras de falta incompletas no Golden Nine](03-regras-falta-golden-nine.md)
-
 ## Prioridade Média (feedback e UX)
 
-- [04 - NotificationPopup órfão](04-notification-popup-orfao.md)
-- [05 - Placar durante a partida](05-placar-durante-partida.md)
-- [06 - Lobby sem lista de jogadores](06-lobby-lista-jogadores.md)
+- [ ] [05 - Placar durante a partida](05-placar-durante-partida.md) — adiado, ver arquivo
 
 ## Prioridade Baixa (robustez e polimento)
 
@@ -23,6 +15,11 @@ Levantamento do que falta para uma partida de sinuca ser jogável do início ao 
 ## Concluído
 
 - ~~Addon `godotsteam_server` quebrado (DLL desatualizada, não usado pelo projeto)~~ — removido em 27/07/2026.
+- [x] [01 - Tela de fim de partida](01-tela-fim-de-partida.md) — resolvido em 29/07/2026.
+- [x] [02 - Jogador desconecta e trava o jogo](02-desconexao-trava-jogo.md) — resolvido em 29/07/2026.
+- [x] [03 - Regras de falta incompletas no Golden Nine](03-regras-falta-golden-nine.md) — resolvido em 29/07/2026.
+- [x] [04 - NotificationPopup órfão](04-notification-popup-orfao.md) — removido (código morto) em 29/07/2026.
+- [x] [06 - Lobby sem lista de jogadores](06-lobby-lista-jogadores.md) — investigado, não implementado por decisão do dono do projeto em 29/07/2026.
 
 ---
 
@@ -36,22 +33,22 @@ Levantamento separado, feito em 29/07/2026, a pedido do dono do projeto ("tudo m
 
 ## 🔴 Críticos (segurança de rede, crash real)
 
-- [ ] [infra-1 - Table state sync sem validação de remetente](infra-1-table-state-sync-sem-validacao.md)
-- [ ] [pool-1 - Cue strike sem validação de turno/força](pool-1-cue-strike-sem-validacao.md)
-- [ ] [pool-2 - Ball placement sem validação nenhuma](pool-2-ball-placement-sem-validacao.md)
-- [ ] [pool-3 - Início de partida client-driven](pool-3-start-game-client-driven.md)
-- [ ] [tv-1 - Regressão: gate de Windows perdido no refactor de proximidade](tv-1-regressao-gate-windows.md)
+- [x] [infra-1 - Table state sync sem validação de remetente](infra-1-table-state-sync-sem-validacao.md)
+- [x] [pool-1 - Cue strike sem validação de turno/força](pool-1-cue-strike-sem-validacao.md)
+- [x] [pool-2 - Ball placement sem validação nenhuma](pool-2-ball-placement-sem-validacao.md)
+- [x] [pool-3 - Início de partida client-driven](pool-3-start-game-client-driven.md)
+- [x] [tv-1 - Regressão: gate de Windows perdido no refactor de proximidade](tv-1-regressao-gate-windows.md)
 
 ## 🟠 Bugs de lógica
 
-- [ ] [infra-2 - Disconnect sem guard de autoridade](infra-2-disconnect-sem-guard-autoridade.md)
-- [ ] [infra-3 - Transporte de rede: Steam morto, localhost hardcoded](infra-3-transporte-rede-steam-morto-localhost.md)
-- [ ] [pool-4 - Vencedor errado em falta fatal (Golden Nine)](pool-4-vencedor-errado-falta-fatal.md)
-- [ ] [pool-5 - Áudio de tacada sem clamp (volume/pitch)](pool-5-audio-tacada-sem-clamp.md)
-- [ ] [pool-6 - Ball placement RPC provavelmente sem relay pra espectadores](pool-6-ball-placement-rpc-sem-relay.md)
-- [ ] [player-1 - Captura de mouse sem dono único](player-1-mouse-capture-sem-dono.md)
-- [ ] [player-2 - PlayerGameHandler: Player vs (Player)Owner](player-2-game-handler-owner-vs-player.md)
-- [ ] [repo-1 - Tecla F duplicada (interact vs start_game)](repo-1-tecla-f-duplicada.md)
+- [x] [infra-2 - Disconnect sem guard de autoridade](infra-2-disconnect-sem-guard-autoridade.md)
+- [x] [infra-3 - Transporte de rede: Steam morto, localhost hardcoded](infra-3-transporte-rede-steam-morto-localhost.md) — parcial, ver arquivo
+- [x] [pool-4 - Vencedor errado em falta fatal (Golden Nine)](pool-4-vencedor-errado-falta-fatal.md)
+- [x] [pool-5 - Áudio de tacada sem clamp (volume/pitch)](pool-5-audio-tacada-sem-clamp.md)
+- [x] [pool-6 - Ball placement RPC provavelmente sem relay pra espectadores](pool-6-ball-placement-rpc-sem-relay.md) — investigado, não confirmado como bug
+- [x] [player-1 - Captura de mouse sem dono único](player-1-mouse-capture-sem-dono.md) — parcial, ver arquivo
+- [x] [player-2 - PlayerGameHandler: Player vs (Player)Owner](player-2-game-handler-owner-vs-player.md)
+- [x] [repo-1 - Tecla F duplicada (interact vs start_game)](repo-1-tecla-f-duplicada.md)
 
 ## 🟡 Simplificações validadas pro escopo fixo (só sinuca, múltiplos modos)
 

@@ -33,6 +33,9 @@ public partial class LevelMultiplayerManager : Node
 
 	private void OnPlayerDisconnect(int peerId)
 	{
+		if (!IsMultiplayerAuthority())
+			return;
+
 		GD.Print($"Server - Player disconnected Peer ID: {peerId}");
 
 		if (PlayersContainer.HasNode(peerId.ToString()))

@@ -14,6 +14,7 @@ public partial class PoolTurnResolver : TurnResolver
     public Dictionary<int, Ball> BallsInGame = new();
     public Array<Ball> BallsOffTableList = new();
     public Ball FirstBallHit = null;
+    public bool AnyRailContact = false;
 
     public override void Setup(TableGame tableGame)
     {
@@ -81,19 +82,30 @@ public partial class PoolTurnResolver : TurnResolver
             FirstBallHit = ball;
     }
 
+    private void OnAnyBallTouchedRail()
+    {
+        AnyRailContact = true;
+    }
+
     private void OnTurnStart(string ownerId, Dictionary context)
     {
+        if (!context.ContainsKey("ball_replacement"))
+            return;
+
+        var ballIndex = (int)context["ball_replacement"];
+        var target = ballIndex == 0 ? CueBall : BallsInGame[ballIndex];
+
+        if (Multiplayer.IsServer())
+            PoolGame.BallPlacementManager.AuthorizePlacement(int.Parse(ownerId), target);
+
         if (Multiplayer.GetUniqueId() != int.Parse(ownerId))
             return;
 
-        if (context.ContainsKey("ball_replacement"))
-            _ = HandleBallReplacement(context);
+        _ = HandleBallReplacement(target);
     }
 
-    private async Task HandleBallReplacement(Dictionary context)
+    private async Task HandleBallReplacement(Ball target)
     {
-        var ballIndex = (int)context["ball_replacement"];
-        var target = ballIndex == 0 ? CueBall : BallsInGame[ballIndex];
         var balls = new Array<Ball>(BallsInGame.Values);
 
         PoolGame.BallPlacementManager.StartPlacement(target, balls);
@@ -105,8 +117,10 @@ public partial class PoolTurnResolver : TurnResolver
         ResetTurnState();
 
         SignalUtil.ConnectGuarded(CueBall, Ball.SignalName.BallContacted, new Callable(this, MethodName.OnCueBallContact));
+        ConnectRailListeners();
         await ToSignal(PoolGame.BallsMovementMonitor, BallsMovementMonitor.SignalName.BallsStopped);
         SignalUtil.DisconnectGuarded(CueBall, Ball.SignalName.BallContacted, new Callable(this, MethodName.OnCueBallContact));
+        DisconnectRailListeners();
 
         var context = GenerateTurnContext();
         var action = TurnRuler.Rule(context);
@@ -121,6 +135,23 @@ public partial class PoolTurnResolver : TurnResolver
         BallsScored.Clear();
         BallsOffTableList.Clear();
         FirstBallHit = null;
+        AnyRailContact = false;
+    }
+
+    private void ConnectRailListeners()
+    {
+        SignalUtil.ConnectGuarded(CueBall, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
+
+        foreach (var kvp in BallsInGame)
+            SignalUtil.ConnectGuarded(kvp.Value, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
+    }
+
+    private void DisconnectRailListeners()
+    {
+        SignalUtil.DisconnectGuarded(CueBall, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
+
+        foreach (var kvp in BallsInGame)
+            SignalUtil.DisconnectGuarded(kvp.Value, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
     }
 
     private TurnContext GenerateTurnContext()
@@ -152,6 +183,7 @@ public partial class PoolTurnResolver : TurnResolver
             BallsOffTable = new Array<Ball>(BallsOffTableList),
             TargetBall = targetBall,
             CurrentBallsRemaining = currentBallsRemaining,
+            AnyRailContact = AnyRailContact,
         };
     }
 
@@ -168,11 +200,12 @@ public partial class PoolTurnResolver : TurnResolver
                 break;
 
             case TurnRuler.Actions.CallCueBallReplacement:
+                RespotGoldenBallIfScored();
                 PoolGame.CallNextTurn(new Dictionary { ["ball_replacement"] = 0 });
                 break;
 
             case TurnRuler.Actions.EndGameFatalFoul:
-                PoolGame.CallMatchOver((string)PoolGame.TurnOwner.Name, new Dictionary { ["reason"] = "fatal_foul" });
+                PoolGame.CallMatchOver(GetOpponentId(), new Dictionary { ["reason"] = "fatal_foul" });
                 break;
 
             case TurnRuler.Actions.EndGamePlayerWin:
@@ -180,5 +213,29 @@ public partial class PoolTurnResolver : TurnResolver
                 Reset();
                 break;
         }
+    }
+
+    private void RespotGoldenBallIfScored()
+    {
+        if (!BallsScored.TryGetValue(9, out var goldenBall) || !IsInstanceValid(goldenBall))
+            return;
+
+        goldenBall.GlobalPosition = PoolGame.PoolBallRespawn.GetFootSpotGlobalPosition();
+        goldenBall.LinearVelocity = Vector3.Zero;
+        goldenBall.AngularVelocity = Vector3.Zero;
+
+        BallsInGame[9] = goldenBall;
+    }
+
+    private string GetOpponentId()
+    {
+        var currentId = (string)PoolGame.TurnOwner.Name;
+        var currentIndex = PoolGame.TurnOrder.IndexOf(currentId);
+
+        if (currentIndex == -1)
+            return currentId;
+
+        var nextIndex = (currentIndex + 1) % PoolGame.TurnOrder.Count;
+        return (string)PoolGame.TurnOrder[nextIndex];
     }
 }

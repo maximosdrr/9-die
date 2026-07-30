@@ -24,7 +24,7 @@ public partial class PlayerGameHandler : Node
             ContextSlot.Hide();
 
         ContextSlot.AddChild(CurrentController);
-        CurrentController.Setup((Player)Owner, tableGame);
+        CurrentController.Setup(Player, tableGame);
     }
 
     public void UnequipCurrentController()
