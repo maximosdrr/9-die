@@ -3,6 +3,8 @@ using Godot;
 [GlobalClass]
 public partial class SteamNetworkProvider : NetworkProvider
 {
+    public override bool SupportsSessionBrowsing => true;
+
     public override void _Ready()
     {
         base._Ready();

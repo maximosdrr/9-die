@@ -8,6 +8,12 @@ public partial class PlayerGameHandler : Node
 
     public PoolController CurrentController = null;
 
+    [Signal]
+    public delegate void ControllerEquippedEventHandler(TableGame tableGame);
+
+    [Signal]
+    public delegate void ControllerUnequippedEventHandler();
+
     public void EquipGameController(PackedScene controllerScene, TableGame tableGame)
     {
         UnequipCurrentController();
@@ -25,6 +31,8 @@ public partial class PlayerGameHandler : Node
 
         ContextSlot.AddChild(CurrentController);
         CurrentController.Setup(Player, tableGame);
+
+        EmitSignal(SignalName.ControllerEquipped, tableGame);
     }
 
     public void UnequipCurrentController()
@@ -39,5 +47,7 @@ public partial class PlayerGameHandler : Node
 
         CurrentController.QueueFree();
         CurrentController = null;
+
+        EmitSignal(SignalName.ControllerUnequipped);
     }
 }

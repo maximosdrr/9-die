@@ -27,6 +27,8 @@ public partial class NetworkProvider : Node
 
     protected MultiplayerPeer Peer;
 
+    public virtual bool SupportsSessionBrowsing => false;
+
     public override void _Ready()
     {
         Multiplayer.PeerConnected += id => EmitSignal(SignalName.PlayerConnected, (int)id);

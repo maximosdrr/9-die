@@ -21,7 +21,7 @@ public partial class TableGame : Node3D
     public delegate void MatchStartedEventHandler(Array playersIds, string firstTurnPlayer);
 
     [Signal]
-    public delegate void TurnExtendedEventHandler();
+    public delegate void TurnExtendedEventHandler(Dictionary context);
 
     [Signal]
     public delegate void MatchOverEventHandler(string winner, Dictionary context);
@@ -136,25 +136,25 @@ public partial class TableGame : Node3D
         TurnOwner = nextPlayer;
 
         if (GameModeHandler != null)
-            GameModeHandler.CurrentGameMode.TurnResolver.HandleNewTurnContext();
+            GameModeHandler.CurrentGameMode.TurnResolver.HandleNewTurnContext(context);
         else
             GD.PushWarning("Game mode handler is not configured on table: ", Name);
 
         EmitSignal(SignalName.TurnChanged, playerId, context);
     }
 
-    public void CallExtendCurrentTurn()
+    public void CallExtendCurrentTurn(Dictionary context)
     {
-        ApplyTurnExtension();
+        ApplyTurnExtension(context);
         GD.Print("Turn extended for: ", TurnOwner.Name);
     }
 
-    public void ApplyTurnExtension()
+    public void ApplyTurnExtension(Dictionary context)
     {
-        EmitSignal(SignalName.TurnExtended);
+        EmitSignal(SignalName.TurnExtended, context);
 
         if (GameModeHandler != null)
-            GameModeHandler.CurrentGameMode.TurnResolver.HandleTurnExtensionContext();
+            GameModeHandler.CurrentGameMode.TurnResolver.HandleTurnExtensionContext(context);
         else
             GD.PushWarning("Game mode handler is not configured on table: ", Name);
     }

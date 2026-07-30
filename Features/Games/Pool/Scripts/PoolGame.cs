@@ -17,6 +17,12 @@ public partial class PoolGame : TableGame
     public Array<Ball> Balls = new();
     public Area3D ScoreMonitor;
 
+    public Dictionary<string, Array> BallsPocketedByPlayer = new();
+    public int CurrentTargetBallIndex = 0;
+
+    [Signal]
+    public delegate void HudStateUpdatedEventHandler();
+
     public override void _Ready()
     {
         PoolBallRespawn = GetNode<PoolBallRespawn>("Scripts/PoolBallRespawn");
@@ -33,8 +39,30 @@ public partial class PoolGame : TableGame
         MatchStarted += OnMatchStarts;
     }
 
+    public void ApplyHudUpdate(int targetBallIndex, string scoringPlayerId, Array scoredBalls)
+    {
+        CurrentTargetBallIndex = targetBallIndex;
+
+        if (scoringPlayerId != null && scoredBalls != null && scoredBalls.Count > 0)
+        {
+            if (!BallsPocketedByPlayer.TryGetValue(scoringPlayerId, out var list))
+            {
+                list = new Array();
+                BallsPocketedByPlayer[scoringPlayerId] = list;
+            }
+
+            foreach (var index in scoredBalls)
+                list.Add(index);
+        }
+
+        EmitSignal(SignalName.HudStateUpdated);
+    }
+
     public override async void SetupMatch(Array players, string firstTurnOwner)
     {
+        BallsPocketedByPlayer.Clear();
+        CurrentTargetBallIndex = 0;
+
         PoolBallRespawn.StartGame();
 
         var (cueBall, balls) = await PoolBallRespawn.WaitTableReady();

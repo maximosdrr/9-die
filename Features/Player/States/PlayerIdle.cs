@@ -24,6 +24,9 @@ public partial class PlayerIdle : State
 
     public override void Process(double delta)
     {
+        if (!Player.IsMultiplayerAuthority())
+            return;
+
         if (Player.Velocity.Length() > 0.01f)
             StateMachine.ChangeState(StatesRef.PlayerWalking, new Dictionary());
     }

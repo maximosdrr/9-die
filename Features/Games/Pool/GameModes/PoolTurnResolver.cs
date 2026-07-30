@@ -26,6 +26,9 @@ public partial class PoolTurnResolver : TurnResolver
         foreach (var ball in PoolGame.Balls)
             BallsInGame[ball.Index] = ball;
 
+        var initialTarget = BallsInGame.Keys.Count > 0 ? System.Linq.Enumerable.Min(BallsInGame.Keys) : 0;
+        PoolGame.ApplyHudUpdate(initialTarget, null, null);
+
         ConnectSignals();
     }
 
@@ -124,10 +127,12 @@ public partial class PoolTurnResolver : TurnResolver
 
         var context = GenerateTurnContext();
         var action = TurnRuler.Rule(context);
+        var scoringPlayerId = (string)PoolGame.TurnOwner.Name;
+        var ballsScoredThisTurn = context.BallsScored;
 
         BallsInGame = context.CurrentBallsRemaining;
 
-        ApplyTurnAction(action);
+        ApplyTurnAction(action, scoringPlayerId, ballsScoredThisTurn);
     }
 
     private void ResetTurnState()
@@ -187,21 +192,23 @@ public partial class PoolTurnResolver : TurnResolver
         };
     }
 
-    private void ApplyTurnAction(TurnRuler.Actions action)
+    private void ApplyTurnAction(TurnRuler.Actions action, string scoringPlayerId, Dictionary<int, Ball> ballsScoredThisTurn)
     {
         switch (action)
         {
             case TurnRuler.Actions.CallNextTurn:
-                PoolGame.CallNextTurn(new Dictionary());
+                PoolGame.CallNextTurn(BuildHudContext(scoringPlayerId, ballsScoredThisTurn));
                 break;
 
             case TurnRuler.Actions.ExtendTurn:
-                PoolGame.CallExtendCurrentTurn();
+                PoolGame.CallExtendCurrentTurn(BuildHudContext(scoringPlayerId, ballsScoredThisTurn));
                 break;
 
             case TurnRuler.Actions.CallCueBallReplacement:
                 RespotGoldenBallIfScored();
-                PoolGame.CallNextTurn(new Dictionary { ["ball_replacement"] = 0 });
+                var replacementContext = BuildHudContext(scoringPlayerId, ballsScoredThisTurn);
+                replacementContext["ball_replacement"] = 0;
+                PoolGame.CallNextTurn(replacementContext);
                 break;
 
             case TurnRuler.Actions.EndGameFatalFoul:
@@ -214,6 +221,47 @@ public partial class PoolTurnResolver : TurnResolver
                 Reset();
                 break;
         }
+    }
+
+    private Dictionary BuildHudContext(string scoringPlayerId, Dictionary<int, Ball> ballsScoredThisTurn)
+    {
+        var scoredIndices = new Array();
+        foreach (var index in ballsScoredThisTurn.Keys)
+        {
+            if (index != 0 && !BallsInGame.ContainsKey(index))
+                scoredIndices.Add(index);
+        }
+
+        var targetBallIndex = BallsInGame.Keys.Count > 0 ? System.Linq.Enumerable.Min(BallsInGame.Keys) : 0;
+
+        return new Dictionary
+        {
+            ["scoring_player"] = scoringPlayerId,
+            ["scored_balls"] = scoredIndices,
+            ["target_ball"] = targetBallIndex,
+        };
+    }
+
+    public override void HandleNewTurnContext(Dictionary context)
+    {
+        ApplyHudContext(context);
+    }
+
+    public override void HandleTurnExtensionContext(Dictionary context)
+    {
+        ApplyHudContext(context);
+    }
+
+    private void ApplyHudContext(Dictionary context)
+    {
+        if (PoolGame == null)
+            return;
+
+        var targetBallIndex = context.TryGetValue("target_ball", out var targetVariant) ? targetVariant.AsInt32() : PoolGame.CurrentTargetBallIndex;
+        var scoringPlayerId = context.TryGetValue("scoring_player", out var playerVariant) ? playerVariant.AsString() : null;
+        var scoredBalls = context.TryGetValue("scored_balls", out var ballsVariant) ? ballsVariant.AsGodotArray() : null;
+
+        PoolGame.ApplyHudUpdate(targetBallIndex, string.IsNullOrEmpty(scoringPlayerId) ? null : scoringPlayerId, scoredBalls);
     }
 
     private void RespotGoldenBallIfScored()

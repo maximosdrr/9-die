@@ -6,6 +6,7 @@ public partial class Global : Node
 
     public GlobalCamera Camera;
     public TvScreenShare TvScreen;
+    public string LocalNickname = "";
 
     public override void _EnterTree()
     {

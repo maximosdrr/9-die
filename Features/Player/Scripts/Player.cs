@@ -7,12 +7,14 @@ public partial class Player : CharacterBody3D
     [Export] public float Gravity = 12f;
     [Export] public float Speed = 3f;
     public int Id = 1;
+    [Export] public string Nickname = "";
 
     public HeadPivot HeadPivot;
     public RemoteTransform3D RemoteFps;
     public PlayerGameHandler GameHandler;
     public Node3D PlayerModel;
     public StateMachine StateMachine;
+    public PlayerHud Hud;
 
     public enum ControllerStatesEnum { Player, Game }
 
@@ -25,9 +27,18 @@ public partial class Player : CharacterBody3D
         GameHandler = GetNode<PlayerGameHandler>("Scripts/PlayerGameHandler");
         PlayerModel = GetNode<Node3D>("FirstPerson/Model3D");
         StateMachine = GetNode<StateMachine>("StateMachine");
+        Hud = GetNode<PlayerHud>("UI/PlayerHud");
+
+        // Godot calls _Ready() bottom-up (children before parents), so PlayerHud._Ready()
+        // would run before this point and see GameHandler as null if it tried to wire
+        // itself. Player explicitly initializes it here, after GameHandler is assigned.
+        Hud.Initialize(this);
 
         if (!IsMultiplayerAuthority())
             return;
+
+        var localNickname = Global.Instance.LocalNickname;
+        Nickname = string.IsNullOrWhiteSpace(localNickname) ? $"Player {Id}" : localNickname.Trim();
 
         TakeControl();
     }

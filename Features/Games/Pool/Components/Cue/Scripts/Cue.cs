@@ -139,7 +139,7 @@ public partial class Cue : Node3D
         UpdateTurnState();
     }
 
-    private void OnTurnExtended()
+    private void OnTurnExtended(Dictionary context)
     {
         UpdateTurnState();
     }

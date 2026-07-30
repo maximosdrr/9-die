@@ -28,10 +28,10 @@ public partial class TableTurnNetworkBridge : Node
             Rpc(MethodName.RpcSyncTurnUpdate, nextPlayerId, context);
     }
 
-    private void OnTurnExtendedServerSide()
+    private void OnTurnExtendedServerSide(Dictionary context)
     {
         if (Multiplayer.IsServer())
-            Rpc(MethodName.RpcSyncTurnExtension);
+            Rpc(MethodName.RpcSyncTurnExtension, context);
     }
 
     private void OnMatchOverServerSide(string winner, Dictionary context)
@@ -53,9 +53,9 @@ public partial class TableTurnNetworkBridge : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void RpcSyncTurnExtension()
+    private void RpcSyncTurnExtension(Dictionary context)
     {
-        TableGame.ApplyTurnExtension();
+        TableGame.ApplyTurnExtension(context);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

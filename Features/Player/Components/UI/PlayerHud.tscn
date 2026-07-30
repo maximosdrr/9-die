@@ -1,0 +1,57 @@
+[gd_scene load_steps=3 format=3 uid="uid://c9h2x3y4z5a6c"]
+
+[ext_resource type="Script" path="res://Features/Player/Components/UI/PlayerHud.cs" id="1_hud"]
+[ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/panel_wood.tres" id="2_panel"]
+
+[node name="PlayerHud" type="CanvasLayer" node_paths=PackedStringArray("TurnLabel", "TargetBallLabel", "TimerLabel", "ScoreList")]
+script = ExtResource("1_hud")
+TurnLabel = NodePath("Root/Panel/Margin/Box/TurnLabel")
+TargetBallLabel = NodePath("Root/Panel/Margin/Box/TargetBallLabel")
+TimerLabel = NodePath("Root/Panel/Margin/Box/TimerLabel")
+ScoreList = NodePath("Root/Panel/Margin/Box/ScoreList")
+
+[node name="Root" type="Control" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -260.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 20.0
+grow_horizontal = 0
+
+[node name="Panel" type="PanelContainer" parent="Root"]
+layout_mode = 2
+theme_override_styles/panel = ExtResource("2_panel")
+
+[node name="Margin" type="MarginContainer" parent="Root/Panel"]
+layout_mode = 2
+
+[node name="Box" type="VBoxContainer" parent="Root/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TurnLabel" type="Label" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 20
+text = "Sua vez!"
+
+[node name="TargetBallLabel" type="Label" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.678431, 0.752941, 0.839216, 1)
+theme_override_font_sizes/font_size = 16
+text = "Bola-alvo: 1"
+
+[node name="TimerLabel" type="Label" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.678431, 0.752941, 0.839216, 1)
+theme_override_font_sizes/font_size = 16
+text = "00:00"
+
+[node name="HSeparator" type="HSeparator" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+
+[node name="ScoreList" type="VBoxContainer" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_constants/separation = 4

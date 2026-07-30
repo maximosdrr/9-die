@@ -192,7 +192,7 @@ public partial class AimCameraPivot : Node3D
         SetPhysicsProcess(true);
     }
 
-    private void OnTurnExtended()
+    private void OnTurnExtended(Godot.Collections.Dictionary context)
     {
         MoveSmoothlyToTarget();
     }
