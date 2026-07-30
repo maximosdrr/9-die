@@ -11,8 +11,8 @@ public partial class SteamGlobals : Node
 
     public override void _Ready()
     {
-        var initializeOnStartup = (bool)ProjectSettings.GetSetting("steam/initialization/initialize_on_startup", false);
-        if (!initializeOnStartup)
+        var transport = (string)ProjectSettings.GetSetting("network/transport", "enet");
+        if (transport != "steam")
             return;
 
         InitializeSteam();

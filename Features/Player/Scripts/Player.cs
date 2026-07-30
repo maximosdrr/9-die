@@ -58,7 +58,7 @@ public partial class Player : CharacterBody3D
         HeadPivot.SetProcessUnhandledInput(true);
 
         Camera?.TransitionTo(RemoteFps);
-        Input.MouseMode = Input.MouseModeEnum.Captured;
+        InputFocus.Capture();
         CurrentControlState = ControllerStatesEnum.Player;
     }
 

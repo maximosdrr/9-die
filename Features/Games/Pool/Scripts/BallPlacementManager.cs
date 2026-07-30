@@ -191,7 +191,10 @@ public partial class BallPlacementManager : Node
 
 	private void SetInputActive(bool active)
 	{
-		Input.MouseMode = active ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
+		if (active)
+			InputFocus.Release();
+		else
+			InputFocus.Capture();
 	}
 
 	private void SwitchCameraMode(bool toOverhead)

@@ -122,6 +122,27 @@ theme_override_colors/font_pressed_color = Color(0.933333, 0.956863, 0.984314, 1
 theme_override_font_sizes/font_size = 15
 text = "Sortear"
 
+[node name="IpField" type="VBoxContainer" parent="HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="IpLabel" type="Label" parent="HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IpField"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.678431, 0.752941, 0.839216, 1)
+theme_override_font_sizes/font_size = 13
+text = "ENDEREÇO DO HOST"
+
+[node name="IpEdit" type="LineEdit" parent="HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IpField"]
+layout_mode = 2
+theme_override_styles/normal = ExtResource("4_lenorm")
+theme_override_styles/focus = ExtResource("5_lefocus")
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_colors/font_placeholder_color = Color(0.678431, 0.752941, 0.839216, 0.6)
+theme_override_colors/caret_color = Color(1.0, 0.823529, 0.247059, 1)
+theme_override_font_sizes/font_size = 18
+placeholder_text = "127.0.0.1"
+
 [node name="HostButton" type="Button" parent="HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox"]
 layout_mode = 2
 theme_override_styles/normal = ExtResource("6_pnorm")

@@ -70,7 +70,7 @@ public partial class PoolController : Node3D
 
 		Camera?.SetGlobalCameraFov(60);
 		Camera?.TransitionTo(RemoteAim);
-		Input.MouseMode = Input.MouseModeEnum.Captured;
+		InputFocus.Capture();
 	}
 
 	public void GiveControl()

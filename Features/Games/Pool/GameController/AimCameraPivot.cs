@@ -119,11 +119,11 @@ public partial class AimCameraPivot : Node3D
             return;
 
         if (@event is InputEventMouseButton)
-            Input.MouseMode = Input.MouseModeEnum.Captured;
+            InputFocus.Capture();
         else if (@event.IsActionPressed("ui_cancel"))
-            Input.MouseMode = Input.MouseModeEnum.Visible;
+            InputFocus.Release();
 
-        if (Input.MouseMode != Input.MouseModeEnum.Captured)
+        if (!InputFocus.IsCaptured)
             return;
 
         if (@event is InputEventMouseMotion motion)

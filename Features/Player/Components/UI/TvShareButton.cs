@@ -112,14 +112,14 @@ public partial class TvShareButton : CanvasLayer
         _sourcePicker.Visible = true;
         // The game normally runs with the mouse captured/hidden (FPS-style look) — without
         // freeing it here, the player would have no visible cursor to pick a thumbnail with.
-        Input.MouseMode = Input.MouseModeEnum.Visible;
+        InputFocus.Release();
         TvScreen.SetPromptSuppressed(true);
     }
 
     private void CloseSourcePicker()
     {
         _sourcePicker.Visible = false;
-        Input.MouseMode = Input.MouseModeEnum.Captured;
+        InputFocus.Capture();
         TvScreen.SetPromptSuppressed(false);
     }
 

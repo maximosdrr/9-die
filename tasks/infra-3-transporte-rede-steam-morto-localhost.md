@@ -2,8 +2,17 @@
 
 **Área**: Infraestrutura (Network)
 **Prioridade**: 🟠 Bug
-**Status**: 🟡 Parcialmente resolvido em 29/07/2026 — corrigidos os bugs concretos: `CreateHost`/`JoinSession` do `ENetNetworkProvider` agora dão `return` de verdade depois do erro de validação (antes seguiam executando mesmo assim); `CreateServer` passa `MaxPlayers` (4) como `maxClients` (antes usava o default do Godot, 32 — nada impedia um 5º peer). `NetworkManager.JoinSession` ganhou um parâmetro `hostAddress` (default `127.0.0.1`, mantendo o botão `JoinSessionLocal` funcionando igual) — a plumbing pra conectar num host remoto real agora existe.
-**Não resolvido, de propósito**: não existe UI pra digitar um IP remoto (`LobbyMenu`/`Menu.tscn` só tem o botão local + lista de lobby do Steam, que está morta) — isso é trabalho de UI novo, não um bug pontual, deixei de fora pra não inventar uma tela sem ter sido pedido. Decisão Steam-vs-ENet também não foi tomada (Steam continua desligado, código morto intacto — já coberto pelo [infra-9](infra-simplificacao.md)).
+**Status**: ✅ Resolvido em 30/07/2026
+
+**Resolvido em 29/07/2026**: `CreateHost`/`JoinSession` do `ENetNetworkProvider` agora dão `return` de verdade depois do erro de validação (antes seguiam executando mesmo assim); `CreateServer` passa `MaxPlayers` (4) como `maxClients` (antes usava o default do Godot, 32).
+
+**Resolvido em 30/07/2026 — decisão do dono do projeto**: manter os dois transportes disponíveis (não escolher um só), trocáveis por uma única flag em vez de comentar/descomentar código:
+- `project.godot` ganhou `[network] transport="enet"` (ou `"steam"`). `NetworkManager._Ready()` lê essa flag pra decidir qual `NetworkProvider` instanciar. `SteamGlobals._Ready()` passou a ler a mesma flag (em vez do antigo `steam/initialization/initialize_on_startup`, removido) — uma flag só decide tanto o provider quanto se o SDK do Steam inicializa.
+- **UI de IP remoto**: `Menu.tscn` ganhou um campo `IpField`/`IpEdit` (visível só quando `!SupportsSessionBrowsing`, ou seja, no modo ENet — no modo Steam a busca de lobby já cobre isso). `LobbyMenu.JoinSessionEnet` (renomeado de `JoinSessionLocal`) lê o campo, cai pra `127.0.0.1` se vazio, e chama `NetworkManager.JoinSession(hostAddress: ip)` — a plumbing já existia desde 29/07, faltava só a UI.
+
+## Verificação
+
+`dotnet build` limpo. **Não testado ao vivo** — nem o fluxo de digitar um IP remoto real (só localhost foi exercitado nesta sessão), nem alternar a flag pra `"steam"` (que também depende de um App ID Steamworks real, ainda bloqueado — [item 08](08-ativar-steam-provider.md)).
 
 ## Problema
 

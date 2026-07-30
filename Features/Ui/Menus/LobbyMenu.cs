@@ -18,6 +18,8 @@ public partial class LobbyMenu : Control
 
     private LineEdit _nicknameEdit;
     private Button _shuffleButton;
+    private Control _ipField;
+    private LineEdit _ipEdit;
     private Button _hostButton;
     private Button _joinButton;
     private Label _hintLabel;
@@ -37,6 +39,8 @@ public partial class LobbyMenu : Control
 
         _nicknameEdit = GetNode<LineEdit>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IdentityRow/NicknameField/NicknameEdit");
         _shuffleButton = GetNode<Button>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IdentityRow/ShuffleButton");
+        _ipField = GetNode<Control>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IpField");
+        _ipEdit = GetNode<LineEdit>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IpField/IpEdit");
         _hostButton = GetNode<Button>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/HostButton");
         _joinButton = GetNode<Button>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/JoinButton");
         _hintLabel = GetNode<Label>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/HintLabel");
@@ -55,11 +59,12 @@ public partial class LobbyMenu : Control
         _shuffleButton.Pressed += OnShufflePressed;
 
         var supportsBrowsing = NetworkManager.Instance.NetworkProvider.SupportsSessionBrowsing;
-        _joinButton.Text = supportsBrowsing ? "Buscar Sala" : "Entrar (Local)";
+        _ipField.Visible = !supportsBrowsing;
+        _joinButton.Text = supportsBrowsing ? "Buscar Sala" : "Entrar";
         _hintLabel.Text = supportsBrowsing
             ? "Sem conexão direta disponível — busque uma sala aberta."
-            : "Conectando direto em 127.0.0.1 — modo de teste na mesma máquina.";
-        _joinButton.Pressed += supportsBrowsing ? OnBrowsePressed : JoinSessionLocal;
+            : "Digite o IP do host, ou deixe em branco pra testar na mesma máquina (127.0.0.1).";
+        _joinButton.Pressed += supportsBrowsing ? OnBrowsePressed : JoinSessionEnet;
 
         _hostButton.Pressed += OnHostPressed;
         _backButton.Pressed += ShowHomeScreen;
@@ -107,19 +112,20 @@ public partial class LobbyMenu : Control
         NetworkManager.Instance.RefreshLobbyList();
     }
 
-    private void JoinSessionLocal()
+    private void JoinSessionEnet()
     {
-        NetworkManager.Instance.JoinSession();
+        var hostAddress = string.IsNullOrWhiteSpace(_ipEdit.Text) ? "127.0.0.1" : _ipEdit.Text.Trim();
+        NetworkManager.Instance.JoinSession(hostAddress: hostAddress);
         _joinButton.Disabled = true;
     }
 
-    private async void OnLobbySessionJoined(int lobbyId, int guestPeerId, int hostId)
+    private async void OnLobbySessionJoined(ulong lobbyId, int guestPeerId, int hostId)
     {
         await ToSignal(NetworkManager.Instance.NetworkProvider, NetworkProvider.SignalName.PlayerConnected);
         Visible = false;
     }
 
-    private async void OnLobbyCreated(int lobbyId, int hostPeerId)
+    private async void OnLobbyCreated(ulong lobbyId, int hostPeerId)
     {
         await ToSignal(NetworkManager.Instance.NetworkProvider, NetworkProvider.SignalName.PlayerConnected);
         Visible = false;
@@ -153,18 +159,18 @@ public partial class LobbyMenu : Control
 
         foreach (var lobbyVariant in _lastLobbies)
         {
-            var lobbyId = 0;
+            ulong lobbyId = 0;
             var lobbyName = "Unknown Lobby";
 
             if (lobbyVariant.VariantType == Variant.Type.Int)
             {
-                lobbyId = lobbyVariant.AsInt32();
+                lobbyId = lobbyVariant.AsUInt64();
                 lobbyName = "Room " + lobbyId;
             }
             else if (lobbyVariant.VariantType == Variant.Type.Dictionary)
             {
                 var lobbyDict = lobbyVariant.AsGodotDictionary();
-                lobbyId = lobbyDict.TryGetValue("id", out var idValue) ? idValue.AsInt32() : 0;
+                lobbyId = lobbyDict.TryGetValue("id", out var idValue) ? idValue.AsUInt64() : 0;
                 lobbyName = lobbyDict.TryGetValue("name", out var nameValue) ? nameValue.AsString() : "Room";
             }
 
@@ -184,7 +190,7 @@ public partial class LobbyMenu : Control
         _noMatchLabel.Visible = matches == 0;
     }
 
-    private void OnLobbyItemPressed(int lobbyId)
+    private void OnLobbyItemPressed(ulong lobbyId)
     {
         GD.Print("Trying enter in lobby: ", lobbyId);
         NetworkManager.Instance.JoinSession(lobbyId);

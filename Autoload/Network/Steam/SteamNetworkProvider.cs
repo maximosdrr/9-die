@@ -22,7 +22,7 @@ public partial class SteamNetworkProvider : NetworkProvider
         steam.Call("createLobby", lobbyTypePublic, MaxPlayers);
     }
 
-    public override void JoinSession(int lobbyId, string hostAddress = "", int port = -1)
+    public override void JoinSession(ulong lobbyId, string hostAddress = "", int port = -1)
     {
         var steam = Engine.GetSingleton("Steam");
         steam.Call("joinLobby", lobbyId);
@@ -67,7 +67,7 @@ public partial class SteamNetworkProvider : NetworkProvider
 
         var peerId = Multiplayer.GetUniqueId();
 
-        EmitSignal(SignalName.LobbyCreated, (int)lobbyId, peerId);
+        EmitSignal(SignalName.LobbyCreated, lobbyId, peerId);
         EmitSignal(SignalName.PlayerConnected, peerId);
 
         var startMessage = $"Host Session Started. Peer ID: {peerId} Lobby ID: {lobbyId}";
@@ -102,7 +102,7 @@ public partial class SteamNetworkProvider : NetworkProvider
             Multiplayer.MultiplayerPeer = Peer;
             var peerId = Multiplayer.GetUniqueId();
 
-            EmitSignal(SignalName.LobbySessionJoined, (int)lobbyId, peerId, (int)hostId);
+            EmitSignal(SignalName.LobbySessionJoined, lobbyId, peerId, (int)hostId);
             EmitSignal(SignalName.PlayerConnected, peerId);
 
             var startMessage = $"Client Session Started. Connected to Host: {hostId} . Peer ID: {peerId} ";

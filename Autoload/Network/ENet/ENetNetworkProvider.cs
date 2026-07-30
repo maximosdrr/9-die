@@ -25,7 +25,7 @@ public partial class ENetNetworkProvider : NetworkProvider
             return;
         }
 
-        _enet.CreateServer(port, MaxPlayers);
+        _enet.CreateServer(port, MaxPlayers, GetMaxChannels());
         Multiplayer.MultiplayerPeer = _enet;
 
         var peerId = Multiplayer.GetUniqueId();
@@ -37,7 +37,7 @@ public partial class ENetNetworkProvider : NetworkProvider
         EmitSignal(SignalName.PlayerConnected, peerId);
     }
 
-    public override void JoinSession(int lobbyId = 0, string hostAddress = "", int port = -1)
+    public override void JoinSession(ulong lobbyId = 0, string hostAddress = "", int port = -1)
     {
         if (hostAddress == "" || port == -1)
         {
@@ -47,7 +47,7 @@ public partial class ENetNetworkProvider : NetworkProvider
             return;
         }
 
-        _enet.CreateClient(hostAddress, port);
+        _enet.CreateClient(hostAddress, port, GetMaxChannels());
         Multiplayer.MultiplayerPeer = _enet;
 
         var peerId = Multiplayer.GetUniqueId();
@@ -55,5 +55,10 @@ public partial class ENetNetworkProvider : NetworkProvider
 
         var startMessage = $"Joinned Session. Peer ID: {peerId}";
         GD.Print(startMessage);
+    }
+
+    private static int GetMaxChannels()
+    {
+        return (int)ProjectSettings.GetSetting("network/max_channels", 0);
     }
 }

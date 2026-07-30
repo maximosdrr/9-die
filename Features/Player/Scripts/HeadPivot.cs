@@ -33,22 +33,22 @@ public partial class HeadPivot : Node3D
 
         if (@event.IsActionPressed("ui_cancel"))
         {
-            Input.MouseMode = Input.MouseModeEnum.Visible;
+            InputFocus.Release();
             GetViewport().SetInputAsHandled();
             return;
         }
 
         if (@event is InputEventMouseButton mb && mb.Pressed)
         {
-            if (Input.MouseMode != Input.MouseModeEnum.Captured)
+            if (!InputFocus.IsCaptured)
             {
-                Input.MouseMode = Input.MouseModeEnum.Captured;
+                InputFocus.Capture();
                 GetViewport().SetInputAsHandled();
                 return;
             }
         }
 
-        if (Input.MouseMode != Input.MouseModeEnum.Captured)
+        if (!InputFocus.IsCaptured)
             return;
 
         if (@event is InputEventMouseMotion motion)

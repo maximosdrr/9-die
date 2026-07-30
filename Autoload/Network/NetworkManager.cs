@@ -13,8 +13,8 @@ public partial class NetworkManager : Node
 
     public override void _Ready()
     {
-        NetworkProvider = new ENetNetworkProvider();
-        // NetworkProvider = new SteamNetworkProvider();
+        var transport = (string)ProjectSettings.GetSetting("network/transport", "enet");
+        NetworkProvider = transport == "steam" ? new SteamNetworkProvider() : new ENetNetworkProvider();
         AddChild(NetworkProvider);
     }
 
@@ -23,7 +23,7 @@ public partial class NetworkManager : Node
         NetworkProvider.CreateHost(7777);
     }
 
-    public void JoinSession(int lobbyId = 0, string hostAddress = "127.0.0.1")
+    public void JoinSession(ulong lobbyId = 0, string hostAddress = "127.0.0.1")
     {
         NetworkProvider.JoinSession(lobbyId, hostAddress, 7777);
     }

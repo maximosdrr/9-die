@@ -1,18 +1,12 @@
 # 05 — Placar durante a partida
 
 **Prioridade**: Média (feedback e UX)
-**Status**: 🟡 Adiado em 29/07/2026 (decisão do dono do projeto)
-
-## Achado
-
-Não existe nenhum HUD/placar durante uma partida de sinuca. O jogador não tem nenhuma indicação em tela de quem é a vez (fora o prompt pontual de replacement da bola) nem de quantas bolas cada um já encaçapou. `PoolGame`/`PoolTurnResolver` já têm toda a informação necessária internamente (`TurnOwner`, `BallsScored` por jogador não é rastreado per-player hoje, só globalmente em `PoolTurnResolver.BallsScored`) — falta só a camada de UI.
-
-Perguntei ao dono do projeto qual escopo mínimo fazia sentido agora (vez + bolas encaçapadas / versão completa com bola-alvo / adiar). Resposta: **adiar**.
+**Status**: ✅ Resolvido em 29/07/2026, como parte da Fase 2 da reforma de UI/HUD
 
 ## Decisão
 
-Não implementado por enquanto. Item fica pendente no backlog — quando for retomado, meu ponto de partida seria: HUD simples (`CanvasLayer` em `Player.tscn`, no mesmo estilo do que já existe pra TV) mostrando de quem é a vez e contagem de bolas por jogador, alimentado por sinais que já existem em `PoolGame`/`TableGame` (`TurnChanged`) — precisaria adicionar rastreio de "bolas encaçapadas por jogador" já que hoje `BallsScored` só sabe quais bolas foram encaçapadas na rodada atual, não por quem historicamente.
+O adiamento original foi revertido quando o item 05 do backlog virou o gatilho da reforma completa de UI (menu, HUD, diálogos — ver histórico do projeto). `PlayerHud.cs`/`PlayerHud.tscn` entregam exatamente o que este item pedia: indicação de vez (`TurnLabel`, destacada quando é a sua), bola-alvo atual (`TargetBallLabel`), e contagem de bolas encaçapadas por jogador (`RefreshScoreList`, alimentada por `PoolGame.BallsPocketedByPlayer` — rastreio per-player que não existia antes e foi adicionado nessa mesma fase). Tudo atualiza ao vivo via sinais já existentes (`TurnChanged`, `TurnExtended`, `HudStateUpdated`), sem polling.
 
 ## Verificação
 
-N/A — nada foi implementado, por escolha explícita.
+`dotnet build` limpo. Testado ao vivo pelo dono do projeto durante a fase de bugs reportados nesta sessão (HUD confirmado funcionando após o fix do bug de ordem de `_Ready()`).

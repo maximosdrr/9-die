@@ -120,9 +120,25 @@ common/physics_interpolation=true
 
 anti_aliasing/quality/msaa_3d=2
 
+[network]
+
+; Escolhe o transporte de multiplayer: "enet" (IP direto, padrão) ou "steam"
+; (lobbies do Steam). Uma única flag troca tanto o NetworkProvider quanto a
+; inicialização do SteamGlobals — ver NetworkManager.cs/SteamGlobals.cs.
+; "steam" exige um App ID Steamworks real; sem isso a inicialização falha.
+transport="steam"
+
+; Tamanho máximo de sala, aplicado nos dois transportes: vira max_clients no
+; ENetMultiplayerPeer.create_server e cMaxMembers no createLobby do Steam.
+max_players=12
+
+; Canais ENet (ENetMultiplayerPeer.create_server/create_client). Só se aplica
+; ao transporte "enet" acima — SteamMultiplayerPeer não tem conceito de canal
+; (confirmado na doc do GodotSteam: limitação do próprio socket system do
+; Steam), então esse valor é ignorado quando transport="steam".
+max_channels=4
+
 [steam]
 
 initialization/app_id=0
-initialization/initialize_on_startup=false
 initialization/embed_callbacks=false
-multiplayer_peer/max_channels=4
