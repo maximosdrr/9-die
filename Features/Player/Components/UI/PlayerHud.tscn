@@ -1,14 +1,18 @@
-[gd_scene load_steps=3 format=3 uid="uid://c9h2x3y4z5a6c"]
+[gd_scene load_steps=6 format=3 uid="uid://c9h2x3y4z5a6c"]
 
 [ext_resource type="Script" path="res://Features/Player/Components/UI/PlayerHud.cs" id="1_hud"]
 [ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/panel_wood.tres" id="2_panel"]
+[ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/button_danger_normal.tres" id="3_dnorm"]
+[ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/button_danger_hover.tres" id="4_dhover"]
+[ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/button_danger_pressed.tres" id="5_dpress"]
 
-[node name="PlayerHud" type="CanvasLayer" node_paths=PackedStringArray("TurnLabel", "TargetBallLabel", "TimerLabel", "ScoreList")]
+[node name="PlayerHud" type="CanvasLayer" node_paths=PackedStringArray("TurnLabel", "TargetBallLabel", "TimerLabel", "ScoreList", "SurrenderButton")]
 script = ExtResource("1_hud")
 TurnLabel = NodePath("Root/Panel/Margin/Box/TurnLabel")
 TargetBallLabel = NodePath("Root/Panel/Margin/Box/TargetBallLabel")
 TimerLabel = NodePath("Root/Panel/Margin/Box/TimerLabel")
 ScoreList = NodePath("Root/Panel/Margin/Box/ScoreList")
+SurrenderButton = NodePath("Root/Panel/Margin/Box/SurrenderButton")
 
 [node name="Root" type="Control" parent="."]
 anchors_preset = 1
@@ -55,3 +59,13 @@ layout_mode = 2
 [node name="ScoreList" type="VBoxContainer" parent="Root/Panel/Margin/Box"]
 layout_mode = 2
 theme_override_constants/separation = 4
+
+[node name="SurrenderButton" type="Button" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_styles/normal = ExtResource("3_dnorm")
+theme_override_styles/hover = ExtResource("4_dhover")
+theme_override_styles/pressed = ExtResource("5_dpress")
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_colors/font_hover_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 15
+text = "Desistir da Partida"

@@ -26,6 +26,9 @@ public partial class TableGame : Node3D
     [Signal]
     public delegate void MatchOverEventHandler(string winner, Dictionary context);
 
+    [Signal]
+    public delegate void PlayerRemovedFromMatchEventHandler(string playerId, Array turnOrder);
+
     public virtual void Setup(Table table)
     {
         Table = table;
@@ -41,29 +44,74 @@ public partial class TableGame : Node3D
         if (!Multiplayer.IsServer())
             return;
 
-        if (TurnOwner == null || TurnOrder.Count == 0)
+        RemovePlayerFromMatch(peerId.ToString(), "opponent_disconnected");
+    }
+
+    public void RequestSurrender(string playerId)
+    {
+        if (Multiplayer.IsServer())
+            ProcessSurrender(Multiplayer.GetUniqueId(), playerId);
+        else
+            RpcId(1, MethodName.RequestSurrenderOnServer, playerId);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RequestSurrenderOnServer(string playerId)
+    {
+        if (!Multiplayer.IsServer())
             return;
 
-        var disconnectedId = peerId.ToString();
+        ProcessSurrender(Multiplayer.GetRemoteSenderId(), playerId);
+    }
 
-        if (!TurnOrder.Contains(disconnectedId))
-            return;
-
-        string remainingId = null;
-        foreach (var idVariant in TurnOrder)
+    private void ProcessSurrender(int requesterId, string playerId)
+    {
+        if (requesterId.ToString() != playerId)
         {
-            var id = (string)idVariant;
-            if (id != disconnectedId)
-            {
-                remainingId = id;
-                break;
-            }
+            GD.PushWarning($"Pedido de desistência rejeitado: peer {requesterId} tentou desistir por {playerId}.");
+            return;
         }
 
-        if (remainingId == null)
+        RemovePlayerFromMatch(playerId, "opponent_left");
+    }
+
+    public void RemovePlayerFromMatch(string playerId, string reason)
+    {
+        if (!Multiplayer.IsServer())
             return;
 
-        ApplyMatchOver(remainingId, new Dictionary { ["reason"] = "opponent_disconnected" });
+        if (!TurnOrder.Contains(playerId))
+            return;
+
+        var wasCurrentTurn = TurnOwner != null && (string)TurnOwner.Name == playerId;
+        var previousIndex = TurnOrder.IndexOf(playerId);
+
+        var newTurnOrder = new Array(TurnOrder);
+        newTurnOrder.Remove(playerId);
+
+        ApplyPlayerRemoved(playerId, newTurnOrder);
+
+        if (TurnOrder.Count <= 1)
+        {
+            var winnerId = TurnOrder.Count == 1 ? (string)TurnOrder[0] : null;
+            ApplyMatchOver(winnerId, new Dictionary { ["reason"] = reason });
+            return;
+        }
+
+        if (wasCurrentTurn)
+        {
+            var nextIndex = previousIndex % TurnOrder.Count;
+            var nextPlayerId = (string)TurnOrder[nextIndex];
+            ApplyNewTurn(nextPlayerId, new Dictionary());
+        }
+    }
+
+    public void ApplyPlayerRemoved(string playerId, Array turnOrder)
+    {
+        TurnOrder = turnOrder;
+        Table.PlayersOnMatch.Remove(playerId);
+
+        EmitSignal(SignalName.PlayerRemovedFromMatch, playerId, turnOrder);
     }
 
     private void SetupNetworkTurnSyncronization(TableGame tableGame)
@@ -164,5 +212,8 @@ public partial class TableGame : Node3D
         context["winner"] = winner;
         Table.StateMachine.ChangeState(StatesRef.GameFinished, context);
         EmitSignal(SignalName.MatchOver, winner, context);
+
+        if (Multiplayer.IsServer() && winner != null)
+            MatchRanking.Instance.RegisterWin(winner);
     }
 }

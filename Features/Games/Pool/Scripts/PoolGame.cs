@@ -37,6 +37,7 @@ public partial class PoolGame : TableGame
         GameModeHandler = _gameModeHandler;
         MatchOver += OnMatchIsOver;
         MatchStarted += OnMatchStarts;
+        PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
     }
 
     public void ApplyHudUpdate(int targetBallIndex, string scoringPlayerId, Array scoredBalls)
@@ -98,5 +99,16 @@ public partial class PoolGame : TableGame
 
         if (Multiplayer.IsServer())
             PoolBallRespawn.ClearTable();
+    }
+
+    private void OnPlayerRemovedFromMatch(string playerId, Array turnOrder)
+    {
+        var leavingPlayer = PlayerRegistry.Instance.GetPlayerById(playerId);
+        if (leavingPlayer == null || leavingPlayer.GameHandler.CurrentController == null)
+            return;
+
+        leavingPlayer.GameHandler.CurrentController.GiveControl();
+        leavingPlayer.GameHandler.UnequipCurrentController();
+        leavingPlayer.TakeControl();
     }
 }

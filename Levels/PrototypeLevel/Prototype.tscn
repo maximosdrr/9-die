@@ -2,11 +2,12 @@
 
 [ext_resource type="Texture2D" uid="uid://cyym6fd41fb6t" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
+[ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_plyrsc"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://bi043ow7ejyth" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
-[ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_plyrsc"]
 [ext_resource type="Script" uid="uid://b0l5erqwe6mqt" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://cvirrteahj8jj" path="res://Core/Tv/Tv.tscn" id="9_tvscr"]
+[ext_resource type="PackedScene" uid="uid://6d1yqs4vudy" path="res://Core/RankingBoard/RankingBoard.tscn" id="10_rankb"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -88,3 +89,6 @@ SpawnPointPaths = Array[NodePath]([NodePath("../../SpawnPoints/Marker3D"), NodeP
 
 [node name="TV" parent="." unique_id=2102181627 instance=ExtResource("9_tvscr")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.42660427, 2.7225764, -7.4305716)
+
+[node name="RankingBoard" parent="." unique_id=1843246361 instance=ExtResource("10_rankb")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.56378365, 1.7, 1.8)

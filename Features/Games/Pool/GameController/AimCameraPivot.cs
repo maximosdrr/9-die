@@ -64,6 +64,16 @@ public partial class AimCameraPivot : Node3D
         SignalUtil.ConnectGuarded(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished, new Callable(this, MethodName.OnPlacementFinished));
     }
 
+    public override void _ExitTree()
+    {
+        if (PoolGame == null)
+            return;
+
+        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+        SignalUtil.DisconnectGuarded(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished, new Callable(this, MethodName.OnPlacementFinished));
+    }
+
     private void InitializePositions()
     {
         _rotY = Rotation.Y;

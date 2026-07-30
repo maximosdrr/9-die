@@ -45,6 +45,7 @@ public partial class GameFinished : State
         {
             "fatal_foul" => $"Fim de jogo!\nJogador {winnerId} venceu (falta fatal do oponente)",
             "opponent_disconnected" => $"Fim de jogo!\nJogador {winnerId} venceu (oponente desconectou)",
+            "opponent_left" => $"Fim de jogo!\nJogador {winnerId} venceu (oponente desistiu)",
             _ => $"Fim de jogo!\nJogador {winnerId} venceu!",
         };
     }

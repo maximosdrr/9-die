@@ -9,6 +9,7 @@ public partial class PlayerHud : CanvasLayer
 	[Export] public Label TargetBallLabel;
 	[Export] public Label TimerLabel;
 	[Export] public VBoxContainer ScoreList;
+	[Export] public Button SurrenderButton;
 
 	private static readonly Color YourTurnColor = new(1.0f, 0.478431f, 0.2f);
 	private static readonly Color NormalTextColor = new(0.933333f, 0.956863f, 0.984314f);
@@ -20,6 +21,15 @@ public partial class PlayerHud : CanvasLayer
 	public override void _Ready()
 	{
 		Visible = false;
+		SurrenderButton.Pressed += OnSurrenderPressed;
+	}
+
+	private void OnSurrenderPressed()
+	{
+		if (_poolGame == null || Player == null)
+			return;
+
+		_poolGame.RequestSurrender((string)Player.Name);
 	}
 
 	public void Initialize(Player player)

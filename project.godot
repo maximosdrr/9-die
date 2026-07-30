@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 
 Global="*res://Autoload/Global.cs"
 NetworkManager="*res://Autoload/Network/NetworkManager.cs"
+MatchRanking="*res://Autoload/MatchRanking.cs"
 SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.cs"
 PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.cs"
 

@@ -28,7 +28,15 @@ public partial class PoolController : Node3D
 		_ = AimPivot.Setup(PoolGame, this);
 		Cue.Setup(PoolGame, AimPivot);
 
-		PoolGame.TurnChanged += OnTurnChange;
+		SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChange));
+	}
+
+	public override void _ExitTree()
+	{
+		if (PoolGame == null)
+			return;
+
+		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChange));
 	}
 
 	public void TakeControl()
