@@ -485,7 +485,7 @@ public partial class TvScreenShare : MeshInstance3D
 		if (!any)
 			return;
 
-		var monoInt16 = ConvertFloatToMonoInt16(stream.ToArray(), _audioCapture.WaveFormat.Channels);
+		var monoInt16 = ConvertFloatToMonoInt16(stream.ToArray(), _audioCapture.WaveFormat.Channels, _audioCapture.WaveFormat.SampleRate);
 		if (monoInt16.Length == 0)
 			return;
 
@@ -602,7 +602,7 @@ public partial class TvScreenShare : MeshInstance3D
 			_audioPlayback.PushBuffer(frames);
 	}
 
-	private static byte[] ConvertFloatToMonoInt16(byte[] floatBytes, int channels)
+	private static byte[] ConvertFloatToMonoInt16(byte[] floatBytes, int channels, int sourceSampleRate)
 	{
 		if (channels <= 0)
 			return Array.Empty<byte>();
@@ -612,7 +612,7 @@ public partial class TvScreenShare : MeshInstance3D
 			return Array.Empty<byte>();
 
 		var floatSamples = MemoryMarshal.Cast<byte, float>(floatBytes);
-		var monoInt16 = new byte[frameCount * 2];
+		var mono = new float[frameCount];
 
 		for (var i = 0; i < frameCount; i++)
 		{
@@ -620,14 +620,56 @@ public partial class TvScreenShare : MeshInstance3D
 			for (var c = 0; c < channels; c++)
 				sum += floatSamples[i * channels + c];
 
-			var monoSample = Mathf.Clamp(sum / channels, -1f, 1f);
-			var int16Sample = (short)(monoSample * short.MaxValue);
+			mono[i] = Mathf.Clamp(sum / channels, -1f, 1f);
+		}
+
+		// WasapiLoopbackCapture uses whatever mix format the sharer's default output device is
+		// currently running (varies per machine/driver — 44.1kHz, 48kHz, 96kHz are all common),
+		// while every viewer's AudioStreamGenerator is fixed at AudioMixRate. Without matching
+		// the two up here, playback comes out pitched/slowed on any viewer whenever the sharer's
+		// device isn't already at AudioMixRate — resampling on the sharer's side keeps every
+		// viewer's fixed-rate generator correct regardless of the sharer's hardware.
+		if (sourceSampleRate != AudioMixRate)
+			mono = ResampleLinear(mono, sourceSampleRate, AudioMixRate);
+
+		var monoInt16 = new byte[mono.Length * 2];
+
+		for (var i = 0; i < mono.Length; i++)
+		{
+			var int16Sample = (short)(mono[i] * short.MaxValue);
 
 			monoInt16[i * 2] = (byte)(int16Sample & 0xFF);
 			monoInt16[i * 2 + 1] = (byte)((int16Sample >> 8) & 0xFF);
 		}
 
 		return monoInt16;
+	}
+
+	private static float[] ResampleLinear(float[] input, int sourceRate, int targetRate)
+	{
+		if (sourceRate <= 0 || targetRate <= 0 || input.Length == 0)
+			return input;
+
+		var ratio = (double)sourceRate / targetRate;
+		var outputLength = (int)(input.Length / ratio);
+		if (outputLength <= 0)
+			return Array.Empty<float>();
+
+		var output = new float[outputLength];
+
+		for (var i = 0; i < outputLength; i++)
+		{
+			var srcPos = i * ratio;
+			var srcIndex = (int)srcPos;
+			var frac = srcPos - srcIndex;
+
+			var a = input[srcIndex];
+			var b = srcIndex + 1 < input.Length ? input[srcIndex + 1] : a;
+
+			output[i] = (float)(a + (b - a) * frac);
+		}
+
+		return output;
 	}
 
 	private static Vector2[] ConvertMonoInt16ToFrames(byte[] monoInt16)
