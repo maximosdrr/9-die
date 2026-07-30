@@ -102,7 +102,10 @@ public partial class TableGame : Node3D
         {
             var nextIndex = previousIndex % TurnOrder.Count;
             var nextPlayerId = (string)TurnOrder[nextIndex];
-            ApplyNewTurn(nextPlayerId, new Dictionary());
+            var handoffContext = GameModeHandler != null
+                ? GameModeHandler.CurrentGameMode.TurnResolver.BuildHandoffContext(playerId)
+                : new Dictionary();
+            ApplyNewTurn(nextPlayerId, handoffContext);
         }
     }
 

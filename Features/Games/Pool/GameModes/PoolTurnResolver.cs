@@ -247,6 +247,14 @@ public partial class PoolTurnResolver : TurnResolver
         ApplyHudContext(context);
     }
 
+    public override Dictionary BuildHandoffContext(string outgoingPlayerId)
+    {
+        if (PoolGame != null && PoolGame.BallPlacementManager.IsPlacementPendingFor(outgoingPlayerId))
+            return new Dictionary { ["ball_replacement"] = 0 };
+
+        return new Dictionary();
+    }
+
     public override void HandleTurnExtensionContext(Dictionary context)
     {
         ApplyHudContext(context);

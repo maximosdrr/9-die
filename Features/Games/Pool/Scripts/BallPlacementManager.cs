@@ -43,6 +43,11 @@ public partial class BallPlacementManager : Node
 		_authorizedBall = ball;
 	}
 
+	public bool IsPlacementPendingFor(string playerId)
+	{
+		return _authorizedPlacerId != 0 && int.TryParse(playerId, out var id) && _authorizedPlacerId == id;
+	}
+
 	public void StartPlacement(Ball ballToPlace, Array<Ball> existingBalls)
 	{
 		if (!IsInstanceValid(ballToPlace) || Global.Instance.Camera == null)
