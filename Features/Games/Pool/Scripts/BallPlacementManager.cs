@@ -30,6 +30,8 @@ public partial class BallPlacementManager : Node
 	private int _authorizedPlacerId = 0;
 	private Ball _authorizedBall;
 
+	public GlobalCamera Camera;
+
 	private Vector3 TableCenter => TableOrigin != null ? TableOrigin.GlobalPosition : Vector3.Zero;
 
 	public override void _Ready()
@@ -50,7 +52,7 @@ public partial class BallPlacementManager : Node
 
 	public void StartPlacement(Ball ballToPlace, Array<Ball> existingBalls)
 	{
-		if (!IsInstanceValid(ballToPlace) || Global.Instance.Camera == null)
+		if (!IsInstanceValid(ballToPlace) || Camera == null)
 			return;
 
 		_ball = ballToPlace;
@@ -116,9 +118,8 @@ public partial class BallPlacementManager : Node
 
 	private Vector3 GetMouseProjectionOnTable(Vector2 screenPosition)
 	{
-		var camera = Global.Instance.Camera;
-		var rayOrigin = camera.ProjectRayOrigin(screenPosition);
-		var rayDir = camera.ProjectRayNormal(screenPosition);
+		var rayOrigin = Camera.ProjectRayOrigin(screenPosition);
+		var rayDir = Camera.ProjectRayNormal(screenPosition);
 
 		var tablePlane = new Plane(Vector3.Up, TableCenter.Y + TableSurfaceY);
 		var intersection = tablePlane.IntersectsRay(rayOrigin, rayDir);
@@ -195,21 +196,21 @@ public partial class BallPlacementManager : Node
 
 	private void SwitchCameraMode(bool toOverhead)
 	{
-		if (Global.Instance.Camera == null)
+		if (Camera == null)
 			return;
 
 		if (toOverhead)
 		{
 			if (OverheadViewRemote != null)
 			{
-				_previousCameraRemote = Global.Instance.Camera.CurrentRemote;
-				Global.Instance.Camera.TransitionTo(OverheadViewRemote);
+				_previousCameraRemote = Camera.CurrentRemote;
+				Camera.TransitionTo(OverheadViewRemote);
 			}
 		}
 		else
 		{
 			if (_previousCameraRemote != null)
-				Global.Instance.Camera.TransitionTo(_previousCameraRemote);
+				Camera.TransitionTo(_previousCameraRemote);
 			_previousCameraRemote = null;
 		}
 	}

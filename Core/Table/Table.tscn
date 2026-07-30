@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3 uid="uid://km1p4vfi4o1w"]
 
 [ext_resource type="Script" path="res://Core/Table/Scripts/Table.cs" id="1_iqaas"]
-[ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Table/UI/StartGameUI.tscn" id="4_jynrt"]
+[ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Util/UI/StartGameUI.tscn" id="4_jynrt"]
 [ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="5_7vxer"]
 [ext_resource type="Script" path="res://Core/Table/States/WaitingGameStart.cs" id="6_njalx"]
 [ext_resource type="Script" path="res://Core/Table/States/GameStarted.cs" id="7_dge2g"]

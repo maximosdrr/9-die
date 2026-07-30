@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cvirrteahj8jj"]
 
 [ext_resource type="Script" uid="uid://b4e3ksh2drivj" path="res://Core/Tv/TvScreenShare.cs" id="1_tvscr"]
-[ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Table/UI/StartGameUI.tscn" id="2_prompt"]
+[ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Core/Util/UI/StartGameUI.tscn" id="2_prompt"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tvfrm"]
 albedo_color = Color(0.03, 0.03, 0.03, 1)

@@ -158,6 +158,8 @@ public partial class TableGame : Node3D
 
     public virtual void SetupMatch(Array players, string firstTurnOwnerId) { }
 
+    public virtual void SetCamera(GlobalCamera camera) { }
+
     public void CallNextTurn(Dictionary context)
     {
         var currentId = (string)TurnOwner.Name;

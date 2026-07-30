@@ -15,6 +15,10 @@ public partial class Player : CharacterBody3D
     public Node3D PlayerModel;
     public StateMachine StateMachine;
     public PlayerHud Hud;
+    public TvShareButton TvShareButton;
+
+    public GlobalCamera Camera;
+    public TvScreenShare TvScreen;
 
     public enum ControllerStatesEnum { Player, Game }
 
@@ -28,11 +32,13 @@ public partial class Player : CharacterBody3D
         PlayerModel = GetNode<Node3D>("FirstPerson/Model3D");
         StateMachine = GetNode<StateMachine>("StateMachine");
         Hud = GetNode<PlayerHud>("UI/PlayerHud");
+        TvShareButton = GetNode<TvShareButton>("UI/TvShareButton");
 
         // Godot calls _Ready() bottom-up (children before parents), so PlayerHud._Ready()
         // would run before this point and see GameHandler as null if it tried to wire
         // itself. Player explicitly initializes it here, after GameHandler is assigned.
         Hud.Initialize(this);
+        TvShareButton.Initialize(TvScreen);
 
         if (!IsMultiplayerAuthority())
             return;
@@ -51,7 +57,7 @@ public partial class Player : CharacterBody3D
         SetPhysicsProcess(true);
         HeadPivot.SetProcessUnhandledInput(true);
 
-        Global.Instance.Camera?.TransitionTo(RemoteFps);
+        Camera?.TransitionTo(RemoteFps);
         Input.MouseMode = Input.MouseModeEnum.Captured;
         CurrentControlState = ControllerStatesEnum.Player;
     }

@@ -14,7 +14,7 @@ public partial class PlayerGameHandler : Node
     [Signal]
     public delegate void ControllerUnequippedEventHandler();
 
-    public void EquipGameController(PackedScene controllerScene, TableGame tableGame)
+    public void EquipGameController(PackedScene controllerScene, TableGame tableGame, GlobalCamera camera)
     {
         UnequipCurrentController();
 
@@ -30,7 +30,7 @@ public partial class PlayerGameHandler : Node
             ContextSlot.Hide();
 
         ContextSlot.AddChild(CurrentController);
-        CurrentController.Setup(Player, tableGame);
+        CurrentController.Setup(Player, tableGame, camera);
 
         EmitSignal(SignalName.ControllerEquipped, tableGame);
     }

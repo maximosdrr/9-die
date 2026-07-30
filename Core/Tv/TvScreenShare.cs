@@ -39,16 +39,8 @@ public partial class TvScreenShare : MeshInstance3D
 	private IntPtr _pendingCaptureWindow;
 	private VideoPlayoutBuffer _playoutBuffer;
 
-	public override void _EnterTree()
-	{
-		Global.Instance.TvScreen = this;
-	}
-
 	public override void _ExitTree()
 	{
-		if (Global.Instance.TvScreen == this)
-			Global.Instance.TvScreen = null;
-
 		DisconnectSignals();
 		StopLocalCapture();
 	}

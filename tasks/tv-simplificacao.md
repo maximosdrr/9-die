@@ -8,11 +8,11 @@ Documentado como decisão deliberada de escopo (não suportar múltiplas TVs sim
 
 **Direção**: sem ação agora — só not-a-fazer quando/se surgir a necessidade de múltiplas TVs.
 
-## 🟡 TV-3 — `PoolStartGameUI` (prompt genérico) mora dentro de `Core/Table/UI/` mas é usado por uma feature não relacionada
+## ✅ TV-3 — `PoolStartGameUI` (prompt genérico) mora dentro de `Core/Table/UI/` mas é usado por uma feature não relacionada
 
-`Core/Tv/Tv.tscn` reaproveita `Core/Table/UI/StartGameUI.tscn` pro seu próprio prompt (decisão deliberada pra não duplicar código) — mas isso deixa `Core/Tv` dependendo de um recurso "emprestado" de dentro da pasta de outra feature, e uma mudança visual pensada só pra Table afeta a TV sem ninguém perceber.
+**Resolvido em 30/07/2026** — `PoolStartGameUI.cs(.uid)`/`StartGameUI.tscn` movidos pra `Core/Util/UI/`; `Core/Table/UI/` (vazia) removida. Referências atualizadas em `Table.tscn` e `Tv.tscn` (só o `ext_resource path=`; o `uid://` e o nome da classe `[GlobalClass]` não mudam, então nenhum `.cs` precisou de alteração).
 
-**Direção**: mover `PoolStartGameUI`/`StartGameUI.tscn` pra um lugar neutro (ex. `Core/Util/UI/` ou `Core/WorldPrompt/`) já que é um componente genérico (Label3D com Show/Hide/SetText), não algo específico da mesa.
+~~`Core/Tv/Tv.tscn` reaproveita `Core/Table/UI/StartGameUI.tscn` pro seu próprio prompt (decisão deliberada pra não duplicar código) — mas isso deixa `Core/Tv` dependendo de um recurso "emprestado" de dentro da pasta de outra feature, e uma mudança visual pensada só pra Table afeta a TV sem ninguém perceber.~~
 
 ## 🔵 TV-4 — Log de diagnóstico de FPS deixado permanentemente ativo
 

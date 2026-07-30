@@ -8,6 +8,9 @@ public partial class LevelMultiplayerManager : Node
 	[Export] public PlayersContainer PlayersContainer;
 	[Export] public MultiplayerSpawner MultiplayerSpawner;
 	[Export] public Godot.Collections.Array<NodePath> SpawnPointPaths = new();
+	[Export] public TvScreenShare TvScreen;
+
+	public GlobalCamera Camera;
 
 	private readonly List<Marker3D> _spawnPoints = new();
 
@@ -51,6 +54,8 @@ public partial class LevelMultiplayerManager : Node
 		playerInstance.Name = peerId.ToString();
 		playerInstance.Id = peerId;
 		playerInstance.SetMultiplayerAuthority(peerId);
+		playerInstance.Camera = Camera;
+		playerInstance.TvScreen = TvScreen;
 
 		if (_spawnPoints.Count == 0)
 		{

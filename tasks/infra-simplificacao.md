@@ -2,11 +2,20 @@
 
 Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza/nomenclatura) da área de infraestrutura (Autoload, Network, StateMachine, Util). Itens 🔴/🟠 dessa mesma área estão em arquivos próprios: infra-1, infra-2, [infra-3](infra-3-transporte-rede-steam-morto-localhost.md).
 
-## 🟡 INFRA-4 — `Global` autoload como "caixa de referências" sem dono (parcial)
+## ✅ INFRA-4 — `Global` autoload como "caixa de referências" sem dono
 
-**Parcial, resolvido em 29/07/2026**: os dois pontos concretos de risco de NRE foram corrigidos — `Player.cs` (`TakeControl`) e `PoolController.cs` (`TakeControl`/`GiveControl`) agora usam `Global.Instance.Camera?.` igual ao que `TvShareButton.cs` já fazia.
+**Resolvido em 30/07/2026** — decisão confirmada com o dono do projeto: migrar pra injeção explícita em vez de formalizar o service locator. `Global.Instance` agora só guarda `LocalNickname` (preferência de sessão, nunca teve o problema de "qual instância" que `Camera`/`TvScreen` tinham). `Camera` (`GlobalCamera`) e `TvScreen` (`TvScreenShare`) pararam de se auto-registrar em `_EnterTree`/`_ExitTree` e passaram a ser injetados explicitamente pela cadeia de `Setup()`/campos já estabelecida no projeto:
 
-**Ainda em aberto**: a decisão arquitetural maior (formalizar como service locator vs. parar de auto-registrar e passar por `[Export]`) não foi tomada — são dois caminhos com esforço/escopo bem diferentes (o segundo tocaria ~10 arquivos), não dá pra decidir sozinho sem validar com o dono do projeto. `Autoload/Global.cs` continua do jeito que estava.
+- **Novo `Main.cs`** (raiz de `Main.tscn`, onde `GlobalCamera` e o nível (`Prototype`) são irmãos — o único lugar com visibilidade estática dos dois ao mesmo tempo): `[Export] Camera`, `[Export] LevelManager` (→ `LevelMultiplayerManager`), `[Export] Table`; em `_Ready()` injeta `LevelManager.Camera` e chama `Table.SetCamera(Camera)`.
+- `TableGame.SetCamera(GlobalCamera)` — hook virtual novo (mesmo padrão de `HandleNewTurnContext`/`BuildHandoffContext`); `Table.SetCamera` só repassa pro `CurrentTableGame`; `PoolGame.SetCamera` guarda o campo e repassa pro `BallPlacementManager.Camera`.
+- `LevelMultiplayerManager` ganhou `[Export] TvScreen` (esse sim wireável direto na cena — `TV` é filho estático de `Prototype.tscn`, mesmo arquivo) e campo `Camera` (injetado pelo `Main.cs`); `InitializePlayerNode` passa os dois pro `Player` recém-spawnado, antes dele entrar na árvore.
+- `Player` ganhou campos `Camera`/`TvScreen`; `TakeControl()` usa `Camera` direto. `TvShareButton` (filho estático de `Player.tscn`) ganhou um `Initialize(TvScreen)` chamado pelo `Player._Ready()` — mesma correção de ordem de `_Ready()` (filhos antes dos pais) já aplicada no `PlayerHud` nesta sessão, já que `TvShareButton._Ready()` roda antes do `Player._Ready()` poder atribuir o campo.
+- `PlayerGameHandler.EquipGameController`/`PoolController.Setup` ganharam parâmetro `camera`, repassado desde `PoolGame.OnMatchStarts` (que já guarda `Camera` desde o `SetCamera` acima).
+- `BallPlacementManager` ganhou campo `Camera` (injetado via `PoolGame.SetCamera`), substituindo os 5 usos de `Global.Instance.Camera`.
+
+Build limpo (`dotnet build`), grep confirma zero referências restantes a `Global.Instance.Camera`/`Global.Instance.TvScreen` no projeto. **Não testado ao vivo** — a ordem de inicialização foi conferida manualmente linha a linha (mesma classe de bug do `PlayerHud` desta sessão), mas vale confirmar: câmera transiciona certo ao andar/mirar/reposicionar bola, e o botão de compartilhar TV continua funcionando.
+
+~~`Autoload/Global.cs` expõe `Camera`/`TvScreen` como campos públicos, cada um auto-registrado via `_EnterTree`/`_ExitTree` do próprio `GlobalCamera`/`TvScreenShare` — qualquer código em qualquer lugar acessa `Global.Instance.Camera` sem saber de onde vem nem quem garante que não é nulo.~~
 
 ## ✅ INFRA-5 — `AuthorityStateSynchronizer`/`PublicStateSyncronizer` são ~90% código duplicado
 
@@ -56,8 +65,8 @@ Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza/nomenclatura) da ár
 
 ~~`Core/Level/LevelMultiplayerManager.cs:7` — `GD.Load<PackedScene>("uid://...")` enquanto `PlayersContainer`/`MultiplayerSpawner` no mesmo arquivo são `[Export]`.~~
 
-## 🟢 INFRA-13 — Config: `physics_ticks_per_second=580` sem justificativa documentada
+## ✅ INFRA-13 — Config: `physics_ticks_per_second=580` sem justificativa documentada
 
-`project.godot:107` — quase 10x o default do Godot, decisão real de tuning mas sem comentário em lugar nenhum explicando por quê. Fácil de alguém "corrigir" de volta pro default no futuro.
+**Resolvido em 30/07/2026** — adicionado comentário direto acima do valor em `project.godot`, explicitando a hipótese técnica já levantada (não é confirmação da razão original, que não existe registrada em lugar nenhum — é só a explicação mais provável pra ninguém "corrigir" de volta pro default sem entender o motivo primeiro).
 
-**Não resolvido em 29/07/2026** — não encontrei a razão original documentada em nenhum lugar (git log/commits não explicam), e não quis inventar uma justificativa e colar como se fosse a real. Motivo técnico mais provável, pra quem for revisitar: sinuca depende de resposta de colisão precisa entre esferas pequenas e rápidas contra colisores finos (tabelas, caçapas) — um tick rate baixo aumenta o risco de tunneling/overlap perdido num impacto forte. Vale confirmar com quem tomou a decisão antes de "corrigir" de volta pro default.
+~~`project.godot:107` — quase 10x o default do Godot, decisão real de tuning mas sem comentário em lugar nenhum explicando por quê. Fácil de alguém "corrigir" de volta pro default no futuro. Não encontrei a razão original documentada em nenhum lugar (git log/commits não explicam). Motivo técnico mais provável, pra quem for revisitar: sinuca depende de resposta de colisão precisa entre esferas pequenas e rápidas contra colisores finos (tabelas, caçapas) — um tick rate baixo aumenta o risco de tunneling/overlap perdido num impacto forte.~~

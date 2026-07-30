@@ -80,11 +80,12 @@ script = ExtResource("5_wwpfk")
 
 [node name="Scripts" type="Node" parent="Multiplayer" unique_id=1085703195]
 
-[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" unique_id=1519149147 node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner")]
+[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" unique_id=1519149147 node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner", "TvScreen")]
 script = ExtResource("5_s6lm4")
 PlayerScene = ExtResource("5_plyrsc")
 PlayersContainer = NodePath("../../PlayersContainer")
 MultiplayerSpawner = NodePath("../../MultiplayerSpawner")
+TvScreen = NodePath("../../../TV")
 SpawnPointPaths = Array[NodePath]([NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")])
 
 [node name="TV" parent="." unique_id=2102181627 instance=ExtResource("9_tvscr")]

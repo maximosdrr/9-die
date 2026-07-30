@@ -19,6 +19,7 @@ public partial class PoolGame : TableGame
 
     public Dictionary<string, Array> BallsPocketedByPlayer = new();
     public int CurrentTargetBallIndex = 0;
+    public GlobalCamera Camera;
 
     [Signal]
     public delegate void HudStateUpdatedEventHandler();
@@ -38,6 +39,12 @@ public partial class PoolGame : TableGame
         MatchOver += OnMatchIsOver;
         MatchStarted += OnMatchStarts;
         PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
+    }
+
+    public override void SetCamera(GlobalCamera camera)
+    {
+        Camera = camera;
+        BallPlacementManager.Camera = camera;
     }
 
     public void ApplyHudUpdate(int targetBallIndex, string scoringPlayerId, Array scoredBalls)
@@ -84,7 +91,7 @@ public partial class PoolGame : TableGame
             var pNode = PlayerRegistry.Instance.GetPlayerById(pId);
 
             if (pNode != null)
-                pNode.GameHandler.EquipGameController(GameControllerScene, this);
+                pNode.GameHandler.EquipGameController(GameControllerScene, this, Camera);
         }
 
         if (Player != null && Player.GameHandler.CurrentController != null)

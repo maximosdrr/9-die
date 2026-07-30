@@ -30,6 +30,11 @@ public partial class Table : Node3D
     private bool _editorBuilding = false;
     public TableGame CurrentTableGame;
 
+    public void SetCamera(GlobalCamera camera)
+    {
+        CurrentTableGame?.SetCamera(camera);
+    }
+
     public override void _Ready()
     {
         TableGameHandler = GetNode<Node3D>("TableGameHandler");

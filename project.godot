@@ -107,6 +107,10 @@ interact={
 
 [physics]
 
+; Bem acima do default (60) de propósito: sinuca depende de resposta de colisão
+; precisa entre esferas pequenas e rápidas contra colisores finos (tabelas,
+; caçapas) — um tick rate baixo aumenta o risco de tunneling/overlap perdido
+; num impacto forte. Não "corrigir" de volta pro default sem validar antes.
 common/physics_ticks_per_second=580
 common/physics_jitter_fix=1.0
 3d/solver/solver_iterations=24

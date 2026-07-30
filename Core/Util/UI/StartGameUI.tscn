@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://bkybca8fo4uls"]
 
-[ext_resource type="Script" path="res://Core/Table/UI/PoolStartGameUI.cs" id="1_cofgl"]
+[ext_resource type="Script" path="res://Core/Util/UI/PoolStartGameUI.cs" id="1_cofgl"]
 
 [node name="PoolStartGameUI" type="Node3D"]
 script = ExtResource("1_cofgl")
