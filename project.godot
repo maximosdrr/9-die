@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 
 Global="*res://Autoload/Global.cs"
 NetworkManager="*res://Autoload/Network/NetworkManager.cs"
+ReconnectionManager="*res://Autoload/ReconnectionManager.cs"
 MatchRanking="*res://Autoload/MatchRanking.cs"
 SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.cs"
 PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.cs"
@@ -126,7 +127,7 @@ anti_aliasing/quality/msaa_3d=2
 ; (lobbies do Steam). Uma única flag troca tanto o NetworkProvider quanto a
 ; inicialização do SteamGlobals — ver NetworkManager.cs/SteamGlobals.cs.
 ; "steam" exige um App ID Steamworks real; sem isso a inicialização falha.
-transport="steam"
+transport="enet"
 
 ; Tamanho máximo de sala, aplicado nos dois transportes: vira max_clients no
 ; ENetMultiplayerPeer.create_server e cMaxMembers no createLobby do Steam.
