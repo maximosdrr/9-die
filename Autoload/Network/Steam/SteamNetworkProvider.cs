@@ -39,6 +39,13 @@ public partial class SteamNetworkProvider : NetworkProvider
         steam.Call("requestLobbyList");
     }
 
+    // Lets callers (e.g. TvScreenShare) address peers directly over Steam's raw P2P networking
+    // instead of Godot's high-level MultiplayerApi, which SteamMultiplayerPeer funnels through a
+    // single underlying connection regardless of the RPC transfer channel used.
+    public ulong GetSteamId(int peerId) => Peer.Call("get_steam_id_for_peer_id", peerId).AsUInt64();
+
+    public int GetPeerId(ulong steamId) => Peer.Call("get_peer_id_for_steam_id", steamId).AsInt32();
+
     private void OnLobbyMatchList(Godot.Collections.Array lobbies)
     {
         EmitSignal(SignalName.LobbyListReceived, lobbies);
