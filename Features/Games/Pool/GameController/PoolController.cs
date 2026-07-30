@@ -56,11 +56,10 @@ public partial class PoolController : Node3D
 		AimPivot.SetPhysicsProcess(true);
 		AimPivot.SetProcessUnhandledInput(true);
 
-		Player.PlayerModel.Hide();
-		Player.StateMachine.ChangeState(StatesRef.PlayerStrike, new Dictionary());
+		Player.EnterGameControllerMode();
 
-		Global.Instance.Camera.SetGlobalCameraFov(60);
-		Global.Instance.Camera.TransitionTo(RemoteAim);
+		Global.Instance.Camera?.SetGlobalCameraFov(60);
+		Global.Instance.Camera?.TransitionTo(RemoteAim);
 		Input.MouseMode = Input.MouseModeEnum.Captured;
 	}
 
@@ -70,7 +69,7 @@ public partial class PoolController : Node3D
 			return;
 
 		Hide();
-		Global.Instance.Camera.SetGlobalCameraFov(75);
+		Global.Instance.Camera?.SetGlobalCameraFov(75);
 		SetProcessUnhandledInput(false);
 		SetProcess(false);
 
@@ -78,8 +77,7 @@ public partial class PoolController : Node3D
 		AimPivot.SetPhysicsProcess(false);
 		AimPivot.SetProcessUnhandledInput(false);
 
-		Player.PlayerModel.Show();
-		Player.StateMachine.ChangeState(StatesRef.PlayerIdle, new Dictionary());
+		Player.ExitGameControllerMode();
 	}
 
 	public async void ApplyControl(string turnOwnerId, Dictionary context)

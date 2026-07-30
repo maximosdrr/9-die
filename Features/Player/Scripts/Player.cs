@@ -1,15 +1,15 @@
 using Godot;
+using Godot.Collections;
 
 [GlobalClass]
 public partial class Player : CharacterBody3D
 {
-    public float Gravity = 12f;
-    public float Speed = 3f;
+    [Export] public float Gravity = 12f;
+    [Export] public float Speed = 3f;
     public int Id = 1;
 
     public HeadPivot HeadPivot;
     public RemoteTransform3D RemoteFps;
-    public Toggleable PlayerToggleable;
     public PlayerGameHandler GameHandler;
     public Node3D PlayerModel;
     public StateMachine StateMachine;
@@ -21,8 +21,7 @@ public partial class Player : CharacterBody3D
     public override void _Ready()
     {
         HeadPivot = GetNode<HeadPivot>("FirstPerson/HeadPivot");
-        RemoteFps = GetNode<RemoteTransform3D>("FirstPerson/HeadPivot/RemoteFPS");
-        PlayerToggleable = GetNode<Toggleable>("Scripts/PlayerToggleable");
+        RemoteFps = HeadPivot.CameraMount;
         GameHandler = GetNode<PlayerGameHandler>("Scripts/PlayerGameHandler");
         PlayerModel = GetNode<Node3D>("FirstPerson/Model3D");
         StateMachine = GetNode<StateMachine>("StateMachine");
@@ -41,7 +40,7 @@ public partial class Player : CharacterBody3D
         SetPhysicsProcess(true);
         HeadPivot.SetProcessUnhandledInput(true);
 
-        Global.Instance.Camera.TransitionTo(RemoteFps);
+        Global.Instance.Camera?.TransitionTo(RemoteFps);
         Input.MouseMode = Input.MouseModeEnum.Captured;
         CurrentControlState = ControllerStatesEnum.Player;
     }
@@ -56,6 +55,18 @@ public partial class Player : CharacterBody3D
 
         HeadPivot.SetProcessUnhandledInput(false);
         CurrentControlState = ControllerStatesEnum.Game;
+    }
+
+    public void EnterGameControllerMode()
+    {
+        PlayerModel.Hide();
+        StateMachine.ChangeState(StatesRef.PlayerStrike, new Dictionary());
+    }
+
+    public void ExitGameControllerMode()
+    {
+        PlayerModel.Show();
+        StateMachine.ChangeState(StatesRef.PlayerIdle, new Dictionary());
     }
 
     public override void _PhysicsProcess(double delta)

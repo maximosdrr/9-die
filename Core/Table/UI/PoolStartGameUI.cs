@@ -3,8 +3,6 @@ using Godot;
 [GlobalClass]
 public partial class PoolStartGameUI : Node3D
 {
-    public bool CanBeShow = true;
-
     [Export] public float RotationSpeed = 0.5f;
 
     private Label3D _label;

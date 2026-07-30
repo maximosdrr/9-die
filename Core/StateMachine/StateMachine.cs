@@ -30,10 +30,13 @@ public partial class StateMachine : Node3D
         if (AuthorityStateSynchronizer != null)
         {
             if (!IsMultiplayerAuthority() && !AuthorityStateSynchronizer.IsIncomingNetworkChange)
+            {
+                GD.PushWarning($"ChangeState({type}) rejeitado: sem autoridade em {GetPath()}");
                 return;
+            }
         }
 
-        if (Current.Type == type)
+        if (Current != null && Current.Type == type)
             return;
 
         if (!States.TryGetValue(type, out var newState) || newState == null)
@@ -43,12 +46,12 @@ public partial class StateMachine : Node3D
         }
 
         CurrentMetadata = metadata;
-        EmitSignal(SignalName.StateChanged, type, metadata);
-        Current.Exit(metadata);
+        Current?.Exit(metadata);
 
         Previous = Current;
         Current = newState;
 
+        EmitSignal(SignalName.StateChanged, type, metadata);
         Current.Enter(metadata);
     }
 
@@ -90,7 +93,7 @@ public partial class StateMachine : Node3D
     {
         if (!States.TryGetValue(InitialState, out var state) || state == null)
         {
-            GD.PushError("Initial state not found: ", InitialState);
+            GD.PushError("Initial state not found: ", InitialState, " em ", GetPath());
             return;
         }
 

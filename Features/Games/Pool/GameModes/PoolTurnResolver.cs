@@ -205,11 +205,12 @@ public partial class PoolTurnResolver : TurnResolver
                 break;
 
             case TurnRuler.Actions.EndGameFatalFoul:
-                PoolGame.CallMatchOver(GetOpponentId(), new Dictionary { ["reason"] = "fatal_foul" });
+                PoolGame.ApplyMatchOver(GetOpponentId(), new Dictionary { ["reason"] = "fatal_foul" });
+                Reset();
                 break;
 
             case TurnRuler.Actions.EndGamePlayerWin:
-                PoolGame.CallMatchOver((string)PoolGame.TurnOwner.Name, new Dictionary { ["reason"] = "win" });
+                PoolGame.ApplyMatchOver((string)PoolGame.TurnOwner.Name, new Dictionary { ["reason"] = "win" });
                 Reset();
                 break;
         }

@@ -61,6 +61,6 @@ public partial class TableTurnNetworkBridge : Node
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void RpcSyncMatchOver(string winner, Dictionary context)
     {
-        TableGame.CallMatchOver(winner, context);
+        TableGame.ApplyMatchOver(winner, context);
     }
 }

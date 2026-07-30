@@ -4,8 +4,6 @@ using Godot.Collections;
 [GlobalClass]
 public partial class LobbyMenu : Control
 {
-    [Export] public Node3D InitialLevel;
-
     private Button _hostButton;
     private Button _refreshButton;
     private Button _joinSessionLocal;
@@ -60,6 +58,8 @@ public partial class LobbyMenu : Control
     private void OnError(string msg)
     {
         GD.Print("Error: ", msg);
+        _hostButton.Disabled = false;
+        _joinSessionLocal.Disabled = false;
     }
 
     private void OnLobbyListReceived(Array lobbies)

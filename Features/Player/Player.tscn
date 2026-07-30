@@ -8,7 +8,6 @@
 [ext_resource type="Script" path="res://Features/Player/Scripts/PlayerGameHandler.cs" id="5_llsyq"]
 [ext_resource type="Script" path="res://Features/Player/Scripts/ControlSwitch.cs" id="6_4uqpi"]
 [ext_resource type="Texture2D" uid="uid://0xjgjvsfmvwu" path="res://Assets/Characters/Base/Character_Image_6.png" id="6_de82q"]
-[ext_resource type="Script" path="res://Core/ToggleNode/Toggleable.cs" id="6_wlwl2"]
 [ext_resource type="PackedScene" path="res://Features/Player/Components/UI/TvShareButton.tscn" id="7_tvshr"]
 [ext_resource type="Texture2D" uid="uid://b6jqtm575xaub" path="res://Assets/Characters/Base/Character_Image_7_7.png" id="7_5rj7x"]
 [ext_resource type="Texture2D" uid="uid://3ytfag0bo7n5" path="res://Assets/Characters/Base/Character_Image_8.png" id="8_pjnld"]
@@ -4128,13 +4127,6 @@ skin = SubResource("Skin_ru22s")
 [node name="GameContextSlot" type="Node3D" parent="."]
 
 [node name="Scripts" type="Node" parent="."]
-
-[node name="PlayerToggleable" type="Node" parent="Scripts"]
-script = ExtResource("6_wlwl2")
-Targets = Array[NodePath]([NodePath("../../FirstPerson"), NodePath("../../CollisionShape3D")])
-ToggleVisible = true
-DisableCameras = true
-metadata/_custom_type_script = "uid://bf4tbhk58pgub"
 
 [node name="PlayerGameHandler" type="Node" parent="Scripts" node_paths=PackedStringArray("ContextSlot", "Player")]
 script = ExtResource("5_llsyq")

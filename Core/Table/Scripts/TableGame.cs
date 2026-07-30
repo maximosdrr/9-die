@@ -63,7 +63,7 @@ public partial class TableGame : Node3D
         if (remainingId == null)
             return;
 
-        CallMatchOver(remainingId, new Dictionary { ["reason"] = "opponent_disconnected" });
+        ApplyMatchOver(remainingId, new Dictionary { ["reason"] = "opponent_disconnected" });
     }
 
     private void SetupNetworkTurnSyncronization(TableGame tableGame)
@@ -157,11 +157,6 @@ public partial class TableGame : Node3D
             GameModeHandler.CurrentGameMode.TurnResolver.HandleTurnExtensionContext();
         else
             GD.PushWarning("Game mode handler is not configured on table: ", Name);
-    }
-
-    public void CallMatchOver(string winner, Dictionary context)
-    {
-        ApplyMatchOver(winner, context);
     }
 
     public void ApplyMatchOver(string winner, Dictionary context)

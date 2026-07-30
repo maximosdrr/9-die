@@ -4,8 +4,7 @@ using System.Collections.Generic;
 [GlobalClass]
 public partial class LevelMultiplayerManager : Node
 {
-	private static readonly PackedScene PlayerScene = GD.Load<PackedScene>("uid://dq4mwkkjaq18o");
-
+	[Export] public PackedScene PlayerScene;
 	[Export] public PlayersContainer PlayersContainer;
 	[Export] public MultiplayerSpawner MultiplayerSpawner;
 	[Export] public Godot.Collections.Array<NodePath> SpawnPointPaths = new();

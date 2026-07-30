@@ -21,7 +21,6 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Groups="*res://Autoload/GameGroups.cs"
 Global="*res://Autoload/Global.cs"
 NetworkManager="*res://Autoload/Network/NetworkManager.cs"
 SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.cs"

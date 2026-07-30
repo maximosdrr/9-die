@@ -1,6 +1,6 @@
 # TV — Simplificação e Limpeza
 
-Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza) da feature de TV (Core/Tv, TvShareButton). Item 🔴 dessa mesma área está em arquivo próprio: [tv-1](tv-1-regressao-gate-windows.md).
+Itens 🟡 (simplificação/consolidação) e 🟢 (limpeza) da feature de TV (Core/Tv, TvShareButton). Item 🔴 dessa mesma área está em arquivo próprio: tv-1.
 
 ## 🟡 TV-2 — `Global.Instance.TvScreen` assume uma única TV no jogo inteiro
 
@@ -14,11 +14,11 @@ Documentado como decisão deliberada de escopo (não suportar múltiplas TVs sim
 
 **Direção**: mover `PoolStartGameUI`/`StartGameUI.tscn` pra um lugar neutro (ex. `Core/Util/UI/` ou `Core/WorldPrompt/`) já que é um componente genérico (Label3D com Show/Hide/SetText), não algo específico da mesa.
 
-## 🟢 TV-4 — Log de diagnóstico de FPS deixado permanentemente ativo
+## 🔵 TV-4 — Log de diagnóstico de FPS deixado permanentemente ativo
 
-`Core/Platform/ScreenCaptureWorker.cs:97` — `GD.Print($"[TvScreenCapture] {achievedFps:F1} fps...")` a cada 1s, adicionado pra diagnosticar o problema de framerate. Útil na hora, mas agora roda pra sempre em toda sessão de compartilhamento, poluindo o console.
+**Revisado em 29/07/2026, mantido de propósito**: o comentário que já está no código (`Core/Platform/ScreenCaptureWorker.cs:90-91`) diz explicitamente "Cheap, always-on diagnostic: makes the *actual* sustained capture+encode rate visible in the output console" — ou seja, diferente do que essa entrada supunha, não é um esquecimento de debug, é uma decisão deliberada de manter um diagnóstico permanente e barato pro pipeline de vídeo (que é complexo e historicamente teve vários bugs de framerate nesta sessão). Não removido.
 
-**Direção**: remover agora que o diagnóstico já foi feito, ou gatear atrás de alguma flag de debug.
+~~`Core/Platform/ScreenCaptureWorker.cs:97` — `GD.Print($"[TvScreenCapture] {achievedFps:F1} fps...")` a cada 1s, adicionado pra diagnosticar o problema de framerate. Útil na hora, mas agora roda pra sempre em toda sessão de compartilhamento, poluindo o console.~~
 
 ## 🟢 TV-5 — `WindowsScreenCapture.cs` acumulou 3 responsabilidades num único static class
 

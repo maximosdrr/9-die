@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://km1p4vfi4o1w" path="res://Core/Table/Table.tscn" id="3_4e5w7"]
 [ext_resource type="PackedScene" uid="uid://du67ww01g04ae" path="res://Features/Games/Pool/Pool.tscn" id="5_rxpk7"]
 [ext_resource type="Script" uid="uid://bi043ow7ejyth" path="res://Core/Level/LevelMultiplayerManager.cs" id="5_s6lm4"]
+[ext_resource type="PackedScene" uid="uid://dq4mwkkjaq18o" path="res://Features/Player/Player.tscn" id="5_plyrsc"]
 [ext_resource type="Script" uid="uid://b0l5erqwe6mqt" path="res://Autoload/PlayersContainer/PlayersContainer.cs" id="5_wwpfk"]
 [ext_resource type="PackedScene" uid="uid://cvirrteahj8jj" path="res://Core/Tv/Tv.tscn" id="9_tvscr"]
 
@@ -80,6 +81,7 @@ script = ExtResource("5_wwpfk")
 
 [node name="LevelMultiplayerManager" type="Node" parent="Multiplayer/Scripts" unique_id=1519149147 node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner")]
 script = ExtResource("5_s6lm4")
+PlayerScene = ExtResource("5_plyrsc")
 PlayersContainer = NodePath("../../PlayersContainer")
 MultiplayerSpawner = NodePath("../../MultiplayerSpawner")
 SpawnPointPaths = Array[NodePath]([NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")])

@@ -29,7 +29,7 @@ public partial class GlobalCamera : Camera3D
             Global.Instance.Camera = null;
     }
 
-    public void TransitionTo(RemoteTransform3D newRemote, float duration = 0.0f)
+    public void TransitionTo(RemoteTransform3D newRemote)
     {
         if (CurrentRemote != null && IsInstanceValid(CurrentRemote))
             DisableRemote(CurrentRemote);

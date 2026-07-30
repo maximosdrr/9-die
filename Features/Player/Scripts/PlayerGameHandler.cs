@@ -14,7 +14,7 @@ public partial class PlayerGameHandler : Node
 
         var controllerInstance = controllerScene.Instantiate();
         controllerInstance.Name = "ActiveController";
-        controllerInstance.SetMultiplayerAuthority(int.Parse((string)Player.Name));
+        controllerInstance.SetMultiplayerAuthority(Player.Id);
 
         CurrentController = (PoolController)controllerInstance;
 
