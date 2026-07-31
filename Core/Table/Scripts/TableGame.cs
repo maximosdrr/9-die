@@ -207,7 +207,10 @@ public partial class TableGame : Node3D
         var currentIndex = TurnOrder.IndexOf(currentId);
 
         if (currentIndex == -1)
+        {
+            GD.PushWarning($"CallNextTurn: TurnOwner '{currentId}' nao esta em TurnOrder [{string.Join(",", TurnOrder)}]; turno nao avancou.");
             return;
+        }
 
         var nextIndex = (currentIndex + 1) % TurnOrder.Count;
         var nextPlayerId = (string)TurnOrder[nextIndex];
