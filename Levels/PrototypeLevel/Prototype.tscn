@@ -85,8 +85,8 @@ script = ExtResource("5_s6lm4")
 PlayerScene = ExtResource("5_plyrsc")
 PlayersContainer = NodePath("../../PlayersContainer")
 MultiplayerSpawner = NodePath("../../MultiplayerSpawner")
-TvScreen = NodePath("../../../TV")
 SpawnPointPaths = Array[NodePath]([NodePath("../../SpawnPoints/Marker3D"), NodePath("../../SpawnPoints/Marker3D2"), NodePath("../../SpawnPoints/Marker3D3"), NodePath("../../SpawnPoints/Marker3D4")])
+TvScreen = NodePath("../../../TV")
 
 [node name="TV" parent="." unique_id=2102181627 instance=ExtResource("9_tvscr")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.42660427, 2.7225764, -7.4305716)
