@@ -112,6 +112,11 @@ public sealed class ShotSimulator
 
             time += dt;
 
+            // Pocket mouths are holes cut out of the rectangular cloth footprint. Capture them
+            // before resolving a contact or a cloth landing at the same instant, otherwise an
+            // overlapping jaw/floor marker can bounce a ball that has already entered the hole.
+            HandlePocketsAndFalls(balls, time, events);
+
             if (collisions.Count > 0)
                 ResolveCollisionBatch(balls, collisions, time, events);
 
@@ -122,16 +127,15 @@ public sealed class ShotSimulator
                 if (!ball.InPlay)
                     continue;
 
-                // An airborne ball outside the bed has no cloth beneath it. Preserve the airborne
-                // state so gravity can carry it below DropDepth and produce BallOffTable.
+                // Outside the supported bed there is no cloth beneath an airborne ball. Preserve
+                // that state so it keeps falling instead of being snapped back onto an invisible
+                // rectangular floor. Pocketed balls were already removed above.
                 if (ball.Motion == BallMotion.Airborne
-                    && !_table.IsOverPlaySurface(ball.Position, 0.0))
+                    && !_table.HasClothSupport(ball.Position))
                     continue;
 
                 BilliardMotion.RefreshMotionState(ball);
             }
-
-            HandlePocketsAndFalls(balls, time, events);
 
             while (nextFrameTime <= time)
             {
@@ -292,11 +296,17 @@ public sealed class ShotSimulator
             if (collision.IsCushion)
             {
                 var ball = balls[collision.BallA];
+                if (!ball.InPlay)
+                    continue;
+
                 BilliardCollisions.ResolveCushion(ball, collision.CushionNormal);
                 events.Add(new ShotEvent(time, ShotEventType.BallHitCushion, ball.Id));
             }
             else
             {
+                if (!balls[collision.BallA].InPlay || !balls[collision.BallB].InPlay)
+                    continue;
+
                 ballContacts.Add(collision);
             }
         }
@@ -403,9 +413,9 @@ public sealed class ShotSimulator
             if (ball.Position.Y > BilliardConstants.Radius + 1e-9 || ball.Velocity.Y >= 0.0)
                 continue;
 
-            // Outside the bed there is no cloth to land on. Keep falling until the off-table
-            // detector removes the ball instead of creating an invisible floor around the table.
-            if (!_table.IsOverPlaySurface(ball.Position, 0.0))
+            // Outside the bed, and inside every pocket cutout, there is no cloth to land on.
+            // Keep falling rather than bouncing on the marker's rectangular bounding box.
+            if (!_table.HasClothSupport(ball.Position))
                 continue;
 
             BilliardMotion.ResolveClothBounce(ball);

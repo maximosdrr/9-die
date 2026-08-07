@@ -334,7 +334,43 @@ public partial class Cue : Node3D
 		return IsInstanceValid(CueBall)
 			   && IsMyTurn()
 			   && PoolGame?.SimulationRunner != null
-			   && !PoolGame.SimulationRunner.IsPlaying;
+			   && !PoolGame.SimulationRunner.IsPlaying
+			   && !IsTurnInputBlocked();
+	}
+
+	private bool IsTurnInputBlocked()
+	{
+		if (!IsInstanceValid(PoolGame))
+			return true;
+
+		if (IsInstanceValid(PoolGame.BallPlacementManager)
+			&& PoolGame.BallPlacementManager.IsPlacementPendingFor(
+				GetMultiplayerAuthority().ToString()))
+			return true;
+
+		var resolver = PoolGame.GameModeHandler?.CurrentGameMode?.TurnResolver as PoolTurnResolver;
+		return resolver?.IsShotBlocked == true;
+	}
+
+	/// <summary>
+	/// Completes the visual recovery without blindly locking the cue. A short shot can finish and
+	/// extend the current player's turn before CueRecover's minimum cooldown expires. In that
+	/// ordering there is no later turn signal to undo a lock, so the final state must be derived
+	/// from the current turn and simulation instead of always becoming CueLocked.
+	/// </summary>
+	internal void CompletePostShotRecovery()
+	{
+		if (!IsInsideTree()
+			|| !IsInstanceValid(StateMachine)
+			|| StateMachine.Current?.Type != StatesRef.CueRecover)
+			return;
+
+		var shotIsStillPlaying = PoolGame?.SimulationRunner?.IsPlaying == true;
+		var nextState = IsMyTurn() && !shotIsStillPlaying && !IsTurnInputBlocked()
+			? StatesRef.CueIdle
+			: StatesRef.CueLocked;
+
+		StateMachine.ChangeState(nextState, new Dictionary());
 	}
 
 	public void SnapToRestPose()

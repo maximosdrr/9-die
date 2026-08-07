@@ -96,6 +96,38 @@ public sealed class TableSpec
     }
 
     /// <summary>
+    /// Finds the pocket capture circle containing the ball centre. Pocket mouths deliberately
+    /// override the rectangular cloth footprint: visually the cloth marker is a box, but these
+    /// circles are the holes cut out of that box for simulation purposes.
+    /// </summary>
+    public bool TryGetPocketAt(Vec3d position, out int pocketIndex)
+    {
+        for (var i = 0; i < Pockets.Count; i++)
+        {
+            var pocket = Pockets[i];
+            var offset = (position - pocket.Center).Flat;
+            if (offset.FlatLengthSquared > pocket.Radius * pocket.Radius)
+                continue;
+
+            pocketIndex = i;
+            return true;
+        }
+
+        pocketIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// True only where the rectangular bed really supports a ball. A point over a pocket is not
+    /// supported even though it is still inside the cloth marker's bounding rectangle.
+    /// </summary>
+    public bool HasClothSupport(Vec3d position)
+    {
+        return IsOverPlaySurface(position, 0.0)
+               && !TryGetPocketAt(position, out _);
+    }
+
+    /// <summary>
     /// Lays cushion segments along the four sides, ending each one where the nearest pocket's
     /// mouth begins. Pockets are matched to a side by which one they sit closest to, so a table
     /// whose pockets are slightly off-centre still gets its gaps in the right places.

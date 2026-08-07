@@ -333,18 +333,6 @@ public static class BilliardCollisions
     /// <summary>True when the ball's centre has entered a pocket mouth and it should drop.</summary>
     public static bool IsOverPocket(BallState ball, TableSpec table, out int pocketIndex)
     {
-        for (var i = 0; i < table.Pockets.Count; i++)
-        {
-            var pocket = table.Pockets[i];
-            var offset = (ball.Position - pocket.Center).Flat;
-            if (offset.FlatLengthSquared <= pocket.Radius * pocket.Radius)
-            {
-                pocketIndex = i;
-                return true;
-            }
-        }
-
-        pocketIndex = -1;
-        return false;
+        return table.TryGetPocketAt(ball.Position, out pocketIndex);
     }
 }

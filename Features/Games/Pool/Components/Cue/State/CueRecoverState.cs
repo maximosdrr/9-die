@@ -59,7 +59,7 @@ public partial class CueRecoverState : State
 
     private void OnCooldownFinished()
     {
-        StateMachine.ChangeState(StatesRef.CueLocked, new Dictionary());
+        Cue.CompletePostShotRecovery();
     }
 
     private void ResetElevation()

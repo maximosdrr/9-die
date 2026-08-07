@@ -34,7 +34,7 @@ size = Vector3(0.10098877, 0.05, 0.0048662107)
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_corner"]
 height = 0.06
-radius = 0.055
+radius = 0.056152344
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_side"]
 height = 0.06
@@ -312,15 +312,15 @@ monitoring = false
 monitorable = false
 
 [node name="CornerTopRight" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1122549905]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5563024, 0, 1.0933486)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.53776145, 0, 1.0892284)
 shape = SubResource("CylinderShape3D_corner")
 
 [node name="CornerTopLeft" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1839027744]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55280167, 0, 1.0978078)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.53820616, 0, 1.0862364)
 shape = SubResource("CylinderShape3D_corner")
 
 [node name="SideRight" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1439086172]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5670471, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.56153977, 0, 0)
 shape = SubResource("CylinderShape3D_side")
 
 [node name="SideLeft" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1663019254]
@@ -328,11 +328,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5610299, 0, 0)
 shape = SubResource("CylinderShape3D_side")
 
 [node name="CornerBottomRight" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1094478126]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5508416, 0, -1.092176)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.53778183, 0, -1.0896261)
 shape = SubResource("CylinderShape3D_corner")
 
 [node name="CornerBottomLeft" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1258033840]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54964983, 0, -1.0940547)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54065216, 0, -1.086526)
 shape = SubResource("CylinderShape3D_corner")
 
 [node name="TableFloorBottom" type="CollisionShape3D" parent="." unique_id=634397921]

@@ -312,6 +312,40 @@ public partial class SceneLoadTest : Node
         Check($"caçapas mantêm raios individuais ({distinctRadii.Count} raios distintos)",
             distinctRadii.Count > 1);
 
+        // The cloth marker remains a rectangle for easy editing, but each real Table2 pocket
+        // must carve its overlapping mouth out of that rectangle. Some asymmetrical markers sit
+        // just beyond the cloth edge and need no subtraction; immediately beyond every capture
+        // circle the bed must still support a ball.
+        var allPocketOverlapsAreCutOut = true;
+        var allPocketApproachesAreSupported = true;
+        foreach (var pocket in spec.Pockets)
+        {
+            var nearestBedPoint = new Vec3d(
+                System.Math.Clamp(pocket.Center.X,
+                    spec.PlayCentre.X - spec.HalfWidth,
+                    spec.PlayCentre.X + spec.HalfWidth),
+                0.0,
+                System.Math.Clamp(pocket.Center.Z,
+                    spec.PlayCentre.Z - spec.HalfLength,
+                    spec.PlayCentre.Z + spec.HalfLength));
+            var towardBed = (nearestBedPoint - pocket.Center).Flat;
+            var distanceToBed = towardBed.FlatLength;
+            var inward = towardBed.Normalized();
+
+            var overlapsCloth = distanceToBed <= pocket.Radius;
+            allPocketOverlapsAreCutOut &= !overlapsCloth
+                                           || !spec.HasClothSupport(nearestBedPoint);
+
+            var beforeMouth = pocket.Center
+                              + inward * (System.Math.Max(distanceToBed, pocket.Radius) + 0.002);
+            allPocketApproachesAreSupported &= spec.HasClothSupport(beforeMouth);
+        }
+
+        Check("as seis caçapas reais recortam o pano onde os marcadores se sobrepõem",
+            allPocketOverlapsAreCutOut);
+        Check("a aproximação das seis caçapas reais continua apoiada no pano",
+            allPocketApproachesAreSupported);
+
         var allInward = true;
         foreach (var cushion in spec.Cushions)
         {

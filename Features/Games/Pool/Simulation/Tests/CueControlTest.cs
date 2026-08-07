@@ -34,6 +34,7 @@ public partial class CueControlTest : Node
         TestAimSurvivesRoundTrip();
         TestTipOffsetIsRelativeToRadius();
         TestStrokeGesture();
+        TestShortShotRecoveryKeepsSoloTurn();
         TestCuePresentationRecovery();
         TestTurnOwnershipSurvivesTeardown();
 
@@ -154,6 +155,39 @@ public partial class CueControlTest : Node
             cue.StateMachine.Current.Type == StatesRef.CueIdle);
 
         // This focused test assigns only the turn owner, not Cue.Setup's signal dependencies.
+        cue.PoolGame = null;
+        cue.Free();
+        owner.Free();
+        game.Free();
+    }
+
+    private void TestShortShotRecoveryKeepsSoloTurn()
+    {
+        var scene = GD.Load<PackedScene>("res://Features/Games/Pool/Components/Cue/Cue.tscn");
+        var cue = scene.Instantiate<Cue>();
+        var game = new PoolGame();
+        var owner = new Player { Name = "7" };
+
+        game.TurnOwner = owner;
+        cue.PoolGame = game;
+        cue.SetMultiplayerAuthority(7);
+        AddChild(cue);
+
+        // Reproduces the race: a short solo shot has already finished and extended the same
+        // player's turn, but the cue's minimum 0.5 s recovery cooldown completes afterwards.
+        cue.StateMachine.ChangeState(StatesRef.CueRecover, new Dictionary());
+        cue.CompletePostShotRecovery();
+
+        Check("cooldown tardio preserva o taco liberado quando a vez solo continua",
+            cue.StateMachine.Current.Type == StatesRef.CueIdle);
+
+        cue.StateMachine.ChangeState(StatesRef.CueRecover, new Dictionary());
+        owner.Name = "8";
+        cue.CompletePostShotRecovery();
+
+        Check("cooldown continua bloqueando o taco quando a vez pertence a outro jogador",
+            cue.StateMachine.Current.Type == StatesRef.CueLocked);
+
         cue.PoolGame = null;
         cue.Free();
         owner.Free();

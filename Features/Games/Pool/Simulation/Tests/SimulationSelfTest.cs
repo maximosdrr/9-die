@@ -31,6 +31,8 @@ public partial class SimulationSelfTest : Node
         TestEnergyNeverIncreases();
         TestBallStopsCompletely();
         TestPocketDetection();
+        TestPocketCutoutsRemoveClothSupport();
+        TestPocketCapturePrecedesClothLanding();
         TestBallDrivenOffTable();
         TestRailMustOccurAfterFirstContact();
         TestSimultaneousContactsAreSymmetric();
@@ -231,6 +233,76 @@ public partial class SimulationSelfTest : Node
         Check("bola encaçapada é detectada", pocketed || result.FinalStates[0].Motion == BallMotion.Stationary);
         Check("nenhuma bola escapa da mesa",
             Math.Abs(result.FinalStates[0].Position.X) <= table.HalfWidth + 0.1);
+    }
+
+    private void TestPocketCutoutsRemoveClothSupport()
+    {
+        var table = TableSpec.CreateDefault();
+        var everyMouthIsCutOut = true;
+        var everyNearEdgeStillHasSupport = true;
+        var everySlowEntryIsCaptured = true;
+
+        for (var i = 0; i < table.Pockets.Count; i++)
+        {
+            var pocket = table.Pockets[i];
+            everyMouthIsCutOut &= table.IsOverPlaySurface(pocket.Center, 0.0)
+                                  && !table.HasClothSupport(pocket.Center);
+
+            var inward = (table.PlayCentre - pocket.Center).Flat.Normalized();
+            var supportedPoint = pocket.Center + inward * (pocket.Radius + 0.002);
+            everyNearEdgeStillHasSupport &= table.HasClothSupport(supportedPoint);
+
+            // Start just outside the cutout and roll gently into it. This covers all six pockets
+            // without relying on a hard shot or on one particular cushion arrangement.
+            var start = pocket.Center + inward * (pocket.Radius + 0.004);
+            var velocity = -inward * 0.08;
+            var ball = new BallState(i, OnCloth(start.X, start.Z))
+            {
+                Velocity = velocity,
+                AngularVelocity = Vec3d.Up.Cross(velocity) / BilliardConstants.Radius,
+                Motion = BallMotion.Rolling,
+            };
+
+            var result = new ShotSimulator(table).Simulate(
+                new List<BallState> { ball },
+                cueBallId: i,
+                new ShotInput(0.0, 0.0, 0.0, 0.0, 0.0));
+
+            everySlowEntryIsCaptured &= result.FinalStates[0].Motion == BallMotion.Pocketed;
+        }
+
+        Check("as seis caçapas recortam o suporte do pano", everyMouthIsCutOut);
+        Check("o pano continua sustentando a bola logo fora dos recortes", everyNearEdgeStillHasSupport);
+        Check("entrada lenta é capturada nas seis caçapas", everySlowEntryIsCaptured);
+    }
+
+    private void TestPocketCapturePrecedesClothLanding()
+    {
+        var table = TableSpec.CreateDefault();
+        var pocket = table.Pockets[0];
+        var ball = new BallState(
+            0,
+            new Vec3d(pocket.Center.X, BilliardConstants.Radius * 0.9, pocket.Center.Z))
+        {
+            Velocity = new Vec3d(0.0, -0.2, 0.0),
+            Motion = BallMotion.Airborne,
+        };
+
+        var result = new ShotSimulator(table).Simulate(
+            new List<BallState> { ball },
+            cueBallId: 0,
+            new ShotInput(0.0, 0.0, 0.0, 0.0, 0.0));
+
+        var pocketEvents = 0;
+        var clothEvents = 0;
+        foreach (var shotEvent in result.Events)
+        {
+            if (shotEvent.Type == ShotEventType.BallPocketed) pocketEvents++;
+            if (shotEvent.Type == ShotEventType.BallHitCloth) clothEvents++;
+        }
+
+        Check("bola sobre a caçapa é capturada uma única vez", pocketEvents == 1);
+        Check("caçapa tem prioridade e não gera quique no pano invisível", clothEvents == 0);
     }
 
     // A jump shot fired over a cushion must end up reported as off the table. Driving a ball off
