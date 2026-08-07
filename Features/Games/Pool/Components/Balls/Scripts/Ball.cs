@@ -1,7 +1,17 @@
 using Godot;
+using Pool.Simulation;
 
+/// <summary>
+/// A ball as the scene sees it: visuals, identity and the signals the rest of the game listens
+/// to. It is NOT a physics body — PoolSimulationRunner computes the whole shot analytically and
+/// drives this node's transform from the result.
+///
+/// The signals below are still emitted, but by the runner off the simulated event timeline
+/// rather than by contact callbacks, so they can no longer be missed (max_contacts_reported used
+/// to silently swallow rail hits during a break) or fire late.
+/// </summary>
 [GlobalClass]
-public partial class Ball : RigidBody3D
+public partial class Ball : Node3D
 {
     private static readonly PackedScene WhiteBallMesh = GD.Load<PackedScene>("uid://duqktbfsd1n6u");
     private static readonly PackedScene[] ColoredBallMeshes =
@@ -16,7 +26,6 @@ public partial class Ball : RigidBody3D
         GD.Load<PackedScene>("uid://buoe2fsbwjbk1"),
     };
 
-    [Export] public BallResource Data;
     [Export] public int Index = 0;
 
     private int _textureId = 0;
@@ -32,234 +41,133 @@ public partial class Ball : RigidBody3D
         }
     }
 
-    public CollisionShape3D CollisionShape;
     public MultiplayerSynchronizer MultiplayerSynchronizerNode;
 
-    [ExportGroup("Jump Physics")]
-    [Export] public float JumpEfficiency = 1.2f;
-    [Export] public float MinJumpAngle = 25.0f;
-    [Export] public float CueMaxAngle = 65.0f;
-    [Export] public float FloorTolerance = 0.02f;
-
-    [ExportGroup("Movement Detection")]
-    [Export] public float StopSpeedThreshold = 0.01f;
-    [Export] public float StopCheckInterval = 0.1f;
-
-    [Signal] public delegate void StoppedMovingEventHandler(Vector3 position);
-    [Signal] public delegate void StartedMovingEventHandler();
-    [Signal] public delegate void StrikedEventHandler();
     [Signal] public delegate void BallContactedEventHandler(Ball ball);
-    [Signal] public delegate void JumpStartedEventHandler();
-    [Signal] public delegate void JumpLandedEventHandler();
     [Signal] public delegate void TouchedRailEventHandler();
+    [Signal] public delegate void BouncedOnClothEventHandler();
 
-    public float Radius = 0.029f;
-    public bool IsMoving = false;
-    private Transform3D _initialTransform;
-    private bool _isInAir = false;
-    private float _stopCheckTimer = 0.0f;
+    /// <summary>Ball radius in metres. Single source of truth is the simulation's regulation value.</summary>
+    public float Radius => (float)BilliardConstants.Radius;
+
+    /// <summary>False once potted or driven off — the runner stops drawing and simulating it.</summary>
+    public bool InPlay { get; private set; } = true;
+
+    /// <summary>
+    /// While ball-in-hand is being previewed, the real gameplay ball must stay hidden even if a
+    /// late authoritative snapshot marks it in play again.
+    /// </summary>
+    public bool PlacementPreviewActive { get; private set; }
+
+    /// <summary>
+    /// Last known velocity, published by the runner purely so the impact sounds can scale
+    /// themselves. Nothing reads it to make gameplay decisions.
+    /// </summary>
+    public Vector3 LinearVelocity { get; private set; }
+
+    /// <summary>Last spin applied, so a potted ball can keep tumbling as it drops.</summary>
+    public Vector3 AngularVelocitySnapshot { get; private set; }
 
     public override void _Ready()
     {
-        CollisionShape = GetNode<CollisionShape3D>("CollisionShape3D");
-        MultiplayerSynchronizerNode = GetNode<MultiplayerSynchronizer>("MultiplayerSynchronizer");
-
+        MultiplayerSynchronizerNode = GetNodeOrNull<MultiplayerSynchronizer>("MultiplayerSynchronizer");
         UpdateVisual();
+        AddToGroup("Ball");
+    }
 
-        if (Data != null)
+    private Node _visual;
+
+    /// <summary>
+    /// Creates a presentation-only copy of this ball for ball-in-hand previews. It deliberately
+    /// has no Ball script, synchronizer, sounds or gameplay identity: moving it can never alter
+    /// the authoritative table state.
+    /// </summary>
+    public Node3D CreatePlacementGhost()
+    {
+        var ghost = new Node3D { Name = $"PlacementGhost{Index}" };
+        var scene = TextureId == 0
+            ? WhiteBallMesh
+            : TextureId > 0 && TextureId - 1 < ColoredBallMeshes.Length
+                ? ColoredBallMeshes[TextureId - 1]
+                : null;
+
+        if (scene == null)
+            return ghost;
+
+        var visual = scene.Instantiate<Node3D>();
+        ghost.AddChild(visual);
+        MakeGhostTranslucent(visual);
+        return ghost;
+    }
+
+    private static void MakeGhostTranslucent(Node node)
+    {
+        if (node is GeometryInstance3D geometry)
         {
-            Mass = Data.Mass;
-            GravityScale = Data.GravityScale;
-            LinearDamp = Data.LinearDamp;
-            AngularDamp = Data.AngularDamp;
-
-            ContinuousCd = Data.ContinuosCd;
-            CanSleep = Data.CanSleep;
-
-            var newMat = new PhysicsMaterial();
-            newMat.Bounce = Data.Bounce;
-            newMat.Friction = Data.Friction;
-            newMat.Absorbent = Data.Absorbent;
-
-            PhysicsMaterialOverride = newMat;
+            geometry.Transparency = 0.45f;
+            geometry.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
         }
 
-        AddToGroup("Ball");
-
-        if (CollisionShape != null && CollisionShape.Shape is SphereShape3D sphereShape)
-            Radius = sphereShape.Radius;
-
-        _initialTransform = GlobalTransform;
+        foreach (var child in node.GetChildren())
+            MakeGhostTranslucent(child);
     }
 
     private void UpdateVisual()
     {
-        foreach (var child in GetChildren())
-        {
-            if (child is MeshInstance3D || (child is Node3D && child.Name != "CollisionShape3D" && child is not MultiplayerSynchronizer _ && child is not StateMachine _))
-            {
-                if (child is VisualInstance3D)
-                    child.QueueFree();
-            }
-        }
+        // Tracking the node we spawned, rather than sweeping every VisualInstance3D child, keeps
+        // this from also deleting anything else parented to the ball (the DebugLabel, for one).
+        if (IsInstanceValid(_visual))
+            _visual.QueueFree();
 
-        Node newVisual = null;
+        _visual = null;
 
         if (TextureId == 0)
-            newVisual = WhiteBallMesh.Instantiate();
+            _visual = WhiteBallMesh.Instantiate();
         else if (TextureId > 0 && (TextureId - 1) < ColoredBallMeshes.Length)
-            newVisual = ColoredBallMeshes[TextureId - 1].Instantiate();
+            _visual = ColoredBallMeshes[TextureId - 1].Instantiate();
 
-        if (newVisual != null)
-            AddChild(newVisual);
+        if (_visual != null)
+            AddChild(_visual);
     }
 
-    public void Strike(Vector3 direction, float totalForce, Vector3 hitOffsetLocal = default)
+    /// <summary>
+    /// Publishes this frame's velocity (read only by the impact sounds) and rolls the visual mesh
+    /// to match the simulated spin, which is purely cosmetic.
+    /// </summary>
+    public void ApplyMotion(Vector3 linearVelocity, Vector3 angularVelocity, float delta)
     {
-        EmitSignal(SignalName.Striked);
+        LinearVelocity = linearVelocity;
+        AngularVelocitySnapshot = angularVelocity;
 
-        if (totalForce <= 0.0f)
+        var spinRate = angularVelocity.Length();
+        if (spinRate < 1e-4f)
             return;
 
-        var rawNormal = direction.Normalized();
-
-        var attackAngleDeg = Mathf.RadToDeg(Mathf.Asin(Mathf.Abs(rawNormal.Y)));
-        var isValidJump = rawNormal.Y < 0 && attackAngleDeg >= MinJumpAngle;
-
-        Vector3 rawDir;
-        var jumpFactor = 0.0f;
-
-        if (isValidJump)
-        {
-            rawDir = rawNormal;
-            var angleRange = CueMaxAngle - MinJumpAngle;
-            var angleProgress = Mathf.Clamp(attackAngleDeg - MinJumpAngle, 0.0f, angleRange);
-
-            jumpFactor = angleProgress / angleRange;
-        }
-        else
-        {
-            rawDir = new Vector3(direction.X, 0.0f, direction.Z).Normalized();
-        }
-
-        var offsetRatio = hitOffsetLocal.X / Radius;
-        var maxAngleDeg = Data != null ? Data.MaxSquirtAngleDeg : 0.0f;
-        var spinPower = Data != null ? Data.SpinPowerFactor : 1.0f;
-        var maxAngleRad = Mathf.DegToRad(maxAngleDeg);
-        var deflectionAngle = offsetRatio * maxAngleRad;
-
-        var finalDir = rawDir.Rotated(Vector3.Up, deflectionAngle);
-        var linearImpulse = finalDir * totalForce;
-
-        if (isValidJump)
-        {
-            var verticalForce = Mathf.Abs(linearImpulse.Y) * JumpEfficiency * jumpFactor;
-            linearImpulse.Y = verticalForce;
-        }
-        else
-        {
-            linearImpulse.Y = 0.0f;
-        }
-
-        var forward = -new Vector3(finalDir.X, 0.0f, finalDir.Z).Normalized();
-        var up = Vector3.Up;
-        var right = forward.Cross(up).Normalized();
-        up = right.Cross(forward).Normalized();
-        var aimBasis = new Basis(right, up, forward);
-
-        var hitOffsetWorld = aimBasis * hitOffsetLocal;
-        var rawTorque = hitOffsetWorld.Cross(linearImpulse);
-        rawTorque.Y = -rawTorque.Y;
-
-        var reducedTorque = rawTorque * spinPower;
-
-        ApplyCentralImpulse(linearImpulse);
-        ApplyTorqueImpulse(reducedTorque);
+        Rotate(angularVelocity / spinRate, spinRate * delta);
     }
 
-    public void Respawn()
+    /// <summary>
+    /// Marks the ball in or out of play. Note this does NOT hide it: a potted ball still has to
+    /// be seen falling into the pocket, so visibility is owned by the drop animation and only
+    /// forced back on when the ball returns to play.
+    /// </summary>
+    public void SetInPlay(bool inPlay)
     {
-        LinearVelocity = Vector3.Zero;
-        AngularVelocity = Vector3.Zero;
-        GlobalTransform = _initialTransform;
-        Sleeping = false;
-        Visible = true;
-        _isInAir = false;
-        ProcessMode = ProcessModeEnum.Inherit;
+        InPlay = inPlay;
+        if (inPlay && !PlacementPreviewActive)
+            Visible = true;
     }
 
-    public override void _PhysicsProcess(double delta)
+    public void SetPlacementPreviewActive(bool active)
     {
-        var speed = LinearVelocity.Length();
-        var slowThreshold = 0.3f;
-        var stopThreshold = 0.05f;
-
-        var minDamp = Data != null ? Data.AngularDamp : 1.0f;
-        var maxDamp = 1.5f;
-
-        var t = Mathf.InverseLerp(slowThreshold, stopThreshold, speed);
-        t = Mathf.Clamp(t, 0.0f, 1.0f);
-        AngularDamp = Mathf.Lerp(minDamp, maxDamp, t);
-
-        if (_isInAir || speed > stopThreshold)
-            CheckGroundState();
-
-        UpdateMovementState(speed, delta);
+        PlacementPreviewActive = active;
+        if (active)
+            Visible = false;
     }
 
-    private void UpdateMovementState(float speed, double delta)
-    {
-        _stopCheckTimer -= (float)delta;
-        if (_stopCheckTimer > 0)
-            return;
-        _stopCheckTimer = StopCheckInterval;
+    public void NotifyBallContacted(Ball other) => EmitSignal(SignalName.BallContacted, other);
 
-        var isMovingNow = speed > StopSpeedThreshold;
-        if (isMovingNow == IsMoving)
-            return;
+    public void NotifyTouchedRail() => EmitSignal(SignalName.TouchedRail);
 
-        IsMoving = isMovingNow;
-
-        if (IsMoving)
-            EmitSignal(SignalName.StartedMoving);
-        else
-            EmitSignal(SignalName.StoppedMoving, GlobalPosition);
-    }
-
-    private void CheckGroundState()
-    {
-        var spaceState = GetWorld3D().DirectSpaceState;
-
-        var from = GlobalPosition;
-        var to = from + Vector3.Down * (Radius + FloorTolerance);
-
-        var query = PhysicsRayQueryParameters3D.Create(from, to);
-        query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
-
-        var result = spaceState.IntersectRay(query);
-        var isOnFloor = result.Count > 0;
-
-        if (!isOnFloor && !_isInAir)
-        {
-            _isInAir = true;
-            EmitSignal(SignalName.JumpStarted);
-        }
-        else if (isOnFloor && _isInAir)
-        {
-            _isInAir = false;
-            EmitSignal(SignalName.JumpLanded);
-        }
-    }
-
-    private void OnBodyEntered(Node body)
-    {
-        if (body is Ball ball)
-            EmitSignal(SignalName.BallContacted, ball);
-    }
-
-    private void OnRigidBodyContactEntered(Node body)
-    {
-        if (body is Node3D node3D && node3D.IsInGroup("Cushion"))
-            EmitSignal(SignalName.TouchedRail);
-    }
+    public void NotifyBouncedOnCloth() => EmitSignal(SignalName.BouncedOnCloth);
 }

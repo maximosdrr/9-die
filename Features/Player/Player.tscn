@@ -1421,7 +1421,7 @@ shape = SubResource("CapsuleShape3D_qhdlv")
 [node name="FirstPerson" type="Node3D" parent="." unique_id=779977182]
 
 [node name="HeadPivot" type="Node3D" parent="FirstPerson" unique_id=928062161 node_paths=PackedStringArray("CameraMount")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3188028, -0.3429405)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4081178, -0.343)
 script = ExtResource("2_bd6kk")
 CameraMount = NodePath("RemoteFPS")
 

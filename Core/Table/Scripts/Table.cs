@@ -54,10 +54,17 @@ public partial class Table : Node3D
 
 	public override void _Process(double delta)
 	{
-		if (CurrentTableGame == null || CurrentTableGame.TurnOwner == null)
+		if (!IsInstanceValid(CurrentTableGame))
+		{
+			CurrentTableGame = null;
+			return;
+		}
+
+		var turnOwner = CurrentTableGame.TurnOwner;
+		if (!IsInstanceValid(turnOwner) || !IsInstanceValid(DebugLabel))
 			return;
 
-		DebugLabel.Text = $"Current player turn: {CurrentTableGame.TurnOwner.Name}";
+		DebugLabel.Text = $"Current player turn: {turnOwner.Name}";
 	}
 
 	private void SpawnRuntimeGame()

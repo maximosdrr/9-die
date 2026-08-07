@@ -5,21 +5,27 @@ using Godot.Collections;
 public partial class PoolGame : TableGame
 {
 	public PoolBallRespawn PoolBallRespawn;
-	public OffTableMonitor OffTableMonitor;
 	[Export] public PoolGameTable PoolTable;
 	[Export] public PackedScene GameControllerScene;
 
-	public BallsMovementMonitor BallsMovementMonitor;
 	public BallPlacementManager BallPlacementManager;
+	public PoolSimulationRunner SimulationRunner;
 	private GameModeHandler _gameModeHandler;
 
 	public Ball CueBall = null;
 	public Array<Ball> Balls = new();
-	public Area3D ScoreMonitor;
 
 	public Dictionary<string, Array> BallsPocketedByPlayer = new();
+	public Dictionary<string, int> ConsecutiveFoulsByPlayer = new();
 	public int CurrentTargetBallIndex = 0;
+	public bool PushOutAvailable;
+	public bool PushOutChoicePending;
+	public bool PushOutDeclared;
+	public string PushOutShooterId;
 	public GlobalCamera Camera;
+	public bool IsSoloMatch { get; private set; }
+
+	public override bool CountsWinsForRanking => !IsSoloMatch;
 
 	[Signal]
 	public delegate void HudStateUpdatedEventHandler();
@@ -27,19 +33,21 @@ public partial class PoolGame : TableGame
 	public override void _Ready()
 	{
 		PoolBallRespawn = GetNode<PoolBallRespawn>("Scripts/PoolBallRespawn");
-		OffTableMonitor = GetNode<OffTableMonitor>("Scripts/OffTableMonitor");
-		BallsMovementMonitor = GetNode<BallsMovementMonitor>("Scripts/BallsMovementMonitor");
 		BallPlacementManager = GetNode<BallPlacementManager>("Scripts/BallPlacementManager");
+		SimulationRunner = GetNode<PoolSimulationRunner>("Scripts/PoolSimulationRunner");
+		BallPlacementManager.SimulationRunner = SimulationRunner;
 		_gameModeHandler = GetNode<GameModeHandler>("GameModeHandler");
 
-		ScoreMonitor = PoolTable.ScoreMonitor;
-
-		OffTableMonitor.Setup(PoolTable.BallOffMonitor);
 		GameModeHandler = _gameModeHandler;
 		MatchOver += OnMatchIsOver;
 		MatchStarted += OnMatchStarts;
 		PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
 		PlayerReclaimed += OnPlayerReclaimed;
+	}
+
+	private void OnBallPocketed(Ball ball)
+	{
+		PoolTable.EmitBallPocketedSound();
 	}
 
 	public override void SetCamera(GlobalCamera camera)
@@ -67,10 +75,39 @@ public partial class PoolGame : TableGame
 		EmitSignal(SignalName.HudStateUpdated);
 	}
 
+	public void ApplyFoulUpdate(string playerId, int foulCount)
+	{
+		if (string.IsNullOrEmpty(playerId))
+			return;
+
+		ConsecutiveFoulsByPlayer[playerId] = Mathf.Clamp(
+			foulCount, 0, PoolTurnResolver.ConsecutiveFoulLossThreshold);
+		EmitSignal(SignalName.HudStateUpdated);
+	}
+
+	public void ApplyPushOutState(bool available, bool choicePending, bool declared, string shooterId)
+	{
+		PushOutAvailable = available;
+		PushOutChoicePending = choicePending;
+		PushOutDeclared = declared;
+		PushOutShooterId = shooterId ?? "";
+		EmitSignal(SignalName.HudStateUpdated);
+	}
+
 	public override async void SetupMatch(Array players, string firstTurnOwner)
 	{
+		IsSoloMatch = players.Count == 1;
 		BallsPocketedByPlayer.Clear();
+		ConsecutiveFoulsByPlayer.Clear();
 		CurrentTargetBallIndex = 0;
+		PushOutAvailable = false;
+		PushOutChoicePending = false;
+		PushOutDeclared = false;
+		PushOutShooterId = "";
+
+		// Adopt the table's geometry before anything spawns: this also snaps the ball container
+		// onto the cloth centre that table defines, so the rack lands in the right place.
+		SimulationRunner.UseGeometry(PoolTable.Geometry);
 
 		PoolBallRespawn.StartGame();
 
@@ -78,14 +115,21 @@ public partial class PoolGame : TableGame
 		CueBall = cueBall;
 		Balls = balls;
 
+		SimulationRunner.Setup(cueBall, balls);
+		SignalUtil.ConnectGuarded(SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
 		_gameModeHandler.Setup(this);
-		BallsMovementMonitor.Setup(this);
 
 		EmitSignal(SignalName.MatchStarted, players, firstTurnOwner);
 	}
 
 	private void OnMatchStarts(Array playersIds, string firstTurnOwner)
 	{
+		var initialPlacementContext = new Dictionary
+		{
+			["ball_replacement"] = 0,
+			["initial_break_placement"] = true,
+		};
+
 		foreach (var pIdVariant in playersIds)
 		{
 			var pId = (string)pIdVariant;
@@ -96,7 +140,10 @@ public partial class PoolGame : TableGame
 		}
 
 		if (Player != null && Player.GameHandler.CurrentController != null)
-			Player.GameHandler.CurrentController.ApplyControl(firstTurnOwner, new Dictionary());
+			Player.GameHandler.CurrentController.ApplyControl(firstTurnOwner, initialPlacementContext);
+
+		var resolver = _gameModeHandler?.CurrentGameMode?.TurnResolver as PoolTurnResolver;
+		resolver?.BeginInitialBreakPlacement(firstTurnOwner);
 	}
 
 	private void OnMatchIsOver(string winner, Dictionary context)

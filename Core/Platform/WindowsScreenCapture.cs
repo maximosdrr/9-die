@@ -114,23 +114,6 @@ public static class WindowsScreenCapture
         public int Y;
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
-
-    private const uint WdaExcludeFromCapture = 0x00000011;
-
-    /// <summary>
-    /// Marks a window (identified by its native HWND) so it never appears in any screen
-    /// capture, including this class's own TryCapturePrimaryScreen. Meant to be called once
-    /// with the game's own window handle, so a player sharing their whole screen can never
-    /// accidentally capture their own game window showing the TV showing itself (an infinite
-    /// feedback loop). Requires Windows 10 2004+; returns false harmlessly on older systems.
-    /// </summary>
-    public static bool ExcludeWindowFromCapture(IntPtr hwnd)
-    {
-        return SetWindowDisplayAffinity(hwnd, WdaExcludeFromCapture);
-    }
-
     [StructLayout(LayoutKind.Sequential)]
     private struct BitmapInfoHeader
     {
@@ -148,8 +131,28 @@ public static class WindowsScreenCapture
     }
 
     /// <summary>
+    /// Rewrites a BGRA byte run as RGBA in place. GDI always hands back BGRA while Godot's
+    /// Image.Format.Rgba8 wants the opposite order, and a screen grab carries no meaningful alpha,
+    /// so it's forced opaque here. Done in place because a second full-size buffer just to reorder
+    /// two channels doubles the memory traffic of the conversion for nothing.
+    /// </summary>
+    private static void SwapRedAndBlueInPlace(byte[] pixels, int length)
+    {
+        for (var i = 0; i < length; i += 4)
+        {
+            (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
+            pixels[i + 3] = 255;
+        }
+    }
+
+    /// <summary>
     /// Captures the primary monitor, downscaled to targetWidth x targetHeight, as top-down RGBA8 bytes
     /// ready for Godot's Image.CreateFromData(..., Image.Format.Rgba8, ...). Windows-only.
+    ///
+    /// The caller supplies destination, which must hold at least targetWidth * targetHeight * 4 bytes
+    /// and is overwritten in full on success. A 60 fps loop that allocates its own multi-megabyte
+    /// array per frame puts every one of them straight on the Large Object Heap; passing the buffer
+    /// in lets the caller allocate once and reuse it for the whole session instead.
     ///
     /// Uses CreateDIBSection (a bitmap backed by a known, directly-addressable 32bpp buffer) instead of
     /// CreateCompatibleBitmap + GetDIBits: the latter requires GDI to convert from whatever
@@ -158,9 +161,10 @@ public static class WindowsScreenCapture
     /// request) produces corrupted/garbled pixel data. Writing StretchBlt's output directly into a
     /// DIB section sidesteps that conversion step entirely.
     /// </summary>
-    public static bool TryCapturePrimaryScreen(int targetWidth, int targetHeight, out byte[] rgbaPixels)
+    public static bool TryCapturePrimaryScreen(int targetWidth, int targetHeight, byte[] destination)
     {
-        rgbaPixels = null;
+        if (destination == null || destination.Length < targetWidth * targetHeight * 4)
+            return false;
 
         var screenWidth = GetSystemMetrics(SmCxscreen);
         var screenHeight = GetSystemMetrics(SmCyscreen);
@@ -210,22 +214,10 @@ public static class WindowsScreenCapture
 
             GdiFlush();
 
-            var stride = targetWidth * 4;
-            var bufferSize = stride * targetHeight;
+            var bufferSize = targetWidth * 4 * targetHeight;
+            Marshal.Copy(bitsPtr, destination, 0, bufferSize);
+            SwapRedAndBlueInPlace(destination, bufferSize);
 
-            var bgra = new byte[bufferSize];
-            Marshal.Copy(bitsPtr, bgra, 0, bufferSize);
-
-            var rgba = new byte[bufferSize];
-            for (var i = 0; i < bufferSize; i += 4)
-            {
-                rgba[i] = bgra[i + 2];     // R
-                rgba[i + 1] = bgra[i + 1]; // G
-                rgba[i + 2] = bgra[i];     // B
-                rgba[i + 3] = 255;         // A (GDI capture has no meaningful alpha; force opaque)
-            }
-
-            rgbaPixels = rgba;
             return true;
         }
         finally
@@ -309,11 +301,13 @@ public static class WindowsScreenCapture
     /// the older BitBlt-from-window-DC approach, which just returns black for those. A window's
     /// aspect ratio is usually not 16:9, so the result is letterboxed: scaled to fit inside
     /// targetWidth x targetHeight while preserving its own proportions, centered, with the
-    /// surrounding bars filled black.
+    /// surrounding bars filled black. destination follows the same caller-owned buffer contract as
+    /// TryCapturePrimaryScreen.
     /// </summary>
-    public static bool TryCaptureWindow(IntPtr hwnd, int targetWidth, int targetHeight, out byte[] rgbaPixels)
+    public static bool TryCaptureWindow(IntPtr hwnd, int targetWidth, int targetHeight, byte[] destination)
     {
-        rgbaPixels = null;
+        if (destination == null || destination.Length < targetWidth * targetHeight * 4)
+            return false;
 
         if (!IsWindow(hwnd))
             return false;
@@ -392,22 +386,10 @@ public static class WindowsScreenCapture
 
             GdiFlush();
 
-            var stride = targetWidth * 4;
-            var bufferSize = stride * targetHeight;
+            var bufferSize = targetWidth * 4 * targetHeight;
+            Marshal.Copy(bitsPtr, destination, 0, bufferSize);
+            SwapRedAndBlueInPlace(destination, bufferSize);
 
-            var bgra = new byte[bufferSize];
-            Marshal.Copy(bitsPtr, bgra, 0, bufferSize);
-
-            var rgba = new byte[bufferSize];
-            for (var i = 0; i < bufferSize; i += 4)
-            {
-                rgba[i] = bgra[i + 2];     // R
-                rgba[i + 1] = bgra[i + 1]; // G
-                rgba[i + 2] = bgra[i];     // B
-                rgba[i + 3] = 255;         // A
-            }
-
-            rgbaPixels = rgba;
             return true;
         }
         finally

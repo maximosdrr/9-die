@@ -1,27 +1,51 @@
 using Godot;
 using Godot.Collections;
 
+/// <summary>
+/// The real stroke gesture: pull the cue back, then push it forward, and the shot fires the
+/// moment the tip reaches the ball. No button to release — the stroke itself is the trigger.
+///
+/// Backswing depth selects the intended power; forward speed contributes a bounded timing
+/// efficiency. Normalising velocity by the configured full-draw distance keeps the timing term
+/// independent of frame rate while sensitivity remains available for different mice.
+/// </summary>
 [GlobalClass]
 public partial class CueChargingState : State
 {
-    private const string InputSpinModifier = "spin_modifier";
     private const string InputStrokeMode = "stroke_mode";
 
-    [ExportGroup("Sensitivity")]
-    [Export] public float SpinSensitivity = 0.001f;
-    [Export] public float StrokeSensitivity = 0.001f;
+    [ExportGroup("Draw")]
+    /// <summary>Screen pixels of backswing for a full-power shot at sensitivity 1.</summary>
+    [Export] public float FullDrawPixels = 50.0f;
 
-    [ExportGroup("Physics")]
+    /// <summary>Player-facing multiplier, so different mice can be matched to the same hand movement.</summary>
+    [Export] public float Sensitivity = 1.0f;
+
+    /// <summary>How far back the cue visibly travels at full draw, in metres.</summary>
     [Export] public float MaxDrawDistance = 0.35f;
-    [Export] public float StrikeContactThreshold = 0.001f;
-    [Export] public float StrikeVelocityThreshold = -0.10f;
-    [Export] public float VelocitySmoothing = 18.0f;
+
+    /// <summary>How close to the ball the tip must return for the stroke to land.</summary>
+    [Export] public float ContactThreshold = 0.01f;
+
+    /// <summary>Below this backswing the forward stroke is a practice stroke, not a shot.</summary>
+    [Export] public float MinPowerToFire = 0.03f;
+
+    [ExportGroup("Stroke Timing")]
+    /// <summary>Forward travel in full-draws per second that delivers 100% of the loaded power.</summary>
+    [Export] public float ReferenceForwardRate = 2.5f;
+
+    /// <summary>
+    /// Slow strokes retain enough authority for accessibility, but no longer hit exactly like a
+    /// fast acceleration through the ball.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,1,0.01")] public float MinimumTimingEfficiency = 0.72f;
 
     public Cue Cue;
 
-    private float _currentDrawDistance;
-    private float _previousDrawDistance;
-    private float _smoothedVelocity;
+    private float _drawFraction;
+    private float _peakDraw;
+    private float _peakForwardRate;
+    private bool _strokingForward;
 
     public CueChargingState()
     {
@@ -37,13 +61,23 @@ public partial class CueChargingState : State
     {
         InputFocus.Capture();
 
-        _currentDrawDistance = Mathf.Max(Cue.Position.Z, Cue.BallRadiusOffset);
-        _previousDrawDistance = _currentDrawDistance;
-        _smoothedVelocity = 0.0f;
+        _drawFraction = 0.0f;
+        _peakDraw = 0.0f;
+        _peakForwardRate = 0.0f;
+        _strokingForward = false;
+
+        Cue.SetCharge(true, 0.0f);
+        UpdateCueTransform();
+    }
+
+    public override void Exit(Dictionary metadata)
+    {
+        Cue.SetCharge(false, 0.0f);
     }
 
     public override void HandleInput(InputEvent @event)
     {
+        // Letting go of the modifier abandons the stroke — the escape hatch, not the trigger.
         if (@event.IsActionReleased(InputStrokeMode))
         {
             StateMachine.ChangeState(StatesRef.CueIdle, new Dictionary());
@@ -51,36 +85,98 @@ public partial class CueChargingState : State
             return;
         }
 
-        if (@event is InputEventMouseMotion motion)
-        {
-            ProcessStrokeInput(motion.Relative);
+        if (@event is not InputEventMouseMotion motion)
+            return;
 
-            UpdateCueTransform();
-            Cue.GetViewport().SetInputAsHandled();
-        }
+        ApplyStroke(ReadVerticalMotion(motion), ReadVerticalVelocity(motion));
+        UpdateCueTransform();
+        Cue.GetViewport().SetInputAsHandled();
+
+        if (ShouldFire())
+            Fire();
     }
 
-    public override void Process(double delta)
+    /// <summary>
+    /// ScreenRelative is the unscaled motion, so the draw does not change with window size or
+    /// stretch mode the way Relative does. It reads zero on some captured-mouse configurations,
+    /// hence the fallback — the two are identical whenever content scale is 1:1.
+    /// </summary>
+    private static float ReadVerticalMotion(InputEventMouseMotion motion)
     {
-        CalculateVelocity((float)delta);
-
-        if (CheckStrikeCondition())
-        {
-            var strikePower = Mathf.Abs(_smoothedVelocity);
-            var success = Cue.ExecuteStrike(strikePower);
-
-            var nextState = success ? StatesRef.CueRecover : StatesRef.CueIdle;
-            StateMachine.ChangeState(nextState, new Dictionary());
-        }
+        var screen = motion.ScreenRelative.Y;
+        return screen != 0.0f ? screen : motion.Relative.Y;
     }
 
-    private void ProcessStrokeInput(Vector2 relativeMotion)
+    private static float ReadVerticalVelocity(InputEventMouseMotion motion)
     {
-        var drawDelta = relativeMotion.Y * StrokeSensitivity;
-        var minDraw = Cue.BallRadiusOffset;
-        var maxDraw = Cue.BallRadiusOffset + MaxDrawDistance;
+        var screen = motion.ScreenVelocity.Y;
+        return screen != 0.0f ? screen : motion.Velocity.Y;
+    }
 
-        _currentDrawDistance = Mathf.Clamp(_currentDrawDistance + drawDelta, minDraw, maxDraw);
+    private void ApplyStroke(float verticalPixels, float verticalPixelsPerSecond)
+    {
+        if (FullDrawPixels <= 0.0f)
+            return;
+
+        // Pulling the mouse toward you draws the cue back; pushing away strokes through the ball.
+        var next = Mathf.Clamp(
+            _drawFraction + verticalPixels * Sensitivity / FullDrawPixels,
+            0.0f,
+            1.0f);
+
+        if (next > _drawFraction)
+        {
+            // Turning back after a forward move starts a fresh backswing, so practice strokes
+            // don't leave stale power loaded from an earlier one.
+            if (_strokingForward)
+            {
+                _peakDraw = 0.0f;
+                _peakForwardRate = 0.0f;
+            }
+
+            _strokingForward = false;
+            _peakDraw = Mathf.Max(_peakDraw, next);
+            Cue.SetCharge(true, _peakDraw);
+        }
+        else if (next < _drawFraction)
+        {
+            _strokingForward = true;
+            var forwardRate = -verticalPixelsPerSecond * Sensitivity / FullDrawPixels;
+            _peakForwardRate = Mathf.Max(_peakForwardRate, forwardRate);
+            Cue.SetCharge(true, DeliveredPower());
+        }
+
+        _drawFraction = next;
+    }
+
+    private bool ShouldFire()
+    {
+        return _strokingForward
+               && _drawFraction <= ContactThreshold
+               && _peakDraw >= MinPowerToFire;
+    }
+
+    private void Fire()
+    {
+        var fired = Cue.ExecuteStrikeWithPower(DeliveredPower());
+        StateMachine.ChangeState(fired ? StatesRef.CueRecover : StatesRef.CueIdle, new Dictionary());
+    }
+
+    private float DeliveredPower()
+    {
+        return ComputeDeliveredPower(
+            _peakDraw, _peakForwardRate, ReferenceForwardRate, MinimumTimingEfficiency);
+    }
+
+    public static float ComputeDeliveredPower(
+        float loadedPower, float forwardRate, float referenceRate, float minimumEfficiency)
+    {
+        var safeLoadedPower = Mathf.Clamp(loadedPower, 0.0f, 1.0f);
+        var safeMinimum = Mathf.Clamp(minimumEfficiency, 0.0f, 1.0f);
+        var timing = referenceRate > 0.0f
+            ? Mathf.Clamp(forwardRate / referenceRate, 0.0f, 1.0f)
+            : 1.0f;
+        return safeLoadedPower * Mathf.Lerp(safeMinimum, 1.0f, timing);
     }
 
     private void UpdateCueTransform()
@@ -88,27 +184,7 @@ public partial class CueChargingState : State
         var pos = Cue.Position;
         pos.X = Cue.SpinOffset.X;
         pos.Y = Cue.SpinOffset.Y;
-        pos.Z = _currentDrawDistance;
+        pos.Z = Cue.BallRadiusOffset + _drawFraction * MaxDrawDistance;
         Cue.Position = pos;
-    }
-
-    private void CalculateVelocity(float delta)
-    {
-        if (delta <= 0.0f)
-            return;
-
-        var instantVelocity = (_currentDrawDistance - _previousDrawDistance) / delta;
-        _previousDrawDistance = _currentDrawDistance;
-
-        var weight = Mathf.Clamp(delta * VelocitySmoothing, 0.0f, 1.0f);
-        _smoothedVelocity = Mathf.Lerp(_smoothedVelocity, instantVelocity, weight);
-    }
-
-    private bool CheckStrikeCondition()
-    {
-        var isTouchingBall = _currentDrawDistance <= (Cue.BallRadiusOffset + StrikeContactThreshold);
-        var isMovingForward = _smoothedVelocity < StrikeVelocityThreshold;
-
-        return isTouchingBall && isMovingForward;
     }
 }

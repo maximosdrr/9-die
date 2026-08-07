@@ -9,6 +9,9 @@ public partial class PlayerHud : CanvasLayer
 	[Export] public Label TargetBallLabel;
 	[Export] public Label TimerLabel;
 	[Export] public VBoxContainer ScoreList;
+	[Export] public Button PushOutButton;
+	[Export] public Button AcceptPushOutButton;
+	[Export] public Button PassBackButton;
 	[Export] public Button SurrenderButton;
 
 	private static readonly Color YourTurnColor = new(1.0f, 0.478431f, 0.2f);
@@ -22,6 +25,9 @@ public partial class PlayerHud : CanvasLayer
 	{
 		Visible = false;
 		SurrenderButton.Pressed += OnSurrenderPressed;
+		PushOutButton.Pressed += OnPushOutPressed;
+		AcceptPushOutButton.Pressed += OnAcceptPushOutPressed;
+		PassBackButton.Pressed += OnPassBackPressed;
 	}
 
 	private void OnSurrenderPressed()
@@ -30,6 +36,37 @@ public partial class PlayerHud : CanvasLayer
 			return;
 
 		_poolGame.RequestSurrender((string)Player.Name);
+	}
+
+	private PoolTurnResolver PoolResolver =>
+		_poolGame?.GameModeHandler?.CurrentGameMode?.TurnResolver as PoolTurnResolver;
+
+	private void OnPushOutPressed() => PoolResolver?.RequestDeclarePushOut();
+
+	private void OnAcceptPushOutPressed() => PoolResolver?.RequestPushOutChoice(passBack: false);
+
+	private void OnPassBackPressed() => PoolResolver?.RequestPushOutChoice(passBack: true);
+
+	public override void _UnhandledInput(InputEvent @event)
+	{
+		if (!Visible || _poolGame == null || @event.IsEcho())
+			return;
+
+		if (@event.IsActionPressed("declare_push_out") && PushOutButton.Visible)
+		{
+			OnPushOutPressed();
+			GetViewport().SetInputAsHandled();
+		}
+		else if (@event.IsActionPressed("accept_push_out") && AcceptPushOutButton.Visible)
+		{
+			OnAcceptPushOutPressed();
+			GetViewport().SetInputAsHandled();
+		}
+		else if (@event.IsActionPressed("pass_push_out") && PassBackButton.Visible)
+		{
+			OnPassBackPressed();
+			GetViewport().SetInputAsHandled();
+		}
 	}
 
 	public void Initialize(Player player)
@@ -109,11 +146,19 @@ public partial class PlayerHud : CanvasLayer
 		var isYourTurn = (string)_poolGame.TurnOwner.Name == Player.Name;
 
 		TurnLabel.Text = isYourTurn ? "Sua vez!" : $"Vez de {GetPlayerLabel((string)_poolGame.TurnOwner.Name)}";
+		if (_poolGame.PushOutDeclared)
+			TurnLabel.Text += " • push-out";
+		else if (_poolGame.PushOutChoicePending && isYourTurn)
+			TurnLabel.Text = "Escolha após o push-out";
 		TurnLabel.AddThemeColorOverride("font_color", isYourTurn ? YourTurnColor : NormalTextColor);
 
 		TargetBallLabel.Text = _poolGame.CurrentTargetBallIndex > 0
 			? $"Bola-alvo: {_poolGame.CurrentTargetBallIndex}"
 			: "";
+
+		PushOutButton.Visible = isYourTurn && _poolGame.PushOutAvailable;
+		AcceptPushOutButton.Visible = isYourTurn && _poolGame.PushOutChoicePending;
+		PassBackButton.Visible = isYourTurn && _poolGame.PushOutChoicePending;
 
 		RefreshScoreList();
 	}
@@ -127,9 +172,13 @@ public partial class PlayerHud : CanvasLayer
 		{
 			var playerId = (string)playerIdVariant;
 			var pocketed = _poolGame.BallsPocketedByPlayer.TryGetValue(playerId, out var balls) ? balls.Count : 0;
+			var fouls = _poolGame.ConsecutiveFoulsByPlayer.TryGetValue(playerId, out var foulCount) ? foulCount : 0;
 
 			var row = new Label();
-			row.Text = $"{GetPlayerLabel(playerId)}: {pocketed} bola(s)";
+			row.Text = fouls > 0
+				? $"{GetPlayerLabel(playerId)}: {pocketed} bola(s) • "
+				  + $"{fouls}/{PoolTurnResolver.ConsecutiveFoulLossThreshold} faltas"
+				: $"{GetPlayerLabel(playerId)}: {pocketed} bola(s)";
 			row.AddThemeFontSizeOverride("font_size", 15);
 			row.AddThemeColorOverride("font_color", DimTextColor);
 			ScoreList.AddChild(row);

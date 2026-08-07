@@ -14,6 +14,9 @@ public partial class TableGame : Node3D
     public Player Player;
     public TableTurnNetworkBridge NetworkTurnSyncronization;
 
+    /// <summary>Game modes can exclude non-competitive matches from persistent rankings.</summary>
+    public virtual bool CountsWinsForRanking => true;
+
     [Signal]
     public delegate void TurnChangedEventHandler(string nextPlayerName, Dictionary context);
 
@@ -262,7 +265,7 @@ public partial class TableGame : Node3D
         Table.StateMachine.ChangeState(StatesRef.GameFinished, context);
         EmitSignal(SignalName.MatchOver, winner, context);
 
-        if (Multiplayer.IsServer() && winner != null)
+        if (Multiplayer.IsServer() && winner != null && CountsWinsForRanking)
             MatchRanking.Instance.RegisterWin(winner);
     }
 }

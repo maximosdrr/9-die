@@ -20,8 +20,7 @@ public partial class CueJumpState : State
 
 	public override void Enter(Dictionary metadata)
 	{
-		var safeAngleDeg = Mathf.RadToDeg(Cue.MinSafeAngle);
-		SetVisualElevation(safeAngleDeg);
+		Cue.CurrentElevation = Mathf.RadToDeg(Cue.MinSafeAngle);
 	}
 
 	public override void HandleInput(InputEvent @event)
@@ -56,22 +55,17 @@ public partial class CueJumpState : State
 		Cue.SnapToRestPose();
 	}
 
+	// Only the target is set here. Cue._Process is the single writer of the node's actual
+	// rotation — previously this wrote RotationDegrees.X directly while _Process was easing the
+	// same property in the same frame, so the two fought each other.
 	private void AdjustElevation(int direction)
 	{
 		var step = direction * Cue.ElevationSensitivity;
-		var newAngle = Cue.CurrentElevation - step;
-
 		var safeLimitDeg = Mathf.RadToDeg(Cue.MinSafeAngle);
-		var clampedAngle = Mathf.Clamp(newAngle, Cue.JumpMaxAngle, safeLimitDeg);
 
-		SetVisualElevation(clampedAngle);
-	}
-
-	private void SetVisualElevation(float angle)
-	{
-		Cue.CurrentElevation = angle;
-		var rotDeg = Cue.RotationDegrees;
-		rotDeg.X = Cue.CurrentElevation;
-		Cue.RotationDegrees = rotDeg;
+		Cue.CurrentElevation = Mathf.Clamp(
+			Cue.CurrentElevation - step,
+			Cue.JumpMaxAngle,
+			safeLimitDeg);
 	}
 }
