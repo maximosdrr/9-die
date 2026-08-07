@@ -44,20 +44,12 @@ public partial class Ball : Node3D
 
     public MultiplayerSynchronizer MultiplayerSynchronizerNode;
 
-    [ExportGroup("Movement Detection")]
-    [Export] public float StopSpeedThreshold = 0.01f;
-
-    [Signal] public delegate void StoppedMovingEventHandler(Vector3 position);
-    [Signal] public delegate void StartedMovingEventHandler();
-    [Signal] public delegate void StrikedEventHandler();
     [Signal] public delegate void BallContactedEventHandler(Ball ball);
     [Signal] public delegate void TouchedRailEventHandler();
     [Signal] public delegate void BouncedOnClothEventHandler();
 
     /// <summary>Ball radius in metres. Single source of truth is the simulation's regulation value.</summary>
     public float Radius => (float)BilliardConstants.Radius;
-
-    public bool IsMoving { get; private set; }
 
     /// <summary>False once potted or driven off — the runner stops drawing and simulating it.</summary>
     public bool InPlay { get; private set; } = true;
@@ -126,30 +118,9 @@ public partial class Ball : Node3D
             Visible = true;
     }
 
-    public void NotifyStruck() => EmitSignal(SignalName.Striked);
-
     public void NotifyBallContacted(Ball other) => EmitSignal(SignalName.BallContacted, other);
 
     public void NotifyTouchedRail() => EmitSignal(SignalName.TouchedRail);
 
     public void NotifyBouncedOnCloth() => EmitSignal(SignalName.BouncedOnCloth);
-
-    public void NotifyStartedMoving()
-    {
-        if (IsMoving)
-            return;
-
-        IsMoving = true;
-        EmitSignal(SignalName.StartedMoving);
-    }
-
-    public void NotifyStoppedMoving()
-    {
-        if (!IsMoving)
-            return;
-
-        IsMoving = false;
-        LinearVelocity = Vector3.Zero;
-        EmitSignal(SignalName.StoppedMoving, GlobalPosition);
-    }
 }

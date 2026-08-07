@@ -32,6 +32,10 @@ public partial class GoldenNineTurnRuler : TurnRuler
             return Actions.CallCueBallReplacement;
         }
 
+        // No target left means the rack is exhausted; dereferencing it here used to throw.
+        if (targetBall == null)
+            return ballsScored.ContainsKey(9) ? Actions.EndGamePlayerWin : Actions.CallNextTurn;
+
         if (targetBall.Index != firstBallTouched.Index)
             return Actions.CallCueBallReplacement;
 

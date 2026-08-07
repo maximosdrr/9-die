@@ -10,7 +10,14 @@ public partial class AimCameraPivot : Node3D
     [Export] public float MouseSensitivity = 0.0015f;
     [Export] public float DistanceFromBall = 0.55f;
     [Export] public float HeightOffset = 0.1f;
-    [Export] public float TransitionDuration = 0.25f;
+
+    /// <summary>
+    /// How fast the pivot closes on the cue ball, in e-folds per second. This used to be a tween
+    /// fired at four discrete moments, which snapshotted the ball's position the instant it
+    /// started — so a ball that was still creeping, or one being placed by hand, left the cue
+    /// parked somewhere the ball no longer was.
+    /// </summary>
+    [Export] public float FollowSharpness = 10.0f;
 
     [ExportGroup("Rotation Limits")]
     [Export] public float LimitCeilingDeg = -90.0f;
@@ -31,7 +38,6 @@ public partial class AimCameraPivot : Node3D
 
     public Ball Target;
     public PoolGame PoolGame;
-    private Tween _tween;
     public Player Player;
 
     public override void _Ready()
@@ -55,6 +61,28 @@ public partial class AimCameraPivot : Node3D
             await ToSignal(GetTree().CreateTimer(1.5), SceneTreeTimer.SignalName.Timeout);
             GlobalPosition = Target.GlobalPosition;
         }
+    }
+
+    public override void _Process(double delta)
+    {
+        FollowCueBall(delta);
+    }
+
+    /// <summary>
+    /// Rides the cue ball every frame, except while a shot is playing back — during the shot the
+    /// player watches from where they aimed rather than being dragged around the table, and the
+    /// easing then carries the view to wherever the ball came to rest.
+    /// </summary>
+    private void FollowCueBall(double delta)
+    {
+        if (Target == null || !IsInstanceValid(Target))
+            return;
+
+        if (PoolGame?.SimulationRunner != null && PoolGame.SimulationRunner.IsPlaying)
+            return;
+
+        var blend = 1.0f - Mathf.Exp(-FollowSharpness * (float)delta);
+        GlobalPosition = GlobalPosition.Lerp(Target.GlobalPosition, blend);
     }
 
     private void ConnectSignals()
@@ -188,39 +216,28 @@ public partial class AimCameraPivot : Node3D
         if (Cue == null)
             return Mathf.DegToRad(LimitFloorDeg);
 
-        var cueLimit = Cue.Rotation.X - Mathf.DegToRad(CueOffsetDeg);
+        // Reads the cue's TARGET pitch, not its live eased rotation: chasing a value that is
+        // itself easing toward something made the camera limit and the cue drift after each other.
+        var cueLimit = Cue.TargetElevationRad - Mathf.DegToRad(CueOffsetDeg);
         var floorLimit = Mathf.DegToRad(LimitFloorDeg);
 
         return Mathf.Min(cueLimit, floorLimit);
     }
 
-    private async void OnPlacementFinished()
+    // Turn and placement transitions no longer need to reposition anything: FollowCueBall is
+    // already riding the ball every frame, so the pivot is wherever the ball is by the time
+    // control comes back.
+    private void OnPlacementFinished()
     {
-        await ToSignal(GetTree().CreateTimer(1), SceneTreeTimer.SignalName.Timeout);
-        MoveSmoothlyToTarget();
-        SetProcess(false);
         SetPhysicsProcess(true);
     }
 
     private void OnTurnExtended(Godot.Collections.Dictionary context)
     {
-        MoveSmoothlyToTarget();
     }
 
     private void OnTurnChanged(string nextPlayerName, Godot.Collections.Dictionary context)
     {
-        MoveSmoothlyToTarget();
-    }
-
-    private void MoveSmoothlyToTarget()
-    {
-        if (Target == null)
-            return;
-        _tween?.Kill();
-        _tween = CreateTween();
-        _tween.SetTrans(Tween.TransitionType.Cubic);
-        _tween.SetEase(Tween.EaseType.Out);
-        _tween.TweenProperty(this, "global_position", Target.GlobalPosition, TransitionDuration);
     }
 
     private void SyncPlayerModelRotation()

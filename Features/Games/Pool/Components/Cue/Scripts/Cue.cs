@@ -15,11 +15,12 @@ public partial class Cue : Node3D
     [Export] public RayCast3D CueHandleSensor;
 
     [ExportGroup("Physics Config")]
-    [Export] public float MaxSpeedReference = 12.0f;
-
     /// <summary>
-    /// Cue ball speed at full power, m/s. A professional break is about 8 m/s and the record is
-    /// roughly 14 — the old ForceMultiplier of 28 N·s on a 0.17 kg ball worked out to 165 m/s,
+    /// THE shot power knob: cue ball speed at a full-power stroke, in m/s. Response is linear, so
+    /// this scales the whole range — half a draw is always half this speed.
+    ///
+    /// For reference: a normal shot is 1-4 m/s, a professional break about 8, and the record
+    /// roughly 14. The old ForceMultiplier of 28 N·s on a 0.17 kg ball worked out to 165 m/s,
     /// which is why nothing on the table behaved plausibly.
     /// </summary>
     [Export] public float MaxCueBallSpeed = 8.0f;
@@ -39,8 +40,33 @@ public partial class Cue : Node3D
     public Ball CueBall;
     public AimCameraPivot CameraPivot;
 
+    /// <summary>Target pitch in degrees. The single owner of cue elevation: _Process eases the node's actual rotation toward it.</summary>
     public float CurrentElevation = 0.0f;
+
     public float MinSafeAngle = 0.0f;
+
+    /// <summary>Target pitch in radians, already clamped by the obstacle limit.</summary>
+    public float TargetElevationRad => Mathf.Min(Mathf.DegToRad(CurrentElevation), MinSafeAngle);
+
+    /// <summary>How fast the cue eases to its target pitch, in e-folds per second.</summary>
+    [Export] public float ElevationSharpness = 12.0f;
+
+    /// <summary>0..1 draw currently held, for the power bar. Set by CueChargingState.</summary>
+    public float ChargePower { get; private set; }
+
+    public bool IsCharging { get; private set; }
+
+    [Signal] public delegate void ChargeChangedEventHandler(bool charging, float power);
+
+    public void SetCharge(bool charging, float power)
+    {
+        if (IsCharging == charging && Mathf.IsEqualApprox(ChargePower, power))
+            return;
+
+        IsCharging = charging;
+        ChargePower = power;
+        EmitSignal(SignalName.ChargeChanged, charging, power);
+    }
 
     public float BallRadiusOffset = 0.04f;
     public float SpinLimit = 0.02f;
@@ -73,9 +99,13 @@ public partial class Cue : Node3D
 
     public override void _Process(double delta)
     {
-        var targetRotationRad = Mathf.Min(Mathf.DegToRad(CurrentElevation), MinSafeAngle);
+        // Exponential easing written so the rate is genuinely frame-rate independent. The old
+        // `Lerp(current, target, 10 * delta)` is the linear approximation of this, which eases
+        // measurably faster at low frame rates and never quite arrives.
+        var blend = 1.0f - Mathf.Exp(-ElevationSharpness * (float)delta);
+
         var rot = Rotation;
-        rot.X = Mathf.Lerp(rot.X, targetRotationRad, 10.0f * (float)delta);
+        rot.X = Mathf.Lerp(rot.X, TargetElevationRad, blend);
         Rotation = rot;
     }
 
@@ -114,15 +144,6 @@ public partial class Cue : Node3D
 
         safeLimit = Mathf.Clamp(safeLimit, Mathf.DegToRad(-45.0f), 0.0f);
         MinSafeAngle = safeLimit;
-    }
-
-    public bool ExecuteStrike(float mouseSpeed)
-    {
-        if (!CanStrike())
-            return false;
-
-        var power = Mathf.Clamp(mouseSpeed / MaxSpeedReference, 0.0f, 1.0f);
-        return ExecuteStrikeWithPower(power);
     }
 
     /// <summary>

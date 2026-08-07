@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://vr3ram3d1ioc"]
+[gd_scene load_steps=5 format=3 uid="uid://vr3ram3d1ioc"]
 
 [ext_resource type="Script" path="res://Features/Games/Pool/GameController/AimCameraPivot.cs" id="1_vuqwp"]
 [ext_resource type="Script" path="res://Features/Games/Pool/GameController/PoolController.cs" id="1_xnddr"]
 [ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Features/Games/Pool/Components/Cue/Cue.tscn" id="2_fuwyn"]
+[ext_resource type="Script" path="res://Features/Games/Pool/Components/Cue/Scripts/CuePowerBar.cs" id="3_pwbar"]
 
 [node name="PoolController" type="Node3D"]
 script = ExtResource("1_xnddr")
@@ -25,3 +26,14 @@ CueHandleSensor = NodePath("../CollisionDetector")
 [node name="CollisionDetector" type="RayCast3D" parent="AimPivot"]
 target_position = Vector3(0, 0, 1.47)
 collision_mask = 8
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="PowerBar" type="Control" parent="Hud" node_paths=PackedStringArray("Cue")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("3_pwbar")
+Cue = NodePath("../../AimPivot/Cue")

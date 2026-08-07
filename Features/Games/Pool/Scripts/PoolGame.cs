@@ -9,7 +9,6 @@ public partial class PoolGame : TableGame
 	[Export] public PoolGameTable PoolTable;
 	[Export] public PackedScene GameControllerScene;
 
-	public BallsMovementMonitor BallsMovementMonitor;
 	public BallPlacementManager BallPlacementManager;
 	public PoolSimulationRunner SimulationRunner;
 	private GameModeHandler _gameModeHandler;
@@ -29,7 +28,6 @@ public partial class PoolGame : TableGame
 	{
 		PoolBallRespawn = GetNode<PoolBallRespawn>("Scripts/PoolBallRespawn");
 		OffTableMonitor = GetNode<OffTableMonitor>("Scripts/OffTableMonitor");
-		BallsMovementMonitor = GetNode<BallsMovementMonitor>("Scripts/BallsMovementMonitor");
 		BallPlacementManager = GetNode<BallPlacementManager>("Scripts/BallPlacementManager");
 		SimulationRunner = GetNode<PoolSimulationRunner>("Scripts/PoolSimulationRunner");
 		BallPlacementManager.SimulationRunner = SimulationRunner;
@@ -93,7 +91,6 @@ public partial class PoolGame : TableGame
 		SimulationRunner.Setup(cueBall, balls);
 		SignalUtil.ConnectGuarded(SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
 		_gameModeHandler.Setup(this);
-		BallsMovementMonitor.Setup(this);
 
 		EmitSignal(SignalName.MatchStarted, players, firstTurnOwner);
 	}

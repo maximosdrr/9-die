@@ -38,10 +38,21 @@ public partial class PoolSimulationRunner : Node
 
     [Signal] public delegate void BallPocketedEventHandler(Ball ball);
     [Signal] public delegate void BallDrivenOffTableEventHandler(Ball ball);
+    [Signal] public delegate void ShotStartedEventHandler();
     [Signal] public delegate void ShotFinishedEventHandler();
 
     public TableSpec Table { get; private set; }
     public bool IsPlaying => _playback != null;
+
+    /// <summary>
+    /// The shot that just played, complete with its ordered event timeline. This is what the rules
+    /// read: the outcome is fully known the instant the ball is struck, so nothing has to wait for
+    /// the table to settle and no contact can be missed.
+    /// </summary>
+    public ShotResult LastShot { get; private set; }
+
+    /// <summary>Maps a simulation ball id back to its scene node.</summary>
+    public Ball FindBall(int id) => _ballsById.TryGetValue(id, out var ball) ? ball : null;
 
     private ShotSimulator _simulator;
     private readonly System.Collections.Generic.List<Ball> _balls = new();
@@ -137,12 +148,10 @@ public partial class PoolSimulationRunner : Node
         if (result.TimedOut)
             GD.PushWarning("[PoolSimulation] A tacada atingiu o limite de tempo sem assentar.");
 
+        LastShot = result;
         BeginPlayback(result);
-        cueBall.NotifyStruck();
 
-        foreach (var ball in _balls)
-            ball.NotifyStartedMoving();
-
+        EmitSignal(SignalName.ShotStarted);
         return true;
     }
 
@@ -326,12 +335,6 @@ public partial class PoolSimulationRunner : Node
     {
         _playback = null;
         _events = null;
-
-        foreach (var ball in _balls)
-        {
-            if (IsInstanceValid(ball))
-                ball.NotifyStoppedMoving();
-        }
 
         EmitSignal(SignalName.ShotFinished);
     }

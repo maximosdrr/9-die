@@ -29,7 +29,10 @@ public partial class SceneLoadTest : Node
             TestRackSpacing(ballScene);
             TestShotRunsThroughRunner(ballScene);
             TestPottedBallFalls(ballScene);
+            TestTurnFactsComeFromTimeline(ballScene);
         }
+
+        TestRulerHandlesEmptyRack();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
@@ -114,13 +117,13 @@ public partial class SceneLoadTest : Node
         var contacted = false;
         cueBall.BallContacted += _ => contacted = true;
 
-        var struck = false;
-        cueBall.Striked += () => struck = true;
+        var started = false;
+        runner.ShotStarted += () => started = true;
 
         var fired = runner.ExecuteShot(new ShotInput(0.0, 0.0, 4.0, 0.0, 0.0));
 
         Check("runner aceita a tacada", fired);
-        Check("bola branca emite Striked", struck);
+        Check("runner anuncia o início da tacada", started);
         Check("tacada em andamento é detectada", runner.IsPlaying);
 
         // A zero-power shot must be refused outright rather than starting a turn that can never
@@ -378,6 +381,129 @@ public partial class SceneLoadTest : Node
         }
 
         return bestZ;
+    }
+
+    // The turn used to be reconstructed from physics callbacks while waiting on "all balls
+    // stopped". These check the facts the ruler needs now come out of the event timeline, which
+    // is complete and ordered by construction.
+    private void TestTurnFactsComeFromTimeline(PackedScene ballScene)
+    {
+        var holder = new Node3D();
+        AddChild(holder);
+
+        var runner = new PoolSimulationRunner { TableAnchor = holder };
+        AddChild(runner);
+
+        var cueBall = Spawn(ballScene, holder, 0, 0.0f, -0.6f);
+        var near = Spawn(ballScene, holder, 1, 0.0f, -0.2f);
+        var far = Spawn(ballScene, holder, 2, 0.0f, 0.4f);
+        runner.Setup(cueBall, new Array<Ball> { near, far });
+
+        runner.ExecuteShot(new ShotInput(0.0, 0.0, 3.0, 0.0, 0.0));
+        var result = runner.LastShot;
+
+        Check("primeiro contato é a bola mais próxima na linha",
+            result.FirstBallContacted(0) == 1);
+        Check("bola distante não é confundida com o primeiro contato",
+            result.FirstBallContacted(0) != 2);
+
+        var events = result.Events;
+        var ordered = true;
+        for (var i = 1; i < events.Count; i++)
+        {
+            if (events[i].Time < events[i - 1].Time)
+                ordered = false;
+        }
+
+        Check($"linha do tempo sai ordenada ({events.Count} eventos)", ordered);
+
+        // A ball already touching the cue ball used to read as "no contact" — the Area3D never
+        // fired a fresh body_entered — and the turn was scored as a foul.
+        var touchingShot = RunIsolatedShot(ballScene, 0.5f, -0.6f, new ShotInput(0.0, 0.0, 2.0, 0.0, 0.0),
+            objectBallOffsetZ: (float)(2.0 * BilliardConstants.Radius));
+
+        if (touchingShot == null)
+            Check("bola encostada na branca conta como primeiro contato (tacada recusada)", false);
+        else
+            Check("bola encostada na branca conta como primeiro contato",
+                touchingShot.FirstBallContacted(0) == 1);
+
+        // A firm shot down the table must register the cushion it reaches.
+        var railShot = RunIsolatedShot(ballScene, -0.3f, -0.9f, new ShotInput(0.0, 0.0, 3.0, 0.0, 0.0));
+        Check("contato com tabela é registrado", railShot != null && railShot.AnyCushionContact());
+
+        // And a shot that touches nothing must still produce a resolvable turn rather than an
+        // await that never completes.
+        var softShot = RunIsolatedShot(ballScene, 0.2f, 0.0f, new ShotInput(0.0, 0.0, 0.2, 0.0, 0.0));
+        Check("tacada fraca produz resultado resolvível", softShot != null);
+        Check("tacada sem contato reporta ausência de contato",
+            softShot != null && softShot.FirstBallContacted(0) == -1);
+    }
+
+    /// <summary>
+    /// Runs one shot on its own runner. The cue ball must carry Index 0 — that is the convention
+    /// the whole feature uses to identify it, from the rack spawner through to the scratch rule.
+    /// </summary>
+    private ShotResult RunIsolatedShot(
+        PackedScene ballScene,
+        float x,
+        float z,
+        ShotInput shot,
+        float objectBallOffsetZ = 0.0f)
+    {
+        var holder = new Node3D();
+        AddChild(holder);
+
+        var cueBall = Spawn(ballScene, holder, 0, x, z);
+        var objectBalls = new Array<Ball>();
+
+        if (objectBallOffsetZ != 0.0f)
+            objectBalls.Add(Spawn(ballScene, holder, 1, x, z + objectBallOffsetZ));
+
+        var runner = new PoolSimulationRunner { TableAnchor = holder };
+        AddChild(runner);
+        runner.Setup(cueBall, objectBalls);
+
+        return runner.ExecuteShot(shot) ? runner.LastShot : null;
+    }
+
+    // The ruler dereferenced the target ball unguarded; with the rack exhausted that was a crash.
+    private void TestRulerHandlesEmptyRack()
+    {
+        var ruler = new GoldenNineTurnRuler();
+
+        var context = new TurnContext
+        {
+            BallsScored = new Dictionary<int, Ball>(),
+            FirstBallTouched = null,
+            BallsOffTable = new Array<Ball>(),
+            TargetBall = null,
+            CurrentBallsRemaining = new Dictionary<int, Ball>(),
+            AnyRailContact = false,
+        };
+
+        var threw = false;
+        try
+        {
+            ruler.Rule(context);
+        }
+        catch (System.Exception)
+        {
+            threw = true;
+        }
+
+        Check("regra não estoura com o rack vazio", !threw);
+        ruler.Free();
+    }
+
+    private static Ball Spawn(PackedScene scene, Node3D holder, int index, float x, float z)
+    {
+        var ball = scene.Instantiate<Ball>();
+        ball.Index = index;
+        ball.TextureId = index;
+        holder.AddChild(ball);
+        ball.Position = new Vector3(x, (float)BilliardConstants.Radius, z);
+        return ball;
     }
 
     private void Check(string label, bool condition)

@@ -1,7 +1,17 @@
 using Godot;
 using Godot.Collections;
+using Pool.Simulation;
 using System.Threading.Tasks;
 
+/// <summary>
+/// Turns the outcome of a shot into a turn decision.
+///
+/// The facts come from the simulation's event timeline rather than from physics callbacks. That
+/// removed a whole family of failures at once: there is no longer an await that can hang when no
+/// ball ever moves, no per-ball "has it stopped" edge detection to miss, and no contact limit to
+/// silently swallow a rail hit during a break. The timeline is complete and ordered by
+/// construction.
+/// </summary>
 [GlobalClass]
 public partial class PoolTurnResolver : TurnResolver
 {
@@ -10,11 +20,7 @@ public partial class PoolTurnResolver : TurnResolver
     public PoolGame PoolGame;
     public Ball CueBall;
 
-    public Dictionary<int, Ball> BallsScored = new();
     public Dictionary<int, Ball> BallsInGame = new();
-    public Array<Ball> BallsOffTableList = new();
-    public Ball FirstBallHit = null;
-    public bool AnyRailContact = false;
 
     public override void Setup(TableGame tableGame)
     {
@@ -36,11 +42,7 @@ public partial class PoolTurnResolver : TurnResolver
     {
         DisconnectSignals();
 
-        BallsScored.Clear();
         BallsInGame.Clear();
-        BallsOffTableList.Clear();
-        FirstBallHit = null;
-
         CueBall = null;
         PoolGame = null;
     }
@@ -50,14 +52,8 @@ public partial class PoolTurnResolver : TurnResolver
         if (PoolGame == null)
             return;
 
-        SignalUtil.ConnectGuarded(PoolGame.CueBall, Ball.SignalName.Striked, new Callable(this, MethodName.OnStrike));
         SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
-
-        // Potting and driven-off balls now come from the simulated event timeline rather than
-        // from Area3D triggers on the table. The old detectors relied on a ball physically
-        // falling through a gap in the rails, which stopped being how any of this works.
-        SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
-        SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallDrivenOffTable, new Callable(this, MethodName.OnBallFellOff));
+        SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotFinished, new Callable(this, MethodName.OnShotFinished));
     }
 
     private void DisconnectSignals()
@@ -65,32 +61,8 @@ public partial class PoolTurnResolver : TurnResolver
         if (PoolGame == null)
             return;
 
-        SignalUtil.DisconnectGuarded(PoolGame.CueBall, Ball.SignalName.Striked, new Callable(this, MethodName.OnStrike));
         SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
-        SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
-        SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallDrivenOffTable, new Callable(this, MethodName.OnBallFellOff));
-    }
-
-    private void OnBallPocketed(Ball ball)
-    {
-        BallsScored[ball.Index] = ball;
-    }
-
-    private void OnBallFellOff(Ball ball)
-    {
-        if (!BallsOffTableList.Contains(ball))
-            BallsOffTableList.Add(ball);
-    }
-
-    private void OnCueBallContact(Ball ball)
-    {
-        if (FirstBallHit == null)
-            FirstBallHit = ball;
-    }
-
-    private void OnAnyBallTouchedRail()
-    {
-        AnyRailContact = true;
+        SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotFinished, new Callable(this, MethodName.OnShotFinished));
     }
 
     private void OnTurnStart(string ownerId, Dictionary context)
@@ -118,17 +90,18 @@ public partial class PoolTurnResolver : TurnResolver
         await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
     }
 
-    private async void OnStrike()
+    private void OnShotFinished()
     {
-        ResetTurnState();
+        // Only the server rules on a turn; every peer plays the same shot back but the decision
+        // is made once and broadcast.
+        if (!Multiplayer.IsServer())
+            return;
 
-        SignalUtil.ConnectGuarded(CueBall, Ball.SignalName.BallContacted, new Callable(this, MethodName.OnCueBallContact));
-        ConnectRailListeners();
-        await ToSignal(PoolGame.BallsMovementMonitor, BallsMovementMonitor.SignalName.BallsStopped);
-        SignalUtil.DisconnectGuarded(CueBall, Ball.SignalName.BallContacted, new Callable(this, MethodName.OnCueBallContact));
-        DisconnectRailListeners();
+        var result = PoolGame.SimulationRunner.LastShot;
+        if (result == null)
+            return;
 
-        var context = GenerateTurnContext();
+        var context = GenerateTurnContext(result);
         var action = TurnRuler.Rule(context);
         var scoringPlayerId = (string)PoolGame.TurnOwner.Name;
         var ballsScoredThisTurn = context.BallsScored;
@@ -138,61 +111,60 @@ public partial class PoolTurnResolver : TurnResolver
         ApplyTurnAction(action, scoringPlayerId, ballsScoredThisTurn);
     }
 
-    private void ResetTurnState()
+    /// <summary>
+    /// Reads the whole turn out of the shot's event timeline. Every fact the ruler needs is a
+    /// query over an ordered list, which is why none of the old failure modes survive: a shot
+    /// that moves nothing still produces a (empty) timeline and resolves, and "first ball
+    /// touched" is the first contact in the list rather than whichever Area3D happened to fire.
+    /// </summary>
+    private TurnContext GenerateTurnContext(ShotResult result)
     {
-        BallsScored.Clear();
-        BallsOffTableList.Clear();
-        FirstBallHit = null;
-        AnyRailContact = false;
-    }
-
-    private void ConnectRailListeners()
-    {
-        SignalUtil.ConnectGuarded(CueBall, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
-
-        foreach (var kvp in BallsInGame)
-            SignalUtil.ConnectGuarded(kvp.Value, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
-    }
-
-    private void DisconnectRailListeners()
-    {
-        SignalUtil.DisconnectGuarded(CueBall, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
-
-        foreach (var kvp in BallsInGame)
-            SignalUtil.DisconnectGuarded(kvp.Value, Ball.SignalName.TouchedRail, new Callable(this, MethodName.OnAnyBallTouchedRail));
-    }
-
-    private TurnContext GenerateTurnContext()
-    {
-        var currentBallsRemaining = new Dictionary<int, Ball>();
-        foreach (var kvp in BallsInGame)
-            currentBallsRemaining[kvp.Key] = kvp.Value;
-
-        if (currentBallsRemaining.Count == 0)
-            GD.PushError("No ball registered yet!");
-
-        var targetBallIndex = BallsInGame.Keys.Count > 0 ? System.Linq.Enumerable.Min(BallsInGame.Keys) : 0;
-        var targetBall = BallsInGame.TryGetValue(targetBallIndex, out var tb) ? tb : null;
-
-        foreach (var scoredIndex in BallsScored.Keys)
-            currentBallsRemaining.Remove(scoredIndex);
-
-        foreach (var ball in BallsOffTableList)
-            currentBallsRemaining.Remove(ball.Index);
+        var runner = PoolGame.SimulationRunner;
 
         var ballsScored = new Dictionary<int, Ball>();
-        foreach (var kvp in BallsScored)
-            ballsScored[kvp.Key] = kvp.Value;
+        var ballsOffTable = new Array<Ball>();
+
+        foreach (var shotEvent in result.Events)
+        {
+            var ball = runner.FindBall(shotEvent.BallId);
+            if (ball == null)
+                continue;
+
+            if (shotEvent.Type == ShotEventType.BallPocketed)
+                ballsScored[ball.Index] = ball;
+            else if (shotEvent.Type == ShotEventType.BallOffTable && !ballsOffTable.Contains(ball))
+                ballsOffTable.Add(ball);
+        }
+
+        var targetBall = FindTargetBall();
+
+        var remaining = new Dictionary<int, Ball>();
+        foreach (var kvp in BallsInGame)
+        {
+            if (!ballsScored.ContainsKey(kvp.Key) && !ballsOffTable.Contains(kvp.Value))
+                remaining[kvp.Key] = kvp.Value;
+        }
 
         return new TurnContext
         {
             BallsScored = ballsScored,
-            FirstBallTouched = FirstBallHit,
-            BallsOffTable = new Array<Ball>(BallsOffTableList),
+            FirstBallTouched = runner.FindBall(result.FirstBallContacted(CueBallId)),
+            BallsOffTable = ballsOffTable,
             TargetBall = targetBall,
-            CurrentBallsRemaining = currentBallsRemaining,
-            AnyRailContact = AnyRailContact,
+            CurrentBallsRemaining = remaining,
+            AnyRailContact = result.AnyCushionContact(),
         };
+    }
+
+    private const int CueBallId = 0;
+
+    private Ball FindTargetBall()
+    {
+        if (BallsInGame.Count == 0)
+            return null;
+
+        var lowest = System.Linq.Enumerable.Min(BallsInGame.Keys);
+        return BallsInGame.TryGetValue(lowest, out var ball) ? ball : null;
     }
 
     private void ApplyTurnAction(TurnRuler.Actions action, string scoringPlayerId, Dictionary<int, Ball> ballsScoredThisTurn)
@@ -208,7 +180,7 @@ public partial class PoolTurnResolver : TurnResolver
                 break;
 
             case TurnRuler.Actions.CallCueBallReplacement:
-                RespotGoldenBallIfScored();
+                RespotGoldenBallIfScored(ballsScoredThisTurn);
                 var replacementContext = BuildHudContext(scoringPlayerId, ballsScoredThisTurn);
                 replacementContext["ball_replacement"] = 0;
                 PoolGame.CallNextTurn(replacementContext);
@@ -275,9 +247,9 @@ public partial class PoolTurnResolver : TurnResolver
         PoolGame.ApplyHudUpdate(targetBallIndex, string.IsNullOrEmpty(scoringPlayerId) ? null : scoringPlayerId, scoredBalls);
     }
 
-    private void RespotGoldenBallIfScored()
+    private void RespotGoldenBallIfScored(Dictionary<int, Ball> ballsScoredThisTurn)
     {
-        if (!BallsScored.TryGetValue(9, out var goldenBall) || !IsInstanceValid(goldenBall))
+        if (!ballsScoredThisTurn.TryGetValue(9, out var goldenBall) || !IsInstanceValid(goldenBall))
             return;
 
         var footSpot = PoolGame.PoolBallRespawn.FootSpot;
