@@ -13,13 +13,13 @@ public partial class CueSfx : Node
     [Export] public float MinDb = -40.0f;
     [Export] public float MaxDb = 10.0f;
 
-    public void EmitStrikeSound(Vector3 dir, float finalForce, Vector3 hitOffset)
+    public void EmitStrikeSound(Vector3 dir, float cueBallSpeed, Vector3 hitOffset)
     {
-        var maxForce = Cue != null && Cue.ForceMultiplier > 0f ? Cue.ForceMultiplier : 1f;
-        var normalizedForce = Mathf.Clamp(finalForce / maxForce, 0f, 1f);
+        var maxSpeed = Cue != null && Cue.MaxCueBallSpeed > 0f ? Cue.MaxCueBallSpeed : 1f;
+        var intensity = Mathf.Clamp(cueBallSpeed / maxSpeed, 0f, 1f);
 
-        StrikeSfx.VolumeDb = Mathf.Lerp(MinDb, MaxDb, normalizedForce);
-        StrikeSfx.PitchScale = Mathf.Lerp(MinPitch, MaxPitch, normalizedForce);
+        StrikeSfx.VolumeDb = Mathf.Lerp(MinDb, MaxDb, intensity);
+        StrikeSfx.PitchScale = Mathf.Lerp(MinPitch, MaxPitch, intensity);
         StrikeSfx.Play();
     }
 }

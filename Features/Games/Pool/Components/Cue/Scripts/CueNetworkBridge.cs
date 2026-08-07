@@ -1,5 +1,11 @@
 using Godot;
+using Pool.Simulation;
 
+/// <summary>
+/// Carries a shot from the striking client to the server. What travels is the ShotInput's five
+/// numbers, not an impulse — so the server can bound every one of them, and so both sides can
+/// reproduce the identical shot from the same description.
+/// </summary>
 [GlobalClass]
 public partial class CueNetworkBridge : Node
 {
@@ -12,7 +18,7 @@ public partial class CueNetworkBridge : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    public void RequestStrike(Vector3 dir, float finalForce, Vector3 hitOffset)
+    public void RequestStrike(float aimYaw, float elevation, float speed, float tipOffsetX, float tipOffsetY)
     {
         if (!Multiplayer.IsServer())
             return;
@@ -25,18 +31,25 @@ public partial class CueNetworkBridge : Node
         if (Cue.PoolGame?.TurnOwner == null || (string)Cue.PoolGame.TurnOwner.Name != senderId.ToString())
             return;
 
-        if (!IsInstanceValid(Cue.CueBall))
+        // A shot arriving while the table is still settling would stack on top of the one in
+        // flight. The old code had no such check — only a client-side cooldown, which a modified
+        // client simply would not run.
+        if (Cue.PoolGame.SimulationRunner.IsPlaying)
             return;
 
-        var safeDir = dir.Length() > 0.0001f ? dir.Normalized() : -Cue.GlobalTransform.Basis.Z.Normalized();
-        var safeForce = Mathf.Clamp(finalForce, 0.0f, Cue.ForceMultiplier);
-        var safeOffset = hitOffset.LimitLength(Cue.SpinLimit);
+        // Sanitized() bounds speed, elevation and tip offset, so an out-of-range request becomes
+        // a legal shot rather than an exploit. The old validation clamped force to
+        // ForceMultiplier, which was 3.6x what an honest client could actually produce.
+        var shot = new ShotInput(aimYaw, elevation, speed, tipOffsetX, tipOffsetY).Sanitized();
 
-        Cue.CueBall.Strike(safeDir, safeForce, safeOffset);
+        if (shot.Speed <= 0.0)
+            return;
+
+        Cue.PoolGame.SimulationRunner.ExecuteShot(shot);
     }
 
-    private void CallStrike(Vector3 dir, float finalForce, Vector3 hitOffset)
+    private void CallStrike(float aimYaw, float elevation, float speed, float tipOffsetX, float tipOffsetY)
     {
-        RpcId(1, MethodName.RequestStrike, dir, finalForce, hitOffset);
+        RpcId(1, MethodName.RequestStrike, aimYaw, elevation, speed, tipOffsetX, tipOffsetY);
     }
 }

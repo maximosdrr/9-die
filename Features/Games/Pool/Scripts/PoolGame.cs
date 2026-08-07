@@ -11,6 +11,7 @@ public partial class PoolGame : TableGame
 
 	public BallsMovementMonitor BallsMovementMonitor;
 	public BallPlacementManager BallPlacementManager;
+	public PoolSimulationRunner SimulationRunner;
 	private GameModeHandler _gameModeHandler;
 
 	public Ball CueBall = null;
@@ -30,6 +31,8 @@ public partial class PoolGame : TableGame
 		OffTableMonitor = GetNode<OffTableMonitor>("Scripts/OffTableMonitor");
 		BallsMovementMonitor = GetNode<BallsMovementMonitor>("Scripts/BallsMovementMonitor");
 		BallPlacementManager = GetNode<BallPlacementManager>("Scripts/BallPlacementManager");
+		SimulationRunner = GetNode<PoolSimulationRunner>("Scripts/PoolSimulationRunner");
+		BallPlacementManager.SimulationRunner = SimulationRunner;
 		_gameModeHandler = GetNode<GameModeHandler>("GameModeHandler");
 
 		ScoreMonitor = PoolTable.ScoreMonitor;
@@ -40,6 +43,11 @@ public partial class PoolGame : TableGame
 		MatchStarted += OnMatchStarts;
 		PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
 		PlayerReclaimed += OnPlayerReclaimed;
+	}
+
+	private void OnBallPocketed(Ball ball)
+	{
+		PoolTable.EmitBallPocketedSound();
 	}
 
 	public override void SetCamera(GlobalCamera camera)
@@ -72,12 +80,18 @@ public partial class PoolGame : TableGame
 		BallsPocketedByPlayer.Clear();
 		CurrentTargetBallIndex = 0;
 
+		// Adopt the table's geometry before anything spawns: this also snaps the ball container
+		// onto the cloth centre that table defines, so the rack lands in the right place.
+		SimulationRunner.UseGeometry(PoolTable.Geometry);
+
 		PoolBallRespawn.StartGame();
 
 		var (cueBall, balls) = await PoolBallRespawn.WaitTableReady();
 		CueBall = cueBall;
 		Balls = balls;
 
+		SimulationRunner.Setup(cueBall, balls);
+		SignalUtil.ConnectGuarded(SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
 		_gameModeHandler.Setup(this);
 		BallsMovementMonitor.Setup(this);
 

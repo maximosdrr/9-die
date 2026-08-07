@@ -24,10 +24,10 @@ public partial class BallBounceAudio : AudioStreamPlayer3D
             Ball = parentBall;
 
         if (Ball != null)
-            SignalUtil.ConnectGuarded(Ball, Ball.SignalName.JumpLanded, new Callable(this, MethodName.OnJumpLanded));
+            SignalUtil.ConnectGuarded(Ball, Ball.SignalName.BouncedOnCloth, new Callable(this, MethodName.OnBouncedOnCloth));
     }
 
-    private void OnJumpLanded()
+    private void OnBouncedOnCloth()
     {
         if (Stream == null)
             return;

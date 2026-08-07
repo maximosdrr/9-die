@@ -1,14 +1,31 @@
 [gd_scene format=4 uid="uid://d7avt6omfr3h"]
 
-[ext_resource type="Script" uid="uid://e4qyiwtosvvd" path="res://Features/Games/Pool/Scripts/PoolScoreMonitor.cs" id="1_7pt52"]
 [ext_resource type="Script" uid="uid://c2uq1yrim6vsf" path="res://Features/Games/Pool/Components/Tables/PoolGameTable.cs" id="1_c3ume"]
 [ext_resource type="AudioStream" uid="uid://llwrgy5p7clt" path="res://Assets/SoundEffects/BallHitHole.ogg" id="2_c3ume"]
+[ext_resource type="Script" uid="uid://rlm3dwgi6t8v" path="res://Features/Games/Pool/Components/Tables/PoolTableGeometry.cs" id="3_geomt"]
 [ext_resource type="Texture2D" uid="uid://che2g02cj5g4h" path="res://Assets/PoolTable/2/PoolTable2_billiard_blue_baseColor.jpg" id="4_sm0ww"]
 [ext_resource type="Texture2D" uid="uid://dwv1yuviuyksx" path="res://Assets/PoolTable/2/PoolTable2_billiard_blue_metallicRoughness.jpg" id="5_00vay"]
 [ext_resource type="Texture2D" uid="uid://d0k53kw88pm4x" path="res://Assets/PoolTable/2/PoolTable2_billiard_blue_normal.png" id="6_qcm07"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_cgd1i"]
 bounce = 0.04
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_clothm"]
+size = Vector3(1.0366266, 0.02, 2.119912)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_railsh"]
+size = Vector3(0.92, 0.05, 0.05)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_raillg"]
+size = Vector3(0.05, 0.05, 0.94)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_corner"]
+height = 0.06
+radius = 0.055
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_side"]
+height = 0.06
+radius = 0.05
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ionqa"]
 size = Vector3(1.8975927, 1.2071289, 0.10501954)
@@ -130,13 +147,98 @@ _surfaces = [{
 blend_shape_mode = 0
 shadow_mesh = SubResource("ArrayMesh_jolfo")
 
-[node name="Table2" type="StaticBody3D" unique_id=1705720398]
+[node name="Table2" type="StaticBody3D" unique_id=1705720398 node_paths=PackedStringArray("Geometry")]
 collision_layer = 8
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_cgd1i")
 script = ExtResource("1_c3ume")
+Geometry = NodePath("Geometry")
+
+[node name="Geometry" type="Node3D" parent="." unique_id=1044820711 node_paths=PackedStringArray("ClothMarker", "RailMarkers", "PocketMarkers")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.77, 0)
+script = ExtResource("3_geomt")
+ClothMarker = NodePath("Cloth/Shape")
+RailMarkers = NodePath("Rails")
+PocketMarkers = NodePath("Pockets")
+
+[node name="Cloth" type="Area3D" parent="Geometry" unique_id=1929254714]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+
+[node name="Shape" type="CollisionShape3D" parent="Geometry/Cloth" unique_id=1005712846]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0021945238, 0, -0.007915139)
+shape = SubResource("BoxShape3D_clothm")
+
+[node name="Rails" type="Area3D" parent="Geometry" unique_id=1245832240]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+
+[node name="RailTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1503947330]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.0923283)
+shape = SubResource("BoxShape3D_railsh")
+debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+
+[node name="RailBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1077091672]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.093832)
+shape = SubResource("BoxShape3D_railsh")
+debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+
+[node name="RailRightTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1918544923]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.54179806, 0, 0.53)
+shape = SubResource("BoxShape3D_raillg")
+debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+
+[node name="RailRightBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1231459807]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5406598, 0, -0.53)
+shape = SubResource("BoxShape3D_raillg")
+debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+
+[node name="RailLeftTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1656287415]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5456126, 0, 0.53)
+shape = SubResource("BoxShape3D_raillg")
+debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+
+[node name="RailLeftBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1348024561]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54543895, 0, -0.53)
+shape = SubResource("BoxShape3D_raillg")
+debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+
+[node name="Pockets" type="Area3D" parent="Geometry" unique_id=1739026513]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+
+[node name="CornerTopRight" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1122549905]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5563024, 0, 1.0933486)
+shape = SubResource("CylinderShape3D_corner")
+
+[node name="CornerTopLeft" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1839027744]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55280167, 0, 1.0978078)
+shape = SubResource("CylinderShape3D_corner")
+
+[node name="SideRight" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1439086172]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5670471, 0, 0)
+shape = SubResource("CylinderShape3D_side")
+
+[node name="SideLeft" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1663019254]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5610299, 0, 0)
+shape = SubResource("CylinderShape3D_side")
+
+[node name="CornerBottomRight" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1094478126]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5508416, 0, -1.092176)
+shape = SubResource("CylinderShape3D_corner")
+
+[node name="CornerBottomLeft" type="CollisionShape3D" parent="Geometry/Pockets" unique_id=1258033840]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54964983, 0, -1.0940547)
+shape = SubResource("CylinderShape3D_corner")
 
 [node name="BallOffMonitor" type="Area3D" parent="." unique_id=2065452063]
+visible = false
 collision_layer = 0
 collision_mask = 4
 
@@ -172,19 +274,23 @@ debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
 
 [node name="TableFloorBottom" type="CollisionShape3D" parent="." unique_id=634397921]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0079844, 0.6135681, 0.0022838116)
+visible = false
 shape = SubResource("BoxShape3D_ssfmh")
 debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
 [node name="Floor" type="StaticBody3D" parent="." unique_id=1514591254]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.77, 0)
+visible = false
 
 [node name="Main" type="CollisionShape3D" parent="Floor" unique_id=857418032]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0005737394, 0, -0.0011452138)
+visible = false
 shape = SubResource("BoxShape3D_16wns")
 debug_color = Color(0.9973993, 0, 0.1541062, 0.41960785)
 
 [node name="Rails" type="StaticBody3D" parent="." unique_id=1341159778]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.84360564, 0)
+visible = false
 collision_layer = 8
 collision_mask = 5
 physics_material_override = SubResource("PhysicsMaterial_r0g6o")
@@ -221,6 +327,7 @@ debug_color = Color(0.8669102, 0, 0.1376302, 0.41960785)
 
 [node name="Borders" type="StaticBody3D" parent="." unique_id=2066679986]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.07724881, 0)
+visible = false
 collision_layer = 8
 collision_mask = 7
 physics_material_override = SubResource("PhysicsMaterial_qr0y0")
@@ -267,9 +374,9 @@ debug_color = Color(0.98081094, 0, 0.37871438, 0.41960785)
 
 [node name="ScoreMonitor" type="Area3D" parent="." unique_id=249741977]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21404922, 0)
+visible = false
 collision_layer = 0
 collision_mask = 4
-script = ExtResource("1_7pt52")
 
 [node name="ScoreCollision" type="CollisionShape3D" parent="ScoreMonitor" unique_id=1207852472]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4327764, 0)
@@ -278,6 +385,7 @@ debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
 
 [node name="Pockets" type="Node3D" parent="." unique_id=28904732]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0618335, 0)
+visible = false
 
 [node name="Detectors" type="Area3D" parent="Pockets" unique_id=2002732451]
 collision_layer = 0
@@ -333,6 +441,3 @@ transform = Transform3D(100, 0, 0, 0, -3.5762787e-05, 99.99999, 0, -99.99999, -3
 [node name="billiard_alone_billiard_blue_0" type="MeshInstance3D" parent="PoolTable/Sketchfab_model/pool_table_pack_fbx/RootNode/billiard_alone" unique_id=120926177]
 mesh = SubResource("ArrayMesh_dslpt")
 skeleton = NodePath("")
-
-[connection signal="body_entered" from="ScoreMonitor" to="ScoreMonitor" method="OnBodyEntered"]
-[connection signal="body_entered" from="Pockets/Detectors" to="." method="OnPocketsDetectorsBallEntered"]

@@ -8,19 +8,24 @@ public partial class BallPlacementManager : Node
 	public delegate void PlacementFinishedEventHandler();
 
 	private const float CollisionMargin = 0.001f;
-	private const float SafetyHeightMargin = 0.05f;
-	private const float WakeImpulseStrength = 0.05f;
-	private const float SleepDelaySeconds = 0.2f;
 
 	[ExportCategory("Configuration")]
 	[Export] public RemoteTransform3D OverheadViewRemote;
 	[Export] public Node3D TableOrigin;
-	[Export] public float TableSurfaceY = 0.85f;
 
-	[ExportGroup("Table Limits")]
-	[Export] public float PlayAreaWidth = 0.9f;
-	[Export] public float PlayAreaLength = 1.8f;
-	[Export] public float BallRadius = 0.029f;
+	/// <summary>
+	/// Height of the cloth above TableOrigin. Was 0.85 while the bed actually sits at 0.77, so
+	/// ball-in-hand released the ball 13 cm up and let it bounce to wherever it liked — and the
+	/// mouse projection plane was off by the same amount.
+	/// </summary>
+	[Export] public float TableSurfaceY = 0.77f;
+
+	/// <summary>Set by PoolGame; the source of truth for play area and ball spacing.</summary>
+	public PoolSimulationRunner SimulationRunner;
+
+	private float BallRadius => (float)Pool.Simulation.BilliardConstants.Radius;
+	private float PlayHalfWidth => SimulationRunner != null ? (float)SimulationRunner.Table.HalfWidth : 0.5088f;
+	private float PlayHalfLength => SimulationRunner != null ? (float)SimulationRunner.Table.HalfLength : 1.0492f;
 
 	private Ball _ball;
 	private Array<Ball> _otherBalls = new();
@@ -86,7 +91,8 @@ public partial class BallPlacementManager : Node
 		if (worldPos == Vector3.Inf)
 			return;
 
-		worldPos.Y = TableCenter.Y + TableSurfaceY + BallRadius + SafetyHeightMargin;
+		// Resting height exactly — the ball is placed, not dropped.
+		worldPos.Y = TableCenter.Y + TableSurfaceY + BallRadius;
 
 		worldPos = ApplyCollisionSliding(worldPos);
 		worldPos = ClampPositionToTable(worldPos);
@@ -159,8 +165,8 @@ public partial class BallPlacementManager : Node
 
 	private Vector3 ClampPositionToTable(Vector3 pos)
 	{
-		var limitX = (PlayAreaWidth * 0.5f) - BallRadius;
-		var limitZ = (PlayAreaLength * 0.5f) - BallRadius;
+		var limitX = PlayHalfWidth - BallRadius;
+		var limitZ = PlayHalfLength - BallRadius;
 		var center = TableCenter;
 
 		pos.X = Mathf.Clamp(pos.X, center.X - limitX, center.X + limitX);
@@ -268,29 +274,9 @@ public partial class BallPlacementManager : Node
 		if (synchronizer != null)
 			synchronizer.SetMultiplayerAuthority(newAuthority);
 
-		ballNode.Freeze = isFrozen;
-		ballNode.LinearVelocity = Vector3.Zero;
-		ballNode.AngularVelocity = Vector3.Zero;
-
-		if (!isFrozen)
-			WakeUpBall(ballNode);
-	}
-
-	private void WakeUpBall(Ball ballNode)
-	{
-		ballNode.CanSleep = false;
-		ballNode.Sleeping = false;
-
-		if (ballNode.IsMultiplayerAuthority())
-		{
-			ballNode.ApplyCentralImpulse(Vector3.Down * WakeImpulseStrength);
-
-			var timer = GetTree().CreateTimer(SleepDelaySeconds, false);
-			timer.Timeout += () =>
-			{
-				if (IsInstanceValid(ballNode))
-					ballNode.CanSleep = true;
-			};
-		}
+		// A placed ball is simply at rest until the next shot is simulated. The freeze/wake/
+		// nudge dance this used to do existed only to stop the rigid-body solver from either
+		// falling asleep mid-placement or exploding out of an overlap; neither can happen now.
+		ballNode.SetInPlay(true);
 	}
 }

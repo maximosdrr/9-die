@@ -10,12 +10,23 @@ public partial class PoolBallRespawn : Node
 
     private static readonly PackedScene BallScene = GD.Load<PackedScene>("uid://cqwu27wd0ddmr");
 
-    [Export] public Vector3 HeadSpot = new Vector3(0, 0.17f, -0.5f);
-    [Export] public Vector3 FootSpot = new Vector3(0, 0.17f, 0.5f);
+    // Table-local spots, in the same frame the simulation uses: origin at the centre of the
+    // cloth, +Z along the long axis. Y is the resting ball-centre height, so a ball spawns
+    // sitting on the cloth rather than being dropped onto it — the old spots were 18 cm above
+    // the bed, which meant every rack began as a bounce test.
+    [Export] public Vector3 HeadSpot = new Vector3(0, BallCentreHeight, -0.5f);
+    [Export] public Vector3 FootSpot = new Vector3(0, BallCentreHeight, 0.5f);
     [Export] public int BallsQuantity = 9;
     [Export] public Node3D BallsHolder;
 
-    public float BallDiameter = 0.032f;
+    private const float BallCentreHeight = 0.028575f;
+
+    // Rack spacing is the ball DIAMETER — the old 0.032 was barely half of it, so adjacent balls
+    // were born overlapping by 44% and the solver's penetration recovery blew the rack apart on
+    // the first tick. A touch of slack keeps neighbours from counting as already in contact.
+    private const float BallDiameter = 2.0f * BallCentreHeight;
+    private const float RackGap = 0.0004f;
+    private const float RackPitch = BallDiameter + RackGap;
     public Array<Ball> Balls = new();
     public Ball CueBall = null;
 
@@ -122,15 +133,16 @@ public partial class PoolBallRespawn : Node
 
         for (var row = 0; row < rows; row++)
         {
-            var zOffset = row * (BallDiameter * 0.866f);
-            var startX = -(row * BallDiameter) / 2.0f;
+            // 0.866 = sin(60°): rows of a triangular rack sit closer together than the pitch.
+            var zOffset = row * (RackPitch * 0.866f);
+            var startX = -(row * RackPitch) / 2.0f;
 
             for (var col = 0; col <= row; col++)
             {
                 if (index >= BallsQuantity)
                     return;
 
-                var xPos = startX + (col * BallDiameter);
+                var xPos = startX + (col * RackPitch);
                 var pos = new Vector3(xPos, FootSpot.Y, FootSpot.Z + zOffset);
 
                 CreateColoredBall(index, pos);

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=8 format=3 uid="uid://cqwu27wd0ddmr"]
 
 [ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.cs" id="1_eusg5"]
 [ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
@@ -7,59 +7,24 @@
 [ext_resource type="AudioStream" uid="uid://b1bkprdpdor67" path="res://Assets/SoundEffects/BallCollision.ogg" id="6_xsld2"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallCollisionAudio.cs" id="7_87oc0"]
 
-[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_n5t01"]
-friction = 0.4
-bounce = 0.85
-
-[sub_resource type="SphereShape3D" id="SphereShape3D_bodf6"]
-radius = 0.028631873
-
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_5qcrw"]
-properties/0/path = NodePath(".:linear_velocity")
+properties/0/path = NodePath(".:position")
 properties/0/spawn = true
 properties/0/replication_mode = 1
-properties/1/path = NodePath(".:angular_velocity")
+properties/1/path = NodePath(".:TextureId")
 properties/1/spawn = true
-properties/1/replication_mode = 1
-properties/2/path = NodePath(".:position")
+properties/1/replication_mode = 2
+properties/2/path = NodePath(".:Index")
 properties/2/spawn = true
-properties/2/replication_mode = 1
-properties/3/path = NodePath(".:rotation")
-properties/3/spawn = true
-properties/3/replication_mode = 1
-properties/4/path = NodePath(".:TextureId")
-properties/4/spawn = true
-properties/4/replication_mode = 1
-properties/5/path = NodePath(".:Index")
-properties/5/spawn = true
-properties/5/replication_mode = 1
+properties/2/replication_mode = 2
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_5qcrw"]
-radius = 0.029
-
-[node name="Ball" type="RigidBody3D"]
-collision_layer = 4
-collision_mask = 13
-contact_monitor = true
-max_contacts_reported = 8
-physics_material_override = SubResource("PhysicsMaterial_n5t01")
+[node name="Ball" type="Node3D"]
 script = ExtResource("1_eusg5")
 data = ExtResource("2_5qcrw")
 metadata/_custom_type_script = "uid://crufycb4ylox5"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-shape = SubResource("SphereShape3D_bodf6")
-
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 replication_config = SubResource("SceneReplicationConfig_5qcrw")
-
-[node name="Hitbox" type="Area3D" parent="."]
-collision_layer = 0
-collision_mask = 4
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Hitbox"]
-shape = SubResource("SphereShape3D_5qcrw")
-debug_color = Color(0.3900993, 0.6114622, 0, 0.41960785)
 
 [node name="DebugLabel" type="Label3D" parent="."]
 
@@ -77,6 +42,3 @@ stream = ExtResource("6_xsld2")
 script = ExtResource("7_87oc0")
 Ball = NodePath("../..")
 metadata/_custom_type_script = "uid://bt8d07inv38d2"
-
-[connection signal="body_entered" from="Hitbox" to="." method="OnBodyEntered"]
-[connection signal="body_entered" from="." to="." method="OnRigidBodyContactEntered"]

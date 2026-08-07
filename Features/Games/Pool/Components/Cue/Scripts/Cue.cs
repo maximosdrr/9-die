@@ -5,7 +5,8 @@ using Godot.Collections;
 public partial class Cue : Node3D
 {
     [Signal]
-    public delegate void StrikeExecutedEventHandler(Vector3 direction, float force, Vector3 offset);
+    public delegate void StrikeExecutedEventHandler(
+        float aimYaw, float elevation, float speed, float tipOffsetX, float tipOffsetY);
 
     [ExportGroup("References")]
     [Export] public StateMachine StateMachine;
@@ -15,8 +16,15 @@ public partial class Cue : Node3D
 
     [ExportGroup("Physics Config")]
     [Export] public float MaxSpeedReference = 12.0f;
-    [Export] public float ForceMultiplier = 8.0f;
-    [Export] public float MinForceThreshold = 0.01f;
+
+    /// <summary>
+    /// Cue ball speed at full power, m/s. A professional break is about 8 m/s and the record is
+    /// roughly 14 — the old ForceMultiplier of 28 N·s on a 0.17 kg ball worked out to 165 m/s,
+    /// which is why nothing on the table behaved plausibly.
+    /// </summary>
+    [Export] public float MaxCueBallSpeed = 8.0f;
+
+    [Export] public float MinPowerThreshold = 0.02f;
     [Export] public float ElevationSensorMargin = 0.08f;
 
     [ExportGroup("Visual Config")]
@@ -113,26 +121,51 @@ public partial class Cue : Node3D
         if (!CanStrike())
             return false;
 
-        var force = CalculateImpulse(mouseSpeed);
+        var power = Mathf.Clamp(mouseSpeed / MaxSpeedReference, 0.0f, 1.0f);
+        return ExecuteStrikeWithPower(power);
+    }
 
-        if (force <= MinForceThreshold)
+    /// <summary>
+    /// Fires a shot from a normalised 0..1 power. Everything about the shot is described by
+    /// angles and fractions rather than an impulse vector, so it survives the trip to the server
+    /// intact and can be validated there — the old path sent a raw direction the server accepted
+    /// unconditionally, which let a client aim straight down and jump past the elevation limit.
+    /// </summary>
+    public bool ExecuteStrikeWithPower(float normalizedPower)
+    {
+        if (!CanStrike())
             return false;
 
-        var (direction, hitOffset) = GetStrikeVectors();
+        if (normalizedPower <= MinPowerThreshold)
+            return false;
+
+        var shot = BuildShotInput(normalizedPower);
 
         if (Multiplayer.IsServer())
-            CueBall.Strike(direction, force, hitOffset);
+            PoolGame.SimulationRunner.ExecuteShot(shot);
         else
-            EmitSignal(SignalName.StrikeExecuted, direction, force, hitOffset);
+            EmitSignal(SignalName.StrikeExecuted, (float)shot.AimYaw, (float)shot.Elevation,
+                (float)shot.Speed, (float)shot.TipOffsetX, (float)shot.TipOffsetY);
 
-        CueSfx.EmitStrikeSound(direction, force, hitOffset);
+        var direction = -GlobalTransform.Basis.Z.Normalized();
+        CueSfx.EmitStrikeSound(direction, (float)shot.Speed, new Vector3(SpinOffset.X, SpinOffset.Y, 0.0f));
         return true;
     }
 
-    private float CalculateImpulse(float inputSpeed)
+    private Pool.Simulation.ShotInput BuildShotInput(float normalizedPower)
     {
-        var rawPower = Mathf.Clamp(inputSpeed / MaxSpeedReference, 0.0f, 1.0f);
-        return Mathf.Pow(rawPower, 2.0f) * ForceMultiplier;
+        var direction = -GlobalTransform.Basis.Z.Normalized();
+
+        var aimYaw = Mathf.Atan2(direction.X, direction.Z);
+        var elevation = Mathf.Max(0.0f, -Mathf.Asin(Mathf.Clamp(direction.Y, -1.0f, 1.0f)));
+        var speed = normalizedPower * MaxCueBallSpeed;
+
+        // SpinOffset is in metres on the ball's face; the simulation wants it as a fraction of
+        // the radius, which is what makes it independent of the ball's size.
+        var offsetX = SpinOffset.X / CueBall.Radius;
+        var offsetY = SpinOffset.Y / CueBall.Radius;
+
+        return new Pool.Simulation.ShotInput(aimYaw, elevation, speed, offsetX, offsetY);
     }
 
     private (Vector3 Direction, Vector3 HitOffset) GetStrikeVectors()

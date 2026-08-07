@@ -52,8 +52,12 @@ public partial class PoolTurnResolver : TurnResolver
 
         SignalUtil.ConnectGuarded(PoolGame.CueBall, Ball.SignalName.Striked, new Callable(this, MethodName.OnStrike));
         SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
-        SignalUtil.ConnectGuarded(PoolGame.ScoreMonitor, Area3D.SignalName.BodyEntered, new Callable(this, MethodName.OnBallTouchScoreGround));
-        SignalUtil.ConnectGuarded(PoolGame.OffTableMonitor, OffTableMonitor.SignalName.BallFellOff, new Callable(this, MethodName.OnBallFellOff));
+
+        // Potting and driven-off balls now come from the simulated event timeline rather than
+        // from Area3D triggers on the table. The old detectors relied on a ball physically
+        // falling through a gap in the rails, which stopped being how any of this works.
+        SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
+        SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallDrivenOffTable, new Callable(this, MethodName.OnBallFellOff));
     }
 
     private void DisconnectSignals()
@@ -63,14 +67,13 @@ public partial class PoolTurnResolver : TurnResolver
 
         SignalUtil.DisconnectGuarded(PoolGame.CueBall, Ball.SignalName.Striked, new Callable(this, MethodName.OnStrike));
         SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
-        SignalUtil.DisconnectGuarded(PoolGame.ScoreMonitor, Area3D.SignalName.BodyEntered, new Callable(this, MethodName.OnBallTouchScoreGround));
-        SignalUtil.DisconnectGuarded(PoolGame.OffTableMonitor, OffTableMonitor.SignalName.BallFellOff, new Callable(this, MethodName.OnBallFellOff));
+        SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
+        SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.BallDrivenOffTable, new Callable(this, MethodName.OnBallFellOff));
     }
 
-    private void OnBallTouchScoreGround(Node3D body)
+    private void OnBallPocketed(Ball ball)
     {
-        if (body is Ball ball)
-            BallsScored[ball.Index] = ball;
+        BallsScored[ball.Index] = ball;
     }
 
     private void OnBallFellOff(Ball ball)
@@ -277,9 +280,8 @@ public partial class PoolTurnResolver : TurnResolver
         if (!BallsScored.TryGetValue(9, out var goldenBall) || !IsInstanceValid(goldenBall))
             return;
 
-        goldenBall.GlobalPosition = PoolGame.PoolBallRespawn.GetFootSpotGlobalPosition();
-        goldenBall.LinearVelocity = Vector3.Zero;
-        goldenBall.AngularVelocity = Vector3.Zero;
+        var footSpot = PoolGame.PoolBallRespawn.FootSpot;
+        PoolGame.SimulationRunner.PlaceBall(goldenBall, new Vector2(footSpot.X, footSpot.Z));
 
         BallsInGame[9] = goldenBall;
     }
