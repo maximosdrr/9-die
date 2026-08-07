@@ -26,6 +26,7 @@ public static class BilliardCollisions
     private static readonly double NoseSin = BilliardConstants.CushionNoseHeightRatio;
     private static readonly double NoseCos = Math.Sqrt(1.0 - NoseSin * NoseSin);
     private static readonly double CushionContactDistance = BilliardConstants.Radius * NoseCos;
+    private const double CushionTopHeight = 2.0 * BilliardConstants.Radius;
 
     /// <summary>
     /// Smallest time in (0, dt] at which two balls touch, treating velocities as constant over
@@ -91,7 +92,7 @@ public static class BilliardCollisions
             var distance = (ball.Position - cushion.Start).Dot(cushion.Normal);
             var time = (CushionContactDistance - distance) / approachSpeed;
 
-            if (time >= 0.0 && time <= dt)
+            if (time >= 0.0 && time <= dt && !ClearsCushionAt(ball, time))
             {
                 var contactPoint = ball.Position + ball.Velocity * time;
                 if (ProjectsOntoSegment(contactPoint, cushion))
@@ -113,6 +114,9 @@ public static class BilliardCollisions
             if (!SweepBallPoint(ball, jaw, dt, out var jawTime))
                 continue;
 
+            if (ClearsCushionAt(ball, jawTime))
+                continue;
+
             if (jawTime >= bestTime)
                 continue;
 
@@ -132,6 +136,16 @@ public static class BilliardCollisions
         hitTime = bestTime;
         contactNormal = bestNormal;
         return true;
+    }
+
+    private static bool ClearsCushionAt(BallState ball, double time)
+    {
+        if (ball.Motion != BallMotion.Airborne)
+            return false;
+
+        var centreHeight = ball.Position.Y + ball.Velocity.Y * time
+                           - 0.5 * BilliardConstants.Gravity * time * time;
+        return centreHeight - BilliardConstants.Radius > CushionTopHeight;
     }
 
     private static bool ProjectsOntoSegment(Vec3d point, CushionSegment cushion)
@@ -199,6 +213,20 @@ public static class BilliardCollisions
         a.Velocity -= normal * (normalImpulse / BilliardConstants.Mass);
         b.Velocity += normal * (normalImpulse / BilliardConstants.Mass);
 
+        ApplyBallBallFriction(a, b, normal, normalImpulse, relativeVelocity.Length);
+        SeparateOverlap(a, b);
+    }
+
+    /// <summary>
+    /// Tangential half of the ball contact response. Kept separate so a simultaneous-contact
+    /// batch can solve all coupled normal impulses first and add throw/spin afterwards.
+    /// </summary>
+    internal static void ApplyBallBallFriction(
+        BallState a, BallState b, Vec3d normal, double normalImpulse, double impactSpeed)
+    {
+        if (normalImpulse <= 0.0)
+            return;
+
         // Slip of b's surface against a's surface at the contact point.
         var contactOnA = normal * BilliardConstants.Radius;
         var contactOnB = -normal * BilliardConstants.Radius;
@@ -214,7 +242,8 @@ public static class BilliardCollisions
 
         var slipDirection = slip / slipSpeed;
         var stoppingImpulse = BilliardConstants.Mass * slipSpeed / 7.0;
-        var frictionImpulse = Math.Min(BilliardConstants.BallBallFriction * normalImpulse, stoppingImpulse);
+        var friction = BallBallFrictionForSpeed(impactSpeed);
+        var frictionImpulse = Math.Min(friction * normalImpulse, stoppingImpulse);
 
         a.Velocity += slipDirection * (frictionImpulse / BilliardConstants.Mass);
         b.Velocity -= slipDirection * (frictionImpulse / BilliardConstants.Mass);
@@ -224,11 +253,21 @@ public static class BilliardCollisions
                          * (BilliardConstants.Radius * frictionImpulse / BilliardConstants.MomentOfInertia);
         a.AngularVelocity += spinChange;
         b.AngularVelocity += spinChange;
-
-        SeparateOverlap(a, b);
     }
 
-    private static void SeparateOverlap(BallState a, BallState b)
+    /// <summary>
+    /// Ball-ball friction falls sharply as impact speed rises. A constant coefficient makes hard
+    /// shots grab far too much and soft touch shots not enough; this is Alciatore's measured fit.
+    /// </summary>
+    public static double BallBallFrictionForSpeed(double relativeSpeed)
+    {
+        var speed = Math.Max(0.0, relativeSpeed);
+        return BilliardConstants.BallBallFrictionA
+               + BilliardConstants.BallBallFrictionB
+               * Math.Exp(-BilliardConstants.BallBallFrictionC * speed);
+    }
+
+    internal static void SeparateOverlap(BallState a, BallState b)
     {
         var delta = b.Position - a.Position;
         var distance = delta.Length;

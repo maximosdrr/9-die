@@ -25,12 +25,15 @@ public partial class SimulationSelfTest : Node
         TestRollingDistance();
         TestStunShot();
         TestHeadOnCollision();
+        TestBallBallFrictionVariesWithSpeed();
         TestCushionRebound();
         TestSpinChangesCushionAngle();
         TestEnergyNeverIncreases();
         TestBallStopsCompletely();
         TestPocketDetection();
         TestBallDrivenOffTable();
+        TestRailMustOccurAfterFirstContact();
+        TestSimultaneousContactsAreSymmetric();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
@@ -112,6 +115,18 @@ public partial class SimulationSelfTest : Node
         CheckClose("bola que bateu quase para", a.Velocity.FlatLength, 2.0 - expectedStruck, 1e-6);
         Check("energia não aumenta na colisão",
             a.Velocity.LengthSquared + b.Velocity.LengthSquared <= 2.0 * 2.0 + 1e-9);
+    }
+
+    private void TestBallBallFrictionVariesWithSpeed()
+    {
+        var soft = BilliardCollisions.BallBallFrictionForSpeed(0.2);
+        var medium = BilliardCollisions.BallBallFrictionForSpeed(1.0);
+        var hard = BilliardCollisions.BallBallFrictionForSpeed(3.2);
+
+        Check($"fricção bola-bola diminui com a força ({soft:F3} > {medium:F3} > {hard:F3})",
+            soft > medium && medium > hard);
+        Check("impacto forte não usa mais o coeficiente constante excessivo",
+            hard < 0.02);
     }
 
     // A cushion must send the ball back with reduced speed, and must not LAUNCH it.
@@ -226,13 +241,14 @@ public partial class SimulationSelfTest : Node
         var table = TableSpec.CreateDefault();
         var simulator = new ShotSimulator(table);
 
-        // Right next to the side cushion, fired hard into it with the cue steeply elevated.
-        var start = OnCloth(table.HalfWidth - 0.06, 0.0);
+        // Far enough from the long cushion for the jump to rise above it, and away from the side
+        // pocket so clearing the rail means leaving the table rather than being potted.
+        var start = OnCloth(table.HalfWidth - 0.20, 0.30);
         var balls = new List<BallState> { new(0, start) };
         var shot = new ShotInput(
             aimYaw: Math.PI / 2.0,
             elevation: Math.PI / 4.0,
-            speed: 8.0,
+            speed: 2.8,
             tipOffsetX: 0.0,
             tipOffsetY: 0.0);
 
@@ -260,7 +276,90 @@ public partial class SimulationSelfTest : Node
         GD.Print($"       (final: {final.Position} estado={final.Motion} v={final.Velocity}");
         GD.Print($"        timeout={result.TimedOut} dur={result.Duration:F2}s tabela={cushionHits} pano={clothHits} fora={landedOutside} evento={reportedOff})");
 
-        Check("bola fora da mesa não fica parada em área inválida", !landedOutside || reportedOff);
+        Check("bola salta sobre o rail e é reportada fora da mesa", landedOutside && reportedOff);
+    }
+
+    private void TestRailMustOccurAfterFirstContact()
+    {
+        var emptyPositions = new List<Vec3d>();
+        var emptySpins = new List<Vec3d>();
+        var emptyInPlay = new List<bool>();
+        var playback = new ShotPlayback(1.0, 0, emptyPositions, emptySpins, emptyInPlay);
+
+        var railBeforeContact = new ShotResult(
+            new List<BallState>(),
+            new List<ShotEvent>
+            {
+                new(0.1, ShotEventType.BallHitCushion, 0),
+                new(0.2, ShotEventType.BallHitBall, 0, 1),
+            },
+            playback,
+            0.2,
+            false);
+
+        Check("rail antes do primeiro contato não legaliza a tacada",
+            !railBeforeContact.AnyCushionContactAfterFirstBallContact(0));
+
+        var railAfterContact = new ShotResult(
+            new List<BallState>(),
+            new List<ShotEvent>
+            {
+                new(0.1, ShotEventType.BallHitBall, 0, 1),
+                new(0.2, ShotEventType.BallHitCushion, 1),
+            },
+            playback,
+            0.2,
+            false);
+
+        Check("rail depois do primeiro contato legaliza a tacada",
+            railAfterContact.AnyCushionContactAfterFirstBallContact(0));
+
+        var fourDistinctBalls = new ShotResult(
+            new List<BallState>(),
+            new List<ShotEvent>
+            {
+                new(0.1, ShotEventType.BallHitCushion, 1),
+                new(0.2, ShotEventType.BallHitCushion, 1),
+                new(0.3, ShotEventType.BallHitCushion, 2),
+                new(0.4, ShotEventType.BallHitCushion, 3),
+                new(0.5, ShotEventType.BallHitCushion, 4),
+                new(0.6, ShotEventType.BallHitCushion, 0),
+            },
+            playback,
+            0.6,
+            false);
+        Check("quebra conta bolas distintas no rail e ignora a branca",
+            fourDistinctBalls.CountDistinctBallsAtCushion(0) == 4);
+    }
+
+    private void TestSimultaneousContactsAreSymmetric()
+    {
+        var radius = BilliardConstants.Radius;
+        var simulator = new ShotSimulator(TableSpec.CreateDefault());
+        var balls = new List<BallState>
+        {
+            new(0, OnCloth(0.0, -0.18)),
+            new(1, OnCloth(-radius, 0.0)),
+            new(2, OnCloth(radius, 0.0)),
+        };
+
+        var result = simulator.Simulate(
+            balls, 0, new ShotInput(0.0, 0.0, 1.0, 0.0, 0.0));
+        var left = result.FinalStates[1].Position;
+        var right = result.FinalStates[2].Position;
+
+        var contactTimes = new List<double>();
+        foreach (var shotEvent in result.Events)
+        {
+            if (shotEvent.Type == ShotEventType.BallHitBall && shotEvent.BallId == 0)
+                contactTimes.Add(shotEvent.Time);
+        }
+
+        Check("contatos simultâneos são registrados no mesmo instante",
+            contactTimes.Count >= 2 && Math.Abs(contactTimes[0] - contactTimes[1]) <= 1e-7);
+        GD.Print($"       (simetria: esquerda={left}, direita={right}, erroX={Math.Abs(left.X + right.X):F8}, erroZ={Math.Abs(left.Z - right.Z):F8})");
+        Check("impacto simultâneo não favorece um lado do rack",
+            Math.Abs(left.X + right.X) < 1e-5 && Math.Abs(left.Z - right.Z) < 1e-5);
     }
 
     private static Vec3d OnCloth(double x, double z) => new(x, BilliardConstants.Radius, z);

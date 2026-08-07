@@ -25,8 +25,7 @@ public partial class PoolBallRespawn : Node
     // were born overlapping by 44% and the solver's penetration recovery blew the rack apart on
     // the first tick. A touch of slack keeps neighbours from counting as already in contact.
     private const float BallDiameter = 2.0f * BallCentreHeight;
-    private const float RackGap = 0.0004f;
-    private const float RackPitch = BallDiameter + RackGap;
+    private const float RackPitch = BallDiameter + 0.00001f;
     public Array<Ball> Balls = new();
     public Ball CueBall = null;
 
@@ -48,7 +47,7 @@ public partial class PoolBallRespawn : Node
         {
             ClearTable();
             SpawnCueBall();
-            SpawnTriangle();
+            SpawnNineBallDiamond();
         }
 
         RefreshAndMaybeEmit();
@@ -126,40 +125,43 @@ public partial class PoolBallRespawn : Node
         BallsHolder.AddChild(ball, true);
     }
 
-    private void SpawnTriangle()
+    private void SpawnNineBallDiamond()
     {
-        var index = 0;
-        var rows = 5;
+        // WPA nine-ball: 1 at the apex toward the head, 9 in the middle on the foot spot.
+        var rows = new[] { 1, 2, 3, 2, 1 };
+        var rackOrder = new[] { 1, 2, 3, 4, 9, 5, 6, 7, 8 };
+        var rowSpacing = RackPitch * Mathf.Sqrt(3.0f) * 0.5f;
+        var slot = 0;
 
-        for (var row = 0; row < rows; row++)
+        for (var row = 0; row < rows.Length; row++)
         {
-            // 0.866 = sin(60°): rows of a triangular rack sit closer together than the pitch.
-            var zOffset = row * (RackPitch * 0.866f);
-            var startX = -(row * RackPitch) / 2.0f;
+            var count = rows[row];
+            var z = FootSpot.Z + (row - 2) * rowSpacing;
+            var startX = -((count - 1) * RackPitch) * 0.5f;
 
-            for (var col = 0; col <= row; col++)
+            for (var col = 0; col < count; col++)
             {
-                if (index >= BallsQuantity)
+                if (slot >= rackOrder.Length || slot >= BallsQuantity)
                     return;
 
                 var xPos = startX + (col * RackPitch);
-                var pos = new Vector3(xPos, FootSpot.Y, FootSpot.Z + zOffset);
+                var pos = new Vector3(FootSpot.X + xPos, FootSpot.Y, z);
 
-                CreateColoredBall(index, pos);
-                index += 1;
+                CreateColoredBall(rackOrder[slot], pos);
+                slot += 1;
             }
         }
     }
 
-    private void CreateColoredBall(int index, Vector3 pos)
+    private void CreateColoredBall(int ballNumber, Vector3 pos)
     {
         var ball = (Ball)BallScene.Instantiate();
         ball.Position = pos;
 
-        ball.TextureId = index + 1;
-        ball.Index = index + 1;
+        ball.TextureId = ballNumber;
+        ball.Index = ballNumber;
 
-        ball.Name = $"Ball_{index + 1}";
+        ball.Name = $"Ball_{ballNumber}";
 
         BallsHolder.AddChild(ball, true);
     }

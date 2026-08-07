@@ -27,10 +27,11 @@ public partial class PoolController : Node3D
 		PoolGame = tableGame as PoolGame;
 		Camera = camera;
 
-		_ = AimPivot.Setup(PoolGame, this);
+		AimPivot.Setup(PoolGame, this);
 		Cue.Setup(PoolGame, AimPivot);
 
 		SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChange));
+		SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 	}
 
 	public override void _ExitTree()
@@ -39,6 +40,7 @@ public partial class PoolController : Node3D
 			return;
 
 		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChange));
+		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 	}
 
 	public void TakeControl()
@@ -96,14 +98,18 @@ public partial class PoolController : Node3D
 		{
 			CanTakeControl = true;
 			Player.GiveControl();
-			if (!context.ContainsKey("ball_replacement"))
+			if (context.TryGetValue("push_out_choice_pending", out var pendingChoice)
+				&& pendingChoice.AsBool())
+			{
+				GiveControl();
+			}
+			else if (!context.ContainsKey("ball_replacement"))
 			{
 				TakeControl();
 			}
 			else
 			{
 				await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
-				await ToSignal(GetTree().CreateTimer(1), SceneTreeTimer.SignalName.Timeout);
 				TakeControl();
 			}
 		}
@@ -118,5 +124,15 @@ public partial class PoolController : Node3D
 	private void OnTurnChange(string nextPlayerName, Dictionary context)
 	{
 		ApplyControl(nextPlayerName, context);
+	}
+
+	private void OnTurnExtended(Dictionary context)
+	{
+		if (!IsMultiplayerAuthority() || PoolGame?.TurnOwner == null
+			|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
+			return;
+
+		if (context.TryGetValue("push_out_choice_resolved", out var resolved) && resolved.AsBool())
+			TakeControl();
 	}
 }

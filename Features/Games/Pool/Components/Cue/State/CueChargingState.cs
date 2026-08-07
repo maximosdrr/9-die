@@ -5,12 +5,9 @@ using Godot.Collections;
 /// The real stroke gesture: pull the cue back, then push it forward, and the shot fires the
 /// moment the tip reaches the ball. No button to release — the stroke itself is the trigger.
 ///
-/// Power comes from the DEPTH of the backswing, not from how fast the mouse was moving. That
-/// distinction is the whole fix: swing speed was raw pixels per second, so a 3200 DPI mouse
-/// produced four times the value of an 800 DPI one for the same gesture, the smoothing weight was
-/// frame-rate dependent, and the reachable ceiling was about half the configured maximum. Reading
-/// the turning point of the backswing instead makes the shot exactly repeatable, lets every
-/// player select any power, and gives the meter something honest to display.
+/// Backswing depth selects the intended power; forward speed contributes a bounded timing
+/// efficiency. Normalising velocity by the configured full-draw distance keeps the timing term
+/// independent of frame rate while sensitivity remains available for different mice.
 /// </summary>
 [GlobalClass]
 public partial class CueChargingState : State
@@ -33,10 +30,21 @@ public partial class CueChargingState : State
     /// <summary>Below this backswing the forward stroke is a practice stroke, not a shot.</summary>
     [Export] public float MinPowerToFire = 0.03f;
 
+    [ExportGroup("Stroke Timing")]
+    /// <summary>Forward travel in full-draws per second that delivers 100% of the loaded power.</summary>
+    [Export] public float ReferenceForwardRate = 2.5f;
+
+    /// <summary>
+    /// Slow strokes retain enough authority for accessibility, but no longer hit exactly like a
+    /// fast acceleration through the ball.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,1,0.01")] public float MinimumTimingEfficiency = 0.72f;
+
     public Cue Cue;
 
     private float _drawFraction;
     private float _peakDraw;
+    private float _peakForwardRate;
     private bool _strokingForward;
 
     public CueChargingState()
@@ -55,6 +63,7 @@ public partial class CueChargingState : State
 
         _drawFraction = 0.0f;
         _peakDraw = 0.0f;
+        _peakForwardRate = 0.0f;
         _strokingForward = false;
 
         Cue.SetCharge(true, 0.0f);
@@ -79,7 +88,7 @@ public partial class CueChargingState : State
         if (@event is not InputEventMouseMotion motion)
             return;
 
-        ApplyStroke(ReadVerticalMotion(motion));
+        ApplyStroke(ReadVerticalMotion(motion), ReadVerticalVelocity(motion));
         UpdateCueTransform();
         Cue.GetViewport().SetInputAsHandled();
 
@@ -98,7 +107,13 @@ public partial class CueChargingState : State
         return screen != 0.0f ? screen : motion.Relative.Y;
     }
 
-    private void ApplyStroke(float verticalPixels)
+    private static float ReadVerticalVelocity(InputEventMouseMotion motion)
+    {
+        var screen = motion.ScreenVelocity.Y;
+        return screen != 0.0f ? screen : motion.Velocity.Y;
+    }
+
+    private void ApplyStroke(float verticalPixels, float verticalPixelsPerSecond)
     {
         if (FullDrawPixels <= 0.0f)
             return;
@@ -114,7 +129,10 @@ public partial class CueChargingState : State
             // Turning back after a forward move starts a fresh backswing, so practice strokes
             // don't leave stale power loaded from an earlier one.
             if (_strokingForward)
+            {
                 _peakDraw = 0.0f;
+                _peakForwardRate = 0.0f;
+            }
 
             _strokingForward = false;
             _peakDraw = Mathf.Max(_peakDraw, next);
@@ -123,6 +141,9 @@ public partial class CueChargingState : State
         else if (next < _drawFraction)
         {
             _strokingForward = true;
+            var forwardRate = -verticalPixelsPerSecond * Sensitivity / FullDrawPixels;
+            _peakForwardRate = Mathf.Max(_peakForwardRate, forwardRate);
+            Cue.SetCharge(true, DeliveredPower());
         }
 
         _drawFraction = next;
@@ -137,8 +158,25 @@ public partial class CueChargingState : State
 
     private void Fire()
     {
-        var fired = Cue.ExecuteStrikeWithPower(_peakDraw);
+        var fired = Cue.ExecuteStrikeWithPower(DeliveredPower());
         StateMachine.ChangeState(fired ? StatesRef.CueRecover : StatesRef.CueIdle, new Dictionary());
+    }
+
+    private float DeliveredPower()
+    {
+        return ComputeDeliveredPower(
+            _peakDraw, _peakForwardRate, ReferenceForwardRate, MinimumTimingEfficiency);
+    }
+
+    public static float ComputeDeliveredPower(
+        float loadedPower, float forwardRate, float referenceRate, float minimumEfficiency)
+    {
+        var safeLoadedPower = Mathf.Clamp(loadedPower, 0.0f, 1.0f);
+        var safeMinimum = Mathf.Clamp(minimumEfficiency, 0.0f, 1.0f);
+        var timing = referenceRate > 0.0f
+            ? Mathf.Clamp(forwardRate / referenceRate, 0.0f, 1.0f)
+            : 1.0f;
+        return safeLoadedPower * Mathf.Lerp(safeMinimum, 1.0f, timing);
     }
 
     private void UpdateCueTransform()

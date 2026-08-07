@@ -14,4 +14,8 @@ public sealed class TurnContext
     public Ball TargetBall;
     public Dictionary<int, Ball> CurrentBallsRemaining;
     public bool AnyRailContact;
+    public bool IsBreakShot;
+    public bool IsLegalBreak;
+    public int ObjectBallsDrivenToRail;
+    public bool IsPushOut;
 }

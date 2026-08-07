@@ -6,12 +6,15 @@
 [ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/button_danger_hover.tres" id="4_dhover"]
 [ext_resource type="StyleBox" path="res://Features/Ui/Theme/Styles/button_danger_pressed.tres" id="5_dpress"]
 
-[node name="PlayerHud" type="CanvasLayer" node_paths=PackedStringArray("TurnLabel", "TargetBallLabel", "TimerLabel", "ScoreList", "SurrenderButton")]
+[node name="PlayerHud" type="CanvasLayer" node_paths=PackedStringArray("TurnLabel", "TargetBallLabel", "TimerLabel", "ScoreList", "PushOutButton", "AcceptPushOutButton", "PassBackButton", "SurrenderButton")]
 script = ExtResource("1_hud")
 TurnLabel = NodePath("Root/Panel/Margin/Box/TurnLabel")
 TargetBallLabel = NodePath("Root/Panel/Margin/Box/TargetBallLabel")
 TimerLabel = NodePath("Root/Panel/Margin/Box/TimerLabel")
 ScoreList = NodePath("Root/Panel/Margin/Box/ScoreList")
+PushOutButton = NodePath("Root/Panel/Margin/Box/PushOutButton")
+AcceptPushOutButton = NodePath("Root/Panel/Margin/Box/PushOutChoice/AcceptPushOutButton")
+PassBackButton = NodePath("Root/Panel/Margin/Box/PushOutChoice/PassBackButton")
 SurrenderButton = NodePath("Root/Panel/Margin/Box/SurrenderButton")
 
 [node name="Root" type="Control" parent="."]
@@ -59,6 +62,26 @@ layout_mode = 2
 [node name="ScoreList" type="VBoxContainer" parent="Root/Panel/Margin/Box"]
 layout_mode = 2
 theme_override_constants/separation = 4
+
+[node name="PushOutButton" type="Button" parent="Root/Panel/Margin/Box"]
+visible = false
+layout_mode = 2
+text = "Declarar push-out (P)"
+
+[node name="PushOutChoice" type="HBoxContainer" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+
+[node name="AcceptPushOutButton" type="Button" parent="Root/Panel/Margin/Box/PushOutChoice"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Aceitar (1)"
+
+[node name="PassBackButton" type="Button" parent="Root/Panel/Margin/Box/PushOutChoice"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Devolver (2)"
 
 [node name="SurrenderButton" type="Button" parent="Root/Panel/Margin/Box"]
 layout_mode = 2

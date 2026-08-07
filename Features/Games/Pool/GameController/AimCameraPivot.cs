@@ -1,5 +1,4 @@
 using Godot;
-using System.Threading.Tasks;
 
 [GlobalClass]
 public partial class AimCameraPivot : Node3D
@@ -26,10 +25,6 @@ public partial class AimCameraPivot : Node3D
 
     [Export] public float CueOffsetDeg = -5.0f;
 
-    [ExportGroup("Player Positioning")]
-    [Export] public float PlayerOrbitDistance = 1.2f;
-    [Export] public float PlayerFloorHeight = 0.0f;
-
     public Cue Cue;
     private float _rotY = 0.0f;
     private float _rotX = 0.0f;
@@ -38,7 +33,6 @@ public partial class AimCameraPivot : Node3D
 
     public Ball Target;
     public PoolGame PoolGame;
-    public Player Player;
 
     public override void _Ready()
     {
@@ -47,19 +41,18 @@ public partial class AimCameraPivot : Node3D
         InitializePositions();
     }
 
-    public async Task Setup(PoolGame poolGame, PoolController poolController)
+    public void Setup(PoolGame poolGame, PoolController poolController)
     {
         Target = poolGame.CueBall;
         PoolGame = poolGame;
         Cue = poolController.Cue;
-        Player = poolController.Player;
 
         ConnectSignals();
 
         if (Target != null)
         {
-            await ToSignal(GetTree().CreateTimer(1.5), SceneTreeTimer.SignalName.Timeout);
             GlobalPosition = Target.GlobalPosition;
+            ResetPhysicsInterpolation();
         }
     }
 
@@ -138,7 +131,6 @@ public partial class AimCameraPivot : Node3D
             ElevationNode.Rotation = elevRot;
         }
 
-        SyncPlayerModelRotation();
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -167,8 +159,6 @@ public partial class AimCameraPivot : Node3D
 
         if (ElevationNode == null)
             return;
-
-        SyncPlayerModelRotation();
 
         var deltaMouse = relativeMotion.Y * MouseSensitivity;
         var currentLimit = CalculateDynamicLimit();
@@ -240,19 +230,4 @@ public partial class AimCameraPivot : Node3D
     {
     }
 
-    private void SyncPlayerModelRotation()
-    {
-        if (Player == null)
-            return;
-
-        var playerRot = Player.GlobalRotation;
-        playerRot.Y = GlobalRotation.Y;
-        Player.GlobalRotation = playerRot;
-
-        var directionBack = GlobalTransform.Basis.Z.Normalized();
-        var finalPos = GlobalPosition + (directionBack * 1.2f);
-
-        finalPos.Y = PlayerFloorHeight;
-        Player.GlobalPosition = finalPos;
-    }
 }

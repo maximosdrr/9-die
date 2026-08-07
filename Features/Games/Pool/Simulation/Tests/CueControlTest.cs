@@ -1,6 +1,7 @@
 using Godot;
 using Godot.Collections;
 using Pool.Simulation;
+using System.Reflection;
 
 /// <summary>
 /// Covers the cue control rework: that a normalised 0..1 power maps to a sane, monotonic cue ball
@@ -22,6 +23,9 @@ public partial class CueControlTest : Node
         GD.Print("=== Teste de controle do taco ===");
 
         TestPowerMapsToSpeed();
+        TestCueSceneUsesAuthoritativeMaximum();
+        TestCueImpactUsesFiniteEnergy();
+        TestClientCanReceiveServerResolution();
         TestPowerIsMonotonic();
         TestShotInputIsBounded();
         TestAimSurvivesRoundTrip();
@@ -35,15 +39,21 @@ public partial class CueControlTest : Node
         GetTree().Quit(_failed > 0 ? 1 : 0);
     }
 
-    // Full draw must land on a plausible break, not the 165 m/s the old ForceMultiplier produced.
+    // Power maps to cue speed; the impact model, not the input layer, derives ball speed.
     private void TestPowerMapsToSpeed()
     {
-        var full = SpeedForPower(1.0f);
-        var half = SpeedForPower(0.5f);
+        var fullCue = SpeedForPower(1.0f);
+        var halfCue = SpeedForPower(0.5f);
+        var eightyCue = SpeedForPower(0.8f);
+        var fullBall = CueStrikeModel.CentreBallSpeed(fullCue);
+        var halfBall = CueStrikeModel.CentreBallSpeed(halfCue);
 
-        Check($"força máxima é uma quebra plausível ({full:F1} m/s)", full >= 6.0 && full <= 12.0);
-        Check($"metade da força dá metade da velocidade ({half:F1} m/s)",
-            Mathf.Abs(half - full * 0.5f) < 1e-3f);
+        Check($"força máxima gera velocidade central controlável ({fullBall:F2} m/s)",
+            fullBall >= 4.5 && fullBall <= 5.5);
+        Check($"metade da força dá metade da velocidade da bola ({halfBall:F2} m/s)",
+            Mathf.Abs((float)(halfBall - CueStrikeModel.CentreBallSpeed(2.8f) * 0.5)) < 1e-3f);
+        Check($"força 8 preserva a calibração anterior ({eightyCue:F2} m/s)",
+            Mathf.Abs(eightyCue - 2.24f) < 1e-3f);
     }
 
     // The old curve squared the input, so half the swing gave a quarter of the power and most of
@@ -66,7 +76,7 @@ public partial class CueControlTest : Node
         Check("velocidade cresce de forma monótona com a força", linear);
 
         var quarter = SpeedForPower(0.25f);
-        var expected = SpeedForPower(1.0f) * 0.25f;
+        const float expected = 2.8f * 0.25f;
         Check($"resposta é linear, não quadrática ({quarter:F2} vs {expected:F2} m/s)",
             Mathf.Abs(quarter - expected) < 1e-3f);
     }
@@ -92,6 +102,60 @@ public partial class CueControlTest : Node
         var negative = new ShotInput(0.0, -1.0, -5.0, 0.0, 0.0).Sanitized();
         Check("velocidade negativa vira zero", negative.Speed == 0.0);
         Check("elevação negativa vira zero", negative.Elevation == 0.0);
+
+        var nonFinite = new ShotInput(double.NaN, double.PositiveInfinity, double.NaN,
+            double.NegativeInfinity, double.NaN).Sanitized();
+        Check("valores não finitos são neutralizados",
+            double.IsFinite(nonFinite.AimYaw)
+            && nonFinite.Elevation == 0.0
+            && nonFinite.Speed == 0.0
+            && nonFinite.TipOffsetX == 0.0
+            && nonFinite.TipOffsetY == 0.0);
+    }
+
+    private void TestCueSceneUsesAuthoritativeMaximum()
+    {
+        var scene = GD.Load<PackedScene>("res://Features/Games/Pool/Components/Cue/Cue.tscn");
+        var cue = scene?.Instantiate<Cue>();
+        Check("cena do taco usa o mesmo máximo validado pelos testes",
+            cue != null
+            && Mathf.IsEqualApprox(cue.MaxCueSpeed, SpeedForPower(1.0f))
+            && Mathf.IsEqualApprox(cue.NormalCueSpeed, 2.8f));
+        cue?.Free();
+    }
+
+    private void TestCueImpactUsesFiniteEnergy()
+    {
+        var centre = CueStrikeModel.Calculate(new ShotInput(0.0, 0.0, 2.0, 0.0, 0.0));
+        var english = CueStrikeModel.Calculate(new ShotInput(
+            0.0, 0.0, 2.0, ShotInput.MaxTipOffset, 0.0));
+        var available = 0.5 * BilliardConstants.CueMass * 2.0 * 2.0;
+
+        Check("impacto central não cria energia além da energia do taco",
+            centre.BallKineticEnergy <= available + 1e-9);
+        Check("efeito consome velocidade linear em vez de surgir de graça",
+            english.LinearVelocity.Length < centre.LinearVelocity.Length
+            && english.AngularVelocity.Length > 0.0
+            && english.BallKineticEnergy <= available + 1e-9);
+        Check("efeito lateral produz squirt pequeno e oposto à ponta",
+            english.LinearVelocity.X > 0.0
+            && Mathf.RadToDeg((float)Mathf.Atan2(
+                (float)english.LinearVelocity.X, (float)english.LinearVelocity.Z)) < 3.0f);
+    }
+
+    private void TestClientCanReceiveServerResolution()
+    {
+        var method = typeof(CueNetworkBridge).GetMethod(
+            "ReceiveShotResolution", BindingFlags.Instance | BindingFlags.NonPublic);
+        var rpc = method?.GetCustomAttribute<RpcAttribute>();
+
+        Check("cliente aceita confirmação RPC enviada pelo servidor",
+            rpc != null
+            && rpc.Mode == MultiplayerApi.RpcMode.AnyPeer
+            && !rpc.CallLocal
+            && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable);
+        Check("confirmação remota reconhece o peer reservado do servidor",
+            CueNetworkBridge.ServerPeerId == 1);
     }
 
     // Yaw is what actually travels over the wire, so it has to describe the same direction on
@@ -141,28 +205,33 @@ public partial class CueControlTest : Node
         public float Draw;
         public float Peak;
         public bool Forward;
+        public float PeakForwardRate;
         public float FiredAt = -1.0f;
 
-        public void Move(float delta)
+        public void Move(float delta, float forwardRate = 2.5f)
         {
             var next = Mathf.Clamp(Draw + delta, 0.0f, 1.0f);
 
             if (next > Draw)
             {
                 if (Forward)
+                {
                     Peak = 0.0f;
+                    PeakForwardRate = 0.0f;
+                }
                 Forward = false;
                 Peak = Mathf.Max(Peak, next);
             }
             else if (next < Draw)
             {
                 Forward = true;
+                PeakForwardRate = Mathf.Max(PeakForwardRate, forwardRate);
             }
 
             Draw = next;
 
             if (Forward && Draw <= 0.01f && Peak >= 0.03f && FiredAt < 0.0f)
-                FiredAt = Peak;
+                FiredAt = CueChargingState.ComputeDeliveredPower(Peak, PeakForwardRate, 2.5f, 0.72f);
         }
     }
 
@@ -208,13 +277,20 @@ public partial class CueControlTest : Node
         tiny.Move(0.02f);
         tiny.Move(-0.02f);
         Check("recuo mínimo não dispara tacada", tiny.FiredAt < 0.0f);
+
+        var slow = new Stroke();
+        slow.Move(0.8f);
+        slow.Move(-0.8f, forwardRate: 0.5f);
+        var fast = new Stroke();
+        fast.Move(0.8f);
+        fast.Move(-0.8f, forwardRate: 2.5f);
+        Check($"aceleração para frente influencia a entrega ({slow.FiredAt:F2} < {fast.FiredAt:F2})",
+            slow.FiredAt < fast.FiredAt && slow.FiredAt > 0.0f);
     }
 
     private static float SpeedForPower(float power)
     {
-        // Mirrors Cue.BuildShotInput: power is a plain fraction of the maximum cue ball speed.
-        const float maxCueBallSpeed = 8.0f;
-        return power * maxCueBallSpeed;
+        return Cue.PowerToCueSpeed(power, normalCueSpeed: 2.8f, maxCueSpeed: 3.5f);
     }
 
     private void Check(string label, bool condition)

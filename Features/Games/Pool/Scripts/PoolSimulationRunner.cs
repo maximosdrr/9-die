@@ -62,6 +62,8 @@ public partial class PoolSimulationRunner : Node
     private System.Collections.Generic.IReadOnlyList<ShotEvent> _events;
     private double _playbackTime;
     private int _nextEventIndex;
+    private int[] _pendingFinalIds;
+    private float[] _pendingFinalPositions;
 
     /// <summary>
     /// A ball on its way down a pocket. This is purely presentational and runs outside the
@@ -336,31 +338,51 @@ public partial class PoolSimulationRunner : Node
         _playback = null;
         _events = null;
 
+        if (_pendingFinalIds != null && _pendingFinalPositions != null)
+        {
+            ApplyState(_pendingFinalIds, _pendingFinalPositions, preservePocketDrops: true);
+            _pendingFinalIds = null;
+            _pendingFinalPositions = null;
+        }
+
         EmitSignal(SignalName.ShotFinished);
     }
 
     /// <summary>
     /// Server entry point for a shot. Rather than simulating alone and streaming ball positions,
-    /// it broadcasts the authoritative pre-shot layout plus the shot itself, and every peer runs
-    /// the identical simulation.
+    /// it broadcasts the authoritative pre-shot layout plus the shot itself. Every peer runs the
+    /// same simulation for immediate playback and then applies the server's final correction.
     ///
     /// Sending the layout with each shot is what makes this safe without demanding bit-exact
     /// determinism across machines: floating point can differ slightly between runtimes, but the
-    /// error can never accumulate, because every shot restarts from the server's own state. The
-    /// whole packet is around a hundred bytes, against the ~34 kB/s the per-frame position
-    /// synchroniser used to push while the table sat still.
+    /// server's final state also prevents floating-point differences between runtimes from
+    /// accumulating across shots. This replaces continuous position replication while the table
+    /// is idle.
     /// </summary>
-    public void BroadcastShot(ShotInput shot)
+    public bool BroadcastShot(ShotInput shot)
     {
         if (!Multiplayer.IsServer())
-            return;
+            return false;
 
         CaptureState(out var ids, out var positions);
         var sanitized = shot.Sanitized();
 
+        // The server computes the authoritative result directly. Remote peers receive the same
+        // starting layout and input for immediate playback, followed by the final correction.
+        if (!ExecuteShot(sanitized))
+            return false;
+
         Rpc(MethodName.RpcPlayShot, ids, positions,
             (float)sanitized.AimYaw, (float)sanitized.Elevation, (float)sanitized.Speed,
             (float)sanitized.TipOffsetX, (float)sanitized.TipOffsetY);
+
+        if (LastShot != null)
+        {
+            CaptureFinalState(LastShot, out var finalIds, out var finalPositions);
+            Rpc(MethodName.RpcQueueFinalState, finalIds, finalPositions);
+        }
+
+        return true;
     }
 
     /// <summary>Pushes the authoritative layout to every peer without playing a shot, after a re-spot.</summary>
@@ -373,7 +395,7 @@ public partial class PoolSimulationRunner : Node
         Rpc(MethodName.RpcSyncState, ids, positions);
     }
 
-    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void RpcPlayShot(int[] ids, float[] positions,
         float aimYaw, float elevation, float speed, float tipOffsetX, float tipOffsetY)
     {
@@ -385,6 +407,38 @@ public partial class PoolSimulationRunner : Node
     private void RpcSyncState(int[] ids, float[] positions)
     {
         ApplyState(ids, positions);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RpcQueueFinalState(int[] ids, float[] positions)
+    {
+        if (_playback == null)
+        {
+            ApplyState(ids, positions, preservePocketDrops: true);
+            return;
+        }
+
+        _pendingFinalIds = ids;
+        _pendingFinalPositions = positions;
+    }
+
+    private static void CaptureFinalState(ShotResult result, out int[] ids, out float[] positions)
+    {
+        var live = new System.Collections.Generic.List<BallState>();
+        foreach (var state in result.FinalStates)
+        {
+            if (state.InPlay)
+                live.Add(state);
+        }
+
+        ids = new int[live.Count];
+        positions = new float[live.Count * 2];
+        for (var i = 0; i < live.Count; i++)
+        {
+            ids[i] = live[i].Id;
+            positions[i * 2] = (float)live[i].Position.X;
+            positions[i * 2 + 1] = (float)live[i].Position.Z;
+        }
     }
 
     /// <summary>Snapshots every ball still in play as (id, x, z) on the cloth.</summary>
@@ -412,7 +466,7 @@ public partial class PoolSimulationRunner : Node
     /// Restores a snapshot. Any ball missing from the list is treated as out of play, which is how
     /// a peer that somehow missed a pot catches up.
     /// </summary>
-    public void ApplyState(int[] ids, float[] positions)
+    public void ApplyState(int[] ids, float[] positions, bool preservePocketDrops = false)
     {
         var seen = new System.Collections.Generic.HashSet<int>();
 
@@ -435,10 +489,40 @@ public partial class PoolSimulationRunner : Node
                 continue;
 
             ball.SetInPlay(false);
-            ball.Visible = false;
+            if (!preservePocketDrops || !IsDropping(ball))
+                ball.Visible = false;
         }
 
-        _drops.Clear();
+        if (!preservePocketDrops)
+            _drops.Clear();
+    }
+
+    private bool IsDropping(Ball ball)
+    {
+        foreach (var drop in _drops)
+        {
+            if (drop.Ball == ball)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Stops any purely visual pocket/off-table fall before ball-in-hand takes ownership of the
+    /// presentation. Without this, an old PocketDrop could move or hide the real ball after the
+    /// server had already committed its new position.
+    /// </summary>
+    public void StopPresentationForBall(Ball ball)
+    {
+        for (var i = _drops.Count - 1; i >= 0; i--)
+        {
+            if (_drops[i].Ball == ball)
+                _drops.RemoveAt(i);
+        }
+
+        if (IsInstanceValid(ball))
+            ball.ApplyMotion(Vector3.Zero, Vector3.Zero, 0.0f);
     }
 
     /// <summary>Places a ball at a table-local spot, used by respawn and ball-in-hand.</summary>
@@ -468,5 +552,87 @@ public partial class PoolSimulationRunner : Node
         }
 
         return true;
+    }
+
+    public Vector2 GlobalToTablePosition(Vector3 globalPosition)
+    {
+        var local = TableAnchor != null ? TableAnchor.ToLocal(globalPosition) : globalPosition;
+        return new Vector2(local.X, local.Z);
+    }
+
+    public Vector3 TableToGlobalPosition(Vector2 tablePosition)
+    {
+        var local = new Vector3(tablePosition.X, (float)BilliardConstants.Radius, tablePosition.Y);
+        return TableAnchor != null ? TableAnchor.ToGlobal(local) : local;
+    }
+
+    public Vector2 ClampToPlayableArea(Vector2 tablePosition)
+    {
+        var radius = (float)BilliardConstants.Radius;
+        var centre = new Vector2((float)Table.PlayCentre.X, (float)Table.PlayCentre.Z);
+        tablePosition.X = Mathf.Clamp(tablePosition.X,
+            centre.X - (float)Table.HalfWidth + radius,
+            centre.X + (float)Table.HalfWidth - radius);
+        tablePosition.Y = Mathf.Clamp(tablePosition.Y,
+            centre.Y - (float)Table.HalfLength + radius,
+            centre.Y + (float)Table.HalfLength - radius);
+        return tablePosition;
+    }
+
+    public bool TryValidatePlacement(Vector3 requestedGlobalPosition, Ball ignore, out Vector3 validatedGlobalPosition)
+    {
+        validatedGlobalPosition = Vector3.Zero;
+
+        if (!float.IsFinite(requestedGlobalPosition.X) || !float.IsFinite(requestedGlobalPosition.Y)
+            || !float.IsFinite(requestedGlobalPosition.Z) || Table == null || IsPlaying)
+            return false;
+
+        var tablePosition = GlobalToTablePosition(requestedGlobalPosition);
+        if (!IsLegalTablePosition(tablePosition, ignore))
+            return false;
+
+        validatedGlobalPosition = TableToGlobalPosition(tablePosition);
+        return true;
+    }
+
+    public bool TryFindNearestFreeSpot(Vector2 preferred, Ball ignore, out Vector2 result)
+    {
+        if (IsLegalTablePosition(preferred, ignore))
+        {
+            result = preferred;
+            return true;
+        }
+
+        var step = (float)(2.0 * BilliardConstants.Radius) + 0.0001f;
+        for (var i = 1; i <= 64; i++)
+        {
+            var towardFootRail = preferred + Vector2.Down * (step * i);
+            if (IsLegalTablePosition(towardFootRail, ignore))
+            {
+                result = towardFootRail;
+                return true;
+            }
+
+            var towardHeadRail = preferred + Vector2.Up * (step * i);
+            if (IsLegalTablePosition(towardHeadRail, ignore))
+            {
+                result = towardHeadRail;
+                return true;
+            }
+        }
+
+        result = default;
+        return false;
+    }
+
+    private bool IsLegalTablePosition(Vector2 tablePosition, Ball ignore)
+    {
+        var point = new Vec3d(tablePosition.X, BilliardConstants.Radius, tablePosition.Y);
+        if (!Table.IsOverPlaySurface(point, -BilliardConstants.Radius))
+            return false;
+
+        var probe = new BallState(ignore?.Index ?? -1, point);
+        return !BilliardCollisions.IsOverPocket(probe, Table, out _)
+               && IsSpotFree(tablePosition, ignore);
     }
 }

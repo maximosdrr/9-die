@@ -58,7 +58,8 @@ script = ExtResource("1_fst4q")
 StateMachine = NodePath("StateMachine")
 CueSfx = NodePath("Scripts/Sfx")
 StrokeNetworkBridge = NodePath("Scripts/NetworkBridge")
-MaxCueBallSpeed = 3.5
+NormalCueSpeed = 3.5
+MaxCueSpeed = 5.5
 
 [node name="CueBody" type="Node3D" parent="." unique_id=1159276380]
 

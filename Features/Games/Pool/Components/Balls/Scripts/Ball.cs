@@ -54,6 +54,12 @@ public partial class Ball : Node3D
     public bool InPlay { get; private set; } = true;
 
     /// <summary>
+    /// While ball-in-hand is being previewed, the real gameplay ball must stay hidden even if a
+    /// late authoritative snapshot marks it in play again.
+    /// </summary>
+    public bool PlacementPreviewActive { get; private set; }
+
+    /// <summary>
     /// Last known velocity, published by the runner purely so the impact sounds can scale
     /// themselves. Nothing reads it to make gameplay decisions.
     /// </summary>
@@ -70,6 +76,41 @@ public partial class Ball : Node3D
     }
 
     private Node _visual;
+
+    /// <summary>
+    /// Creates a presentation-only copy of this ball for ball-in-hand previews. It deliberately
+    /// has no Ball script, synchronizer, sounds or gameplay identity: moving it can never alter
+    /// the authoritative table state.
+    /// </summary>
+    public Node3D CreatePlacementGhost()
+    {
+        var ghost = new Node3D { Name = $"PlacementGhost{Index}" };
+        var scene = TextureId == 0
+            ? WhiteBallMesh
+            : TextureId > 0 && TextureId - 1 < ColoredBallMeshes.Length
+                ? ColoredBallMeshes[TextureId - 1]
+                : null;
+
+        if (scene == null)
+            return ghost;
+
+        var visual = scene.Instantiate<Node3D>();
+        ghost.AddChild(visual);
+        MakeGhostTranslucent(visual);
+        return ghost;
+    }
+
+    private static void MakeGhostTranslucent(Node node)
+    {
+        if (node is GeometryInstance3D geometry)
+        {
+            geometry.Transparency = 0.45f;
+            geometry.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+        }
+
+        foreach (var child in node.GetChildren())
+            MakeGhostTranslucent(child);
+    }
 
     private void UpdateVisual()
     {
@@ -113,8 +154,15 @@ public partial class Ball : Node3D
     public void SetInPlay(bool inPlay)
     {
         InPlay = inPlay;
-        if (inPlay)
+        if (inPlay && !PlacementPreviewActive)
             Visible = true;
+    }
+
+    public void SetPlacementPreviewActive(bool active)
+    {
+        PlacementPreviewActive = active;
+        if (active)
+            Visible = false;
     }
 
     public void NotifyBallContacted(Ball other) => EmitSignal(SignalName.BallContacted, other);

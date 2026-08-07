@@ -1,3 +1,5 @@
+using System;
+
 namespace Pool.Simulation;
 
 /// <summary>
@@ -18,6 +20,18 @@ public static class BilliardConstants
     public const double Radius = 0.028575;
 
     public const double Gravity = 9.81;
+
+    /// <summary>Mass of the complete playing cue, kg (approximately 20 oz).</summary>
+    public const double CueMass = 0.567;
+
+    /// <summary>Effective normal restitution of the leather cue tip against the ball.</summary>
+    public const double CueTipRestitution = 0.85;
+
+    /// <summary>
+    /// Maximum initial cue-ball deflection at the legal side-spin limit. Real cues vary; two
+    /// degrees represents a modern low-deflection shaft without pretending squirt is zero.
+    /// </summary>
+    public const double MaxSquirtAngle = 2.0 * Math.PI / 180.0;
 
     /// <summary>
     /// Sliding (kinetic) friction between ball and cloth. Governs how fast a struck ball sheds
@@ -48,7 +62,10 @@ public static class BilliardConstants
     /// cut-induced and spin-induced throw — the reason a cut shot does not send the object ball
     /// exactly along the line of centres. Absent from any generic contact solver.
     /// </summary>
-    public const double BallBallFriction = 0.05;
+    /// <summary>Alciatore's measured speed-dependent ball-ball friction fit.</summary>
+    public const double BallBallFrictionA = 0.009951;
+    public const double BallBallFrictionB = 0.108;
+    public const double BallBallFrictionC = 1.088;
 
     /// <summary>Restitution between two balls. Polished phenolic is nearly, but not perfectly, elastic.</summary>
     public const double BallBallRestitution = 0.95;

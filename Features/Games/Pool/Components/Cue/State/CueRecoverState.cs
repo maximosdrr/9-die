@@ -21,18 +21,21 @@ public partial class CueRecoverState : State
     {
         _tween?.Kill();
 
+        var followDuration = Mathf.Max(0.01f, Cue.FollowThroughDuration);
+        var retractDuration = Mathf.Max(0.01f, 0.20f - followDuration);
+
         _tween = Cue.CreateTween();
-        _tween.SetParallel(true);
-        _tween.TweenProperty(Cue, "position:z", Cue.BallRadiusOffset, 0.2)
+        _tween.TweenProperty(
+                Cue, "position:z", Cue.BallRadiusOffset - Cue.FollowThroughDistance, followDuration)
             .SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Quad);
-        _tween.TweenProperty(Cue, "SpinOffset", Vector2.Zero, 0.5)
+        _tween.TweenProperty(Cue, "position:z", Cue.BallRadiusOffset, retractDuration)
+            .SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Quad);
+        _tween.Parallel().TweenProperty(Cue, "SpinOffset", Vector2.Zero, retractDuration)
             .SetEase(Tween.EaseType.Out);
         ResetElevation();
-        _tween.SetParallel(false);
 
         var timeToWait = Mathf.Max(Cue.PostShotCooldown, 0.5f);
-
-        _tween.TweenInterval(timeToWait - 0.5);
+        _tween.TweenInterval(Mathf.Max(0.0f, timeToWait - 0.2f));
         _tween.TweenCallback(Callable.From(OnCooldownFinished));
     }
 

@@ -15,6 +15,7 @@ public partial class TurnRuler : Node
         CallCueBallReplacement,
         CallNextTurn,
         ExtendTurn,
+        CallPushOutChoice,
         EndGameFatalFoul,
         EndGamePlayerWin,
     }

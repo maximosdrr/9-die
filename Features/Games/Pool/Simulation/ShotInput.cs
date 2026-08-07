@@ -17,7 +17,10 @@ public readonly struct ShotInput
     /// <summary>Downward tilt of the cue, radians. 0 is level; positive dips the butt up for a jump.</summary>
     public readonly double Elevation;
 
-    /// <summary>Resulting cue ball speed, m/s. A professional break is about 8 m/s.</summary>
+    /// <summary>
+    /// Cue-stick speed at impact, m/s. The resulting ball speed is calculated from the cue mass,
+    /// restitution and tip position by <see cref="CueStrikeModel"/>.
+    /// </summary>
     public readonly double Speed;
 
     /// <summary>Horizontal tip offset as a fraction of the ball radius. Negative is left english.</summary>
@@ -50,11 +53,12 @@ public readonly struct ShotInput
     /// </summary>
     public ShotInput Sanitized()
     {
-        var speed = Math.Clamp(Speed, 0.0, MaxSpeed);
-        var elevation = Math.Clamp(Elevation, 0.0, Math.PI / 3.0);
+        var yaw = double.IsFinite(AimYaw) ? Math.IEEERemainder(AimYaw, Math.PI * 2.0) : 0.0;
+        var speed = double.IsFinite(Speed) ? Math.Clamp(Speed, 0.0, MaxSpeed) : 0.0;
+        var elevation = double.IsFinite(Elevation) ? Math.Clamp(Elevation, 0.0, Math.PI / 3.0) : 0.0;
 
-        var offsetX = TipOffsetX;
-        var offsetY = TipOffsetY;
+        var offsetX = double.IsFinite(TipOffsetX) ? TipOffsetX : 0.0;
+        var offsetY = double.IsFinite(TipOffsetY) ? TipOffsetY : 0.0;
         var offsetLength = Math.Sqrt(offsetX * offsetX + offsetY * offsetY);
         if (offsetLength > MaxTipOffset)
         {
@@ -63,6 +67,6 @@ public readonly struct ShotInput
             offsetY *= scale;
         }
 
-        return new ShotInput(AimYaw, elevation, speed, offsetX, offsetY);
+        return new ShotInput(yaw, elevation, speed, offsetX, offsetY);
     }
 }

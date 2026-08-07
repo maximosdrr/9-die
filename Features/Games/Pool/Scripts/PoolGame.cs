@@ -16,7 +16,12 @@ public partial class PoolGame : TableGame
 	public Array<Ball> Balls = new();
 
 	public Dictionary<string, Array> BallsPocketedByPlayer = new();
+	public Dictionary<string, int> ConsecutiveFoulsByPlayer = new();
 	public int CurrentTargetBallIndex = 0;
+	public bool PushOutAvailable;
+	public bool PushOutChoicePending;
+	public bool PushOutDeclared;
+	public string PushOutShooterId;
 	public GlobalCamera Camera;
 
 	[Signal]
@@ -67,10 +72,33 @@ public partial class PoolGame : TableGame
 		EmitSignal(SignalName.HudStateUpdated);
 	}
 
+	public void ApplyFoulUpdate(string playerId, int foulCount)
+	{
+		if (string.IsNullOrEmpty(playerId))
+			return;
+
+		ConsecutiveFoulsByPlayer[playerId] = Mathf.Clamp(foulCount, 0, 3);
+		EmitSignal(SignalName.HudStateUpdated);
+	}
+
+	public void ApplyPushOutState(bool available, bool choicePending, bool declared, string shooterId)
+	{
+		PushOutAvailable = available;
+		PushOutChoicePending = choicePending;
+		PushOutDeclared = declared;
+		PushOutShooterId = shooterId ?? "";
+		EmitSignal(SignalName.HudStateUpdated);
+	}
+
 	public override async void SetupMatch(Array players, string firstTurnOwner)
 	{
 		BallsPocketedByPlayer.Clear();
+		ConsecutiveFoulsByPlayer.Clear();
 		CurrentTargetBallIndex = 0;
+		PushOutAvailable = false;
+		PushOutChoicePending = false;
+		PushOutDeclared = false;
+		PushOutShooterId = "";
 
 		// Adopt the table's geometry before anything spawns: this also snaps the ball container
 		// onto the cloth centre that table defines, so the rack lands in the right place.

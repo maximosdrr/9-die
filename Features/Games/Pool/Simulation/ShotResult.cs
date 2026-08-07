@@ -138,4 +138,49 @@ public sealed class ShotResult
 
         return false;
     }
+
+    public bool AnyCushionContactAfterFirstBallContact(int cueBallId)
+    {
+        var firstContactTime = double.PositiveInfinity;
+
+        foreach (var shotEvent in Events)
+        {
+            if (shotEvent.Type != ShotEventType.BallHitBall)
+                continue;
+
+            if (shotEvent.BallId == cueBallId || shotEvent.OtherId == cueBallId)
+            {
+                firstContactTime = shotEvent.Time;
+                break;
+            }
+        }
+
+        if (!double.IsFinite(firstContactTime))
+            return false;
+
+        foreach (var shotEvent in Events)
+        {
+            if (shotEvent.Type == ShotEventType.BallHitCushion
+                && shotEvent.Time + 1e-9 >= firstContactTime)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Counts numbered balls that reached at least one cushion. Nine-ball uses distinct balls,
+    /// not total rail contacts, when deciding whether a dry break is legal.
+    /// </summary>
+    public int CountDistinctBallsAtCushion(int cueBallId)
+    {
+        var ids = new HashSet<int>();
+        foreach (var shotEvent in Events)
+        {
+            if (shotEvent.Type == ShotEventType.BallHitCushion && shotEvent.BallId != cueBallId)
+                ids.Add(shotEvent.BallId);
+        }
+
+        return ids.Count;
+    }
 }

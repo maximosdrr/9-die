@@ -21,6 +21,8 @@ public sealed class ShotSimulator
     private const double MinSubstep = 1e-6;
     private const double PlaybackRate = 120.0;
     private const double MaxShotDuration = 30.0;
+    private const double SimultaneousContactTolerance = 1e-7;
+    private const int ContactSolverIterations = 16;
 
     private readonly TableSpec _table;
 
@@ -56,36 +58,18 @@ public sealed class ShotSimulator
     }
 
     /// <summary>
-    /// Instantaneous-impulse stick-ball model. The cue delivers m·V along its axis at a contact
-    /// point offset from centre by the tip position; the resulting torque about the centre is
-    /// what produces draw, follow and english. An elevated cue drives the ball down into the
-    /// cloth, and the cloth bounce is what actually launches a jump shot — the same mechanism as
-    /// reality, rather than the old code's separate "jump efficiency" factor.
+    /// Instantaneous cue-stick/ball impact. CueStrikeModel converts cue speed into a finite
+    /// impulse using cue mass, tip restitution and the rotational cost of an off-centre contact.
+    /// An elevated cue drives the ball down into the cloth; the cloth response launches the jump.
     /// </summary>
     private static void ApplyCueStrike(BallState ball, ShotInput shot)
     {
-        if (shot.Speed <= 0.0)
+        var strike = CueStrikeModel.Calculate(shot);
+        if (strike.Impulse <= 0.0)
             return;
 
-        var horizontal = new Vec3d(Math.Sin(shot.AimYaw), 0.0, Math.Cos(shot.AimYaw));
-        var direction = (horizontal * Math.Cos(shot.Elevation)
-                         - Vec3d.Up * Math.Sin(shot.Elevation)).Normalized();
-
-        // Ball-local frame for the tip offset: right is across the aim line, up is perpendicular
-        // to both, so an elevated cue's offsets stay square to the cue rather than to the table.
-        var right = direction.Cross(Vec3d.Up).Normalized();
-        if (right.LengthSquared <= 0.0)
-            right = new Vec3d(1.0, 0.0, 0.0);
-        var up = right.Cross(direction).Normalized();
-
-        var offsetX = shot.TipOffsetX * BilliardConstants.Radius;
-        var offsetY = shot.TipOffsetY * BilliardConstants.Radius;
-        var contactOffset = right * offsetX + up * offsetY;
-
-        var impulse = direction * (BilliardConstants.Mass * shot.Speed);
-
-        ball.Velocity += impulse / BilliardConstants.Mass;
-        ball.AngularVelocity += contactOffset.Cross(impulse) / BilliardConstants.MomentOfInertia;
+        ball.Velocity += strike.LinearVelocity;
+        ball.AngularVelocity += strike.AngularVelocity;
 
         if (ball.Velocity.Y < 0.0 && ball.Position.Y <= BilliardConstants.Radius + 1e-9)
             BilliardMotion.ResolveClothBounce(ball);
@@ -116,9 +100,9 @@ public sealed class ShotSimulator
             }
 
             var dt = NextStepSize(balls);
-            var collision = FindEarliestCollision(balls, dt);
-            if (collision.HasCollision)
-                dt = Math.Max(collision.Time, MinSubstep);
+            var collisions = FindEarliestCollisions(balls, dt, out var collisionTime);
+            if (collisions.Count > 0)
+                dt = Math.Max(collisionTime, MinSubstep);
 
             foreach (var ball in balls)
             {
@@ -128,15 +112,23 @@ public sealed class ShotSimulator
 
             time += dt;
 
-            if (collision.HasCollision)
-                ResolveCollision(balls, collision, time, events);
+            if (collisions.Count > 0)
+                ResolveCollisionBatch(balls, collisions, time, events);
 
             ResolveClothLandings(balls, time, events);
 
             foreach (var ball in balls)
             {
-                if (ball.InPlay)
-                    BilliardMotion.RefreshMotionState(ball);
+                if (!ball.InPlay)
+                    continue;
+
+                // An airborne ball outside the bed has no cloth beneath it. Preserve the airborne
+                // state so gravity can carry it below DropDepth and produce BallOffTable.
+                if (ball.Motion == BallMotion.Airborne
+                    && !_table.IsOverPlaySurface(ball.Position, 0.0))
+                    continue;
+
+                BilliardMotion.RefreshMotionState(ball);
             }
 
             HandlePocketsAndFalls(balls, time, events);
@@ -225,10 +217,24 @@ public sealed class ShotSimulator
         public static Collision Cushion(double time, int ball, Vec3d normal) => new(true, time, ball, -1, normal, true);
     }
 
-    private Collision FindEarliestCollision(BallState[] balls, double dt)
+    private List<Collision> FindEarliestCollisions(BallState[] balls, double dt, out double bestTime)
     {
-        var best = Collision.None;
-        var bestTime = double.PositiveInfinity;
+        var contacts = new List<Collision>();
+        var earliest = double.PositiveInfinity;
+
+        void Consider(Collision candidate)
+        {
+            if (candidate.Time < earliest - SimultaneousContactTolerance)
+            {
+                earliest = candidate.Time;
+                contacts.Clear();
+                contacts.Add(candidate);
+            }
+            else if (Math.Abs(candidate.Time - earliest) <= SimultaneousContactTolerance)
+            {
+                contacts.Add(candidate);
+            }
+        }
 
         for (var i = 0; i < balls.Length; i++)
         {
@@ -249,11 +255,7 @@ public sealed class ShotSimulator
                 if (!BilliardCollisions.SweepBallBall(a, b, dt, out var hitTime))
                     continue;
 
-                if (hitTime >= bestTime)
-                    continue;
-
-                bestTime = hitTime;
-                best = Collision.Balls(hitTime, i, j);
+                Consider(Collision.Balls(hitTime, i, j));
             }
 
             if (!a.IsMoving)
@@ -264,35 +266,126 @@ public sealed class ShotSimulator
                 if (!BilliardCollisions.SweepBallCushion(a, cushion, dt, out var cushionTime, out var normal))
                     continue;
 
-                if (cushionTime >= bestTime)
-                    continue;
-
-                bestTime = cushionTime;
-                best = Collision.Cushion(cushionTime, i, normal);
+                Consider(Collision.Cushion(cushionTime, i, normal));
             }
         }
 
-        return best;
+        bestTime = earliest;
+        return contacts;
     }
 
-    private static void ResolveCollision(
+    /// <summary>
+    /// Resolves contacts that occur at the same instant as one coupled constraint batch. A rack
+    /// regularly gives the cue-facing ball two simultaneous neighbours; resolving only whichever
+    /// pair happened to be enumerated first biases the break to one side. Projected sequential
+    /// impulses converge the shared normal impulses before throw/spin is applied.
+    /// </summary>
+    private static void ResolveCollisionBatch(
         BallState[] balls,
-        Collision collision,
+        List<Collision> collisions,
         double time,
         List<ShotEvent> events)
     {
-        if (collision.IsCushion)
+        var ballContacts = new List<Collision>();
+        foreach (var collision in collisions)
         {
-            var ball = balls[collision.BallA];
-            BilliardCollisions.ResolveCushion(ball, collision.CushionNormal);
-            events.Add(new ShotEvent(time, ShotEventType.BallHitCushion, ball.Id));
-            return;
+            if (collision.IsCushion)
+            {
+                var ball = balls[collision.BallA];
+                BilliardCollisions.ResolveCushion(ball, collision.CushionNormal);
+                events.Add(new ShotEvent(time, ShotEventType.BallHitCushion, ball.Id));
+            }
+            else
+            {
+                ballContacts.Add(collision);
+            }
         }
 
-        var a = balls[collision.BallA];
-        var b = balls[collision.BallB];
-        BilliardCollisions.ResolveBallBall(a, b);
-        events.Add(new ShotEvent(time, ShotEventType.BallHitBall, a.Id, b.Id));
+        if (ballContacts.Count == 0)
+            return;
+
+        var normals = new Vec3d[ballContacts.Count];
+        var targetSpeeds = new double[ballContacts.Count];
+        var impactSpeeds = new double[ballContacts.Count];
+        var accumulatedImpulses = new double[ballContacts.Count];
+
+        for (var i = 0; i < ballContacts.Count; i++)
+        {
+            var contact = ballContacts[i];
+            var a = balls[contact.BallA];
+            var b = balls[contact.BallB];
+            var normal = (b.Position - a.Position).Normalized();
+            normals[i] = normal;
+
+            var incomingSpeed = (b.Velocity - a.Velocity).Dot(normal);
+            impactSpeeds[i] = (b.Velocity - a.Velocity).Length;
+            targetSpeeds[i] = incomingSpeed < 0.0
+                ? -BilliardConstants.BallBallRestitution * incomingSpeed
+                : 0.0;
+        }
+
+        var inverseEffectiveMass = 2.0 / BilliardConstants.Mass;
+        for (var iteration = 0; iteration < ContactSolverIterations; iteration++)
+        {
+            // Alternating direction removes the remaining preference for array order while
+            // preserving deterministic results on every peer.
+            var reverse = (iteration & 1) != 0;
+            for (var step = 0; step < ballContacts.Count; step++)
+            {
+                var i = reverse ? ballContacts.Count - 1 - step : step;
+                var contact = ballContacts[i];
+                var normal = normals[i];
+                if (normal.LengthSquared <= 0.0)
+                    continue;
+
+                var a = balls[contact.BallA];
+                var b = balls[contact.BallB];
+                var currentSpeed = (b.Velocity - a.Velocity).Dot(normal);
+                var impulseDelta = (targetSpeeds[i] - currentSpeed) / inverseEffectiveMass;
+                var newImpulse = Math.Max(0.0, accumulatedImpulses[i] + impulseDelta);
+                impulseDelta = newImpulse - accumulatedImpulses[i];
+                accumulatedImpulses[i] = newImpulse;
+
+                a.Velocity -= normal * (impulseDelta / BilliardConstants.Mass);
+                b.Velocity += normal * (impulseDelta / BilliardConstants.Mass);
+            }
+        }
+
+        // Friction is evaluated from one shared post-normal snapshot and accumulated, rather
+        // than letting the first tangential contact mutate the velocity seen by the second.
+        // This matters when the head ball meets both balls behind it at the same instant.
+        var velocityDeltas = new Vec3d[balls.Length];
+        var spinDeltas = new Vec3d[balls.Length];
+        for (var i = 0; i < ballContacts.Count; i++)
+        {
+            var contact = ballContacts[i];
+            var a = balls[contact.BallA];
+            var b = balls[contact.BallB];
+
+            var probeA = a.Clone();
+            var probeB = b.Clone();
+            BilliardCollisions.ApplyBallBallFriction(
+                probeA, probeB, normals[i], accumulatedImpulses[i], impactSpeeds[i]);
+
+            velocityDeltas[contact.BallA] += probeA.Velocity - a.Velocity;
+            velocityDeltas[contact.BallB] += probeB.Velocity - b.Velocity;
+            spinDeltas[contact.BallA] += probeA.AngularVelocity - a.AngularVelocity;
+            spinDeltas[contact.BallB] += probeB.AngularVelocity - b.AngularVelocity;
+        }
+
+        for (var i = 0; i < balls.Length; i++)
+        {
+            balls[i].Velocity += velocityDeltas[i];
+            balls[i].AngularVelocity += spinDeltas[i];
+        }
+
+        foreach (var contact in ballContacts)
+        {
+            var a = balls[contact.BallA];
+            var b = balls[contact.BallB];
+            BilliardCollisions.SeparateOverlap(a, b);
+            events.Add(new ShotEvent(time, ShotEventType.BallHitBall, a.Id, b.Id));
+        }
     }
 
     /// <summary>
@@ -300,7 +393,7 @@ public sealed class ShotSimulator
     /// over an intervening ball. Without this the ball would just be clamped flat on landing and
     /// jump shots would die on contact.
     /// </summary>
-    private static void ResolveClothLandings(BallState[] balls, double time, List<ShotEvent> events)
+    private void ResolveClothLandings(BallState[] balls, double time, List<ShotEvent> events)
     {
         foreach (var ball in balls)
         {
@@ -308,6 +401,11 @@ public sealed class ShotSimulator
                 continue;
 
             if (ball.Position.Y > BilliardConstants.Radius + 1e-9 || ball.Velocity.Y >= 0.0)
+                continue;
+
+            // Outside the bed there is no cloth to land on. Keep falling until the off-table
+            // detector removes the ball instead of creating an invisible floor around the table.
+            if (!_table.IsOverPlaySurface(ball.Position, 0.0))
                 continue;
 
             BilliardMotion.ResolveClothBounce(ball);

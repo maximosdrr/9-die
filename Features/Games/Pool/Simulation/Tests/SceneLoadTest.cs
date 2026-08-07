@@ -23,6 +23,9 @@ public partial class SceneLoadTest : Node
             TestGeometryComesFromScene(tableScene);
         TestSceneLoads("res://Features/Games/Pool/Pool.tscn");
         TestSceneLoads("res://Features/Games/Pool/GameController/PoolController.tscn");
+        var hudScene = TestSceneLoads("res://Features/Player/Components/UI/PlayerHud.tscn");
+        if (hudScene != null)
+            TestPushOutControlsLoad(hudScene);
 
         if (ballScene != null)
         {
@@ -30,9 +33,14 @@ public partial class SceneLoadTest : Node
             TestShotRunsThroughRunner(ballScene);
             TestPottedBallFalls(ballScene);
             TestTurnFactsComeFromTimeline(ballScene);
+            TestServerValidatesBallInHand(ballScene);
+            TestPlacementGhostIsPresentationOnly(ballScene);
         }
 
+        TestDisposedTurnOwnerIsIgnored();
+
         TestRulerHandlesEmptyRack();
+        TestGoldenNineBreakRules();
 
         if (ballScene != null)
             TestLockstepReproducesShot(ballScene);
@@ -50,6 +58,15 @@ public partial class SceneLoadTest : Node
         var ok = scene != null && scene.CanInstantiate();
         Check($"carrega {path.GetFile()}", ok);
         return ok ? scene : null;
+    }
+
+    private void TestPushOutControlsLoad(PackedScene hudScene)
+    {
+        var hud = hudScene.Instantiate<PlayerHud>();
+        AddChild(hud);
+        Check("HUD expõe declaração e escolha de push-out",
+            hud.PushOutButton != null && hud.AcceptPushOutButton != null && hud.PassBackButton != null);
+        hud.QueueFree();
     }
 
     // The rack used to be laid out on a 0.032 pitch while the balls are 0.0572 across, so every
@@ -92,6 +109,46 @@ public partial class SceneLoadTest : Node
         Check($"bolas nascem apoiadas no pano (y={restingHeight:F5})",
             Mathf.Abs(restingHeight - (float)BilliardConstants.Radius) < 1e-4f);
 
+        Ball one = null;
+        Ball nine = null;
+        foreach (var ball in balls)
+        {
+            if (ball.Index == 1) one = ball;
+            if (ball.Index == 9) nine = ball;
+        }
+
+        Check("bola 1 fica no ápice voltado para a cabeça da mesa",
+            one != null && Mathf.Abs(one.Position.X - respawn.FootSpot.X) < 1e-5f
+                        && one.Position.Z < respawn.FootSpot.Z);
+        Check("bola 9 fica no centro do diamante sobre o foot spot",
+            nine != null && new Vector2(nine.Position.X, nine.Position.Z)
+                .DistanceTo(new Vector2(respawn.FootSpot.X, respawn.FootSpot.Z)) < 1e-5f);
+
+        var runner = new PoolSimulationRunner { TableAnchor = holder };
+        AddChild(runner);
+        runner.Setup(respawn.CueBall, respawn.Balls);
+        var fullBreakSpeed = Cue.PowerToCueSpeed(1.0f, 2.8f, 3.5f);
+        var breakAccepted = runner.ExecuteShot(new ShotInput(0.0, 0.0, fullBreakSpeed, 0.0, 0.0));
+        Check("quebra do rack apertado termina sem timeout",
+            breakAccepted && runner.LastShot != null && !runner.LastShot.TimedOut);
+        Check("quebra toca primeiro a bola 1",
+            runner.LastShot != null && runner.LastShot.FirstBallContacted(0) == 1);
+
+        var breakObjectBallsPocketed = 0;
+        if (runner.LastShot != null)
+        {
+            foreach (var shotEvent in runner.LastShot.Events)
+            {
+                if (shotEvent.Type == ShotEventType.BallPocketed && shotEvent.BallId != 0)
+                    breakObjectBallsPocketed++;
+            }
+        }
+
+        var breakBallsAtRail = runner.LastShot?.CountDistinctBallsAtCushion(0) ?? 0;
+        Check($"quebra máxima pode cumprir a regra (encaçapadas={breakObjectBallsPocketed}, tabelas={breakBallsAtRail})",
+            breakObjectBallsPocketed > 0 || breakBallsAtRail >= 4);
+
+        runner.QueueFree();
         respawn.QueueFree();
         holder.QueueFree();
     }
@@ -443,6 +500,45 @@ public partial class SceneLoadTest : Node
             softShot != null && softShot.FirstBallContacted(0) == -1);
     }
 
+    private void TestServerValidatesBallInHand(PackedScene ballScene)
+    {
+        var holder = new Node3D
+        {
+            Position = new Vector3(2.0f, 0.8f, -1.0f),
+            Rotation = new Vector3(0.0f, 0.35f, 0.0f),
+        };
+        AddChild(holder);
+
+        var cueBall = Spawn(ballScene, holder, 0, 0.0f, -0.4f);
+        var obstacle = Spawn(ballScene, holder, 1, 0.0f, 0.1f);
+        var runner = new PoolSimulationRunner { TableAnchor = holder };
+        AddChild(runner);
+        runner.Setup(cueBall, new Array<Ball> { obstacle });
+
+        var legal = runner.TableToGlobalPosition(new Vector2(0.2f, -0.2f));
+        Check("servidor aceita ball-in-hand legal em mesa transformada",
+            runner.TryValidatePlacement(legal, cueBall, out var validated)
+            && validated.DistanceTo(legal) < 1e-5f);
+
+        var outside = runner.TableToGlobalPosition(new Vector2(5.0f, 5.0f));
+        Check("servidor rejeita ball-in-hand fora da mesa",
+            !runner.TryValidatePlacement(outside, cueBall, out _));
+
+        Check("servidor rejeita ball-in-hand sobre outra bola",
+            !runner.TryValidatePlacement(obstacle.GlobalPosition, cueBall, out _));
+
+        var pocket = runner.Table.Pockets[0].Center;
+        var overPocket = runner.TableToGlobalPosition(new Vector2((float)pocket.X, (float)pocket.Z));
+        Check("servidor rejeita ball-in-hand dentro da caçapa",
+            !runner.TryValidatePlacement(overPocket, cueBall, out _));
+
+        Check("servidor rejeita coordenadas não finitas no ball-in-hand",
+            !runner.TryValidatePlacement(new Vector3(float.NaN, 0.0f, 0.0f), cueBall, out _));
+
+        runner.QueueFree();
+        holder.QueueFree();
+    }
+
     /// <summary>
     /// Runs one shot on its own runner. The cue ball must carry Index 0 — that is the convention
     /// the whole feature uses to identify it, from the rack spawner through to the scratch rule.
@@ -497,6 +593,130 @@ public partial class SceneLoadTest : Node
 
         Check("regra não estoura com o rack vazio", !threw);
         ruler.Free();
+    }
+
+    private void TestGoldenNineBreakRules()
+    {
+        var ruler = new GoldenNineTurnRuler();
+        var one = new Ball { Index = 1 };
+        var nine = new Ball { Index = 9 };
+
+        var illegalBreak = new TurnContext
+        {
+            BallsScored = new Dictionary<int, Ball>(),
+            FirstBallTouched = one,
+            BallsOffTable = new Array<Ball>(),
+            TargetBall = one,
+            CurrentBallsRemaining = new Dictionary<int, Ball>(),
+            AnyRailContact = true,
+            IsBreakShot = true,
+            IsLegalBreak = false,
+            ObjectBallsDrivenToRail = 3,
+        };
+        Check("quebra seca com menos de quatro bolas no rail é falta",
+            ruler.Rule(illegalBreak) == TurnRuler.Actions.CallCueBallReplacement);
+
+        var nineOnBreak = new TurnContext
+        {
+            BallsScored = new Dictionary<int, Ball> { [9] = nine },
+            FirstBallTouched = one,
+            BallsOffTable = new Array<Ball>(),
+            TargetBall = one,
+            CurrentBallsRemaining = new Dictionary<int, Ball>(),
+            AnyRailContact = true,
+            IsBreakShot = true,
+            IsLegalBreak = true,
+            ObjectBallsDrivenToRail = 4,
+        };
+        Check("bola 9 na quebra legal é recolocada e o turno continua",
+            ruler.Rule(nineOnBreak) == TurnRuler.Actions.ExtendTurn);
+
+        nineOnBreak.IsBreakShot = false;
+        Check("bola 9 em uma tacada normal encerra a partida",
+            ruler.Rule(nineOnBreak) == TurnRuler.Actions.EndGamePlayerWin);
+
+        var pushOutWithoutContact = new TurnContext
+        {
+            BallsScored = new Dictionary<int, Ball>(),
+            FirstBallTouched = null,
+            BallsOffTable = new Array<Ball>(),
+            TargetBall = one,
+            CurrentBallsRemaining = new Dictionary<int, Ball>(),
+            AnyRailContact = false,
+            IsBreakShot = false,
+            IsLegalBreak = true,
+            IsPushOut = true,
+        };
+        Check("push-out declarado permite tacada sem contato e pede escolha do adversário",
+            ruler.Rule(pushOutWithoutContact) == TurnRuler.Actions.CallPushOutChoice);
+
+        pushOutWithoutContact.BallsScored[0] = new Ball { Index = 0 };
+        Check("scratch durante push-out continua sendo falta",
+            ruler.Rule(pushOutWithoutContact) == TurnRuler.Actions.CallCueBallReplacement);
+        pushOutWithoutContact.BallsScored[0].Free();
+
+        one.Free();
+        nine.Free();
+        ruler.Free();
+    }
+
+    private void TestPlacementGhostIsPresentationOnly(PackedScene ballScene)
+    {
+        var holder = new Node3D();
+        AddChild(holder);
+        var ball = Spawn(ballScene, holder, 0, 0.0f, 0.0f);
+        var ghost = ball.CreatePlacementGhost();
+        holder.AddChild(ghost);
+
+        Check("bola fantasma não possui identidade de bola de jogo", ghost is not Ball);
+        Check("bola fantasma não possui sincronizador próprio",
+            ghost.FindChild("MultiplayerSynchronizer", true, false) == null);
+
+        var translucent = false;
+        foreach (var child in ghost.FindChildren("*", "GeometryInstance3D", true, false))
+        {
+            if (child is GeometryInstance3D geometry && geometry.Transparency > 0.0f)
+            {
+                translucent = true;
+                break;
+            }
+        }
+        Check("bola fantasma é visualmente translúcida", translucent);
+
+        ball.SetPlacementPreviewActive(true);
+        ball.SetInPlay(true); // simulates a late network state update during placement preview
+        Check("atualização atrasada não revela a bola real durante a prévia", !ball.Visible);
+
+        ball.SetPlacementPreviewActive(false);
+        ball.SetInPlay(true);
+        Check("bola real reaparece quando a prévia termina", ball.Visible);
+
+        holder.QueueFree();
+    }
+
+    private void TestDisposedTurnOwnerIsIgnored()
+    {
+        var table = new Table { DebugLabel = new Label3D() };
+        var game = new TableGame();
+        var player = new Player { Name = "peer" };
+        table.CurrentTableGame = game;
+        game.TurnOwner = player;
+        player.Free();
+
+        var safe = true;
+        try
+        {
+            table._Process(0.0);
+        }
+        catch (System.ObjectDisposedException)
+        {
+            safe = false;
+        }
+
+        Check("mesa ignora o jogador do turno depois que ele é liberado", safe);
+        game.Free();
+        table.DebugLabel.Free();
+        table.Free();
     }
 
     // Lockstep's promise: given the same starting layout and the same ShotInput, two independent

@@ -4,240 +4,325 @@ using Godot.Collections;
 [GlobalClass]
 public partial class Cue : Node3D
 {
-    [Signal]
-    public delegate void StrikeExecutedEventHandler(
-        float aimYaw, float elevation, float speed, float tipOffsetX, float tipOffsetY);
+	[Signal]
+	public delegate void StrikeExecutedEventHandler(
+		int sequence, float aimYaw, float elevation, float normalizedPower, float tipOffsetX, float tipOffsetY);
+	[Signal]
+	public delegate void StrikeRequestResolvedEventHandler(int sequence, bool accepted, string reason);
 
-    [ExportGroup("References")]
-    [Export] public StateMachine StateMachine;
-    [Export] public CueSfx CueSfx;
-    [Export] public CueNetworkBridge StrokeNetworkBridge;
-    [Export] public RayCast3D CueHandleSensor;
+	[ExportGroup("References")]
+	[Export] public StateMachine StateMachine;
+	[Export] public CueSfx CueSfx;
+	[Export] public CueNetworkBridge StrokeNetworkBridge;
+	[Export] public RayCast3D CueHandleSensor;
 
-    [ExportGroup("Physics Config")]
-    /// <summary>
-    /// THE shot power knob: cue ball speed at a full-power stroke, in m/s. Response is linear, so
-    /// this scales the whole range — half a draw is always half this speed.
-    ///
-    /// For reference: a normal shot is 1-4 m/s, a professional break about 8, and the record
-    /// roughly 14. The old ForceMultiplier of 28 N·s on a 0.17 kg ball worked out to 165 m/s,
-    /// which is why nothing on the table behaved plausibly.
-    /// </summary>
-    [Export] public float MaxCueBallSpeed = 8.0f;
+	[ExportGroup("Physics Config")]
+	/// <summary>
+	/// Cue-stick speed used by the ordinary 0..80% range. Keeping this separate from the maximum
+	/// preserves the calibrated feel of normal shots while reserving a harder top end for breaks.
+	/// </summary>
+	[Export] public float NormalCueSpeed = 3.5f;
 
-    [Export] public float MinPowerThreshold = 0.02f;
-    [Export] public float ElevationSensorMargin = 0.08f;
+	/// <summary>
+	/// Cue-stick speed at 100% power. The final 20% of the meter eases from the normal calibration
+	/// into this break speed; 80% therefore feels exactly as it did before.
+	/// </summary>
+	[Export] public float MaxCueSpeed = 5.5f;
 
-    [ExportGroup("Visual Config")]
-    [Export] public float VisualGap = 0.01f;
-    [Export] public float PostShotCooldown = 0.25f;
+	[Export] public float MinPowerThreshold = 0.02f;
+	[Export] public float ElevationSensorMargin = 0.08f;
 
-    [ExportGroup("Jump Shot Config")]
-    [Export] public float JumpMaxAngle = -65.0f;
-    [Export] public float ElevationSensitivity = 2.0f;
+	[ExportGroup("Visual Config")]
+	[Export] public float VisualGap = 0.01f;
+	[Export] public float PostShotCooldown = 0.25f;
+	[Export] public float FollowThroughDistance = 0.08f;
+	[Export] public float FollowThroughDuration = 0.08f;
+	[Export] public float FollowThroughVisibleTime = 0.14f;
 
-    public PoolGame PoolGame;
-    public Ball CueBall;
-    public AimCameraPivot CameraPivot;
+	[ExportGroup("Jump Shot Config")]
+	[Export] public float JumpMaxAngle = -65.0f;
+	[Export] public float ElevationSensitivity = 2.0f;
 
-    /// <summary>Target pitch in degrees. The single owner of cue elevation: _Process eases the node's actual rotation toward it.</summary>
-    public float CurrentElevation = 0.0f;
+	public PoolGame PoolGame;
+	public Ball CueBall;
+	public AimCameraPivot CameraPivot;
 
-    public float MinSafeAngle = 0.0f;
+	/// <summary>Target pitch in degrees. The single owner of cue elevation: _Process eases the node's actual rotation toward it.</summary>
+	public float CurrentElevation = 0.0f;
 
-    /// <summary>Target pitch in radians, already clamped by the obstacle limit.</summary>
-    public float TargetElevationRad => Mathf.Min(Mathf.DegToRad(CurrentElevation), MinSafeAngle);
+	public float MinSafeAngle = 0.0f;
 
-    /// <summary>How fast the cue eases to its target pitch, in e-folds per second.</summary>
-    [Export] public float ElevationSharpness = 12.0f;
+	/// <summary>Target pitch in radians, already clamped by the obstacle limit.</summary>
+	public float TargetElevationRad => Mathf.Min(Mathf.DegToRad(CurrentElevation), MinSafeAngle);
 
-    /// <summary>0..1 draw currently held, for the power bar. Set by CueChargingState.</summary>
-    public float ChargePower { get; private set; }
+	/// <summary>How fast the cue eases to its target pitch, in e-folds per second.</summary>
+	[Export] public float ElevationSharpness = 12.0f;
 
-    public bool IsCharging { get; private set; }
+	/// <summary>0..1 draw currently held, for the power bar. Set by CueChargingState.</summary>
+	public float ChargePower { get; private set; }
 
-    [Signal] public delegate void ChargeChangedEventHandler(bool charging, float power);
+	public bool IsCharging { get; private set; }
 
-    public void SetCharge(bool charging, float power)
-    {
-        if (IsCharging == charging && Mathf.IsEqualApprox(ChargePower, power))
-            return;
+	private int _nextShotSequence = 1;
+	private int _pendingFeedbackSequence;
+	private Vector3 _pendingStrikeDirection;
+	private float _pendingStrikeSpeed;
+	private Vector3 _pendingStrikeSpin;
+	private Tween _shotVisibilityTween;
 
-        IsCharging = charging;
-        ChargePower = power;
-        EmitSignal(SignalName.ChargeChanged, charging, power);
-    }
+	[Signal] public delegate void ChargeChangedEventHandler(bool charging, float power);
 
-    public float BallRadiusOffset = 0.04f;
-    public float SpinLimit = 0.02f;
+	public void SetCharge(bool charging, float power)
+	{
+		if (IsCharging == charging && Mathf.IsEqualApprox(ChargePower, power))
+			return;
 
-    [Export] public Vector2 SpinOffset = Vector2.Zero;
+		IsCharging = charging;
+		ChargePower = power;
+		EmitSignal(SignalName.ChargeChanged, charging, power);
+	}
 
-    public void Setup(PoolGame poolGame, AimCameraPivot cameraPivot)
-    {
-        PoolGame = poolGame;
-        CameraPivot = cameraPivot;
-        CueBall = poolGame.CueBall;
+	public float BallRadiusOffset = 0.04f;
+	public float SpinLimit = 0.02f;
 
-        StrokeNetworkBridge.Setup(this);
+	[Export] public Vector2 SpinOffset = Vector2.Zero;
 
-        SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
-        SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+	public void Setup(PoolGame poolGame, AimCameraPivot cameraPivot)
+	{
+		PoolGame = poolGame;
+		CameraPivot = cameraPivot;
+		CueBall = poolGame.CueBall;
 
-        UpdateBallLimits();
-        UpdateTurnState();
-    }
+		if (CueSfx != null)
+			CueSfx.Cue = this;
 
-    public override void _ExitTree()
-    {
-        if (PoolGame == null)
-            return;
+		StrokeNetworkBridge.Setup(this);
+		StrokeNetworkBridge.ShotRequestResolved += OnStrikeRequestResolved;
 
-        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
-        SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
-    }
+		SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+		SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+		SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotStarted, new Callable(this, MethodName.OnShotStarted));
+		SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotFinished, new Callable(this, MethodName.OnShotFinished));
 
-    public override void _Process(double delta)
-    {
-        // Exponential easing written so the rate is genuinely frame-rate independent. The old
-        // `Lerp(current, target, 10 * delta)` is the linear approximation of this, which eases
-        // measurably faster at low frame rates and never quite arrives.
-        var blend = 1.0f - Mathf.Exp(-ElevationSharpness * (float)delta);
+		UpdateBallLimits();
+		UpdateTurnState();
+	}
 
-        var rot = Rotation;
-        rot.X = Mathf.Lerp(rot.X, TargetElevationRad, blend);
-        Rotation = rot;
-    }
+	public override void _ExitTree()
+	{
+		_shotVisibilityTween?.Kill();
 
-    public override void _PhysicsProcess(double delta)
-    {
-        if (!IsMultiplayerAuthority())
-            return;
+		if (PoolGame == null)
+			return;
 
-        UpdateSafeAngleLimit();
-    }
+		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
+		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
+		SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotStarted, new Callable(this, MethodName.OnShotStarted));
+		SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotFinished, new Callable(this, MethodName.OnShotFinished));
+		if (StrokeNetworkBridge != null)
+			StrokeNetworkBridge.ShotRequestResolved -= OnStrikeRequestResolved;
+	}
 
-    private void UpdateSafeAngleLimit()
-    {
-        if (CueHandleSensor == null || CameraPivot == null)
-            return;
+	public override void _Process(double delta)
+	{
+		// Exponential easing written so the rate is genuinely frame-rate independent. The old
+		// `Lerp(current, target, 10 * delta)` is the linear approximation of this, which eases
+		// measurably faster at low frame rates and never quite arrives.
+		var blend = 1.0f - Mathf.Exp(-ElevationSharpness * (float)delta);
 
-        var safeLimit = 0.0f;
+		var rot = Rotation;
+		rot.X = Mathf.Lerp(rot.X, TargetElevationRad, blend);
+		Rotation = rot;
+	}
 
-        if (CueHandleSensor.IsColliding())
-        {
-            var collisionPoint = CueHandleSensor.GetCollisionPoint();
-            var diffY = (collisionPoint.Y + ElevationSensorMargin) - CameraPivot.GlobalPosition.Y;
+	public override void _PhysicsProcess(double delta)
+	{
+		if (!IsMultiplayerAuthority())
+			return;
 
-            if (diffY > 0)
-            {
-                var pivotPos2D = new Vector2(CameraPivot.GlobalPosition.X, CameraPivot.GlobalPosition.Z);
-                var colPos2D = new Vector2(collisionPoint.X, collisionPoint.Z);
-                var distanceToObstacle = pivotPos2D.DistanceTo(colPos2D);
+		UpdateSafeAngleLimit();
+	}
 
-                distanceToObstacle = Mathf.Max(distanceToObstacle, 0.1f);
-                var angleRad = Mathf.Atan2(diffY, distanceToObstacle);
+	private void UpdateSafeAngleLimit()
+	{
+		if (CueHandleSensor == null || CameraPivot == null)
+			return;
 
-                safeLimit = -Mathf.Abs(angleRad);
-            }
-        }
+		var safeLimit = 0.0f;
 
-        safeLimit = Mathf.Clamp(safeLimit, Mathf.DegToRad(-45.0f), 0.0f);
-        MinSafeAngle = safeLimit;
-    }
+		if (CueHandleSensor.IsColliding())
+		{
+			var collisionPoint = CueHandleSensor.GetCollisionPoint();
+			var diffY = (collisionPoint.Y + ElevationSensorMargin) - CameraPivot.GlobalPosition.Y;
 
-    /// <summary>
-    /// Fires a shot from a normalised 0..1 power. Everything about the shot is described by
-    /// angles and fractions rather than an impulse vector, so it survives the trip to the server
-    /// intact and can be validated there — the old path sent a raw direction the server accepted
-    /// unconditionally, which let a client aim straight down and jump past the elevation limit.
-    /// </summary>
-    public bool ExecuteStrikeWithPower(float normalizedPower)
-    {
-        if (!CanStrike())
-            return false;
+			if (diffY > 0)
+			{
+				var pivotPos2D = new Vector2(CameraPivot.GlobalPosition.X, CameraPivot.GlobalPosition.Z);
+				var colPos2D = new Vector2(collisionPoint.X, collisionPoint.Z);
+				var distanceToObstacle = pivotPos2D.DistanceTo(colPos2D);
 
-        if (normalizedPower <= MinPowerThreshold)
-            return false;
+				distanceToObstacle = Mathf.Max(distanceToObstacle, 0.1f);
+				var angleRad = Mathf.Atan2(diffY, distanceToObstacle);
 
-        var shot = BuildShotInput(normalizedPower);
+				safeLimit = -Mathf.Abs(angleRad);
+			}
+		}
 
-        // Always through the network bridge, host included: it is the single place the shot is
-        // validated and the single place it is broadcast, so every peer plays the same one.
-        EmitSignal(SignalName.StrikeExecuted, (float)shot.AimYaw, (float)shot.Elevation,
-            (float)shot.Speed, (float)shot.TipOffsetX, (float)shot.TipOffsetY);
+		safeLimit = Mathf.Clamp(safeLimit, Mathf.DegToRad(-45.0f), 0.0f);
+		MinSafeAngle = safeLimit;
+	}
 
-        var direction = -GlobalTransform.Basis.Z.Normalized();
-        CueSfx.EmitStrikeSound(direction, (float)shot.Speed, new Vector3(SpinOffset.X, SpinOffset.Y, 0.0f));
-        return true;
-    }
+	/// <summary>
+	/// Fires a shot from a normalised 0..1 power. Everything about the shot is described by
+	/// angles and fractions rather than an impulse vector, so it survives the trip to the server
+	/// intact and can be validated there — the old path sent a raw direction the server accepted
+	/// unconditionally, which let a client aim straight down and jump past the elevation limit.
+	/// </summary>
+	public bool ExecuteStrikeWithPower(float normalizedPower)
+	{
+		if (!CanStrike())
+			return false;
 
-    private Pool.Simulation.ShotInput BuildShotInput(float normalizedPower)
-    {
-        var direction = -GlobalTransform.Basis.Z.Normalized();
+		if (normalizedPower <= MinPowerThreshold)
+			return false;
 
-        var aimYaw = Mathf.Atan2(direction.X, direction.Z);
-        var elevation = Mathf.Max(0.0f, -Mathf.Asin(Mathf.Clamp(direction.Y, -1.0f, 1.0f)));
-        var speed = normalizedPower * MaxCueBallSpeed;
+		var shot = BuildShotInput(normalizedPower);
 
-        // SpinOffset is in metres on the ball's face; the simulation wants it as a fraction of
-        // the radius, which is what makes it independent of the ball's size.
-        var offsetX = SpinOffset.X / CueBall.Radius;
-        var offsetY = SpinOffset.Y / CueBall.Radius;
+		// Always through the network bridge, host included: it is the single place the shot is
+		// validated and the single place it is broadcast, so every peer plays the same one.
+		var sequence = _nextShotSequence++;
+		_pendingFeedbackSequence = sequence;
+		_pendingStrikeDirection = -GlobalTransform.Basis.Z.Normalized();
+		_pendingStrikeSpeed = (float)shot.Speed;
+		_pendingStrikeSpin = new Vector3(SpinOffset.X, SpinOffset.Y, 0.0f);
+		EmitSignal(SignalName.StrikeExecuted, sequence, (float)shot.AimYaw, (float)shot.Elevation,
+			Mathf.Clamp(normalizedPower, 0.0f, 1.0f), (float)shot.TipOffsetX, (float)shot.TipOffsetY);
+		return true;
+	}
 
-        return new Pool.Simulation.ShotInput(aimYaw, elevation, speed, offsetX, offsetY);
-    }
+	private void OnStrikeRequestResolved(int sequence, bool accepted, string reason)
+	{
+		if (accepted && sequence == _pendingFeedbackSequence)
+			CueSfx.EmitStrikeSound(_pendingStrikeDirection, _pendingStrikeSpeed, _pendingStrikeSpin);
+		else if (!accepted)
+			GD.PushWarning($"Tacada {sequence} rejeitada pelo servidor: {reason}.");
 
-    private void OnTurnChanged(string newPlayer, Dictionary context)
-    {
-        UpdateTurnState();
-    }
+		if (sequence == _pendingFeedbackSequence)
+			_pendingFeedbackSequence = 0;
 
-    private void OnTurnExtended(Dictionary context)
-    {
-        UpdateTurnState();
-    }
+		EmitSignal(SignalName.StrikeRequestResolved, sequence, accepted, reason);
+	}
 
-    private void UpdateTurnState()
-    {
-        CurrentElevation = 0.0f;
+	private Pool.Simulation.ShotInput BuildShotInput(float normalizedPower)
+	{
+		var direction = -GlobalTransform.Basis.Z.Normalized();
 
-        if (IsMyTurn())
-        {
-            if (StateMachine.Current.Type == StatesRef.CueLocked)
-                StateMachine.ChangeState(StatesRef.CueIdle, new Dictionary());
-        }
-        else
-        {
-            StateMachine.ChangeState(StatesRef.CueLocked, new Dictionary());
-        }
-    }
+		var aimYaw = Mathf.Atan2(direction.X, direction.Z);
+		var elevation = Mathf.Max(0.0f, -Mathf.Asin(Mathf.Clamp(direction.Y, -1.0f, 1.0f)));
+		var speed = PowerToCueSpeed(normalizedPower, NormalCueSpeed, MaxCueSpeed);
 
-    private bool IsMyTurn()
-    {
-        if (PoolGame == null || PoolGame.TurnOwner == null)
-            return false;
+		// SpinOffset is in metres on the ball's face; the simulation wants it as a fraction of
+		// the radius, which is what makes it independent of the ball's size.
+		var offsetX = SpinOffset.X / CueBall.Radius;
+		var offsetY = SpinOffset.Y / CueBall.Radius;
 
-        var turnId = int.Parse((string)PoolGame.TurnOwner.Name);
-        return turnId == Multiplayer.GetUniqueId();
-    }
+		return new Pool.Simulation.ShotInput(aimYaw, elevation, speed, offsetX, offsetY);
+	}
 
-    private void UpdateBallLimits()
-    {
-        if (CueBall == null)
-            return;
+	public static float PowerToCueSpeed(float normalizedPower, float normalCueSpeed, float maxCueSpeed)
+	{
+		var power = Mathf.Clamp(normalizedPower, 0.0f, 1.0f);
+		var maximum = Mathf.Max(0.0f, maxCueSpeed);
+		var normal = Mathf.Clamp(normalCueSpeed, 0.0f, maximum);
+		var speed = power * normal;
 
-        BallRadiusOffset = CueBall.Radius + VisualGap;
-        SpinLimit = CueBall.Radius;
-    }
+		const float breakRangeStart = 0.8f;
+		if (power <= breakRangeStart || maximum <= normal)
+			return speed;
 
-    private bool CanStrike()
-    {
-        return IsInstanceValid(CueBall);
-    }
+		var t = (power - breakRangeStart) / (1.0f - breakRangeStart);
+		var smoothT = t * t * (3.0f - 2.0f * t);
+		return Mathf.Min(maximum, speed + (maximum - normal) * smoothT);
+	}
 
-    public void SnapToRestPose()
-    {
-        Position = new Vector3(SpinOffset.X, SpinOffset.Y, BallRadiusOffset);
-    }
+	private void OnTurnChanged(string newPlayer, Dictionary context)
+	{
+		UpdateTurnState();
+	}
+
+	private void OnTurnExtended(Dictionary context)
+	{
+		UpdateTurnState();
+	}
+
+	private void OnShotStarted()
+	{
+		_shotVisibilityTween?.Kill();
+
+		if (!IsMyTurn())
+		{
+			Hide();
+			return;
+		}
+
+		Show();
+		_shotVisibilityTween = CreateTween();
+		_shotVisibilityTween.TweenInterval(Mathf.Max(0.0f, FollowThroughVisibleTime));
+		_shotVisibilityTween.TweenCallback(Callable.From(Hide));
+	}
+
+	private void OnShotFinished()
+	{
+		_shotVisibilityTween?.Kill();
+		_shotVisibilityTween = null;
+
+		if (IsMyTurn())
+			Show();
+	}
+
+	private void UpdateTurnState()
+	{
+		CurrentElevation = 0.0f;
+
+		if (IsMyTurn())
+		{
+			if (StateMachine.Current.Type == StatesRef.CueLocked)
+				StateMachine.ChangeState(StatesRef.CueIdle, new Dictionary());
+		}
+		else
+		{
+			StateMachine.ChangeState(StatesRef.CueLocked, new Dictionary());
+		}
+	}
+
+	private bool IsMyTurn()
+	{
+		if (PoolGame == null || PoolGame.TurnOwner == null)
+			return false;
+
+		var turnId = int.Parse((string)PoolGame.TurnOwner.Name);
+		return turnId == Multiplayer.GetUniqueId();
+	}
+
+	private void UpdateBallLimits()
+	{
+		if (CueBall == null)
+			return;
+
+		BallRadiusOffset = CueBall.Radius + VisualGap;
+		SpinLimit = CueBall.Radius;
+	}
+
+	private bool CanStrike()
+	{
+		return IsInstanceValid(CueBall)
+			   && IsMyTurn()
+			   && PoolGame?.SimulationRunner != null
+			   && !PoolGame.SimulationRunner.IsPlaying;
+	}
+
+	public void SnapToRestPose()
+	{
+		Position = new Vector3(SpinOffset.X, SpinOffset.Y, BallRadiusOffset);
+	}
 }

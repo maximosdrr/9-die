@@ -22,12 +22,24 @@ public partial class PoolTurnResolver : TurnResolver
 
     public Dictionary<int, Ball> BallsInGame = new();
 
+    private readonly System.Collections.Generic.Dictionary<string, int> _consecutiveFouls = new();
+    private bool _isBreakShot = true;
+    private bool _pushOutAvailable;
+    private bool _pushOutDeclaredForShot;
+    private bool _awaitingPushOutChoice;
+    private string _pushOutShooterId = "";
+
+    public bool IsShotBlocked => _awaitingPushOutChoice;
+
     public override void Setup(TableGame tableGame)
     {
         PoolGame = (PoolGame)tableGame;
         CueBall = PoolGame.CueBall;
 
         BallsInGame.Clear();
+        _consecutiveFouls.Clear();
+        _isBreakShot = true;
+        ResetPushOutState();
 
         foreach (var ball in PoolGame.Balls)
             BallsInGame[ball.Index] = ball;
@@ -43,6 +55,9 @@ public partial class PoolTurnResolver : TurnResolver
         DisconnectSignals();
 
         BallsInGame.Clear();
+        _consecutiveFouls.Clear();
+        _isBreakShot = true;
+        ResetPushOutState();
         CueBall = null;
         PoolGame = null;
     }
@@ -108,7 +123,33 @@ public partial class PoolTurnResolver : TurnResolver
 
         BallsInGame = context.CurrentBallsRemaining;
 
-        ApplyTurnAction(action, scoringPlayerId, ballsScoredThisTurn);
+        // The nine is always spotted when made or driven off on the break, including a legal
+        // break. On later legal shots it remains the game-winning ball.
+        if (context.IsBreakShot && context.IsLegalBreak)
+            RespotGoldenBallIfNeeded(ballsScoredThisTurn, context.BallsOffTable);
+
+        _pushOutAvailable = context.IsBreakShot && context.IsLegalBreak;
+
+        var committedFoul = action == TurnRuler.Actions.CallCueBallReplacement;
+        if (committedFoul)
+        {
+            var count = _consecutiveFouls.TryGetValue(scoringPlayerId, out var previous)
+                ? previous + 1
+                : 1;
+            _consecutiveFouls[scoringPlayerId] = count;
+
+            if (count >= 3)
+                action = TurnRuler.Actions.EndGameFatalFoul;
+        }
+        else
+        {
+            _consecutiveFouls[scoringPlayerId] = 0;
+        }
+
+        _isBreakShot = false;
+        _pushOutDeclaredForShot = false;
+
+        ApplyTurnAction(action, scoringPlayerId, ballsScoredThisTurn, context.BallsOffTable);
     }
 
     /// <summary>
@@ -145,6 +186,21 @@ public partial class PoolTurnResolver : TurnResolver
                 remaining[kvp.Key] = kvp.Value;
         }
 
+        var numberedBallsPocketed = 0;
+        foreach (var index in ballsScored.Keys)
+        {
+            if (index != CueBallId)
+                numberedBallsPocketed++;
+        }
+
+        var objectBallsAtRail = result.CountDistinctBallsAtCushion(CueBallId);
+        var breakHasNoGeneralFoul = !ballsScored.ContainsKey(CueBallId)
+                                    && ballsOffTable.Count == 0
+                                    && targetBall != null
+                                    && result.FirstBallContacted(CueBallId) == targetBall.Index;
+        var legalBreak = !_isBreakShot || (breakHasNoGeneralFoul
+            && (numberedBallsPocketed > 0 || objectBallsAtRail >= 4));
+
         return new TurnContext
         {
             BallsScored = ballsScored,
@@ -152,7 +208,11 @@ public partial class PoolTurnResolver : TurnResolver
             BallsOffTable = ballsOffTable,
             TargetBall = targetBall,
             CurrentBallsRemaining = remaining,
-            AnyRailContact = result.AnyCushionContact(),
+            AnyRailContact = result.AnyCushionContactAfterFirstBallContact(CueBallId),
+            IsBreakShot = _isBreakShot,
+            IsLegalBreak = legalBreak,
+            ObjectBallsDrivenToRail = objectBallsAtRail,
+            IsPushOut = _pushOutDeclaredForShot,
         };
     }
 
@@ -167,7 +227,8 @@ public partial class PoolTurnResolver : TurnResolver
         return BallsInGame.TryGetValue(lowest, out var ball) ? ball : null;
     }
 
-    private void ApplyTurnAction(TurnRuler.Actions action, string scoringPlayerId, Dictionary<int, Ball> ballsScoredThisTurn)
+    private void ApplyTurnAction(TurnRuler.Actions action, string scoringPlayerId,
+        Dictionary<int, Ball> ballsScoredThisTurn, Array<Ball> ballsOffTable)
     {
         switch (action)
         {
@@ -183,8 +244,19 @@ public partial class PoolTurnResolver : TurnResolver
                 PoolGame.CallExtendCurrentTurn(BuildHudContext(scoringPlayerId, ballsScoredThisTurn));
                 break;
 
+            case TurnRuler.Actions.CallPushOutChoice:
+                RespotGoldenBallIfNeeded(ballsScoredThisTurn, ballsOffTable);
+                _pushOutAvailable = false;
+                _awaitingPushOutChoice = true;
+                _pushOutShooterId = scoringPlayerId;
+                var pushOutContext = BuildHudContext(scoringPlayerId, ballsScoredThisTurn);
+                pushOutContext["push_out_choice_pending"] = true;
+                pushOutContext["push_out_shooter"] = scoringPlayerId;
+                PoolGame.CallNextTurn(pushOutContext);
+                break;
+
             case TurnRuler.Actions.CallCueBallReplacement:
-                RespotGoldenBallIfScored(ballsScoredThisTurn);
+                RespotGoldenBallIfNeeded(ballsScoredThisTurn, ballsOffTable);
                 var replacementContext = BuildHudContext(scoringPlayerId, ballsScoredThisTurn);
                 replacementContext["ball_replacement"] = 0;
                 PoolGame.CallNextTurn(replacementContext);
@@ -218,6 +290,12 @@ public partial class PoolTurnResolver : TurnResolver
             ["scoring_player"] = scoringPlayerId,
             ["scored_balls"] = scoredIndices,
             ["target_ball"] = targetBallIndex,
+            ["foul_count"] = _consecutiveFouls.TryGetValue(scoringPlayerId, out var fouls) ? fouls : 0,
+            ["foul_player"] = scoringPlayerId,
+            ["push_out_available"] = _pushOutAvailable,
+            ["push_out_choice_pending"] = _awaitingPushOutChoice,
+            ["push_out_declared"] = _pushOutDeclaredForShot,
+            ["push_out_shooter"] = _pushOutShooterId,
         };
     }
 
@@ -247,17 +325,124 @@ public partial class PoolTurnResolver : TurnResolver
         var targetBallIndex = context.TryGetValue("target_ball", out var targetVariant) ? targetVariant.AsInt32() : PoolGame.CurrentTargetBallIndex;
         var scoringPlayerId = context.TryGetValue("scoring_player", out var playerVariant) ? playerVariant.AsString() : null;
         var scoredBalls = context.TryGetValue("scored_balls", out var ballsVariant) ? ballsVariant.AsGodotArray() : null;
+        var foulPlayerId = context.TryGetValue("foul_player", out var foulPlayerVariant) ? foulPlayerVariant.AsString() : null;
+        var foulCount = context.TryGetValue("foul_count", out var foulCountVariant) ? foulCountVariant.AsInt32() : 0;
+        var pushOutAvailable = context.TryGetValue("push_out_available", out var availableVariant) && availableVariant.AsBool();
+        var pushOutChoicePending = context.TryGetValue("push_out_choice_pending", out var pendingVariant) && pendingVariant.AsBool();
+        var pushOutDeclared = context.TryGetValue("push_out_declared", out var declaredVariant) && declaredVariant.AsBool();
+        var pushOutShooter = context.TryGetValue("push_out_shooter", out var shooterVariant) ? shooterVariant.AsString() : "";
 
         PoolGame.ApplyHudUpdate(targetBallIndex, string.IsNullOrEmpty(scoringPlayerId) ? null : scoringPlayerId, scoredBalls);
+        PoolGame.ApplyFoulUpdate(foulPlayerId, foulCount);
+        PoolGame.ApplyPushOutState(pushOutAvailable, pushOutChoicePending, pushOutDeclared, pushOutShooter);
     }
 
-    private void RespotGoldenBallIfScored(Dictionary<int, Ball> ballsScoredThisTurn)
+    public void RequestDeclarePushOut()
     {
-        if (!ballsScoredThisTurn.TryGetValue(9, out var goldenBall) || !IsInstanceValid(goldenBall))
+        if (Multiplayer.IsServer())
+            TryDeclarePushOut(Multiplayer.GetUniqueId());
+        else
+            RpcId(1, MethodName.DeclarePushOutOnServer);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void DeclarePushOutOnServer()
+    {
+        if (Multiplayer.IsServer())
+            TryDeclarePushOut(Multiplayer.GetRemoteSenderId());
+    }
+
+    private void TryDeclarePushOut(int requesterId)
+    {
+        if (!_pushOutAvailable || _awaitingPushOutChoice || PoolGame?.TurnOwner == null
+            || (string)PoolGame.TurnOwner.Name != requesterId.ToString()
+            || PoolGame.SimulationRunner.IsPlaying)
+            return;
+
+        _pushOutAvailable = false;
+        _pushOutDeclaredForShot = true;
+        Rpc(MethodName.SyncPushOutState, false, false, true, requesterId.ToString());
+    }
+
+    public void RequestPushOutChoice(bool passBack)
+    {
+        if (Multiplayer.IsServer())
+            TryResolvePushOutChoice(Multiplayer.GetUniqueId(), passBack);
+        else
+            RpcId(1, MethodName.ResolvePushOutChoiceOnServer, passBack);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ResolvePushOutChoiceOnServer(bool passBack)
+    {
+        if (Multiplayer.IsServer())
+            TryResolvePushOutChoice(Multiplayer.GetRemoteSenderId(), passBack);
+    }
+
+    private void TryResolvePushOutChoice(int requesterId, bool passBack)
+    {
+        if (!_awaitingPushOutChoice || PoolGame?.TurnOwner == null
+            || (string)PoolGame.TurnOwner.Name != requesterId.ToString())
+            return;
+
+        _awaitingPushOutChoice = false;
+        var context = BuildHudContext(_pushOutShooterId,
+            new Dictionary<int, Ball>());
+        context["push_out_choice_pending"] = false;
+        context["push_out_choice_resolved"] = true;
+        context["push_out_shooter"] = "";
+        _pushOutShooterId = "";
+
+        if (passBack)
+            PoolGame.CallNextTurn(context);
+        else
+            PoolGame.CallExtendCurrentTurn(context);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void SyncPushOutState(bool available, bool choicePending, bool declared, string shooterId)
+    {
+        PoolGame?.ApplyPushOutState(available, choicePending, declared, shooterId);
+    }
+
+    private void ResetPushOutState()
+    {
+        _pushOutAvailable = false;
+        _pushOutDeclaredForShot = false;
+        _awaitingPushOutChoice = false;
+        _pushOutShooterId = "";
+    }
+
+    private void RespotGoldenBallIfNeeded(Dictionary<int, Ball> ballsScoredThisTurn, Array<Ball> contextBallsOffTable)
+    {
+        ballsScoredThisTurn.TryGetValue(9, out var goldenBall);
+        if (!IsInstanceValid(goldenBall) && contextBallsOffTable != null)
+        {
+            foreach (var ball in contextBallsOffTable)
+            {
+                if (ball.Index == 9)
+                {
+                    goldenBall = ball;
+                    break;
+                }
+            }
+        }
+
+        if (!IsInstanceValid(goldenBall))
             return;
 
         var footSpot = PoolGame.PoolBallRespawn.FootSpot;
-        PoolGame.SimulationRunner.PlaceBall(goldenBall, new Vector2(footSpot.X, footSpot.Z));
+        var preferred = new Vector2(footSpot.X, footSpot.Z);
+        if (!PoolGame.SimulationRunner.TryFindNearestFreeSpot(preferred, goldenBall, out var freeSpot))
+        {
+            GD.PushError("Não foi possível encontrar uma posição livre para recolocar a bola 9.");
+            return;
+        }
+
+        PoolGame.SimulationRunner.PlaceBall(goldenBall, freeSpot);
 
         // The re-spot happens on the server only, so push the layout out now rather than letting
         // clients show the ball in the old place until the next shot's snapshot corrects it.
