@@ -114,23 +114,6 @@ public static class WindowsScreenCapture
         public int Y;
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
-
-    private const uint WdaExcludeFromCapture = 0x00000011;
-
-    /// <summary>
-    /// Marks a window (identified by its native HWND) so it never appears in any screen
-    /// capture, including this class's own TryCapturePrimaryScreen. Meant to be called once
-    /// with the game's own window handle, so a player sharing their whole screen can never
-    /// accidentally capture their own game window showing the TV showing itself (an infinite
-    /// feedback loop). Requires Windows 10 2004+; returns false harmlessly on older systems.
-    /// </summary>
-    public static bool ExcludeWindowFromCapture(IntPtr hwnd)
-    {
-        return SetWindowDisplayAffinity(hwnd, WdaExcludeFromCapture);
-    }
-
     [StructLayout(LayoutKind.Sequential)]
     private struct BitmapInfoHeader
     {

@@ -80,13 +80,14 @@ public partial class TvScreenShare : MeshInstance3D
 
 		InteractionPrompt.Hide();
 
+		// Deliberately *not* calling SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) on our own
+		// window here. It does stop the TV-showing-itself feedback loop when a player shares their
+		// whole primary screen, but the flag is enforced by the compositor for every capture path,
+		// not just ours — the game window also comes out black/absent in Print Screen, Win+Shift+S,
+		// Steam's F12, OBS and Discord. Never being able to screenshot the game is a worse trade
+		// than a mirror effect that only appears while someone is sharing their full screen.
 		if (IsAvailable)
-		{
 			ConnectSignals();
-
-			var hwnd = (IntPtr)DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle, (int)DisplayServer.MainWindowId);
-			WindowsScreenCapture.ExcludeWindowFromCapture(hwnd);
-		}
 
 		NetworkManager.Instance.NetworkProvider.PlayerConnected += OnPlayerConnected;
 		NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
