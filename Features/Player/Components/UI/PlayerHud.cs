@@ -176,7 +176,8 @@ public partial class PlayerHud : CanvasLayer
 
 			var row = new Label();
 			row.Text = fouls > 0
-				? $"{GetPlayerLabel(playerId)}: {pocketed} bola(s) • {fouls}/3 faltas"
+				? $"{GetPlayerLabel(playerId)}: {pocketed} bola(s) • "
+				  + $"{fouls}/{PoolTurnResolver.ConsecutiveFoulLossThreshold} faltas"
 				: $"{GetPlayerLabel(playerId)}: {pocketed} bola(s)";
 			row.AddThemeFontSizeOverride("font_size", 15);
 			row.AddThemeColorOverride("font_color", DimTextColor);

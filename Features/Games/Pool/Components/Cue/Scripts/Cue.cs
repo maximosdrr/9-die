@@ -257,6 +257,9 @@ public partial class Cue : Node3D
 
 	private void OnShotStarted()
 	{
+		if (!IsInsideTree())
+			return;
+
 		_shotVisibilityTween?.Kill();
 
 		if (!IsMyTurn())
@@ -273,6 +276,11 @@ public partial class Cue : Node3D
 
 	private void OnShotFinished()
 	{
+		// The resolver may finish the match and remove this controller while ShotFinished is still
+		// dispatching to its remaining listeners. A detached node has no Multiplayer API anymore.
+		if (!IsInsideTree())
+			return;
+
 		_shotVisibilityTween?.Kill();
 		_shotVisibilityTween = null;
 
@@ -282,6 +290,9 @@ public partial class Cue : Node3D
 
 	private void UpdateTurnState()
 	{
+		if (!IsInsideTree() || !IsInstanceValid(StateMachine))
+			return;
+
 		CurrentElevation = 0.0f;
 
 		if (IsMyTurn())
@@ -297,11 +308,16 @@ public partial class Cue : Node3D
 
 	private bool IsMyTurn()
 	{
-		if (PoolGame == null || PoolGame.TurnOwner == null)
+		return IsOwnedTurn(PoolGame, GetMultiplayerAuthority());
+	}
+
+	internal static bool IsOwnedTurn(PoolGame poolGame, int authorityId)
+	{
+		if (!IsInstanceValid(poolGame) || !IsInstanceValid(poolGame.TurnOwner))
 			return false;
 
-		var turnId = int.Parse((string)PoolGame.TurnOwner.Name);
-		return turnId == Multiplayer.GetUniqueId();
+		return int.TryParse((string)poolGame.TurnOwner.Name, out var turnId)
+			   && turnId == authorityId;
 	}
 
 	private void UpdateBallLimits()
@@ -324,5 +340,18 @@ public partial class Cue : Node3D
 	public void SnapToRestPose()
 	{
 		Position = new Vector3(SpinOffset.X, SpinOffset.Y, BallRadiusOffset);
+	}
+
+	/// <summary>
+	/// Restores presentation after ball placement returns input to this controller. This must be
+	/// explicit: a peer can finish local shot playback before the authoritative turn update
+	/// arrives and leave its cue hidden even though the controller itself becomes visible later.
+	/// </summary>
+	public void RestoreAimingPresentation()
+	{
+		_shotVisibilityTween?.Kill();
+		_shotVisibilityTween = null;
+		SnapToRestPose();
+		Show();
 	}
 }

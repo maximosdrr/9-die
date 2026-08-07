@@ -46,7 +46,7 @@ public static class BilliardConstants
     /// reproduce this — it decays exponentially and never reaches zero, which is the "floaty"
     /// feel the old RigidBody3D implementation had.
     /// </summary>
-    public const double RollingFriction = 0.01;
+    public const double RollingFriction = 0.009;
 
     /// <summary>
     /// Spinning friction, with the ball radius already factored out (pooltool's

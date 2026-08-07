@@ -23,6 +23,9 @@ public partial class PoolGame : TableGame
 	public bool PushOutDeclared;
 	public string PushOutShooterId;
 	public GlobalCamera Camera;
+	public bool IsSoloMatch { get; private set; }
+
+	public override bool CountsWinsForRanking => !IsSoloMatch;
 
 	[Signal]
 	public delegate void HudStateUpdatedEventHandler();
@@ -77,7 +80,8 @@ public partial class PoolGame : TableGame
 		if (string.IsNullOrEmpty(playerId))
 			return;
 
-		ConsecutiveFoulsByPlayer[playerId] = Mathf.Clamp(foulCount, 0, 3);
+		ConsecutiveFoulsByPlayer[playerId] = Mathf.Clamp(
+			foulCount, 0, PoolTurnResolver.ConsecutiveFoulLossThreshold);
 		EmitSignal(SignalName.HudStateUpdated);
 	}
 
@@ -92,6 +96,7 @@ public partial class PoolGame : TableGame
 
 	public override async void SetupMatch(Array players, string firstTurnOwner)
 	{
+		IsSoloMatch = players.Count == 1;
 		BallsPocketedByPlayer.Clear();
 		ConsecutiveFoulsByPlayer.Clear();
 		CurrentTargetBallIndex = 0;

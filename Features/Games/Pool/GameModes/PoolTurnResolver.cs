@@ -15,6 +15,8 @@ using System.Threading.Tasks;
 [GlobalClass]
 public partial class PoolTurnResolver : TurnResolver
 {
+    public const int ConsecutiveFoulLossThreshold = 5;
+
     [Export] public TurnRuler TurnRuler;
 
     public PoolGame PoolGame;
@@ -176,7 +178,20 @@ public partial class PoolTurnResolver : TurnResolver
         if (context.IsBreakShot && context.IsLegalBreak)
             RespotGoldenBallIfNeeded(ballsScoredThisTurn, context.BallsOffTable);
 
-        _pushOutAvailable = context.IsBreakShot && context.IsLegalBreak;
+        _pushOutAvailable = !PoolGame.IsSoloMatch && context.IsBreakShot && context.IsLegalBreak;
+
+        if (PoolGame.IsSoloMatch)
+        {
+            if (action == TurnRuler.Actions.CallCueBallReplacement)
+                RespotGoldenBallIfNeeded(ballsScoredThisTurn, context.BallsOffTable);
+
+            _isBreakShot = false;
+            _pushOutDeclaredForShot = false;
+            _consecutiveFouls.Remove(scoringPlayerId);
+            ApplySoloTurnAction(AdaptActionForSolo(action, context), scoringPlayerId,
+                ballsScoredThisTurn);
+            return;
+        }
 
         var committedFoul = action == TurnRuler.Actions.CallCueBallReplacement;
         if (committedFoul)
@@ -186,7 +201,7 @@ public partial class PoolTurnResolver : TurnResolver
                 : 1;
             _consecutiveFouls[scoringPlayerId] = count;
 
-            if (count >= 3)
+            if (IsFatalFoulCount(count))
                 action = TurnRuler.Actions.EndGameFatalFoul;
         }
         else
@@ -198,6 +213,56 @@ public partial class PoolTurnResolver : TurnResolver
         _pushOutDeclaredForShot = false;
 
         ApplyTurnAction(action, scoringPlayerId, ballsScoredThisTurn, context.BallsOffTable);
+    }
+
+    internal static TurnRuler.Actions AdaptActionForSolo(
+        TurnRuler.Actions competitiveAction, TurnContext context)
+    {
+        if (competitiveAction == TurnRuler.Actions.EndGamePlayerWin)
+            return competitiveAction;
+
+        return CueBallNeedsPlacement(context)
+            ? TurnRuler.Actions.CallCueBallReplacement
+            : TurnRuler.Actions.ExtendTurn;
+    }
+
+    internal static bool IsFatalFoulCount(int foulCount)
+    {
+        return foulCount >= ConsecutiveFoulLossThreshold;
+    }
+
+    private static bool CueBallNeedsPlacement(TurnContext context)
+    {
+        if (context.BallsScored.ContainsKey(CueBallId))
+            return true;
+
+        if (context.BallsOffTable == null)
+            return false;
+
+        foreach (var ball in context.BallsOffTable)
+        {
+            if (GodotObject.IsInstanceValid(ball) && ball.Index == CueBallId)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void ApplySoloTurnAction(TurnRuler.Actions action, string scoringPlayerId,
+        Dictionary<int, Ball> ballsScoredThisTurn)
+    {
+        if (action == TurnRuler.Actions.EndGamePlayerWin)
+        {
+            PoolGame.ApplyMatchOver(scoringPlayerId, new Dictionary { ["reason"] = "win" });
+            Reset();
+            return;
+        }
+
+        var context = BuildHudContext(scoringPlayerId, ballsScoredThisTurn);
+        if (action == TurnRuler.Actions.CallCueBallReplacement)
+            context["ball_replacement"] = CueBallId;
+
+        PoolGame.CallExtendCurrentTurn(context);
     }
 
     /// <summary>
@@ -368,6 +433,9 @@ public partial class PoolTurnResolver : TurnResolver
     public override void HandleTurnExtensionContext(Dictionary context)
     {
         ApplyHudContext(context);
+
+        if (context.ContainsKey("ball_replacement") && PoolGame?.TurnOwner != null)
+            OnTurnStart((string)PoolGame.TurnOwner.Name, context);
     }
 
     private void ApplyHudContext(Dictionary context)
@@ -408,7 +476,8 @@ public partial class PoolTurnResolver : TurnResolver
 
     private void TryDeclarePushOut(int requesterId)
     {
-        if (!_pushOutAvailable || _awaitingPushOutChoice || PoolGame?.TurnOwner == null
+        if (PoolGame?.IsSoloMatch != false || !_pushOutAvailable
+            || _awaitingPushOutChoice || PoolGame.TurnOwner == null
             || (string)PoolGame.TurnOwner.Name != requesterId.ToString()
             || PoolGame.SimulationRunner.IsPlaying)
             return;
@@ -436,7 +505,7 @@ public partial class PoolTurnResolver : TurnResolver
 
     private void TryResolvePushOutChoice(int requesterId, bool passBack)
     {
-        if (!_awaitingPushOutChoice || PoolGame?.TurnOwner == null
+        if (PoolGame?.IsSoloMatch != false || !_awaitingPushOutChoice || PoolGame.TurnOwner == null
             || (string)PoolGame.TurnOwner.Name != requesterId.ToString())
             return;
 

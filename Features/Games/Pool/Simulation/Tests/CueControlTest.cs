@@ -34,6 +34,8 @@ public partial class CueControlTest : Node
         TestAimSurvivesRoundTrip();
         TestTipOffsetIsRelativeToRadius();
         TestStrokeGesture();
+        TestCuePresentationRecovery();
+        TestTurnOwnershipSurvivesTeardown();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
@@ -126,6 +128,32 @@ public partial class CueControlTest : Node
             && Mathf.IsEqualApprox(cue.MaxCueSpeed, SpeedForPower(1.0f))
             && Mathf.IsEqualApprox(cue.NormalCueSpeed, ExpectedNormalCueSpeed));
         cue?.Free();
+    }
+
+    private void TestCuePresentationRecovery()
+    {
+        var cue = new Cue();
+        cue.Hide();
+        cue.RestoreAimingPresentation();
+
+        Check("taco reaparece quando o reposicionamento devolve o controle", cue.Visible);
+        cue.Free();
+    }
+
+    private void TestTurnOwnershipSurvivesTeardown()
+    {
+        var game = new PoolGame();
+        var owner = new Player { Name = "7" };
+        game.TurnOwner = owner;
+
+        Check("taco identifica a vez sem depender de Multiplayer em nó destacado",
+            Cue.IsOwnedTurn(game, 7));
+
+        owner.Free();
+        Check("callback tardio ignora jogador da vez já liberado",
+            !Cue.IsOwnedTurn(game, 7));
+
+        game.Free();
     }
 
     private void TestCueImpactUsesFiniteEnergy()

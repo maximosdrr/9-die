@@ -48,9 +48,9 @@ public partial class PoolController : Node3D
 		if (!IsMultiplayerAuthority())
 			return;
 
-		if (PoolGame.TurnOwner == null)
+		if (!IsInstanceValid(PoolGame) || !IsInstanceValid(Player)
+			|| !IsInstanceValid(PoolGame.TurnOwner))
 		{
-			GD.PushError("Game not started yet! Table.turn_owner is null");
 			return;
 		}
 
@@ -61,6 +61,7 @@ public partial class PoolController : Node3D
 		}
 
 		Show();
+		Cue?.RestoreAimingPresentation();
 		SetProcessUnhandledInput(true);
 		SetProcess(true);
 
@@ -94,6 +95,9 @@ public partial class PoolController : Node3D
 
 	public async void ApplyControl(string turnOwnerId, Dictionary context)
 	{
+		if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player))
+			return;
+
 		if (turnOwnerId == (string)Player.Name)
 		{
 			CanTakeControl = true;
@@ -113,6 +117,11 @@ public partial class PoolController : Node3D
 				// ball placement owns the camera and input, including before the opening break.
 				GiveControl();
 				await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
+				if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player)
+					|| !IsInstanceValid(PoolGame.TurnOwner)
+					|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
+					return;
+
 				TakeControl();
 			}
 		}
@@ -131,9 +140,16 @@ public partial class PoolController : Node3D
 
 	private void OnTurnExtended(Dictionary context)
 	{
-		if (!IsMultiplayerAuthority() || PoolGame?.TurnOwner == null
+		if (!IsMultiplayerAuthority() || !IsInstanceValid(PoolGame)
+			|| !IsInstanceValid(Player) || !IsInstanceValid(PoolGame.TurnOwner)
 			|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
 			return;
+
+		if (context.ContainsKey("ball_replacement"))
+		{
+			ApplyControl((string)Player.Name, context);
+			return;
+		}
 
 		if (context.TryGetValue("push_out_choice_resolved", out var resolved) && resolved.AsBool())
 			TakeControl();

@@ -635,6 +635,13 @@ public partial class SceneLoadTest : Node
         };
         Check("quebra seca com menos de quatro bolas no rail é falta",
             ruler.Rule(illegalBreak) == TurnRuler.Actions.CallCueBallReplacement);
+        Check("modo solo ignora falta na quebra e mantém a vez",
+            PoolTurnResolver.AdaptActionForSolo(ruler.Rule(illegalBreak), illegalBreak)
+                == TurnRuler.Actions.ExtendTurn);
+        Check("dezenove faltas ainda não encerram a partida",
+            !PoolTurnResolver.IsFatalFoulCount(19));
+        Check("a vigésima falta encerra a partida competitiva",
+            PoolTurnResolver.IsFatalFoulCount(20));
 
         var nineOnBreak = new TurnContext
         {
@@ -654,6 +661,24 @@ public partial class SceneLoadTest : Node
         nineOnBreak.IsBreakShot = false;
         Check("bola 9 em uma tacada normal encerra a partida",
             ruler.Rule(nineOnBreak) == TurnRuler.Actions.EndGamePlayerWin);
+        Check("modo solo preserva a vitória ao encaçapar a bola 9",
+            PoolTurnResolver.AdaptActionForSolo(ruler.Rule(nineOnBreak), nineOnBreak)
+                == TurnRuler.Actions.EndGamePlayerWin);
+
+        var legalMiss = new TurnContext
+        {
+            BallsScored = new Dictionary<int, Ball>(),
+            FirstBallTouched = one,
+            BallsOffTable = new Array<Ball>(),
+            TargetBall = one,
+            CurrentBallsRemaining = new Dictionary<int, Ball> { [1] = one },
+            AnyRailContact = true,
+            IsBreakShot = false,
+            IsLegalBreak = true,
+        };
+        Check("modo solo não troca de jogador depois de uma tacada sem pontuar",
+            PoolTurnResolver.AdaptActionForSolo(ruler.Rule(legalMiss), legalMiss)
+                == TurnRuler.Actions.ExtendTurn);
 
         var pushOutWithoutContact = new TurnContext
         {
@@ -669,10 +694,18 @@ public partial class SceneLoadTest : Node
         };
         Check("push-out declarado permite tacada sem contato e pede escolha do adversário",
             ruler.Rule(pushOutWithoutContact) == TurnRuler.Actions.CallPushOutChoice);
+        Check("modo solo não abre a escolha de push-out",
+            PoolTurnResolver.AdaptActionForSolo(
+                ruler.Rule(pushOutWithoutContact), pushOutWithoutContact)
+                == TurnRuler.Actions.ExtendTurn);
 
         pushOutWithoutContact.BallsScored[0] = new Ball { Index = 0 };
         Check("scratch durante push-out continua sendo falta",
             ruler.Rule(pushOutWithoutContact) == TurnRuler.Actions.CallCueBallReplacement);
+        Check("modo solo repõe a branca encaçapada sem aplicar penalidade",
+            PoolTurnResolver.AdaptActionForSolo(
+                ruler.Rule(pushOutWithoutContact), pushOutWithoutContact)
+                == TurnRuler.Actions.CallCueBallReplacement);
         pushOutWithoutContact.BallsScored[0].Free();
 
         one.Free();
