@@ -24,6 +24,24 @@ public partial class TvScreenShare : MeshInstance3D
 	private const int SteamP2PVideoChannel = 10;
 	private const int SteamP2PAudioChannel = 11;
 
+	// Video frames are big (~60-100 KB of WebP) and individually disposable — a stale frame is
+	// worthless the moment a newer one exists. Reliable-with-buffering never drops anything, so
+	// when a peer's link can't keep up with the encoder, Steam's per-peer send queue just grows
+	// without bound and playback slides seconds behind real time. Before queueing a video frame
+	// for a peer, peek at how much is still waiting in that peer's queue and skip them this
+	// round if it's above this threshold (~1.5 frames). Each viewer's frame rate then settles
+	// at whatever their own link actually sustains, always showing the freshest frame, with
+	// latency bounded instead of compounding. Audio is never gated: it's small, and it going
+	// silent is far more jarring than video dropping a frame.
+	private const long MaxQueuedBytesPerPeer = 128 * 1024;
+
+	// How often video frames are *sent*, decoupled from how fast capture+encode runs locally.
+	// The sharer's own TV happily displays every captured frame, but pushing 35+ fps over the
+	// network triples bandwidth for a gain nobody can perceive on an in-game TV; 20 fps is the
+	// ceiling, and congestion gating above takes each peer below that as needed.
+	private const ulong NetworkFrameIntervalMs = 50;
+	private ulong _lastVideoSendMs;
+
 	[Signal]
 	public delegate void SharerChangedEventHandler(int sharerId);
 
@@ -390,9 +408,12 @@ public partial class TvScreenShare : MeshInstance3D
 				else
 					_playoutBuffer?.Enqueue(data);
 
+				// The relay hop applies the same per-peer congestion gate as the original send:
+				// one slow viewer must only cost themselves frames, not back up the host's
+				// queue to everyone else.
 				foreach (var peerId in Multiplayer.GetPeers())
 					if (peerId != senderId)
-						SendSteamPacket(channel, peerId, data);
+						SendSteamPacket(channel, peerId, data, dropIfCongested: !isAudio);
 			}
 			else
 			{
@@ -406,26 +427,41 @@ public partial class TvScreenShare : MeshInstance3D
 
 	// Mirrors the "server relays to every other peer, everyone else only talks to the host"
 	// star topology the RPC path below uses, just addressed by Steam ID instead of Godot peer id.
-	private void BroadcastSteamPacket(int channel, byte[] data)
+	private void BroadcastSteamPacket(int channel, byte[] data, bool dropIfCongested = false)
 	{
 		if (Multiplayer.IsServer())
 		{
 			foreach (var peerId in Multiplayer.GetPeers())
-				SendSteamPacket(channel, peerId, data);
+				SendSteamPacket(channel, peerId, data, dropIfCongested);
 		}
 		else
 		{
-			SendSteamPacket(channel, 1, data);
+			SendSteamPacket(channel, 1, data, dropIfCongested);
 		}
 	}
 
-	private void SendSteamPacket(int channel, int peerId, byte[] data)
+	private void SendSteamPacket(int channel, int peerId, byte[] data, bool dropIfCongested = false)
 	{
 		var steamId = _steamProvider.GetSteamId(peerId);
 		if (steamId == 0)
 			return;
 
+		if (dropIfCongested && IsSendQueueCongested(steamId))
+			return;
+
 		_steam.Call("sendP2PPacket", steamId, data, _p2pSendReliableWithBuffering, channel);
+	}
+
+	private bool IsSendQueueCongested(ulong steamId)
+	{
+		var state = _steam.Call("getP2PSessionState", steamId).AsGodotDictionary();
+
+		// Missing telemetry (no session yet, or an API variant without the field) must not
+		// silently mute the stream — only gate on a positive signal of congestion.
+		if (!state.ContainsKey("bytes_queued_for_send"))
+			return false;
+
+		return state["bytes_queued_for_send"].AsInt64() > MaxQueuedBytesPerPeer;
 	}
 
 	private void ProcessPlayout()
@@ -453,9 +489,14 @@ public partial class TvScreenShare : MeshInstance3D
 
 		DisplayFrame(encodedBytes);
 
+		var nowMs = Time.GetTicksMsec();
+		if (nowMs - _lastVideoSendMs < NetworkFrameIntervalMs)
+			return;
+		_lastVideoSendMs = nowMs;
+
 		if (_steamProvider != null)
 		{
-			BroadcastSteamPacket(SteamP2PVideoChannel, encodedBytes);
+			BroadcastSteamPacket(SteamP2PVideoChannel, encodedBytes, dropIfCongested: true);
 			return;
 		}
 

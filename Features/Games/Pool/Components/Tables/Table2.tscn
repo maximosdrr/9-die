@@ -137,7 +137,6 @@ physics_material_override = SubResource("PhysicsMaterial_cgd1i")
 script = ExtResource("1_c3ume")
 
 [node name="BallOffMonitor" type="Area3D" parent="." unique_id=2065452063]
-visible = false
 collision_layer = 0
 collision_mask = 4
 
@@ -173,13 +172,11 @@ debug_color = Color(0.38080207, 0.61339384, 0, 0.41960785)
 
 [node name="TableFloorBottom" type="CollisionShape3D" parent="." unique_id=634397921]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0079844, 0.6135681, 0.0022838116)
-visible = false
 shape = SubResource("BoxShape3D_ssfmh")
 debug_color = Color(0, 0.55214536, 0.91769874, 0.41960785)
 
 [node name="Floor" type="StaticBody3D" parent="." unique_id=1514591254]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.77, 0)
-visible = false
 
 [node name="Main" type="CollisionShape3D" parent="Floor" unique_id=857418032]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0005737394, 0, -0.0011452138)
@@ -224,7 +221,6 @@ debug_color = Color(0.8669102, 0, 0.1376302, 0.41960785)
 
 [node name="Borders" type="StaticBody3D" parent="." unique_id=2066679986]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.07724881, 0)
-visible = false
 collision_layer = 8
 collision_mask = 7
 physics_material_override = SubResource("PhysicsMaterial_qr0y0")
@@ -271,7 +267,6 @@ debug_color = Color(0.98081094, 0, 0.37871438, 0.41960785)
 
 [node name="ScoreMonitor" type="Area3D" parent="." unique_id=249741977]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21404922, 0)
-visible = false
 collision_layer = 0
 collision_mask = 4
 script = ExtResource("1_7pt52")
@@ -283,7 +278,6 @@ debug_color = Color(0, 0.65082103, 0.087542556, 0.41960785)
 
 [node name="Pockets" type="Node3D" parent="." unique_id=28904732]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0618335, 0)
-visible = false
 
 [node name="Detectors" type="Area3D" parent="Pockets" unique_id=2002732451]
 collision_layer = 0

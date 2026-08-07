@@ -140,9 +140,10 @@ public partial class TvShareButton : CanvasLayer
     // synchronously on the main thread without needing a background worker.
     private static ImageTexture CaptureThumbnail(IntPtr windowHandle)
     {
+        var rgba = new byte[ThumbnailWidth * ThumbnailHeight * 4];
         var captured = windowHandle == IntPtr.Zero
-            ? WindowsScreenCapture.TryCapturePrimaryScreen(ThumbnailWidth, ThumbnailHeight, out var rgba)
-            : WindowsScreenCapture.TryCaptureWindow(windowHandle, ThumbnailWidth, ThumbnailHeight, out rgba);
+            ? WindowsScreenCapture.TryCapturePrimaryScreen(ThumbnailWidth, ThumbnailHeight, rgba)
+            : WindowsScreenCapture.TryCaptureWindow(windowHandle, ThumbnailWidth, ThumbnailHeight, rgba);
 
         if (!captured)
             return null;
