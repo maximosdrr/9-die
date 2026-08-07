@@ -638,10 +638,10 @@ public partial class SceneLoadTest : Node
         Check("modo solo ignora falta na quebra e mantém a vez",
             PoolTurnResolver.AdaptActionForSolo(ruler.Rule(illegalBreak), illegalBreak)
                 == TurnRuler.Actions.ExtendTurn);
-        Check("dezenove faltas ainda não encerram a partida",
-            !PoolTurnResolver.IsFatalFoulCount(19));
-        Check("a vigésima falta encerra a partida competitiva",
-            PoolTurnResolver.IsFatalFoulCount(20));
+        Check("quatro faltas ainda não encerram a partida",
+            !PoolTurnResolver.IsFatalFoulCount(4));
+        Check("a quinta falta encerra a partida competitiva",
+            PoolTurnResolver.IsFatalFoulCount(5));
 
         var nineOnBreak = new TurnContext
         {
