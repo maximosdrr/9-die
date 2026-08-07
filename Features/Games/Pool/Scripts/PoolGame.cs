@@ -5,7 +5,6 @@ using Godot.Collections;
 public partial class PoolGame : TableGame
 {
 	public PoolBallRespawn PoolBallRespawn;
-	public OffTableMonitor OffTableMonitor;
 	[Export] public PoolGameTable PoolTable;
 	[Export] public PackedScene GameControllerScene;
 
@@ -15,7 +14,6 @@ public partial class PoolGame : TableGame
 
 	public Ball CueBall = null;
 	public Array<Ball> Balls = new();
-	public Area3D ScoreMonitor;
 
 	public Dictionary<string, Array> BallsPocketedByPlayer = new();
 	public int CurrentTargetBallIndex = 0;
@@ -27,15 +25,11 @@ public partial class PoolGame : TableGame
 	public override void _Ready()
 	{
 		PoolBallRespawn = GetNode<PoolBallRespawn>("Scripts/PoolBallRespawn");
-		OffTableMonitor = GetNode<OffTableMonitor>("Scripts/OffTableMonitor");
 		BallPlacementManager = GetNode<BallPlacementManager>("Scripts/BallPlacementManager");
 		SimulationRunner = GetNode<PoolSimulationRunner>("Scripts/PoolSimulationRunner");
 		BallPlacementManager.SimulationRunner = SimulationRunner;
 		_gameModeHandler = GetNode<GameModeHandler>("GameModeHandler");
 
-		ScoreMonitor = PoolTable.ScoreMonitor;
-
-		OffTableMonitor.Setup(PoolTable.BallOffMonitor);
 		GameModeHandler = _gameModeHandler;
 		MatchOver += OnMatchIsOver;
 		MatchStarted += OnMatchStarts;

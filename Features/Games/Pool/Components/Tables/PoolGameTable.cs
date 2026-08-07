@@ -3,8 +3,6 @@ using Godot;
 [GlobalClass]
 public partial class PoolGameTable : StaticBody3D
 {
-	public Area3D ScoreMonitor;
-	public Area3D BallOffMonitor;
 	public AudioStreamPlayer3D BallPocketedAudio;
 
 	/// <summary>
@@ -18,8 +16,6 @@ public partial class PoolGameTable : StaticBody3D
 
 	public override void _Ready()
 	{
-		ScoreMonitor = GetNode<Area3D>("ScoreMonitor");
-		BallOffMonitor = GetNode<Area3D>("BallOffMonitor");
 		BallPocketedAudio = GetNode<AudioStreamPlayer3D>("BallPocketed");
 	}
 

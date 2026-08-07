@@ -171,6 +171,10 @@ public partial class PoolTurnResolver : TurnResolver
     {
         switch (action)
         {
+            case TurnRuler.Actions.None:
+                GD.PushWarning("Regra não produziu decisão; o turno ficará como está.");
+                break;
+
             case TurnRuler.Actions.CallNextTurn:
                 PoolGame.CallNextTurn(BuildHudContext(scoringPlayerId, ballsScoredThisTurn));
                 break;

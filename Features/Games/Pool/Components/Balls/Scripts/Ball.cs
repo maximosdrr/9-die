@@ -26,7 +26,6 @@ public partial class Ball : Node3D
         GD.Load<PackedScene>("uid://buoe2fsbwjbk1"),
     };
 
-    [Export] public BallResource Data;
     [Export] public int Index = 0;
 
     private int _textureId = 0;

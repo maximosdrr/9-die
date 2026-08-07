@@ -188,14 +188,6 @@ public partial class Cue : Node3D
         return new Pool.Simulation.ShotInput(aimYaw, elevation, speed, offsetX, offsetY);
     }
 
-    private (Vector3 Direction, Vector3 HitOffset) GetStrikeVectors()
-    {
-        var dir = -GlobalTransform.Basis.Z.Normalized();
-        var hitOffset = new Vector3(SpinOffset.X, SpinOffset.Y, 0.0f);
-
-        return (dir, hitOffset);
-    }
-
     private void OnTurnChanged(string newPlayer, Dictionary context)
     {
         UpdateTurnState();

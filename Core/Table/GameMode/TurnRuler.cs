@@ -5,7 +5,13 @@ public partial class TurnRuler : Node
 {
     public enum Actions
     {
-        CallFoul,
+        /// <summary>
+        /// No decision. Deliberately first, so it is what `default(Actions)` yields: a ruler that
+        /// forgets to implement Rule then does nothing instead of silently picking whichever
+        /// action happened to be declared first.
+        /// </summary>
+        None,
+
         CallCueBallReplacement,
         CallNextTurn,
         ExtendTurn,
@@ -22,6 +28,7 @@ public partial class TurnRuler : Node
 
     public virtual Actions Rule(TurnContext context)
     {
-        return default;
+        GD.PushError($"{GetType().Name} não implementa Rule(); o turno não será resolvido.");
+        return Actions.None;
     }
 }

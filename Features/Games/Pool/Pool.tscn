@@ -3,7 +3,6 @@
 [ext_resource type="Script" uid="uid://s4g38bcjv2yq" path="res://Features/Games/Pool/Scripts/PoolGame.cs" id="1_jypsj"]
 [ext_resource type="PackedScene" uid="uid://d7avt6omfr3h" path="res://Features/Games/Pool/Components/Tables/Table2.tscn" id="3_8ji62"]
 [ext_resource type="Script" uid="uid://c0k1np0r4qbg3" path="res://Features/Games/Pool/Scripts/PoolBallRespawn.cs" id="3_qmuqs"]
-[ext_resource type="Script" uid="uid://b2fwxlvgrdphy" path="res://Features/Games/Pool/Scripts/OffTableMonitor.cs" id="4_y227s"]
 [ext_resource type="Script" uid="uid://dia1p1hxycici" path="res://Features/Games/Pool/GameModes/PoolTurnResolver.cs" id="5_5ugkb"]
 [ext_resource type="Script" uid="uid://cf4mbqi8yhg51" path="res://Core/Table/GameMode/GameModeHandler.cs" id="8_bojb6"]
 [ext_resource type="Script" uid="uid://b2r168bfmy56" path="res://Features/Games/Pool/Scripts/BallPlacementManager.cs" id="8_rm535"]
@@ -29,9 +28,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.77, 0)
 [node name="PoolBallRespawn" type="Node" parent="Scripts" unique_id=955084759 node_paths=PackedStringArray("BallsHolder")]
 script = ExtResource("3_qmuqs")
 BallsHolder = NodePath("../../BallsHolder")
-
-[node name="OffTableMonitor" type="Node" parent="Scripts" unique_id=1315450502]
-script = ExtResource("4_y227s")
 
 [node name="PoolSimulationRunner" type="Node" parent="Scripts" unique_id=1884201553 node_paths=PackedStringArray("TableAnchor")]
 script = ExtResource("16_simrn")

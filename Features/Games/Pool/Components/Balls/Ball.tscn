@@ -1,7 +1,6 @@
-[gd_scene load_steps=8 format=3 uid="uid://cqwu27wd0ddmr"]
+[gd_scene load_steps=7 format=3 uid="uid://cqwu27wd0ddmr"]
 
 [ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/Ball.cs" id="1_eusg5"]
-[ext_resource type="Resource" uid="uid://umg6l17oxgvf" path="res://Features/Games/Pool/Components/Balls/Resources/RegularBall.tres" id="2_5qcrw"]
 [ext_resource type="AudioStream" uid="uid://bnm7i5xmyycgi" path="res://Assets/SoundEffects/BallBounce.ogg" id="6_87oc0"]
 [ext_resource type="Script" path="res://Features/Games/Pool/Components/Balls/Scripts/SFX/BallBounceAudio.cs" id="6_pgfyo"]
 [ext_resource type="AudioStream" uid="uid://b1bkprdpdor67" path="res://Assets/SoundEffects/BallCollision.ogg" id="6_xsld2"]
@@ -20,7 +19,6 @@ properties/2/replication_mode = 0
 
 [node name="Ball" type="Node3D"]
 script = ExtResource("1_eusg5")
-data = ExtResource("2_5qcrw")
 metadata/_custom_type_script = "uid://crufycb4ylox5"
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
