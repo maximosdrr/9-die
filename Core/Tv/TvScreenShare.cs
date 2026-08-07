@@ -27,13 +27,18 @@ public partial class TvScreenShare : MeshInstance3D
 	// Video frames are big (~60-100 KB of WebP) and individually disposable — a stale frame is
 	// worthless the moment a newer one exists. Reliable-with-buffering never drops anything, so
 	// when a peer's link can't keep up with the encoder, Steam's per-peer send queue just grows
-	// without bound and playback slides seconds behind real time. Before queueing a video frame
-	// for a peer, peek at how much is still waiting in that peer's queue and skip them this
-	// round if it's above this threshold (~1.5 frames). Each viewer's frame rate then settles
-	// at whatever their own link actually sustains, always showing the freshest frame, with
-	// latency bounded instead of compounding. Audio is never gated: it's small, and it going
-	// silent is far more jarring than video dropping a frame.
-	private const long MaxQueuedBytesPerPeer = 128 * 1024;
+	// without bound and playback slides seconds behind real time. Before queueing a payload for
+	// a peer, peek at how much is still waiting in that peer's queue and skip them this round
+	// if it's above the payload's threshold. Each viewer's frame rate then settles at whatever
+	// their own link actually sustains, always showing the freshest frame, with latency bounded
+	// instead of compounding.
+	//
+	// Video gates tight (~1.5 frames). Audio gates too, but at 4x that: a dropped chunk is an
+	// audible gap, so it only happens once the link is so far gone (queue already seconds deep)
+	// that the alternative is audio drifting endlessly behind — at that point a stutter that
+	// stays live beats a clean stream narrating the past.
+	private const long VideoQueueLimitBytes = 128 * 1024;
+	private const long AudioQueueLimitBytes = 512 * 1024;
 
 	// How often video frames are *sent*, decoupled from how fast capture+encode runs locally.
 	// The sharer's own TV happily displays every captured frame, but pushing 35+ fps over the
@@ -408,12 +413,12 @@ public partial class TvScreenShare : MeshInstance3D
 				else
 					_playoutBuffer?.Enqueue(data);
 
-				// The relay hop applies the same per-peer congestion gate as the original send:
+				// The relay hop applies the same per-peer congestion gates as the original send:
 				// one slow viewer must only cost themselves frames, not back up the host's
 				// queue to everyone else.
 				foreach (var peerId in Multiplayer.GetPeers())
 					if (peerId != senderId)
-						SendSteamPacket(channel, peerId, data, dropIfCongested: !isAudio);
+						SendSteamPacket(channel, peerId, data, isAudio ? AudioQueueLimitBytes : VideoQueueLimitBytes);
 			}
 			else
 			{
@@ -427,41 +432,64 @@ public partial class TvScreenShare : MeshInstance3D
 
 	// Mirrors the "server relays to every other peer, everyone else only talks to the host"
 	// star topology the RPC path below uses, just addressed by Steam ID instead of Godot peer id.
-	private void BroadcastSteamPacket(int channel, byte[] data, bool dropIfCongested = false)
+	// queueLimitBytes: skip peers whose send queue is deeper than this; 0 means never skip.
+	private void BroadcastSteamPacket(int channel, byte[] data, long queueLimitBytes = 0)
 	{
 		if (Multiplayer.IsServer())
 		{
 			foreach (var peerId in Multiplayer.GetPeers())
-				SendSteamPacket(channel, peerId, data, dropIfCongested);
+				SendSteamPacket(channel, peerId, data, queueLimitBytes);
 		}
 		else
 		{
-			SendSteamPacket(channel, 1, data, dropIfCongested);
+			SendSteamPacket(channel, 1, data, queueLimitBytes);
 		}
 	}
 
-	private void SendSteamPacket(int channel, int peerId, byte[] data, bool dropIfCongested = false)
+	private void SendSteamPacket(int channel, int peerId, byte[] data, long queueLimitBytes = 0)
 	{
 		var steamId = _steamProvider.GetSteamId(peerId);
 		if (steamId == 0)
 			return;
 
-		if (dropIfCongested && IsSendQueueCongested(steamId))
+		if (queueLimitBytes > 0 && IsSendQueueCongested(steamId, queueLimitBytes))
 			return;
 
 		_steam.Call("sendP2PPacket", steamId, data, _p2pSendReliableWithBuffering, channel);
 	}
 
-	private bool IsSendQueueCongested(ulong steamId)
+	private bool _sendQueueTelemetryVerified;
+
+	private bool IsSendQueueCongested(ulong steamId, long thresholdBytes)
 	{
 		var state = _steam.Call("getP2PSessionState", steamId).AsGodotDictionary();
 
-		// Missing telemetry (no session yet, or an API variant without the field) must not
-		// silently mute the stream — only gate on a positive signal of congestion.
-		if (!state.ContainsKey("bytes_queued_for_send"))
+		// An empty dictionary means the P2P session simply doesn't exist yet — nothing is
+		// queued and there is nothing to learn about the API shape, so don't warn off of it.
+		if (state.Count == 0)
 			return false;
 
-		return state["bytes_queued_for_send"].AsInt64() > MaxQueuedBytesPerPeer;
+		// Missing telemetry on a real session (a GodotSteam variant without the field) must not
+		// silently mute the stream — only gate on a positive signal of congestion. But it also
+		// must not fail silently into "never drop", which looks exactly like the pre-gating
+		// unbounded-queue lag; say it once, loudly, so a bad test points here immediately.
+		if (!state.ContainsKey("bytes_queued_for_send"))
+		{
+			if (!_sendQueueTelemetryVerified)
+			{
+				_sendQueueTelemetryVerified = true;
+				GD.PushWarning("[TvScreenShare] getP2PSessionState não expõe 'bytes_queued_for_send' nesta versão do GodotSteam — o controle de congestionamento está INATIVO e a fila de envio pode crescer sem limite em links lentos.");
+			}
+			return false;
+		}
+
+		if (!_sendQueueTelemetryVerified)
+		{
+			_sendQueueTelemetryVerified = true;
+			GD.Print("[TvScreenShare] Controle de congestionamento ativo (bytes_queued_for_send disponível).");
+		}
+
+		return state["bytes_queued_for_send"].AsInt64() > thresholdBytes;
 	}
 
 	private void ProcessPlayout()
@@ -496,7 +524,7 @@ public partial class TvScreenShare : MeshInstance3D
 
 		if (_steamProvider != null)
 		{
-			BroadcastSteamPacket(SteamP2PVideoChannel, encodedBytes, dropIfCongested: true);
+			BroadcastSteamPacket(SteamP2PVideoChannel, encodedBytes, VideoQueueLimitBytes);
 			return;
 		}
 
@@ -536,7 +564,7 @@ public partial class TvScreenShare : MeshInstance3D
 		// would double it up as an echo. Only relay it to everyone else.
 		if (_steamProvider != null)
 		{
-			BroadcastSteamPacket(SteamP2PAudioChannel, monoInt16);
+			BroadcastSteamPacket(SteamP2PAudioChannel, monoInt16, AudioQueueLimitBytes);
 			return;
 		}
 

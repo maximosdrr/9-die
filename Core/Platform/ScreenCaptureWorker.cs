@@ -130,7 +130,20 @@ public sealed class ScreenCaptureWorker : IDisposable
             if (captured)
             {
                 consecutiveFailures = 0;
-                _encodeQueue.Add((seq++, buffer));
+
+                // Dispose only waits 500 ms for this thread before closing the queue, and a
+                // single capture can legitimately exceed that (PrintWindow on a hung window can
+                // block for seconds). Add on a completed queue throws, and an unhandled
+                // exception on a background thread kills the whole process — treat it as the
+                // shutdown signal it actually is.
+                try
+                {
+                    _encodeQueue.Add((seq++, buffer));
+                }
+                catch (InvalidOperationException)
+                {
+                    return;
+                }
             }
             else
             {

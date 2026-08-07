@@ -109,7 +109,7 @@ interact={
 
 [network]
 
-transport="steam"
+transport="enet"
 max_players=12
 max_channels=4
 
