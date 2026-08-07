@@ -5,7 +5,14 @@ using Godot.Collections;
 public partial class BallPlacementManager : Node
 {
 	[Signal] public delegate void PlacementFinishedEventHandler();
+	[Signal] public delegate void PlacementCommittedEventHandler();
 	[Signal] public delegate void PlacementRejectedEventHandler(string reason);
+
+	public enum PlacementRegion
+	{
+		FullTable,
+		BehindHeadString,
+	}
 
 	private const float CollisionMargin = 0.001f;
 
@@ -30,12 +37,16 @@ public partial class BallPlacementManager : Node
 	private Ball _previewBall;
 	private bool _previewBallWasVisible;
 	private ulong _lastPreviewSentAtMsec;
+	private PlacementRegion _localPlacementRegion = PlacementRegion.FullTable;
+	private float _localHeadStringZ;
 
 	// These exist only on the server. A preview packet is accepted only while this exact player
 	// is authorised to place this exact ball.
 	private int _authorizedPlacerId;
 	private Ball _authorizedBall;
 	private ulong _lastServerPreviewAtMsec;
+	private PlacementRegion _authorizedPlacementRegion = PlacementRegion.FullTable;
+	private float _authorizedHeadStringZ;
 
 	public GlobalCamera Camera;
 
@@ -51,13 +62,16 @@ public partial class BallPlacementManager : Node
 		RemovePreviewVisual(restoreRealBall: true);
 	}
 
-	public void AuthorizePlacement(int playerId, Ball ball)
+	public void AuthorizePlacement(int playerId, Ball ball,
+		PlacementRegion region = PlacementRegion.FullTable, float headStringZ = 0.0f)
 	{
 		if (!Multiplayer.IsServer())
 			return;
 
 		_authorizedPlacerId = playerId;
 		_authorizedBall = ball;
+		_authorizedPlacementRegion = region;
+		_authorizedHeadStringZ = headStringZ;
 		_lastServerPreviewAtMsec = 0;
 	}
 
@@ -66,7 +80,8 @@ public partial class BallPlacementManager : Node
 		return _authorizedPlacerId != 0 && int.TryParse(playerId, out var id) && _authorizedPlacerId == id;
 	}
 
-	public void StartPlacement(Ball ballToPlace, Array<Ball> existingBalls)
+	public void StartPlacement(Ball ballToPlace, Array<Ball> existingBalls,
+		PlacementRegion region = PlacementRegion.FullTable, float headStringZ = 0.0f)
 	{
 		if (!IsInstanceValid(ballToPlace) || Camera == null || SimulationRunner == null)
 			return;
@@ -74,6 +89,8 @@ public partial class BallPlacementManager : Node
 		_ball = ballToPlace;
 		_otherBalls = existingBalls;
 		_isPlacing = true;
+		_localPlacementRegion = region;
+		_localHeadStringZ = headStringZ;
 		_lastPreviewSentAtMsec = 0;
 
 		var initialPosition = FindInitialPreviewPosition(ballToPlace);
@@ -98,11 +115,13 @@ public partial class BallPlacementManager : Node
 
 	private Vector3 FindInitialPreviewPosition(Ball ball)
 	{
-		if (SimulationRunner.TryValidatePlacement(ball.GlobalPosition, ball, out var valid))
+		if (TryValidatePlacement(ball.GlobalPosition, ball,
+			_localPlacementRegion, _localHeadStringZ, out var valid))
 			return valid;
 
 		var preferred = SimulationRunner.ClampToPlayableArea(
 			SimulationRunner.GlobalToTablePosition(ball.GlobalPosition));
+		preferred = ClampToPlacementRegion(preferred, _localPlacementRegion, _localHeadStringZ);
 
 		if (!SimulationRunner.TryFindNearestFreeSpot(preferred, ball, out var freeSpot))
 			freeSpot = SimulationRunner.ClampToPlayableArea(Vector2.Zero);
@@ -119,6 +138,8 @@ public partial class BallPlacementManager : Node
 		var tablePosition = SimulationRunner.GlobalToTablePosition(worldPosition);
 		tablePosition = ApplyCollisionSliding(tablePosition);
 		tablePosition = SimulationRunner.ClampToPlayableArea(tablePosition);
+		tablePosition = ClampToPlacementRegion(
+			tablePosition, _localPlacementRegion, _localHeadStringZ);
 		worldPosition = SimulationRunner.TableToGlobalPosition(tablePosition);
 
 		SetPreviewPosition(worldPosition);
@@ -138,7 +159,8 @@ public partial class BallPlacementManager : Node
 			return;
 
 		var proposedPosition = _ghost.GlobalPosition;
-		if (!SimulationRunner.TryValidatePlacement(proposedPosition, _ball, out _))
+		if (!TryValidatePlacement(proposedPosition, _ball,
+			_localPlacementRegion, _localHeadStringZ, out _))
 		{
 			HandlePlacementRejected("invalid_position");
 			return;
@@ -198,6 +220,8 @@ public partial class BallPlacementManager : Node
 		SwitchCameraMode(false);
 		_ball = null;
 		_otherBalls.Clear();
+		_localPlacementRegion = PlacementRegion.FullTable;
+		_localHeadStringZ = 0.0f;
 		EmitSignal(SignalName.PlacementFinished);
 	}
 
@@ -287,17 +311,28 @@ public partial class BallPlacementManager : Node
 			return;
 		}
 
-		if (!SimulationRunner.TryValidatePlacement(position, requestedBall, out var validatedPosition))
+		if (!TryValidatePlacement(position, requestedBall,
+			_authorizedPlacementRegion, _authorizedHeadStringZ, out var validatedPosition))
 		{
 			var preferred = SimulationRunner.ClampToPlayableArea(
 				SimulationRunner.GlobalToTablePosition(position));
+			preferred = ClampToPlacementRegion(
+				preferred, _authorizedPlacementRegion, _authorizedHeadStringZ);
 			if (!SimulationRunner.TryFindNearestFreeSpot(preferred, requestedBall, out var freeSpot))
 			{
 				RejectPlacement(requesterId, "no_free_position");
 				return;
 			}
 
+			freeSpot = ClampToPlacementRegion(
+				freeSpot, _authorizedPlacementRegion, _authorizedHeadStringZ);
 			validatedPosition = SimulationRunner.TableToGlobalPosition(freeSpot);
+			if (!TryValidatePlacement(validatedPosition, requestedBall,
+				_authorizedPlacementRegion, _authorizedHeadStringZ, out validatedPosition))
+			{
+				RejectPlacement(requesterId, "no_free_position");
+				return;
+			}
 		}
 
 		Rpc(MethodName.SetPlacementPreview, ballPath, true, validatedPosition);
@@ -314,7 +349,8 @@ public partial class BallPlacementManager : Node
 		if (_lastServerPreviewAtMsec != 0 && now - _lastServerPreviewAtMsec < minimumInterval)
 			return;
 
-		if (!SimulationRunner.TryValidatePlacement(position, requestedBall, out var validatedPosition))
+		if (!TryValidatePlacement(position, requestedBall,
+			_authorizedPlacementRegion, _authorizedHeadStringZ, out var validatedPosition))
 			return;
 
 		_lastServerPreviewAtMsec = now;
@@ -329,7 +365,8 @@ public partial class BallPlacementManager : Node
 			return;
 		}
 
-		if (!SimulationRunner.TryValidatePlacement(position, requestedBall, out var validatedPosition))
+		if (!TryValidatePlacement(position, requestedBall,
+			_authorizedPlacementRegion, _authorizedHeadStringZ, out var validatedPosition))
 		{
 			RejectPlacement(requesterId, "invalid_position");
 			return;
@@ -337,6 +374,8 @@ public partial class BallPlacementManager : Node
 
 		_authorizedPlacerId = 0;
 		_authorizedBall = null;
+		_authorizedPlacementRegion = PlacementRegion.FullTable;
+		_authorizedHeadStringZ = 0.0f;
 		_lastServerPreviewAtMsec = 0;
 		Rpc(MethodName.CommitPlacement, ballPath, validatedPosition);
 	}
@@ -396,6 +435,7 @@ public partial class BallPlacementManager : Node
 		RemovePreviewVisual(restoreRealBall: false);
 		ballNode.GlobalPosition = finalPosition;
 		ballNode.SetInPlay(true);
+		EmitSignal(SignalName.PlacementCommitted);
 
 		if (_isPlacing && ballNode == _ball)
 			CompleteLocalPlacement();
@@ -452,5 +492,34 @@ public partial class BallPlacementManager : Node
 		_ghost = null;
 		_previewBall = null;
 		_previewBallWasVisible = false;
+	}
+
+	public bool TryValidatePlacement(Vector3 requestedGlobalPosition, Ball ball,
+		PlacementRegion region, float headStringZ, out Vector3 validatedGlobalPosition)
+	{
+		validatedGlobalPosition = Vector3.Zero;
+		if (SimulationRunner == null
+			|| !SimulationRunner.TryValidatePlacement(
+				requestedGlobalPosition, ball, out validatedGlobalPosition))
+			return false;
+
+		var tablePosition = SimulationRunner.GlobalToTablePosition(validatedGlobalPosition);
+		return IsInsidePlacementRegion(tablePosition, region, headStringZ);
+	}
+
+	public static bool IsInsidePlacementRegion(
+		Vector2 tablePosition, PlacementRegion region, float headStringZ)
+	{
+		return region != PlacementRegion.BehindHeadString
+		       || tablePosition.Y <= headStringZ + 0.00001f;
+	}
+
+	private static Vector2 ClampToPlacementRegion(
+		Vector2 tablePosition, PlacementRegion region, float headStringZ)
+	{
+		if (region == PlacementRegion.BehindHeadString)
+			tablePosition.Y = Mathf.Min(tablePosition.Y, headStringZ);
+
+		return tablePosition;
 	}
 }

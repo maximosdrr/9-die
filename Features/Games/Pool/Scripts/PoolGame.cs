@@ -119,6 +119,12 @@ public partial class PoolGame : TableGame
 
 	private void OnMatchStarts(Array playersIds, string firstTurnOwner)
 	{
+		var initialPlacementContext = new Dictionary
+		{
+			["ball_replacement"] = 0,
+			["initial_break_placement"] = true,
+		};
+
 		foreach (var pIdVariant in playersIds)
 		{
 			var pId = (string)pIdVariant;
@@ -129,7 +135,10 @@ public partial class PoolGame : TableGame
 		}
 
 		if (Player != null && Player.GameHandler.CurrentController != null)
-			Player.GameHandler.CurrentController.ApplyControl(firstTurnOwner, new Dictionary());
+			Player.GameHandler.CurrentController.ApplyControl(firstTurnOwner, initialPlacementContext);
+
+		var resolver = _gameModeHandler?.CurrentGameMode?.TurnResolver as PoolTurnResolver;
+		resolver?.BeginInitialBreakPlacement(firstTurnOwner);
 	}
 
 	private void OnMatchIsOver(string winner, Dictionary context)

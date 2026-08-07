@@ -109,6 +109,9 @@ public partial class PoolController : Node3D
 			}
 			else
 			{
+				// A newly equipped controller starts visible. Hide the cue and disable aiming while
+				// ball placement owns the camera and input, including before the opening break.
+				GiveControl();
 				await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
 				TakeControl();
 			}

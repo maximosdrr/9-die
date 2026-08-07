@@ -28,8 +28,9 @@ public partial class PoolTurnResolver : TurnResolver
     private bool _pushOutDeclaredForShot;
     private bool _awaitingPushOutChoice;
     private string _pushOutShooterId = "";
+    private bool _initialBreakPlacementPending = true;
 
-    public bool IsShotBlocked => _awaitingPushOutChoice;
+    public bool IsShotBlocked => _awaitingPushOutChoice || _initialBreakPlacementPending;
 
     public override void Setup(TableGame tableGame)
     {
@@ -39,6 +40,7 @@ public partial class PoolTurnResolver : TurnResolver
         BallsInGame.Clear();
         _consecutiveFouls.Clear();
         _isBreakShot = true;
+        _initialBreakPlacementPending = true;
         ResetPushOutState();
 
         foreach (var ball in PoolGame.Balls)
@@ -57,6 +59,7 @@ public partial class PoolTurnResolver : TurnResolver
         BallsInGame.Clear();
         _consecutiveFouls.Clear();
         _isBreakShot = true;
+        _initialBreakPlacementPending = true;
         ResetPushOutState();
         CueBall = null;
         PoolGame = null;
@@ -69,6 +72,9 @@ public partial class PoolTurnResolver : TurnResolver
 
         SignalUtil.ConnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
         SignalUtil.ConnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotFinished, new Callable(this, MethodName.OnShotFinished));
+        SignalUtil.ConnectGuarded(PoolGame.BallPlacementManager,
+            BallPlacementManager.SignalName.PlacementCommitted,
+            new Callable(this, MethodName.OnPlacementCommitted));
     }
 
     private void DisconnectSignals()
@@ -78,6 +84,35 @@ public partial class PoolTurnResolver : TurnResolver
 
         SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnStart));
         SignalUtil.DisconnectGuarded(PoolGame.SimulationRunner, PoolSimulationRunner.SignalName.ShotFinished, new Callable(this, MethodName.OnShotFinished));
+        SignalUtil.DisconnectGuarded(PoolGame.BallPlacementManager,
+            BallPlacementManager.SignalName.PlacementCommitted,
+            new Callable(this, MethodName.OnPlacementCommitted));
+    }
+
+    public void BeginInitialBreakPlacement(string ownerId)
+    {
+        if (PoolGame == null || !int.TryParse(ownerId, out var ownerPeerId))
+            return;
+
+        _initialBreakPlacementPending = true;
+        var headStringZ = PoolGame.PoolBallRespawn.HeadSpot.Z;
+
+        if (Multiplayer.IsServer())
+        {
+            PoolGame.BallPlacementManager.AuthorizePlacement(ownerPeerId, CueBall,
+                BallPlacementManager.PlacementRegion.BehindHeadString, headStringZ);
+        }
+
+        if (Multiplayer.GetUniqueId() == ownerPeerId)
+        {
+            _ = HandleBallReplacement(CueBall,
+                BallPlacementManager.PlacementRegion.BehindHeadString, headStringZ);
+        }
+    }
+
+    private void OnPlacementCommitted()
+    {
+        _initialBreakPlacementPending = false;
     }
 
     private void OnTurnStart(string ownerId, Dictionary context)
@@ -88,20 +123,33 @@ public partial class PoolTurnResolver : TurnResolver
         var ballIndex = (int)context["ball_replacement"];
         var target = ballIndex == 0 ? CueBall : BallsInGame[ballIndex];
 
+        var initialBreakPlacement = context.TryGetValue(
+            "initial_break_placement", out var initialVariant) && initialVariant.AsBool();
+        var region = initialBreakPlacement
+            ? BallPlacementManager.PlacementRegion.BehindHeadString
+            : BallPlacementManager.PlacementRegion.FullTable;
+        var headStringZ = initialBreakPlacement ? PoolGame.PoolBallRespawn.HeadSpot.Z : 0.0f;
+
+        if (initialBreakPlacement)
+            _initialBreakPlacementPending = true;
+
         if (Multiplayer.IsServer())
-            PoolGame.BallPlacementManager.AuthorizePlacement(int.Parse(ownerId), target);
+            PoolGame.BallPlacementManager.AuthorizePlacement(
+                int.Parse(ownerId), target, region, headStringZ);
 
         if (Multiplayer.GetUniqueId() != int.Parse(ownerId))
             return;
 
-        _ = HandleBallReplacement(target);
+        _ = HandleBallReplacement(target, region, headStringZ);
     }
 
-    private async Task HandleBallReplacement(Ball target)
+    private async Task HandleBallReplacement(Ball target,
+        BallPlacementManager.PlacementRegion region = BallPlacementManager.PlacementRegion.FullTable,
+        float headStringZ = 0.0f)
     {
         var balls = new Array<Ball>(BallsInGame.Values);
 
-        PoolGame.BallPlacementManager.StartPlacement(target, balls);
+        PoolGame.BallPlacementManager.StartPlacement(target, balls, region, headStringZ);
         await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
     }
 
@@ -307,7 +355,12 @@ public partial class PoolTurnResolver : TurnResolver
     public override Dictionary BuildHandoffContext(string outgoingPlayerId)
     {
         if (PoolGame != null && PoolGame.BallPlacementManager.IsPlacementPendingFor(outgoingPlayerId))
-            return new Dictionary { ["ball_replacement"] = 0 };
+        {
+            var context = new Dictionary { ["ball_replacement"] = 0 };
+            if (_initialBreakPlacementPending)
+                context["initial_break_placement"] = true;
+            return context;
+        }
 
         return new Dictionary();
     }

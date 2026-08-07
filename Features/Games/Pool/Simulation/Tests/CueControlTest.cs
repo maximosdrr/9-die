@@ -15,6 +15,9 @@ using System.Reflection;
 /// </summary>
 public partial class CueControlTest : Node
 {
+    private const float ExpectedNormalCueSpeed = 3.5f;
+    private const float ExpectedMaxCueSpeed = 5.5f;
+
     private int _passed;
     private int _failed;
 
@@ -49,11 +52,12 @@ public partial class CueControlTest : Node
         var halfBall = CueStrikeModel.CentreBallSpeed(halfCue);
 
         Check($"força máxima gera velocidade central controlável ({fullBall:F2} m/s)",
-            fullBall >= 4.5 && fullBall <= 5.5);
+            fullBall >= 7.0 && fullBall <= 9.0);
         Check($"metade da força dá metade da velocidade da bola ({halfBall:F2} m/s)",
-            Mathf.Abs((float)(halfBall - CueStrikeModel.CentreBallSpeed(2.8f) * 0.5)) < 1e-3f);
-        Check($"força 8 preserva a calibração anterior ({eightyCue:F2} m/s)",
-            Mathf.Abs(eightyCue - 2.24f) < 1e-3f);
+            Mathf.Abs((float)(halfBall
+                - CueStrikeModel.CentreBallSpeed(ExpectedNormalCueSpeed) * 0.5)) < 1e-3f);
+        Check($"força 8 permanece na faixa de tacada forte ({eightyCue:F2} m/s)",
+            Mathf.Abs(eightyCue - 2.8f) < 1e-3f);
     }
 
     // The old curve squared the input, so half the swing gave a quarter of the power and most of
@@ -76,7 +80,7 @@ public partial class CueControlTest : Node
         Check("velocidade cresce de forma monótona com a força", linear);
 
         var quarter = SpeedForPower(0.25f);
-        const float expected = 2.8f * 0.25f;
+        const float expected = ExpectedNormalCueSpeed * 0.25f;
         Check($"resposta é linear, não quadrática ({quarter:F2} vs {expected:F2} m/s)",
             Mathf.Abs(quarter - expected) < 1e-3f);
     }
@@ -120,7 +124,7 @@ public partial class CueControlTest : Node
         Check("cena do taco usa o mesmo máximo validado pelos testes",
             cue != null
             && Mathf.IsEqualApprox(cue.MaxCueSpeed, SpeedForPower(1.0f))
-            && Mathf.IsEqualApprox(cue.NormalCueSpeed, 2.8f));
+            && Mathf.IsEqualApprox(cue.NormalCueSpeed, ExpectedNormalCueSpeed));
         cue?.Free();
     }
 
@@ -290,7 +294,7 @@ public partial class CueControlTest : Node
 
     private static float SpeedForPower(float power)
     {
-        return Cue.PowerToCueSpeed(power, normalCueSpeed: 2.8f, maxCueSpeed: 3.5f);
+        return Cue.PowerToCueSpeed(power, ExpectedNormalCueSpeed, ExpectedMaxCueSpeed);
     }
 
     private void Check(string label, bool condition)

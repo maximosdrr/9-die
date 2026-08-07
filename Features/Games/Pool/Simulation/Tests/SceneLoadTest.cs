@@ -127,7 +127,12 @@ public partial class SceneLoadTest : Node
         var runner = new PoolSimulationRunner { TableAnchor = holder };
         AddChild(runner);
         runner.Setup(respawn.CueBall, respawn.Balls);
-        var fullBreakSpeed = Cue.PowerToCueSpeed(1.0f, 2.8f, 3.5f);
+        var cueScene = GD.Load<PackedScene>("res://Features/Games/Pool/Components/Cue/Cue.tscn");
+        var configuredCue = cueScene?.Instantiate<Cue>();
+        var fullBreakSpeed = configuredCue != null
+            ? Cue.PowerToCueSpeed(1.0f, configuredCue.NormalCueSpeed, configuredCue.MaxCueSpeed)
+            : 0.0f;
+        configuredCue?.Free();
         var breakAccepted = runner.ExecuteShot(new ShotInput(0.0, 0.0, fullBreakSpeed, 0.0, 0.0));
         Check("quebra do rack apertado termina sem timeout",
             breakAccepted && runner.LastShot != null && !runner.LastShot.TimedOut);
@@ -534,6 +539,21 @@ public partial class SceneLoadTest : Node
 
         Check("servidor rejeita coordenadas não finitas no ball-in-hand",
             !runner.TryValidatePlacement(new Vector3(float.NaN, 0.0f, 0.0f), cueBall, out _));
+
+        var placementManager = new BallPlacementManager { SimulationRunner = runner };
+        const float headStringZ = -0.5f;
+        var behindHeadString = runner.TableToGlobalPosition(new Vector2(0.2f, -0.7f));
+        var beyondHeadString = runner.TableToGlobalPosition(new Vector2(0.2f, -0.3f));
+        Check("posicionamento inicial aceita a branca atrás da linha de cabeça",
+            placementManager.TryValidatePlacement(behindHeadString, cueBall,
+                BallPlacementManager.PlacementRegion.BehindHeadString, headStringZ, out _));
+        Check("posicionamento inicial rejeita a branca depois da linha de cabeça",
+            !placementManager.TryValidatePlacement(beyondHeadString, cueBall,
+                BallPlacementManager.PlacementRegion.BehindHeadString, headStringZ, out _));
+        Check("ball-in-hand após falta continua aceitando a mesa inteira",
+            placementManager.TryValidatePlacement(beyondHeadString, cueBall,
+                BallPlacementManager.PlacementRegion.FullTable, headStringZ, out _));
+        placementManager.Free();
 
         runner.QueueFree();
         holder.QueueFree();
