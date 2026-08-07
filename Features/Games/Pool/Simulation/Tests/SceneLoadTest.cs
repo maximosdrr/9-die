@@ -300,7 +300,8 @@ public partial class SceneLoadTest : Node
             spec.HalfWidth > 0.4 && spec.HalfWidth < 0.6 && spec.HalfLength > 0.9 && spec.HalfLength < 1.2);
 
         Check($"seis caçapas lidas dos marcadores (achou {spec.Pockets.Count})", spec.Pockets.Count == 6);
-        Check($"seis tabelas lidas dos marcadores (achou {spec.Cushions.Count})", spec.Cushions.Count == 6);
+        Check($"seis tabelas e doze faces de caçapa lidas dos marcadores (achou {spec.Cushions.Count})",
+            spec.Cushions.Count == 18);
 
         // Pocket radii come straight from each marker, so the two side pockets being smaller than
         // the four corners has to survive the read.
@@ -314,24 +315,58 @@ public partial class SceneLoadTest : Node
         var allInward = true;
         foreach (var cushion in spec.Cushions)
         {
+            // Pocket facings can legitimately override the centre-based heuristic through their
+            // manual flip. The six long rails, however, must always face the playing surface.
+            if ((cushion.End - cushion.Start).FlatLength < 0.4)
+                continue;
+
             var midpoint = (cushion.Start + cushion.End) * 0.5;
             if (midpoint.Dot(cushion.Normal) > 0.0)
                 allInward = false;
         }
 
-        Check("normais das tabelas apontam para dentro da mesa", allInward);
+        Check("normais das tabelas principais apontam para dentro da mesa", allInward);
 
-        // The cushion line must land on the rail's INNER face, not its centre — that is what makes
-        // rail thickness the thing you adjust to move where balls bounce.
+        // The six main cushion lines must land on each rail's INNER face, not its centre — that is
+        // what makes rail thickness the thing you adjust to move where balls bounce. The short
+        // pocket facings deliberately sit nearer the corners and side-pocket throats.
         var narrowest = double.MaxValue;
         foreach (var cushion in spec.Cushions)
         {
+            if ((cushion.End - cushion.Start).FlatLength < 0.4)
+                continue;
+
             var midpoint = (cushion.Start + cushion.End) * 0.5;
             narrowest = Mathf.Min(narrowest, Mathf.Abs(midpoint.Dot(cushion.Normal)));
         }
 
-        Check($"linha de quique fica na face interna do rail (mais próxima: {narrowest:F4} m)",
+        Check($"linha de quique principal fica na face interna do rail (mais próxima: {narrowest:F4} m)",
             narrowest > 0.4 && narrowest < 0.55);
+
+        // Every short facing must overlap a pocket's capture envelope once the ball radius is
+        // considered. Otherwise a ball centre can thread between the jaw and the capture circle.
+        var facingCount = 0;
+        var allFacingsMeetCapture = true;
+        foreach (var cushion in spec.Cushions)
+        {
+            if ((cushion.End - cushion.Start).FlatLength >= 0.4)
+                continue;
+
+            facingCount++;
+            var nearestEndpointToCapture = double.MaxValue;
+            foreach (var pocket in spec.Pockets)
+            {
+                nearestEndpointToCapture = System.Math.Min(nearestEndpointToCapture,
+                    System.Math.Min((cushion.Start - pocket.Center).FlatLength,
+                                    (cushion.End - pocket.Center).FlatLength) - pocket.Radius);
+            }
+
+            if (nearestEndpointToCapture > BilliardConstants.Radius)
+                allFacingsMeetCapture = false;
+        }
+
+        Check($"doze faces auxiliares fecham os corredores das caçapas (achou {facingCount})",
+            facingCount == 12 && allFacingsMeetCapture);
 
         TestEditsPropagate(table);
 
@@ -389,6 +424,24 @@ public partial class SceneLoadTest : Node
             Mathf.Abs((float)(lineBefore - movedLine) - 0.08f) < 1e-3f);
         rail.Position = railPos;
 
+        // Diagonal pocket facings can make automatic side selection ambiguous. Their marker
+        // exposes an explicit override that must select the opposite box face and normal.
+        var cushionMarker = rail as PoolCushionMarker;
+        Check("marcador de tabela expõe o flip manual da normal", cushionMarker != null);
+        if (cushionMarker != null)
+        {
+            var normalBefore = RailNormal(geometry, rail);
+            cushionMarker.FlipNormal = true;
+            var flippedLine = RailLineDistance(geometry, rail);
+            var normalAfter = RailNormal(geometry, rail);
+
+            Check("flip manual troca a face e inverte a normal",
+                normalBefore.Dot(normalAfter) < -0.999
+                && Mathf.Abs((float)(flippedLine - lineBefore) - railSize.Z) < 1e-3f);
+
+            cushionMarker.FlipNormal = false;
+        }
+
         // Pocket: moving the marker moves the capture circle.
         var pocket = geometry.PocketMarkers.GetChild<CollisionShape3D>(0);
         var pocketPos = pocket.Position;
@@ -422,6 +475,30 @@ public partial class SceneLoadTest : Node
 
             bestDistance = distance;
             best = Mathf.Abs(midpoint.Dot(cushion.Normal));
+        }
+
+        return best;
+    }
+
+    private static Vec3d RailNormal(PoolTableGeometry geometry, CollisionShape3D rail)
+    {
+        var spec = geometry.BuildSpec();
+        var railHere = new Vector2(rail.Position.X, rail.Position.Z);
+
+        var best = Vec3d.Zero;
+        var bestDistance = double.MaxValue;
+
+        foreach (var cushion in spec.Cushions)
+        {
+            var midpoint = (cushion.Start + cushion.End) * 0.5;
+            var here = new Vector2((float)midpoint.X, (float)midpoint.Z);
+            var distance = here.DistanceTo(railHere);
+
+            if (distance >= bestDistance)
+                continue;
+
+            bestDistance = distance;
+            best = cushion.Normal;
         }
 
         return best;

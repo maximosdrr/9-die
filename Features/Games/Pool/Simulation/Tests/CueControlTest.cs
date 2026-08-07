@@ -132,12 +132,32 @@ public partial class CueControlTest : Node
 
     private void TestCuePresentationRecovery()
     {
-        var cue = new Cue();
+        var scene = GD.Load<PackedScene>("res://Features/Games/Pool/Components/Cue/Cue.tscn");
+        var cue = scene.Instantiate<Cue>();
+        var game = new PoolGame();
+        var owner = new Player { Name = "7" };
+
+        game.TurnOwner = owner;
+        cue.PoolGame = game;
+        cue.SetMultiplayerAuthority(7);
+        AddChild(cue);
+
+        // Reproduces a short scratch: the recovery cooldown locks the cue while placement has
+        // control, then the same solo player receives control again without a turn change.
+        cue.StateMachine.ChangeState(StatesRef.CueRecover, new Dictionary());
+        cue.StateMachine.ChangeState(StatesRef.CueLocked, new Dictionary());
         cue.Hide();
         cue.RestoreAimingPresentation();
 
         Check("taco reaparece quando o reposicionamento devolve o controle", cue.Visible);
+        Check("taco volta ao estado de mira após reposicionamento solo",
+            cue.StateMachine.Current.Type == StatesRef.CueIdle);
+
+        // This focused test assigns only the turn owner, not Cue.Setup's signal dependencies.
+        cue.PoolGame = null;
         cue.Free();
+        owner.Free();
+        game.Free();
     }
 
     private void TestTurnOwnershipSurvivesTeardown()

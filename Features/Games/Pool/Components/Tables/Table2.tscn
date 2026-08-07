@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://c2uq1yrim6vsf" path="res://Features/Games/Pool/Components/Tables/PoolGameTable.cs" id="1_c3ume"]
 [ext_resource type="AudioStream" uid="uid://llwrgy5p7clt" path="res://Assets/SoundEffects/BallHitHole.ogg" id="2_c3ume"]
 [ext_resource type="Script" uid="uid://rlm3dwgi6t8v" path="res://Features/Games/Pool/Components/Tables/PoolTableGeometry.cs" id="3_geomt"]
+[ext_resource type="Script" uid="uid://cbep60a25q6yx" path="res://Features/Games/Pool/Components/Tables/PoolCushionMarker.cs" id="4_cushion"]
 [ext_resource type="Texture2D" uid="uid://che2g02cj5g4h" path="res://Assets/PoolTable/2/PoolTable2_billiard_blue_baseColor.jpg" id="4_sm0ww"]
 [ext_resource type="Texture2D" uid="uid://dwv1yuviuyksx" path="res://Assets/PoolTable/2/PoolTable2_billiard_blue_metallicRoughness.jpg" id="5_00vay"]
 [ext_resource type="Texture2D" uid="uid://d0k53kw88pm4x" path="res://Assets/PoolTable/2/PoolTable2_billiard_blue_normal.png" id="6_qcm07"]
@@ -11,13 +12,16 @@
 bounce = 0.04
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_clothm"]
-size = Vector3(1.0366266, 0.02, 2.119912)
+size = Vector3(1.0366266, 0.02, 2.1317334)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_railsh"]
-size = Vector3(0.92, 0.05, 0.05)
+size = Vector3(0.9463855, 0.05, 0.05)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_raillg"]
-size = Vector3(0.05, 0.05, 0.94)
+size = Vector3(0.05, 0.05, 0.9759412)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pocketjaw"]
+size = Vector3(0.09902344, 0.05, 0.0048662107)
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_corner"]
 height = 0.06
@@ -26,18 +30,6 @@ radius = 0.055
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_side"]
 height = 0.06
 radius = 0.05
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ionqa"]
-size = Vector3(1.8975927, 1.2071289, 0.10501954)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_u2x2k"]
-size = Vector3(0.11163795, 1.2071289, 3.1064038)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_h7p6q"]
-size = Vector3(0.11163795, 1.9139618, 3.1064038)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_cgd1i"]
-size = Vector3(0.11163795, 1.8976548, 3.1064038)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ssfmh"]
 size = Vector3(1.2225366, 0.032165527, 2.1106944)
@@ -82,21 +74,6 @@ size = Vector3(0.081189945, 0.15140478, 2.3173242)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_eejdf"]
 size = Vector3(1.38307, 0.16237158, 0.069449216)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_s8te4"]
-size = Vector3(1.429936, 0.08141455, 2.402941)
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_cgd1i"]
-radius = 0.038085938
-height = 0.185
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ionqa"]
-radius = 0.03955078
-height = 0.185
-
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_h7p6q"]
-radius = 0.038085938
-height = 0.185
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_70g2v"]
 resource_name = "billiard_blue"
@@ -168,7 +145,7 @@ monitoring = false
 monitorable = false
 
 [node name="Shape" type="CollisionShape3D" parent="Geometry/Cloth" unique_id=1005712846]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0021945238, 0, -0.007915139)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0021945238, 0, -0.002004385)
 shape = SubResource("BoxShape3D_clothm")
 
 [node name="Rails" type="Area3D" parent="Geometry" unique_id=1245832240]
@@ -178,34 +155,116 @@ monitoring = false
 monitorable = false
 
 [node name="RailTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1503947330]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.0923283)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0034466684, 0, 1.0923283)
 shape = SubResource("BoxShape3D_railsh")
 debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+script = ExtResource("4_cushion")
 
 [node name="RailBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1077091672]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.093832)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0060327053, 0, -1.093832)
 shape = SubResource("BoxShape3D_railsh")
 debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+script = ExtResource("4_cushion")
 
 [node name="RailRightTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1918544923]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.54179806, 0, 0.53)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.54179806, 0, 0.5342169)
 shape = SubResource("BoxShape3D_raillg")
 debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+script = ExtResource("4_cushion")
 
 [node name="RailRightBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1231459807]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5406598, 0, -0.53)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5406598, 0, -0.5288671)
 shape = SubResource("BoxShape3D_raillg")
 debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+script = ExtResource("4_cushion")
 
 [node name="RailLeftTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1656287415]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5456126, 0, 0.53)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5456126, 0, 0.53885126)
 shape = SubResource("BoxShape3D_raillg")
 debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+script = ExtResource("4_cushion")
 
 [node name="RailLeftBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1348024561]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54543895, 0, -0.53)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54543895, 0, -0.5360351)
 shape = SubResource("BoxShape3D_raillg")
 debug_color = Color(0.95735854, 0, 0.5356117, 0.41960785)
+script = ExtResource("4_cushion")
+
+[node name="JawCornerTopLeftTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=341492800]
+transform = Transform3D(0.56619364, 0, -0.8242723, 0, 1, 0, 0.8242723, 0, 0.56619364, 0.5023243, 0, 1.1116862)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawCornerTopLeftSide" type="CollisionShape3D" parent="Geometry/Rails" unique_id=36737105]
+transform = Transform3D(0.8163598, 0, -0.5775435, 0, 1, 0, 0.5775435, 0, 0.8163598, 0.5638891, 0, 1.0490984)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+FlipNormal = true
+
+[node name="JawCornerTopRightTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1536669664]
+transform = Transform3D(0.6349412, 0, 0.7725604, 0, 1, 0, -0.7725604, 0, 0.6349412, -0.49760622, 0, 1.1078571)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawCornerTopRightSide" type="CollisionShape3D" parent="Geometry/Rails" unique_id=985857150]
+transform = Transform3D(0.77013457, 0, 0.6378816, 0, 1, 0, -0.6378816, 0, 0.77013457, -0.558083, 0, 1.0511029)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+FlipNormal = true
+
+[node name="JawCornerBottomLeftBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1631841706]
+transform = Transform3D(0.5338762, 0, 0.8455626, 0, 1, 0, -0.8455626, 0, 0.5338762, 0.502344, 0, -1.1136991)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawCornerBottomLeftSide" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1183689497]
+transform = Transform3D(0.7438692, 0, 0.66832525, 0, 1, 0, -0.66832525, 0, 0.7438692, 0.5615427, 0, -1.0490652)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+FlipNormal = true
+
+[node name="JawCornerBottomRightBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=2085888345]
+transform = Transform3D(0.6856176, 0, -0.7279619, 0, 1, 0, 0.7279619, 0, 0.6856176, -0.49846575, 0, -1.1109769)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawCornerBottomRightSide" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1917107064]
+transform = Transform3D(0.7993411, 0, -0.6008776, 0, 1, 0, 0.6008776, 0, 0.7993411, -0.55827343, 0, -1.0450059)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+FlipNormal = true
+
+[node name="JawSideLeftTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=1994002253]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.622, 0, 0.062813185)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawSideLeftBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=392286365]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.622, 0, -0.048)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawSideRightTop" type="CollisionShape3D" parent="Geometry/Rails" unique_id=303036731]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.62, 0, 0.045)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
+
+[node name="JawSideRightBottom" type="CollisionShape3D" parent="Geometry/Rails" unique_id=216705161]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.62, 0, -0.048)
+shape = SubResource("BoxShape3D_pocketjaw")
+debug_color = Color(1, 0.55, 0.1, 0.55)
+script = ExtResource("4_cushion")
 
 [node name="Pockets" type="Area3D" parent="Geometry" unique_id=1739026513]
 collision_layer = 0

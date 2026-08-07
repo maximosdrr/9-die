@@ -196,6 +196,8 @@ public partial class PoolTableGeometry : Node3D
         var offset = axes[thinAxis].Vector * axes[thinAxis].Extent;
         var positiveFace = new Vector2(here.X + offset.X, here.Y + offset.Z);
         var sign = positiveFace.DistanceTo(centre) < here.DistanceTo(centre) ? 1.0f : -1.0f;
+        if (shape is PoolCushionMarker marker && marker.FlipNormal)
+            sign *= -1.0f;
 
         // This points from the rail's middle toward the table, so it is already the inward normal.
         var inward = (axes[thinAxis].Vector * sign);
@@ -260,7 +262,8 @@ public partial class PoolTableGeometry : Node3D
             _ => "?",
         };
 
-        return $"|{shape.Transform}{size}";
+        var flipNormal = shape is PoolCushionMarker marker && marker.FlipNormal;
+        return $"|{shape.Transform}{size}|flip:{flipNormal}";
     }
 
     private void RefreshGizmo()

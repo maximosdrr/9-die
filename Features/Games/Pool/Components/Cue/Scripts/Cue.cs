@@ -351,6 +351,15 @@ public partial class Cue : Node3D
 	{
 		_shotVisibilityTween?.Kill();
 		_shotVisibilityTween = null;
+
+		// A short scratch can finish while CueRecover's cooldown is still running. In solo the
+		// same player keeps the turn, so that cooldown may switch the cue to CueLocked while ball
+		// placement owns the input. Merely showing the cue afterwards leaves it unable to enter
+		// the charging state. Taking control is the authoritative end of that transition: cancel
+		// any recover/locked state and restore idle whenever this controller still owns the turn.
+		if (IsInstanceValid(StateMachine) && StateMachine.Current != null && IsMyTurn())
+			StateMachine.ChangeState(StatesRef.CueIdle, new Dictionary());
+
 		SnapToRestPose();
 		Show();
 	}
