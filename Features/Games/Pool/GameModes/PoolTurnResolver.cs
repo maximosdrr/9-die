@@ -255,6 +255,10 @@ public partial class PoolTurnResolver : TurnResolver
         var footSpot = PoolGame.PoolBallRespawn.FootSpot;
         PoolGame.SimulationRunner.PlaceBall(goldenBall, new Vector2(footSpot.X, footSpot.Z));
 
+        // The re-spot happens on the server only, so push the layout out now rather than letting
+        // clients show the ball in the old place until the next shot's snapshot corrects it.
+        PoolGame.SimulationRunner.BroadcastState();
+
         BallsInGame[9] = goldenBall;
     }
 

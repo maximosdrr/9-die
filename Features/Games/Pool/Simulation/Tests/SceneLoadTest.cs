@@ -34,6 +34,9 @@ public partial class SceneLoadTest : Node
 
         TestRulerHandlesEmptyRack();
 
+        if (ballScene != null)
+            TestLockstepReproducesShot(ballScene);
+
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
             GD.PushWarning($"{_failed} verificação(ões) de integração falharam.");
@@ -494,6 +497,108 @@ public partial class SceneLoadTest : Node
 
         Check("regra não estoura com o rack vazio", !threw);
         ruler.Free();
+    }
+
+    // Lockstep's promise: given the same starting layout and the same ShotInput, two independent
+    // runners — standing in for two peers — must land every ball in the same place and produce
+    // the same event timeline. That is what lets a shot travel as ~100 bytes instead of a
+    // per-frame position stream.
+    private void TestLockstepReproducesShot(PackedScene ballScene)
+    {
+        var shot = new ShotInput(0.35, 0.0, 3.2, 0.2, -0.15);
+
+        var host = BuildRack(ballScene, out var hostBalls);
+        var peer = BuildRack(ballScene, out var peerBalls);
+
+        // The snapshot the server would broadcast, applied to the peer before it simulates.
+        host.CaptureState(out var ids, out var positions);
+        peer.ApplyState(ids, positions);
+
+        Check($"snapshot cobre a mesa inteira ({ids.Length} bolas, {positions.Length * 4} bytes)",
+            ids.Length == hostBalls.Count);
+
+        host.ExecuteShot(shot);
+        peer.ExecuteShot(shot);
+
+        var hostResult = host.LastShot;
+        var peerResult = peer.LastShot;
+
+        Check("ambos os peers aceitam a tacada", hostResult != null && peerResult != null);
+        if (hostResult == null || peerResult == null)
+            return;
+
+        Check($"mesma quantidade de eventos ({hostResult.Events.Count})",
+            hostResult.Events.Count == peerResult.Events.Count);
+
+        var sameEvents = hostResult.Events.Count == peerResult.Events.Count;
+        for (var i = 0; sameEvents && i < hostResult.Events.Count; i++)
+        {
+            var a = hostResult.Events[i];
+            var b = peerResult.Events[i];
+            if (a.Type != b.Type || a.BallId != b.BallId || a.OtherId != b.OtherId)
+                sameEvents = false;
+        }
+
+        Check("linhas do tempo são idênticas", sameEvents);
+
+        var worstDrift = 0.0;
+        for (var i = 0; i < hostResult.FinalStates.Count; i++)
+        {
+            var offset = hostResult.FinalStates[i].Position - peerResult.FinalStates[i].Position;
+            worstDrift = Mathf.Max(worstDrift, offset.Length);
+        }
+
+        Check($"posições finais coincidem (desvio {worstDrift * 1000.0:F6} mm)", worstDrift < 1e-9);
+
+        // And a peer that fell behind is put right by the next snapshot, which is what makes
+        // exact cross-machine determinism an optimisation rather than a correctness requirement.
+        peerBalls[1].Position = new Vector3(0.3f, (float)BilliardConstants.Radius, 0.7f);
+        peerBalls[2].SetInPlay(false);
+
+        host.CaptureState(out var freshIds, out var freshPositions);
+        peer.ApplyState(freshIds, freshPositions);
+
+        var healed = true;
+        for (var i = 0; i < hostBalls.Count; i++)
+        {
+            if (hostBalls[i].Position.DistanceTo(peerBalls[i].Position) > 1e-6f
+                || hostBalls[i].InPlay != peerBalls[i].InPlay)
+                healed = false;
+        }
+
+        Check("snapshot corrige um peer divergente", healed);
+    }
+
+    private PoolSimulationRunner BuildRack(PackedScene ballScene, out Array<Ball> balls)
+    {
+        var holder = new Node3D();
+        AddChild(holder);
+
+        var cueBall = Spawn(ballScene, holder, 0, 0.0f, -0.55f);
+        balls = new Array<Ball> { cueBall };
+
+        var objectBalls = new Array<Ball>();
+        var layout = new[]
+        {
+            new Vector2(0.0f, 0.45f),
+            new Vector2(-0.03f, 0.51f),
+            new Vector2(0.03f, 0.51f),
+            new Vector2(-0.06f, 0.57f),
+            new Vector2(0.06f, 0.57f),
+        };
+
+        for (var i = 0; i < layout.Length; i++)
+        {
+            var ball = Spawn(ballScene, holder, i + 1, layout[i].X, layout[i].Y);
+            objectBalls.Add(ball);
+            balls.Add(ball);
+        }
+
+        var runner = new PoolSimulationRunner { TableAnchor = holder };
+        AddChild(runner);
+        runner.Setup(cueBall, objectBalls);
+
+        return runner;
     }
 
     private static Ball Spawn(PackedScene scene, Node3D holder, int index, float x, float z)

@@ -162,11 +162,10 @@ public partial class Cue : Node3D
 
         var shot = BuildShotInput(normalizedPower);
 
-        if (Multiplayer.IsServer())
-            PoolGame.SimulationRunner.ExecuteShot(shot);
-        else
-            EmitSignal(SignalName.StrikeExecuted, (float)shot.AimYaw, (float)shot.Elevation,
-                (float)shot.Speed, (float)shot.TipOffsetX, (float)shot.TipOffsetY);
+        // Always through the network bridge, host included: it is the single place the shot is
+        // validated and the single place it is broadcast, so every peer plays the same one.
+        EmitSignal(SignalName.StrikeExecuted, (float)shot.AimYaw, (float)shot.Elevation,
+            (float)shot.Speed, (float)shot.TipOffsetX, (float)shot.TipOffsetY);
 
         var direction = -GlobalTransform.Basis.Z.Normalized();
         CueSfx.EmitStrikeSound(direction, (float)shot.Speed, new Vector3(SpinOffset.X, SpinOffset.Y, 0.0f));

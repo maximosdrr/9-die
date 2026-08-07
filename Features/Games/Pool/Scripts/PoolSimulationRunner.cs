@@ -339,6 +339,108 @@ public partial class PoolSimulationRunner : Node
         EmitSignal(SignalName.ShotFinished);
     }
 
+    /// <summary>
+    /// Server entry point for a shot. Rather than simulating alone and streaming ball positions,
+    /// it broadcasts the authoritative pre-shot layout plus the shot itself, and every peer runs
+    /// the identical simulation.
+    ///
+    /// Sending the layout with each shot is what makes this safe without demanding bit-exact
+    /// determinism across machines: floating point can differ slightly between runtimes, but the
+    /// error can never accumulate, because every shot restarts from the server's own state. The
+    /// whole packet is around a hundred bytes, against the ~34 kB/s the per-frame position
+    /// synchroniser used to push while the table sat still.
+    /// </summary>
+    public void BroadcastShot(ShotInput shot)
+    {
+        if (!Multiplayer.IsServer())
+            return;
+
+        CaptureState(out var ids, out var positions);
+        var sanitized = shot.Sanitized();
+
+        Rpc(MethodName.RpcPlayShot, ids, positions,
+            (float)sanitized.AimYaw, (float)sanitized.Elevation, (float)sanitized.Speed,
+            (float)sanitized.TipOffsetX, (float)sanitized.TipOffsetY);
+    }
+
+    /// <summary>Pushes the authoritative layout to every peer without playing a shot, after a re-spot.</summary>
+    public void BroadcastState()
+    {
+        if (!Multiplayer.IsServer())
+            return;
+
+        CaptureState(out var ids, out var positions);
+        Rpc(MethodName.RpcSyncState, ids, positions);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RpcPlayShot(int[] ids, float[] positions,
+        float aimYaw, float elevation, float speed, float tipOffsetX, float tipOffsetY)
+    {
+        ApplyState(ids, positions);
+        ExecuteShot(new ShotInput(aimYaw, elevation, speed, tipOffsetX, tipOffsetY));
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RpcSyncState(int[] ids, float[] positions)
+    {
+        ApplyState(ids, positions);
+    }
+
+    /// <summary>Snapshots every ball still in play as (id, x, z) on the cloth.</summary>
+    public void CaptureState(out int[] ids, out float[] positions)
+    {
+        var live = new System.Collections.Generic.List<Ball>();
+        foreach (var ball in _balls)
+        {
+            if (IsInstanceValid(ball) && ball.InPlay)
+                live.Add(ball);
+        }
+
+        ids = new int[live.Count];
+        positions = new float[live.Count * 2];
+
+        for (var i = 0; i < live.Count; i++)
+        {
+            ids[i] = live[i].Index;
+            positions[i * 2] = live[i].Position.X;
+            positions[i * 2 + 1] = live[i].Position.Z;
+        }
+    }
+
+    /// <summary>
+    /// Restores a snapshot. Any ball missing from the list is treated as out of play, which is how
+    /// a peer that somehow missed a pot catches up.
+    /// </summary>
+    public void ApplyState(int[] ids, float[] positions)
+    {
+        var seen = new System.Collections.Generic.HashSet<int>();
+
+        for (var i = 0; i < ids.Length; i++)
+        {
+            if (!_ballsById.TryGetValue(ids[i], out var ball) || !IsInstanceValid(ball))
+                continue;
+
+            seen.Add(ids[i]);
+            ball.SetInPlay(true);
+            ball.Position = new Vector3(
+                positions[i * 2],
+                (float)BilliardConstants.Radius,
+                positions[i * 2 + 1]);
+        }
+
+        foreach (var ball in _balls)
+        {
+            if (!IsInstanceValid(ball) || seen.Contains(ball.Index))
+                continue;
+
+            ball.SetInPlay(false);
+            ball.Visible = false;
+        }
+
+        _drops.Clear();
+    }
+
     /// <summary>Places a ball at a table-local spot, used by respawn and ball-in-hand.</summary>
     public void PlaceBall(Ball ball, Vector2 tablePosition)
     {
