@@ -213,6 +213,14 @@ public static class DominoChainLayout
 		// than `along`. The worst case is a double turning the corner, which needs a full tile
 		// length ahead — reserve exactly that before committing to another straight tile.
 		var cornerReserve = spec.TileLength + spec.Gap;
+		if (isDouble)
+		{
+			// A double advances only by its width. If it uses the ordinary reserve near a rail,
+			// the following normal tile is forced to turn immediately and ends up parallel beside
+			// the crosswise double. Reserve one guaranteed normal follower as well; when that room
+			// is unavailable, the double itself becomes the corner and its follower stays clear.
+			cornerReserve += spec.TileLength + spec.Gap;
+		}
 
 		for (var attempt = 0; attempt < 4; attempt++)
 		{

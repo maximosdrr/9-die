@@ -20,6 +20,7 @@ public partial class DominoLayoutTest : Node
 		GD.Print("=== Teste de layout da corrente ===");
 
 		TestExactPlacements();
+		TestDoubleBeforeCorner();
 		TestDeterminismAndIncrementalGrowth();
 		TestFullChainFits();
 
@@ -28,6 +29,38 @@ public partial class DominoLayoutTest : Node
 			GD.PushWarning($"{_failed} verificação(ões) de layout falharam.");
 
 		GetTree().Quit(_failed > 0 ? 1 : 0);
+	}
+
+	/// <summary>
+	/// Regression for a double near the rail. With the ordinary reserve the follower turned
+	/// immediately and lay parallel beside it. The double must reserve that follower in advance
+	/// and become the corner itself when both no longer fit straight.
+	/// </summary>
+	private void TestDoubleBeforeCorner()
+	{
+		var plays = new List<PlayRecord>
+		{
+			new("1", DominoTileId.From(0, 1), ChainEnd.Right),
+			new("1", DominoTileId.From(1, 2), ChainEnd.Right),
+			new("1", DominoTileId.From(2, 3), ChainEnd.Right),
+			new("1", DominoTileId.From(3, 4), ChainEnd.Right),
+			new("1", DominoTileId.From(4, 4), ChainEnd.Right),
+			new("1", DominoTileId.From(4, 5), ChainEnd.Right),
+			new("1", DominoTileId.From(5, 6), ChainEnd.Right),
+		};
+
+		var layout = DominoChainLayout.Rebuild(plays, Spec);
+		var laidDouble = layout.Placements[4];
+		var follower = layout.Placements[5];
+		var doubleLongAxisIsX = laidDouble.HalfExtents.X > laidDouble.HalfExtents.Y;
+		var followerLongAxisIsX = follower.HalfExtents.X > follower.HalfExtents.Y;
+
+		Check("a peça depois da carroça não fica deitada ao lado dela",
+			doubleLongAxisIsX != followerLongAxisIsX);
+		Check("a carroça próxima do limite inicia a dobra antes da seguidora",
+			Mathf.Abs(laidDouble.Center.Y) > 0.0f || Mathf.Abs(follower.Center.Y) > 0.0f);
+		Check("a correção da carroça continua dentro da mesa",
+			!layout.OverflowedTable);
 	}
 
 	/// <summary>
@@ -175,17 +208,30 @@ public partial class DominoLayoutTest : Node
 		// Every tile is axis aligned, so overlap is an exact rectangle test rather than an
 		// approximation. This is what catches a corner that turns on top of its own branch.
 		var worstOverlap = 0.0f;
+		var worstA = -1;
+		var worstB = -1;
 		for (var i = 0; i < layout.Placements.Count; i++)
 		{
 			for (var j = i + 1; j < layout.Placements.Count; j++)
 			{
 				var overlap = Overlap(layout.Placements[i], layout.Placements[j]);
 				if (overlap > worstOverlap)
+				{
 					worstOverlap = overlap;
+					worstA = i;
+					worstB = j;
+				}
 			}
 		}
 
-		Check($"nenhuma peça se sobrepõe a outra (pior caso {worstOverlap * 1000.0f:F2} mm)",
+		var overlapDetails = worstA >= 0
+			? $"; A={layout.Placements[worstA].Center}/{layout.Placements[worstA].HalfExtents}/"
+			  + $"{layout.Placements[worstA].Branch}/double={layout.Placements[worstA].IsDouble}, "
+			  + $"B={layout.Placements[worstB].Center}/{layout.Placements[worstB].HalfExtents}/"
+			  + $"{layout.Placements[worstB].Branch}/double={layout.Placements[worstB].IsDouble}"
+			: "";
+		Check($"nenhuma peça se sobrepõe a outra "
+			+ $"(pior caso {worstOverlap * 1000.0f:F2} mm entre {worstA} e {worstB}{overlapDetails})",
 			worstOverlap <= 0.0f);
 
 		Check("as metades vizinhas mostram o mesmo número nos dois ramos",
@@ -198,18 +244,17 @@ public partial class DominoLayoutTest : Node
 			if (!placement.IsDouble || placement.IsOpening)
 				continue;
 
-			doubles++;
-			// Crosswise means the footprint's long side runs perpendicular to the branch, which
-			// for an axis-aligned tile is simply "the long side is where a straight tile's short
-			// side would be".
+			// At a corner the double may align with the tile arriving at it; what matters is that
+			// it lies crosswise to the branch leaving it, so compare it with its follower.
 			var longSideIsX = placement.HalfExtents.X > placement.HalfExtents.Y;
-			var neighbour = NeighbourInBranch(layout, placement);
-			if (neighbour.HasValue)
-			{
-				var neighbourLongSideIsX = neighbour.Value.HalfExtents.X > neighbour.Value.HalfExtents.Y;
-				if (longSideIsX == neighbourLongSideIsX)
-					allCrosswise = false;
-			}
+			var follower = FollowerInBranch(layout, placement);
+			if (!follower.HasValue)
+				continue;
+
+			doubles++;
+			var followerLongSideIsX = follower.Value.HalfExtents.X > follower.Value.HalfExtents.Y;
+			if (longSideIsX == followerLongSideIsX)
+				allCrosswise = false;
 		}
 
 		Check($"as carroças ficam atravessadas em relação à vizinha (verificadas {doubles})",
@@ -241,20 +286,23 @@ public partial class DominoLayoutTest : Node
 		return true;
 	}
 
-	private static TilePlacement? NeighbourInBranch(ChainLayout layout, TilePlacement placement)
+	private static TilePlacement? FollowerInBranch(ChainLayout layout, TilePlacement placement)
 	{
-		TilePlacement? previous = null;
+		var found = false;
 
 		foreach (var candidate in layout.Placements)
 		{
-			if (candidate.TileId == placement.TileId)
-				return previous;
+			if (!found)
+			{
+				found = candidate.TileId == placement.TileId;
+				continue;
+			}
 
-			if (candidate.IsOpening || candidate.Branch == placement.Branch)
-				previous = candidate;
+			if (candidate.Branch == placement.Branch)
+				return candidate;
 		}
 
-		return previous;
+		return null;
 	}
 
 	/// <summary>Deepest penetration between two axis-aligned footprints; zero or less means clear.</summary>
