@@ -13,7 +13,7 @@ MinPitchDeg = -70.0
 MaxPitchDeg = 25.0
 RestPitchDeg = -32.0
 TopFov = 55.0
-TopHeight = 0.67
+TopHeight = 0.66
 
 [node name="LookRig" type="Node3D" parent="."]
 

@@ -8,7 +8,9 @@ using Godot.Collections;
 [GlobalClass]
 public partial class DominoHandDrawingState : State
 {
-	private const string InputAction = "interact";
+	/// <summary>Left click, like laying a tile: both act on whatever the crosshair is over.</summary>
+	private const string InputTake = "place_action";
+
 	private const string InputCancel = "cancel_action";
 
 	[Export] public string ClipName = "HandPrepare";
@@ -34,7 +36,7 @@ public partial class DominoHandDrawingState : State
 		View.PlayClip(ClipName);
 		View.HideGhost();
 		View.SetCrosshairVisible(true);
-		View.ShowNotice("Escolha uma peça do monte", 3.0f);
+		View.ShowNotice("Mire uma peça do monte e clique", 3.0f);
 	}
 
 	public override void Exit(Dictionary metadata)
@@ -44,7 +46,7 @@ public partial class DominoHandDrawingState : State
 
 	public override void HandleInput(InputEvent @event)
 	{
-		if (View == null || !View.IsYourTurn)
+		if (View == null || !View.IsYourTurn || !DominoHand3DView.InputIsLive)
 			return;
 
 		if (@event.IsActionPressed(InputCancel))
@@ -54,7 +56,7 @@ public partial class DominoHandDrawingState : State
 			return;
 		}
 
-		if (!@event.IsActionPressed(InputAction))
+		if (!@event.IsActionPressed(InputTake))
 			return;
 
 		View.RequestDrawAimed();

@@ -22,12 +22,11 @@ TileScene = ExtResource("2_dtile")
 Crosshair = NodePath("Hud/Crosshair")
 MessageLabel = NodePath("MessageLabel")
 MessageOffset = Vector3(0, -0.05, -0.55)
-HandOffset = Vector3(0.03, -0.075, -0.32)
-FanSpreadDeg = 42.0
-FanRadius = 0.13
-SelectedLift = 0.03
+HandOffset = Vector3(0.04, -0.10, -0.38)
+FanStepDeg = 8.0
+FanRadius = 0.42
+SelectedLift = 0.028
 TileTiltDeg = -22.0
-UnplayableAlpha = 0.35
 
 [node name="HandRig" type="Node3D" parent="."]
 

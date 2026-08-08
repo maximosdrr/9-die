@@ -15,8 +15,16 @@ public static class DominoTileMeshes
 {
 	private const string PackPath = "res://Assets/Dominoes/dominoes.glb";
 
-	/// <summary>Pack units to metres: a tile is 2 x 4 x 0.645 there and 24 x 48 x 7.7 mm here.</summary>
-	public const float SourceScale = 0.012f;
+	/// <summary>
+	/// Pack units to metres: a tile is 2 x 4 x 0.645 there and 36 x 72 x 11.6 mm here.
+	///
+	/// Half again as large as a real domino, on purpose. Legibility from the seat is a fight
+	/// against scale invariance: a bigger tile needs a bigger playing area, which needs a bigger
+	/// table, which sits the player further back and cancels the gain. This size is the largest
+	/// that still fits the 28-tile chain and the stock on the SAME 0.60 m table, so the growth is
+	/// all relative and none of it pushes the player away.
+	/// </summary>
+	public const float SourceScale = 0.018f;
 
 	/// <summary>Tile thickness in metres once scaled — what the layout reserves in Y.</summary>
 	public const float Thickness = 0.6452f * SourceScale;

@@ -30,13 +30,16 @@ public readonly struct LayoutSpec
 	}
 
 	/// <summary>
-	/// A 48 x 24 x 7.7 mm tile on a 0.64 x 0.44 m playing area — a standard set on a round pub
-	/// table. The dimensions are the art pack's own, scaled to metres (see DominoTileMeshes), so
-	/// the footprint the chain reserves matches the model that lands in it. Sized so a full
-	/// 28-tile chain fits with two corners per branch and room to spare; the layout test pins that.
+	/// A 72 x 36 x 11.6 mm tile on a 0.84 x 0.64 m playing area. The dimensions are the art pack's
+	/// own, scaled to metres (see DominoTileMeshes), so the footprint the chain reserves matches
+	/// the model that lands in it.
+	///
+	/// Oversized against a real domino on purpose, for legibility from the seat. Sized so a full
+	/// 28-tile chain still fits with two corners per branch and room to spare; the layout test is
+	/// what proves that, and is the gate on ever changing these numbers.
 	/// </summary>
 	public static LayoutSpec Default =>
-		new(0.048f, 0.024f, 0.0077f, 0.002f, new Vector2(0.32f, 0.22f));
+		new(0.072f, 0.036f, 0.0116f, 0.002f, new Vector2(0.42f, 0.32f));
 }
 
 /// <summary>Where one tile ends up and which way round it faces.</summary>

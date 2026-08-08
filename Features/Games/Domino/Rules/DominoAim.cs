@@ -45,12 +45,15 @@ public static class DominoAim
 	}
 
 	/// <summary>
-	/// Which open end the player is pointing at, judged by where the tile would actually go rather
-	/// than by where the chain currently ends — those differ by half a tile, and at the moment of
-	/// choosing it is the landing spot the player is looking at.
+	/// Which open end the player is pointing at — decided by DISTANCE ALONE.
 	///
-	/// Falls back to the end the tile can legally take when only one works, and to
-	/// <see cref="ChainEnd.Right"/> on an empty board, where there is nothing to choose between.
+	/// It used to prefer whichever end could legally take the tile, which quietly helped the player
+	/// and cost more than it gave: aiming at the near end and watching the preview jump to the far
+	/// one reads as the game overriding you. Pointing somewhere now always previews there, and a
+	/// tile that does not belong at that end simply refuses with a red frame.
+	///
+	/// Judged by where the tile would LAND rather than by where the chain currently ends — those
+	/// differ by half a tile, and the landing spot is what the player is looking at.
 	/// </summary>
 	public static ChainEnd NearestEnd(
 		IReadOnlyList<PlayRecord> plays,
@@ -61,14 +64,11 @@ public static class DominoAim
 		if (plays == null || plays.Count == 0)
 			return ChainEnd.Right;
 
-		var hasLeft = TryPreviewPlacement(plays, spec, tileId, ChainEnd.Left, out var left);
-		var hasRight = TryPreviewPlacement(plays, spec, tileId, ChainEnd.Right, out var right);
+		var hasLeft = TryPreviewSlot(plays, spec, tileId, ChainEnd.Left, out var left);
+		var hasRight = TryPreviewSlot(plays, spec, tileId, ChainEnd.Right, out var right);
 
 		if (hasLeft && !hasRight)
 			return ChainEnd.Left;
-
-		if (hasRight && !hasLeft)
-			return ChainEnd.Right;
 
 		if (!hasLeft)
 			return ChainEnd.Right;
@@ -78,6 +78,52 @@ public static class DominoAim
 		return aimLocal.DistanceSquaredTo(left.Center) < aimLocal.DistanceSquaredTo(right.Center)
 			? ChainEnd.Left
 			: ChainEnd.Right;
+	}
+
+	/// <summary>
+	/// Where a tile of this shape WOULD land at this end, whether or not it is legal there.
+	///
+	/// The player can pick any tile from their hand, so the preview has to be able to show an
+	/// incompatible one sitting in the slot with a red border round it — that refusal is the
+	/// feedback. Position depends only on the branch and on whether the tile is a double, so this
+	/// replays the chain with a stand-in that IS legal and shares that shape, then swaps the face
+	/// back in. Still the real layout, still one code path.
+	/// </summary>
+	public static bool TryPreviewSlot(
+		IReadOnlyList<PlayRecord> plays,
+		LayoutSpec spec,
+		int tileId,
+		ChainEnd end,
+		out TilePlacement placement)
+	{
+		if (TryPreviewPlacement(plays, spec, tileId, end, out placement))
+			return true;
+
+		placement = default;
+		if (!DominoTileId.IsValid(tileId))
+			return false;
+
+		var board = DominoBoardState.FromPlays(plays);
+		var required = board.IsEmpty ? DominoTileId.NoEnd : board.ValueAt(end);
+		if (required == DominoTileId.NoEnd)
+			return false;
+
+		// A double occupies its own footprint, so the stand-in has to match on that.
+		var standIn = DominoTileId.IsDouble(tileId)
+			? DominoTileId.From(required, required)
+			: DominoTileId.From(required, (required + 1) % (DominoTileId.MaxPips + 1));
+
+		if (DominoTileId.IsDouble(standIn) != DominoTileId.IsDouble(tileId))
+			standIn = DominoTileId.From(required, (required + 2) % (DominoTileId.MaxPips + 1));
+
+		if (!TryPreviewPlacement(plays, spec, standIn, end, out var slot))
+			return false;
+
+		DominoTileId.Split(tileId, out var low, out var high);
+		placement = new TilePlacement(tileId, low, high, slot.Center, slot.Yaw, slot.HalfExtents,
+			DominoTileId.IsDouble(tileId), end, isOpening: false);
+
+		return true;
 	}
 
 	/// <summary>

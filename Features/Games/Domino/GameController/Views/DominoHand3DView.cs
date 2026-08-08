@@ -36,23 +36,41 @@ public partial class DominoHand3DView : DominoHandView
 	[Export] public AnimationPlayer AnimationPlayer;
 
 	[ExportGroup("Fan")]
-	[Export] public Vector3 HandOffset = new(0.03f, -0.075f, -0.32f);
-	[Export] public float FanSpreadDeg = 42.0f;
-	[Export] public float FanRadius = 0.13f;
-	[Export] public float SelectedLift = 0.03f;
+	/// <summary>
+	/// Pushed further out than it looks like it should be: the tiles grew 1.25x and the seat FOV
+	/// tightened from 55 to 45 degrees, which together magnify the hand about 1.6x.
+	/// </summary>
+	[Export] public Vector3 HandOffset = new(0.04f, -0.105f, -0.46f);
+
+	/// <summary>Angle between neighbouring tiles. Fixed per tile, so a bigger hand simply fans wider.</summary>
+	[Export] public float FanStepDeg = 8.0f;
+
+	/// <summary>Distance from the pivot the tiles hang off, which sets how flat the fan is.</summary>
+	[Export] public float FanRadius = 0.42f;
+
+	[Export] public float SelectedLift = 0.028f;
 
 	/// <summary>Backward lean of the held tiles, so the faces angle toward the player's eyes.</summary>
 	[Export] public float TileTiltDeg = -22.0f;
 
-	/// <summary>Tiles the player cannot play are still shown, just dimmed — you hold your whole hand.</summary>
-	[Export] public float UnplayableAlpha = 0.35f;
 
 	private readonly List<DominoTile> _fan = new();
 	private int[] _hand = System.Array.Empty<int>();
 	private IReadOnlyList<MoveOption> _moves = new List<MoveOption>();
 	private DominoTile _ghost;
-	private StandardMaterial3D _ghostMaterial;
+	private readonly MeshInstance3D[] _frame = new MeshInstance3D[4];
+	private StandardMaterial3D _outlineMaterial;
 	private float _messageSeconds;
+
+	[ExportGroup("Ghost")]
+	/// <summary>How much of the real face shows through the preview.</summary>
+	[Export] public float GhostOpacity = 0.55f;
+
+	/// <summary>Thickness of the bars that box the preview in, in metres.</summary>
+	[Export] public float OutlineThickness = 0.005f;
+
+	[Export] public Color ValidColor = new(0.45f, 0.90f, 0.55f, 0.82f);
+	[Export] public Color InvalidColor = new(0.93f, 0.42f, 0.38f, 0.82f);
 
 	public bool IsYourTurn { get; private set; }
 	public bool CanDraw { get; private set; }
@@ -75,6 +93,13 @@ public partial class DominoHand3DView : DominoHandView
 
 	public bool HasPlayableTile => _moves.Count > 0;
 
+	/// <summary>
+	/// Whether the hand should be listening at all. Godot delivers unhandled input to children
+	/// before parents, so without this the very click that takes the cursor back after Escape
+	/// would reach the hand first and lay a tile the player never meant to play.
+	/// </summary>
+	public static bool InputIsLive => InputFocus.IsCaptured;
+
 	public override void _Ready()
 	{
 		// A hand only exists for the peer holding it.
@@ -85,11 +110,15 @@ public partial class DominoHand3DView : DominoHandView
 			return;
 		}
 
-		_ghostMaterial = new StandardMaterial3D
+		// Softened: slightly transparent and lit rather than flat, so the frame sits in the scene
+		// instead of glowing on top of it.
+		_outlineMaterial = new StandardMaterial3D
 		{
 			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-			AlbedoColor = new Color(0.4f, 1.0f, 0.5f, 0.45f),
+			AlbedoColor = ValidColor,
+			EmissionEnabled = true,
+			Emission = ValidColor,
+			EmissionEnergyMultiplier = 0.6f,
 		};
 	}
 
@@ -246,9 +275,13 @@ public partial class DominoHand3DView : DominoHandView
 
 	// ---------------------------------------------------------------- selection
 
+	/// <summary>
+	/// Starts on a tile that can actually go down when there is one, so the common case needs no
+	/// hunting — but every tile stays selectable.
+	/// </summary>
 	public void SelectFirstPlayable()
 	{
-		SelectedIndex = -1;
+		SelectedIndex = _hand.Length > 0 ? 0 : -1;
 
 		for (var i = 0; i < _hand.Length; i++)
 		{
@@ -263,22 +296,20 @@ public partial class DominoHand3DView : DominoHandView
 		ApplyFanHighlight();
 	}
 
-	/// <summary>Steps to the next playable tile, wrapping. Unplayable tiles are skipped entirely.</summary>
+	/// <summary>
+	/// Steps through the WHOLE hand, wrapping.
+	///
+	/// Unplayable tiles used to be skipped and faded out, which read as the game taking tiles away
+	/// from the player. They are all there and all pickable now; trying one and seeing the preview
+	/// turn red is the feedback, and it says something the fade never did — WHY it does not fit.
+	/// </summary>
 	public void SelectStep(int direction)
 	{
-		if (_hand.Length == 0 || _moves.Count == 0)
+		if (_hand.Length == 0)
 			return;
 
 		var start = SelectedIndex < 0 ? 0 : SelectedIndex;
-		for (var step = 1; step <= _hand.Length; step++)
-		{
-			var index = ((start + direction * step) % _hand.Length + _hand.Length) % _hand.Length;
-			if (!IsPlayable(_hand[index]))
-				continue;
-
-			SelectedIndex = index;
-			break;
-		}
+		SelectedIndex = ((start + direction) % _hand.Length + _hand.Length) % _hand.Length;
 
 		ResetLeadingPips();
 		ApplyFanHighlight();
@@ -301,21 +332,22 @@ public partial class DominoHand3DView : DominoHandView
 	// ---------------------------------------------------------------- aiming and rotation
 
 	/// <summary>
-	/// Picks the end to aim at. Phase 3 takes the first end the selected tile can legally take;
-	/// the crosshair replaces this with whatever the player is pointing at.
+	/// Picks the tile up: aims at wherever the crosshair already is and turns the tile to suit.
+	///
+	/// The end comes from the crosshair rather than from the first legal move, so the preview
+	/// appears where the player was already looking instead of jumping somewhere else the instant
+	/// they click.
 	/// </summary>
-	public void AimAtDefaultEnd()
+	public void BeginAiming()
 	{
-		foreach (var move in _moves)
+		if (Game?.ChainPresenter != null && DominoTileId.IsValid(SelectedTileId)
+			&& TryAimPoint(out var aim))
 		{
-			if (move.TileId != SelectedTileId)
-				continue;
-
-			AimedEnd = move.End;
-			break;
+			AimedEnd = DominoAim.NearestEnd(Game.Plays, Game.ChainPresenter.Spec, SelectedTileId, aim);
 		}
 
 		ResetLeadingPips();
+		UpdateGhost();
 	}
 
 	public void AimAtEnd(ChainEnd end) => AimedEnd = end;
@@ -338,13 +370,29 @@ public partial class DominoHand3DView : DominoHandView
 	}
 
 	/// <summary>
-	/// Starts the tile on its low half, deliberately without correcting it for the aimed end: the
-	/// player is meant to turn it themselves, and the ghost tells them when it is right.
+	/// Starts the tile already turned for the end being aimed at.
+	///
+	/// Starting on a fixed half instead would mean roughly half of all placements begin invalid and
+	/// need a turn for no reason the player can see. Turning still matters, and still means what it
+	/// should: swinging the crosshair to the OTHER end leaves the tile facing the wrong way, and
+	/// putting it right is a deliberate act.
 	/// </summary>
 	private void ResetLeadingPips()
 	{
 		var tileId = SelectedTileId;
-		LeadingPips = DominoTileId.IsValid(tileId) ? DominoTileId.Low(tileId) : DominoTileId.NoEnd;
+		if (!DominoTileId.IsValid(tileId))
+		{
+			LeadingPips = DominoTileId.NoEnd;
+			return;
+		}
+
+		var required = Game != null
+			? DominoAim.RequiredLeadingPips(Game.Plays, AimedEnd)
+			: DominoTileId.NoEnd;
+
+		LeadingPips = required != DominoTileId.NoEnd && DominoTileId.Matches(tileId, required)
+			? required
+			: DominoTileId.Low(tileId);
 	}
 
 	public bool CanPlaceNow() =>
@@ -433,38 +481,44 @@ public partial class DominoHand3DView : DominoHandView
 		new Vector3(0.0f, 1.0f, 0.0f));
 
 	/// <summary>
-	/// Spreads the tiles along an arc in front of the player, standing them up and leaning them
-	/// back so the faces read from the seat camera.
+	/// Splays the tiles like a hand of cards: all of them hang off one pivot below the hand at a
+	/// fixed radius, evenly spaced by angle, each rolled by its own angle.
+	///
+	/// The first version placed them around an arc and swung them about the vertical, which put
+	/// each tile at a different distance from the eye — under perspective they came out at mismatched
+	/// sizes and angles and looked spilled rather than held. Rolling about a shared pivot keeps every
+	/// tile the same distance away, so the overlap is even and the fan reads as one object.
 	/// </summary>
 	private Transform3D FanTransform(int index, int count)
 	{
-		// Widened for a big hand: a player who has drawn a lot ends up with ten tiles, and at a
-		// fixed spread they crowd into an unreadable stripe.
-		var spread = Mathf.DegToRad(FanSpreadDeg) * Mathf.Clamp(count / 7.0f, 0.7f, 1.5f);
-		var t = count <= 1 ? 0.0f : index / (float)(count - 1) - 0.5f;
-		var angle = t * spread;
+		var step = Mathf.DegToRad(FanStepDeg);
+		var angle = (index - (count - 1) * 0.5f) * step;
 
+		var selected = index == SelectedIndex;
+
+		// Hanging off a pivot below: at angle zero the tile sits at the hand's origin.
 		var position = new Vector3(
 			Mathf.Sin(angle) * FanRadius,
-			index == SelectedIndex ? SelectedLift : 0.0f,
-			FanRadius - Mathf.Cos(angle) * FanRadius);
+			Mathf.Cos(angle) * FanRadius - FanRadius + (selected ? SelectedLift : 0.0f),
+			// Each tile a hair nearer than the one before, so they always layer the same way
+			// instead of fighting over which is in front.
+			index * 0.0015f + (selected ? 0.012f : 0.0f));
 
 		var lean = Basis.FromEuler(new Vector3(Mathf.DegToRad(TileTiltDeg), 0.0f, 0.0f));
-		var swing = Basis.FromEuler(new Vector3(0.0f, angle, 0.0f));
+		var roll = Basis.FromEuler(new Vector3(0.0f, 0.0f, -angle));
 
-		return new Transform3D(swing * lean * Upright, position);
+		return new Transform3D(lean * roll * Upright, position);
 	}
 
+	/// <summary>
+	/// Only the lift marks the selection. Fading the rest broke the illusion of holding a real hand
+	/// of tiles, and nothing here touches the preview: while the player is still choosing there is
+	/// deliberately no preview at all, so where a tile fits is something they find out by trying it.
+	/// </summary>
 	private void ApplyFanHighlight()
 	{
 		for (var i = 0; i < _fan.Count && i < _hand.Length; i++)
-		{
-			var playable = IsPlayable(_hand[i]);
-			_fan[i].SetDimmed(!playable, UnplayableAlpha);
 			_fan[i].Transform = FanTransform(i, _hand.Length);
-		}
-
-		UpdateGhost();
 	}
 
 	// ---------------------------------------------------------------- the ghost
@@ -483,7 +537,10 @@ public partial class DominoHand3DView : DominoHandView
 		}
 
 		var spec = Game.ChainPresenter.Spec;
-		if (!DominoAim.TryPreviewPlacement(Game.Plays, spec, SelectedTileId, AimedEnd, out var placement))
+
+		// The slot, not just the legal placement: an incompatible tile still has to be shown in
+		// the spot with a red frame, or picking it would look like the game ignored the input.
+		if (!DominoAim.TryPreviewSlot(Game.Plays, spec, SelectedTileId, AimedEnd, out var placement))
 		{
 			HideGhost();
 			return;
@@ -504,9 +561,9 @@ public partial class DominoHand3DView : DominoHandView
 		GhostSlot.GlobalTransform = Game.ChainPresenter.GlobalTransform * local;
 		GhostSlot.Visible = true;
 
-		_ghostMaterial.AlbedoColor = CanPlaceNow()
-			? new Color(0.4f, 1.0f, 0.5f, 0.45f)
-			: new Color(1.0f, 0.35f, 0.3f, 0.45f);
+		var colour = CanPlaceNow() ? ValidColor : InvalidColor;
+		_outlineMaterial.AlbedoColor = colour;
+		_outlineMaterial.Emission = colour;
 	}
 
 	public void HideGhost()
@@ -515,6 +572,11 @@ public partial class DominoHand3DView : DominoHandView
 			GhostSlot.Visible = false;
 	}
 
+	/// <summary>
+	/// The preview is the real tile — real face, real pips, turned exactly as it would land —
+	/// made see-through, wearing a coloured border. Two separate readings for the two questions
+	/// the rotation mechanic asks: which half is leading, and whether that is accepted.
+	/// </summary>
 	private void EnsureGhost(LayoutSpec spec, int tileId)
 	{
 		if (GhostSlot == null || TileScene == null)
@@ -524,14 +586,69 @@ public partial class DominoHand3DView : DominoHandView
 		{
 			_ghost = TileScene.Instantiate<DominoTile>();
 			GhostSlot.AddChild(_ghost);
+
+			for (var i = 0; i < _frame.Length; i++)
+			{
+				_frame[i] = new MeshInstance3D
+				{
+					Mesh = new CapsuleMesh { RadialSegments = 12, Rings = 4 },
+					MaterialOverride = _outlineMaterial,
+				};
+
+				GhostSlot.AddChild(_frame[i]);
+			}
 		}
 
 		if (_ghost.TileId != tileId)
+		{
 			_ghost.Configure(tileId, spec);
+			// Faded rather than repainted, so the pips still read through the preview.
+			_ghost.SetDimmed(true, GhostOpacity);
+		}
 
-		// Set after Configure, which clears the override so the art pack's own atlas shows.
-		if (_ghost.Body != null)
-			_ghost.Body.MaterialOverride = _ghostMaterial;
+		BuildFrame(spec);
+	}
+
+	/// <summary>
+	/// Four rounded bars boxing the tile in, at the tile's own height.
+	///
+	/// Capsules rather than boxes: their hemispherical ends meet at the corners and close them off
+	/// as rounded joins, so the whole thing reads as a soft rounded rectangle instead of a hard
+	/// sharp-cornered crate, which is closer to how the rest of the game looks.
+	///
+	/// A flat mat under the tile was the first attempt and looked like a coloured sticker on the
+	/// cloth — worse at a shallow angle, which is exactly how a seated player sees the table. A
+	/// grown-shell outline would be the usual answer and does not work here at all: the tile is
+	/// see-through, so the shell's back faces show straight through it and flood the face.
+	/// </summary>
+	private void BuildFrame(LayoutSpec spec)
+	{
+		var radius = OutlineThickness * 0.5f;
+		var halfWidth = spec.TileWidth * 0.5f + radius;
+		var halfLength = spec.TileLength * 0.5f + radius;
+
+		// A capsule's height is its whole length, caps included, so the mid-section is what is
+		// left after them. Sized to reach the corners, where the caps overlap and round the join.
+		SetBar(0, spec.TileLength + OutlineThickness, radius, Vector3.Right * -halfWidth, true);
+		SetBar(1, spec.TileLength + OutlineThickness, radius, Vector3.Right * halfWidth, true);
+		SetBar(2, spec.TileWidth + OutlineThickness, radius, Vector3.Back * -halfLength, false);
+		SetBar(3, spec.TileWidth + OutlineThickness, radius, Vector3.Back * halfLength, false);
+	}
+
+	private void SetBar(int index, float length, float radius, Vector3 position, bool alongLength)
+	{
+		if (_frame[index] == null)
+			return;
+
+		var capsule = (CapsuleMesh)_frame[index].Mesh;
+		capsule.Radius = radius;
+		capsule.Height = Mathf.Max(length, radius * 2.0f + 0.0001f);
+
+		// Capsules stand on Y by default; these have to lie flat along the tile's own axes.
+		_frame[index].Position = position;
+		_frame[index].Rotation = alongLength
+			? new Vector3(Mathf.Pi * 0.5f, 0.0f, 0.0f)
+			: new Vector3(0.0f, 0.0f, Mathf.Pi * 0.5f);
 	}
 
 	// ---------------------------------------------------------------- abstraction surface

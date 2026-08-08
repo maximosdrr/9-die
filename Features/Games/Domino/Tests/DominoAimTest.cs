@@ -67,6 +67,44 @@ public partial class DominoAimTest : Node
 			DominoAim.TryPreviewPlacement(new List<PlayRecord>(), Spec, DominoTileId.From(3, 3),
 				ChainEnd.Right, out var opening)
 			&& opening.Center == Vector2.Zero);
+
+		TestSlotPreviewForIncompatibleTiles(plays, candidate);
+	}
+
+	/// <summary>
+	/// The player may pick any tile, so an incompatible one still has to be shown sitting in the
+	/// slot with a red frame. It must land in exactly the place a legal tile of the same shape
+	/// would, or the refusal would be pointing at the wrong spot.
+	/// </summary>
+	private void TestSlotPreviewForIncompatibleTiles(List<PlayRecord> plays, int legalTile)
+	{
+		// Ends here are 4 (left) and 2 (right); 0|1 matches neither.
+		var stranger = DominoTileId.From(0, 1);
+		Check("peça incompatível não tem jogada legal",
+			!DominoAim.TryPreviewPlacement(plays, Spec, stranger, ChainEnd.Right, out _));
+
+		Check("mas ela ainda tem lugar para o fantasma",
+			DominoAim.TryPreviewSlot(plays, Spec, stranger, ChainEnd.Right, out var slot));
+
+		DominoAim.TryPreviewSlot(plays, Spec, stranger, ChainEnd.Right, out slot);
+		DominoAim.TryPreviewPlacement(plays, Spec, legalTile, ChainEnd.Right, out var real);
+
+		Check($"o lugar do fantasma é o mesmo de uma peça legal "
+			  + $"(Δ={(slot.Center - real.Center).Length() * 1000.0f:F3} mm)",
+			slot.Center == real.Center && slot.TileId == stranger);
+
+		// A double takes a different footprint, so the stand-in has to share that shape.
+		var strangerDouble = DominoTileId.From(0, 0);
+		Check("carroça incompatível reserva a pegada de carroça",
+			DominoAim.TryPreviewSlot(plays, Spec, strangerDouble, ChainEnd.Right, out var doubleSlot)
+			&& doubleSlot.IsDouble
+			&& doubleSlot.HalfExtents != slot.HalfExtents);
+
+		// And a legal tile must go through the normal path untouched.
+		Check("peça legal usa a prévia normal",
+			DominoAim.TryPreviewSlot(plays, Spec, legalTile, ChainEnd.Right, out var legalSlot)
+			&& legalSlot.Center == real.Center
+			&& Mathf.IsEqualApprox(legalSlot.Yaw, real.Yaw));
 	}
 
 	private void TestNearestEnd()
@@ -91,11 +129,19 @@ public partial class DominoAimTest : Node
 			DominoAim.NearestEnd(plays, Spec, bothEnds, Vector2.Zero)
 			== DominoAim.NearestEnd(plays, Spec, bothEnds, Vector2.Zero));
 
-		// A tile that only fits one end must ignore where the player is pointing.
+		// The aim wins even when the tile cannot go there. Helping the player by snapping to the
+		// legal end reads as the game overriding them; refusing with a red frame does not.
 		var leftOnly = DominoTileId.From(4, 5);
-		Check("peça que só encaixa numa ponta ignora a mira",
-			DominoAim.NearestEnd(plays, Spec, leftOnly, new Vector2(0.5f, 0.0f)) == ChainEnd.Left
+		Check("a mira manda mesmo quando a ponta não aceita a peça",
+			DominoAim.NearestEnd(plays, Spec, leftOnly, new Vector2(0.5f, 0.0f)) == ChainEnd.Right
 			&& DominoAim.NearestEnd(plays, Spec, leftOnly, new Vector2(-0.5f, 0.0f)) == ChainEnd.Left);
+
+		// ... and a tile that fits nowhere still follows the crosshair, so it can be refused where
+		// the player is actually looking.
+		var fitsNothing = DominoTileId.From(0, 1);
+		Check("peça que não encaixa em ponta nenhuma também segue a mira",
+			DominoAim.NearestEnd(plays, Spec, fitsNothing, new Vector2(-0.5f, 0.0f)) == ChainEnd.Left
+			&& DominoAim.NearestEnd(plays, Spec, fitsNothing, new Vector2(0.5f, 0.0f)) == ChainEnd.Right);
 
 		Check("mesa vazia não tem ponta a escolher",
 			DominoAim.NearestEnd(new List<PlayRecord>(), Spec, bothEnds, new Vector2(-0.5f, 0.0f))
@@ -181,7 +227,7 @@ public partial class DominoAimTest : Node
 			bounds.Position.Y > Spec.PlayHalfExtents.Y);
 
 		// ... and still on the table. Radius checked at the far corners of the stock.
-		const float tableRadius = 0.55f;
+		const float tableRadius = 0.60f;
 		var corners = new[]
 		{
 			bounds.Position,

@@ -13,7 +13,10 @@ public partial class DominoHandAimingState : State
 {
 	private const string InputRotateLeft = "move_left";
 	private const string InputRotateRight = "move_right";
-	private const string InputAction = "interact";
+
+	/// <summary>Left click, not F: laying a tile acts on the spot the crosshair is over.</summary>
+	private const string InputPlace = "place_action";
+
 	private const string InputCancel = "cancel_action";
 
 	[Export] public string ClipName = "HandPrepare";
@@ -37,9 +40,8 @@ public partial class DominoHandAimingState : State
 
 		View.SetHandVisible(true);
 		View.PlayClip(ClipName);
-		View.AimAtDefaultEnd();
 		View.SetCrosshairVisible(true);
-		View.UpdateGhost();
+		View.BeginAiming();
 	}
 
 	public override void Exit(Dictionary metadata)
@@ -50,7 +52,7 @@ public partial class DominoHandAimingState : State
 
 	public override void HandleInput(InputEvent @event)
 	{
-		if (View == null || !View.IsYourTurn)
+		if (View == null || !View.IsYourTurn || !DominoHand3DView.InputIsLive)
 			return;
 
 		if (@event.IsActionPressed(InputCancel))
@@ -69,7 +71,7 @@ public partial class DominoHandAimingState : State
 			return;
 		}
 
-		if (!@event.IsActionPressed(InputAction))
+		if (!@event.IsActionPressed(InputPlace))
 			return;
 
 		GetViewport().SetInputAsHandled();

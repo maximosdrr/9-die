@@ -25,8 +25,9 @@ public readonly struct BoneyardSpec
 		Origin = origin;
 	}
 
+	/// <summary>Sat beyond the playing area, which reaches z = 0.32, and inside the 0.60 m table.</summary>
 	public static BoneyardSpec Default =>
-		new(0.048f, 0.024f, 0.004f, 7, new Vector2(0.0f, 0.30f));
+		new(0.072f, 0.036f, 0.004f, 7, new Vector2(0.0f, 0.38f));
 }
 
 /// <summary>

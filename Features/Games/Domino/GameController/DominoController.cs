@@ -26,6 +26,10 @@ public partial class DominoController : GameController
 	[Export] public PackedScene HandViewScene;
 
 	[ExportGroup("Seat view")]
+	/// <summary>
+	/// The same angle as walking. A tighter one magnifies the table but reads as a tunnel, so
+	/// legibility is bought with tile size instead.
+	/// </summary>
 	[Export] public float SeatFov = 55.0f;
 	[Export] public float MouseSensitivity = 0.004f;
 
@@ -42,7 +46,7 @@ public partial class DominoController : GameController
 	[Export] public float TopFov = 55.0f;
 
 	/// <summary>Height above the cloth. Framed so the whole playing area fills the shot at TopFov.</summary>
-	[Export] public float TopHeight = 0.5f;
+	[Export] public float TopHeight = 0.58f;
 
 	/// <summary>
 	/// How far the overhead view slides per pixel of mouse movement. Without panning, a crosshair

@@ -23,14 +23,14 @@ public partial class DominoSeatPresenter : Node3D
 	[ExportGroup("Stock")]
 	[Export] public int StockColumns = 7;
 	[Export] public float StockGap = 0.004f;
-	[Export] public Vector2 StockOrigin = new(0.0f, 0.30f);
+	[Export] public Vector2 StockOrigin = new(0.0f, 0.38f);
 
 	[ExportGroup("Opponents")]
 	/// <summary>How far from the middle of the cloth each player's tiles are laid.</summary>
-	[Export] public float SeatFanRadius = 0.40f;
+	[Export] public float SeatFanRadius = 0.48f;
 
 	/// <summary>Side by side rather than stacked: the row length is how the count is read.</summary>
-	[Export] public float SeatFanSpacing = 0.027f;
+	[Export] public float SeatFanSpacing = 0.039f;
 	[Export] public float NameHeight = 0.16f;
 	[Export] public Color TurnColor = new(1.0f, 0.478431f, 0.2f);
 	[Export] public Color IdleColor = new(0.678431f, 0.752941f, 0.839216f);

@@ -308,6 +308,10 @@ public partial class DominoSceneLoadTest : Node
 		Check("a ação de cancelar está mapeada", InputMap.HasAction("cancel_action"));
 		Check("a ação de sair da mesa está mapeada", InputMap.HasAction("leave_table"));
 
+		// F is "my hand" (pick a tile, pass); the left click is "act where I am aiming" (lay a
+		// tile, take one from the stock). Both click actions use the crosshair; neither F one does.
+		Check("a ação de assentar está mapeada", InputMap.HasAction("place_action"));
+
 		// Free look is no longer an action: with the mouse captured, looking around is simply
 		// moving it, and the right button was freed up to cancel.
 		Check("free_look foi removida", !InputMap.HasAction("free_look"));

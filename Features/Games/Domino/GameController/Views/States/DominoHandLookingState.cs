@@ -13,7 +13,9 @@ public partial class DominoHandLookingState : State
 {
 	private const string InputPrevious = "move_left";
 	private const string InputNext = "move_right";
-	private const string InputAction = "interact";
+
+	/// <summary>Left click picks the tile up; the right button puts it back down while aiming.</summary>
+	private const string InputSelect = "place_action";
 
 	[Export] public string ClipName = "HandLook";
 
@@ -42,7 +44,7 @@ public partial class DominoHandLookingState : State
 
 	public override void HandleInput(InputEvent @event)
 	{
-		if (View == null || !View.IsYourTurn)
+		if (View == null || !View.IsYourTurn || !DominoHand3DView.InputIsLive)
 			return;
 
 		if (@event.IsActionPressed(InputPrevious))
@@ -59,7 +61,7 @@ public partial class DominoHandLookingState : State
 			return;
 		}
 
-		if (!@event.IsActionPressed(InputAction))
+		if (!@event.IsActionPressed(InputSelect))
 			return;
 
 		GetViewport().SetInputAsHandled();

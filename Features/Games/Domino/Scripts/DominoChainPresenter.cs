@@ -16,13 +16,13 @@ public partial class DominoChainPresenter : Node3D
 	[Export] public PackedScene TileScene;
 
 	[ExportGroup("Layout")]
-	[Export] public float TileLength = 0.048f;
-	[Export] public float TileWidth = 0.024f;
-	[Export] public float TileThickness = 0.0077f;
+	[Export] public float TileLength = 0.072f;
+	[Export] public float TileWidth = 0.036f;
+	[Export] public float TileThickness = 0.0116f;
 	[Export] public float Gap = 0.002f;
 
 	/// <summary>Half extents of the usable cloth, X and Z. The chain turns corners inside this.</summary>
-	[Export] public Vector2 PlayHalfExtents = new(0.32f, 0.22f);
+	[Export] public Vector2 PlayHalfExtents = new(0.42f, 0.32f);
 
 	private readonly List<DominoTile> _tiles = new();
 	private bool _warnedOverflow;
