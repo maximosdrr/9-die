@@ -348,6 +348,22 @@ public partial class PoolSimulationRunner : Node
         EmitSignal(SignalName.ShotFinished);
     }
 
+    /// <summary>Stops presentation without emitting ShotFinished when the match is already over.</summary>
+    public void CancelPlayback()
+    {
+        _playback = null;
+        _events = null;
+        _pendingFinalIds = null;
+        _pendingFinalPositions = null;
+        _playbackTime = 0.0;
+        _nextEventIndex = 0;
+
+        foreach (var ball in _balls)
+            StopPresentationForBall(ball);
+
+        _drops.Clear();
+    }
+
     /// <summary>
     /// Server entry point for a shot. Rather than simulating alone and streaming ball positions,
     /// it broadcasts the authoritative pre-shot layout plus the shot itself. Every peer runs the

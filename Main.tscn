@@ -5,11 +5,11 @@
 [ext_resource type="PackedScene" uid="uid://1dvuajp6hw21" path="res://Features/Ui/Menus/Menu.tscn" id="3_r0du0"]
 [ext_resource type="Script" path="res://Main.cs" id="4_main"]
 
-[node name="Main" type="Node3D" unique_id=2100886553 node_paths=PackedStringArray("Camera", "LevelManager", "Table")]
+[node name="Main" type="Node3D" unique_id=2100886553 node_paths=PackedStringArray("Camera", "LevelManager", "Level")]
 script = ExtResource("4_main")
 Camera = NodePath("GlobalCamera")
 LevelManager = NodePath("Prototype/Multiplayer/Scripts/LevelMultiplayerManager")
-Table = NodePath("Prototype/Table")
+Level = NodePath("Prototype")
 
 [node name="GlobalCamera" type="Camera3D" parent="." unique_id=77964986]
 script = ExtResource("1_uu6xs")

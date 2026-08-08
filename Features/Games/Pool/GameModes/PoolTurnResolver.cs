@@ -67,6 +67,70 @@ public partial class PoolTurnResolver : TurnResolver
         PoolGame = null;
     }
 
+    public override void HandleMatchEnded() => Reset();
+
+    /// <summary>Restores a pending placement/control handoff after a Player node is replaced.</summary>
+    public void ResumeReclaimedTurn(string ownerId, Dictionary context)
+    {
+        if (PoolGame == null || !PoolGame.IsTurnOwner(ownerId))
+            return;
+
+        OnTurnStart(ownerId, context ?? new Dictionary());
+    }
+
+    /// <summary>Requests an authoritative table/rules snapshot after a late client's balls exist.</summary>
+    public void RequestFullState()
+    {
+        if (Multiplayer.IsServer())
+            SendFullState(Multiplayer.GetUniqueId());
+        else
+            RpcId(1, MethodName.RequestFullStateOnServer);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RequestFullStateOnServer()
+    {
+        if (Multiplayer.IsServer())
+            SendFullState(Multiplayer.GetRemoteSenderId());
+    }
+
+    private void SendFullState(int peerId)
+    {
+        if (!Multiplayer.IsServer() || PoolGame == null || !PoolGame.IsMatchActive)
+            return;
+
+        PoolGame.SimulationRunner.CaptureState(out var ids, out var positions);
+        var context = PoolGame.BuildPublicSnapshot();
+        context["is_break_shot"] = _isBreakShot;
+        context["initial_break_placement_pending"] = _initialBreakPlacementPending;
+
+        if (peerId == Multiplayer.GetUniqueId())
+            ReceiveFullState(ids, positions, context);
+        else
+            RpcId(peerId, MethodName.ReceiveFullState, ids, positions, context);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceiveFullState(int[] ids, float[] positions, Dictionary context)
+    {
+        if (PoolGame?.SimulationRunner == null)
+            return;
+
+        PoolGame.SimulationRunner.ApplyState(ids, positions);
+        PoolGame.ApplyPublicSnapshot(context);
+        _isBreakShot = context.TryGetValue("is_break_shot", out var breakVariant)
+                       && breakVariant.AsBool();
+        _initialBreakPlacementPending = context.TryGetValue(
+            "initial_break_placement_pending", out var placementVariant)
+            && placementVariant.AsBool();
+        _pushOutAvailable = PoolGame.PushOutAvailable;
+        _awaitingPushOutChoice = PoolGame.PushOutChoicePending;
+        _pushOutDeclaredForShot = PoolGame.PushOutDeclared;
+        _pushOutShooterId = PoolGame.PushOutShooterId ?? "";
+    }
+
     private void ConnectSignals()
     {
         if (PoolGame == null)
@@ -168,7 +232,7 @@ public partial class PoolTurnResolver : TurnResolver
 
         var context = GenerateTurnContext(result);
         var action = TurnRuler.Rule(context);
-        var scoringPlayerId = (string)PoolGame.TurnOwner.Name;
+        var scoringPlayerId = PoolGame.TurnOwnerId;
         var ballsScoredThisTurn = context.BallsScored;
 
         BallsInGame = context.CurrentBallsRemaining;
@@ -254,7 +318,6 @@ public partial class PoolTurnResolver : TurnResolver
         if (action == TurnRuler.Actions.EndGamePlayerWin)
         {
             PoolGame.ApplyMatchOver(scoringPlayerId, new Dictionary { ["reason"] = "win" });
-            Reset();
             return;
         }
 
@@ -377,12 +440,10 @@ public partial class PoolTurnResolver : TurnResolver
 
             case TurnRuler.Actions.EndGameFatalFoul:
                 PoolGame.ApplyMatchOver(GetOpponentId(), new Dictionary { ["reason"] = "fatal_foul" });
-                Reset();
                 break;
 
             case TurnRuler.Actions.EndGamePlayerWin:
-                PoolGame.ApplyMatchOver((string)PoolGame.TurnOwner.Name, new Dictionary { ["reason"] = "win" });
-                Reset();
+                PoolGame.ApplyMatchOver(PoolGame.TurnOwnerId, new Dictionary { ["reason"] = "win" });
                 break;
         }
     }
@@ -434,8 +495,8 @@ public partial class PoolTurnResolver : TurnResolver
     {
         ApplyHudContext(context);
 
-        if (context.ContainsKey("ball_replacement") && PoolGame?.TurnOwner != null)
-            OnTurnStart((string)PoolGame.TurnOwner.Name, context);
+        if (context.ContainsKey("ball_replacement") && !string.IsNullOrEmpty(PoolGame?.TurnOwnerId))
+            OnTurnStart(PoolGame.TurnOwnerId, context);
     }
 
     private void ApplyHudContext(Dictionary context)
@@ -477,8 +538,7 @@ public partial class PoolTurnResolver : TurnResolver
     private void TryDeclarePushOut(int requesterId)
     {
         if (PoolGame?.IsSoloMatch != false || !_pushOutAvailable
-            || _awaitingPushOutChoice || PoolGame.TurnOwner == null
-            || (string)PoolGame.TurnOwner.Name != requesterId.ToString()
+            || _awaitingPushOutChoice || !PoolGame.IsTurnOwner(requesterId.ToString())
             || PoolGame.SimulationRunner.IsPlaying)
             return;
 
@@ -505,8 +565,8 @@ public partial class PoolTurnResolver : TurnResolver
 
     private void TryResolvePushOutChoice(int requesterId, bool passBack)
     {
-        if (PoolGame?.IsSoloMatch != false || !_awaitingPushOutChoice || PoolGame.TurnOwner == null
-            || (string)PoolGame.TurnOwner.Name != requesterId.ToString())
+        if (PoolGame?.IsSoloMatch != false || !_awaitingPushOutChoice
+            || !PoolGame.IsTurnOwner(requesterId.ToString()))
             return;
 
         _awaitingPushOutChoice = false;
@@ -575,7 +635,7 @@ public partial class PoolTurnResolver : TurnResolver
 
     private string GetOpponentId()
     {
-        var currentId = (string)PoolGame.TurnOwner.Name;
+        var currentId = PoolGame.TurnOwnerId;
         var currentIndex = PoolGame.TurnOrder.IndexOf(currentId);
 
         if (currentIndex == -1)

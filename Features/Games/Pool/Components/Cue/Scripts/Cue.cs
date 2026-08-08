@@ -316,7 +316,7 @@ public partial class Cue : Node3D
 		if (!IsInstanceValid(poolGame) || !IsInstanceValid(poolGame.TurnOwner))
 			return false;
 
-		return int.TryParse((string)poolGame.TurnOwner.Name, out var turnId)
+		return int.TryParse(poolGame.TurnOwnerId, out var turnId)
 			   && turnId == authorityId;
 	}
 

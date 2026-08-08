@@ -11,4 +11,7 @@ public partial class TurnResolver : Node
     public virtual void Setup(TableGame tableGame) { }
 
     public virtual Dictionary BuildHandoffContext(string outgoingPlayerId) => new Dictionary();
+
+    /// <summary>Stops mode-specific work when a match ends outside the normal turn path.</summary>
+    public virtual void HandleMatchEnded() { }
 }

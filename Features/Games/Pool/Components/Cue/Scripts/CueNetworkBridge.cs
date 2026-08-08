@@ -53,8 +53,8 @@ public partial class CueNetworkBridge : Node
             return;
         }
 
-        if (Cue.PoolGame?.TurnOwner == null
-            || (string)Cue.PoolGame.TurnOwner.Name != requesterId.ToString())
+        if (Cue.PoolGame == null || !Cue.PoolGame.IsMatchActive
+            || !Cue.PoolGame.IsTurnOwner(requesterId.ToString()))
         {
             ResolveRequest(requesterId, sequence, false, "not_your_turn");
             return;

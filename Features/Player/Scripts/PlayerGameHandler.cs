@@ -6,7 +6,8 @@ public partial class PlayerGameHandler : Node
     [Export] public Node3D ContextSlot;
     [Export] public Player Player;
 
-    public PoolController CurrentController = null;
+    public GameController CurrentController = null;
+    public TableGame CurrentTableGame { get; private set; }
 
     [Signal]
     public delegate void ControllerEquippedEventHandler(TableGame tableGame);
@@ -17,12 +18,13 @@ public partial class PlayerGameHandler : Node
     public void EquipGameController(PackedScene controllerScene, TableGame tableGame, GlobalCamera camera)
     {
         UnequipCurrentController();
+        CurrentTableGame = tableGame;
 
         var controllerInstance = controllerScene.Instantiate();
         controllerInstance.Name = "ActiveController";
         controllerInstance.SetMultiplayerAuthority(Player.Id);
 
-        CurrentController = (PoolController)controllerInstance;
+        CurrentController = (GameController)controllerInstance;
 
         CurrentController.Hide();
 
@@ -37,8 +39,12 @@ public partial class PlayerGameHandler : Node
 
     public void UnequipCurrentController()
     {
-        if (CurrentController == null)
+        if (!IsInstanceValid(CurrentController))
+        {
+            CurrentController = null;
+            CurrentTableGame = null;
             return;
+        }
 
         var currentControllerParent = CurrentController.GetParent();
 
@@ -47,6 +53,7 @@ public partial class PlayerGameHandler : Node
 
         CurrentController.QueueFree();
         CurrentController = null;
+        CurrentTableGame = null;
 
         EmitSignal(SignalName.ControllerUnequipped);
     }

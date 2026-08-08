@@ -2,10 +2,8 @@ using Godot;
 using Godot.Collections;
 
 [GlobalClass]
-public partial class PoolController : Node3D
+public partial class PoolController : GameController
 {
-	public bool CanTakeControl = false;
-
 	public RemoteTransform3D RemoteAim;
 	public AimCameraPivot AimPivot;
 	public Cue Cue;
@@ -21,7 +19,7 @@ public partial class PoolController : Node3D
 		Cue = GetNode<Cue>("AimPivot/Cue");
 	}
 
-	public void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
+	public override void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
 	{
 		Player = parent;
 		PoolGame = tableGame as PoolGame;
@@ -43,18 +41,17 @@ public partial class PoolController : Node3D
 		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 	}
 
-	public void TakeControl()
+	public override void TakeControl()
 	{
 		if (!IsMultiplayerAuthority())
 			return;
 
-		if (!IsInstanceValid(PoolGame) || !IsInstanceValid(Player)
-			|| !IsInstanceValid(PoolGame.TurnOwner))
+		if (!IsInstanceValid(PoolGame) || !PoolGame.IsMatchActive || !IsInstanceValid(Player))
 		{
 			return;
 		}
 
-		if (Player.Name != PoolGame.TurnOwner.Name)
+		if (!PoolGame.IsTurnOwner((string)Player.Name))
 		{
 			GD.PushError("Cannot take control, it's not your turn!");
 			return;
@@ -76,7 +73,7 @@ public partial class PoolController : Node3D
 		InputFocus.Capture();
 	}
 
-	public void GiveControl()
+	public override void GiveControl()
 	{
 		if (!IsMultiplayerAuthority())
 			return;
@@ -93,7 +90,7 @@ public partial class PoolController : Node3D
 		Player.ExitGameControllerMode();
 	}
 
-	public async void ApplyControl(string turnOwnerId, Dictionary context)
+	public override async void ApplyControl(string turnOwnerId, Dictionary context)
 	{
 		if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player))
 			return;
@@ -117,9 +114,9 @@ public partial class PoolController : Node3D
 				// ball placement owns the camera and input, including before the opening break.
 				GiveControl();
 				await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
-				if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player)
-					|| !IsInstanceValid(PoolGame.TurnOwner)
-					|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
+				if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !PoolGame.IsMatchActive
+					|| !IsInstanceValid(Player)
+					|| !PoolGame.IsTurnOwner((string)Player.Name))
 					return;
 
 				TakeControl();
@@ -141,8 +138,8 @@ public partial class PoolController : Node3D
 	private void OnTurnExtended(Dictionary context)
 	{
 		if (!IsMultiplayerAuthority() || !IsInstanceValid(PoolGame)
-			|| !IsInstanceValid(Player) || !IsInstanceValid(PoolGame.TurnOwner)
-			|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
+			|| !PoolGame.IsMatchActive || !IsInstanceValid(Player)
+			|| !PoolGame.IsTurnOwner((string)Player.Name))
 			return;
 
 		if (context.ContainsKey("ball_replacement"))

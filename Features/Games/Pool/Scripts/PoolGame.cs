@@ -11,6 +11,10 @@ public partial class PoolGame : TableGame
 	public BallPlacementManager BallPlacementManager;
 	public PoolSimulationRunner SimulationRunner;
 	private GameModeHandler _gameModeHandler;
+	private bool _runtimeReady;
+	private int _setupVersion;
+	private string _pendingReclaimNewId;
+	private Dictionary _pendingReclaimContext;
 
 	public Ball CueBall = null;
 	public Array<Ball> Balls = new();
@@ -96,6 +100,9 @@ public partial class PoolGame : TableGame
 
 	public override async void SetupMatch(Array players, string firstTurnOwner)
 	{
+		PrepareMatch(players, firstTurnOwner);
+		var setupVersion = ++_setupVersion;
+		_runtimeReady = false;
 		IsSoloMatch = players.Count == 1;
 		BallsPocketedByPlayer.Clear();
 		ConsecutiveFoulsByPlayer.Clear();
@@ -112,14 +119,23 @@ public partial class PoolGame : TableGame
 		PoolBallRespawn.StartGame();
 
 		var (cueBall, balls) = await PoolBallRespawn.WaitTableReady();
+		if (setupVersion != _setupVersion || !IsMatchActive)
+			return;
+
 		CueBall = cueBall;
 		Balls = balls;
 
 		SimulationRunner.Setup(cueBall, balls);
 		SignalUtil.ConnectGuarded(SimulationRunner, PoolSimulationRunner.SignalName.BallPocketed, new Callable(this, MethodName.OnBallPocketed));
 		_gameModeHandler.Setup(this);
+		_runtimeReady = true;
 
 		EmitSignal(SignalName.MatchStarted, players, firstTurnOwner);
+
+		if (!Multiplayer.IsServer())
+			(_gameModeHandler.CurrentGameMode.TurnResolver as PoolTurnResolver)?.RequestFullState();
+
+		ProcessPendingReclaim();
 	}
 
 	private void OnMatchStarts(Array playersIds, string firstTurnOwner)
@@ -148,6 +164,12 @@ public partial class PoolGame : TableGame
 
 	private void OnMatchIsOver(string winner, Dictionary context)
 	{
+		_setupVersion++;
+		_runtimeReady = false;
+		ClearPendingReclaim();
+		BallPlacementManager?.CancelPlacement();
+		SimulationRunner?.CancelPlayback();
+
 		// When the local player is the one who just left the match (surrender),
 		// OnPlayerRemovedFromMatch below already released their controller by the time this
 		// runs — CurrentController is already null here, not a bug to work around blindly.
@@ -173,7 +195,31 @@ public partial class PoolGame : TableGame
 		leavingPlayer.TakeControl();
 	}
 
-	private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder)
+	private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder, Dictionary context)
+	{
+		if (BallsPocketedByPlayer.TryGetValue(oldPlayerId, out var scoredBalls))
+		{
+			BallsPocketedByPlayer.Remove(oldPlayerId);
+			BallsPocketedByPlayer[newPlayerId] = scoredBalls;
+		}
+		if (ConsecutiveFoulsByPlayer.TryGetValue(oldPlayerId, out var foulCount))
+		{
+			ConsecutiveFoulsByPlayer.Remove(oldPlayerId);
+			ConsecutiveFoulsByPlayer[newPlayerId] = foulCount;
+		}
+		EmitSignal(SignalName.HudStateUpdated);
+
+		if (!_runtimeReady)
+		{
+			_pendingReclaimNewId = newPlayerId;
+			_pendingReclaimContext = context?.Duplicate() ?? new Dictionary();
+			return;
+		}
+
+		ApplyReclaimedPlayer(newPlayerId, context);
+	}
+
+	private void ApplyReclaimedPlayer(string newPlayerId, Dictionary context)
 	{
 		var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
 		if (newPlayer == null)
@@ -181,14 +227,99 @@ public partial class PoolGame : TableGame
 
 		newPlayer.GameHandler.EquipGameController(GameControllerScene, this, Camera);
 
-		// The old player's node is already gone by now, so TurnOwner (if it was
-		// theirs) is a stale reference — this just checks whose turn it names,
-		// same pattern RemovePlayerFromMatch already relies on being safe here.
-		var wasTurnOwner = TurnOwner != null && (string)TurnOwner.Name == oldPlayerId;
-		if (!wasTurnOwner)
+		// TableGame already transferred the cached turn identity without touching the old,
+		// already-freed Player node.
+		if (!IsTurnOwner(newPlayerId))
 			return;
 
-		TurnOwner = newPlayer;
-		newPlayer.GameHandler.CurrentController?.ApplyControl(newPlayerId, new Dictionary());
+		var resolver = _gameModeHandler?.CurrentGameMode?.TurnResolver as PoolTurnResolver;
+		resolver?.ResumeReclaimedTurn(newPlayerId, context);
+		newPlayer.GameHandler.CurrentController?.ApplyControl(newPlayerId, context);
+	}
+
+	private void ProcessPendingReclaim()
+	{
+		if (string.IsNullOrEmpty(_pendingReclaimNewId))
+			return;
+
+		var newId = _pendingReclaimNewId;
+		var context = _pendingReclaimContext ?? new Dictionary();
+		ClearPendingReclaim();
+		ApplyReclaimedPlayer(newId, context);
+	}
+
+	private void ClearPendingReclaim()
+	{
+		_pendingReclaimNewId = null;
+		_pendingReclaimContext = null;
+	}
+
+	public Dictionary BuildPublicSnapshot()
+	{
+		var scoredPlayers = new System.Collections.Generic.List<string>();
+		var scoredBalls = new System.Collections.Generic.List<int>();
+		foreach (var entry in BallsPocketedByPlayer)
+		{
+			foreach (var ballVariant in entry.Value)
+			{
+				scoredPlayers.Add(entry.Key);
+				scoredBalls.Add(ballVariant.AsInt32());
+			}
+		}
+
+		var foulPlayers = new string[ConsecutiveFoulsByPlayer.Count];
+		var foulCounts = new int[ConsecutiveFoulsByPlayer.Count];
+		var index = 0;
+		foreach (var entry in ConsecutiveFoulsByPlayer)
+		{
+			foulPlayers[index] = entry.Key;
+			foulCounts[index] = entry.Value;
+			index++;
+		}
+
+		return new Dictionary
+		{
+			["target_ball"] = CurrentTargetBallIndex,
+			["scored_players"] = Variant.From(scoredPlayers.ToArray()),
+			["scored_ball_ids"] = Variant.From(scoredBalls.ToArray()),
+			["foul_players"] = Variant.From(foulPlayers),
+			["foul_counts"] = Variant.From(foulCounts),
+			["push_out_available"] = PushOutAvailable,
+			["push_out_choice_pending"] = PushOutChoicePending,
+			["push_out_declared"] = PushOutDeclared,
+			["push_out_shooter"] = PushOutShooterId ?? "",
+		};
+	}
+
+	public void ApplyPublicSnapshot(Dictionary context)
+	{
+		if (context == null || !context.ContainsKey("target_ball"))
+			return;
+
+		CurrentTargetBallIndex = context["target_ball"].AsInt32();
+		BallsPocketedByPlayer.Clear();
+		var scoredPlayers = context["scored_players"].AsStringArray();
+		var scoredBalls = context["scored_ball_ids"].AsInt32Array();
+		for (var i = 0; i < scoredPlayers.Length && i < scoredBalls.Length; i++)
+		{
+			if (!BallsPocketedByPlayer.TryGetValue(scoredPlayers[i], out var balls))
+			{
+				balls = new Array();
+				BallsPocketedByPlayer[scoredPlayers[i]] = balls;
+			}
+			balls.Add(scoredBalls[i]);
+		}
+
+		ConsecutiveFoulsByPlayer.Clear();
+		var foulPlayers = context["foul_players"].AsStringArray();
+		var foulCounts = context["foul_counts"].AsInt32Array();
+		for (var i = 0; i < foulPlayers.Length && i < foulCounts.Length; i++)
+			ConsecutiveFoulsByPlayer[foulPlayers[i]] = foulCounts[i];
+
+		PushOutAvailable = context["push_out_available"].AsBool();
+		PushOutChoicePending = context["push_out_choice_pending"].AsBool();
+		PushOutDeclared = context["push_out_declared"].AsBool();
+		PushOutShooterId = context["push_out_shooter"].AsString();
+		EmitSignal(SignalName.HudStateUpdated);
 	}
 }

@@ -17,6 +17,13 @@ public partial class StatesRef : RefCounted
     public const string GameStarted = "GAME_STARTED";
     public const string GameWaitingStart = "GAME_WAITING_START";
 
+    // DOMINO HAND
+    public const string DominoHandIdle = "DOMINO_HAND_IDLE";
+    public const string DominoHandLooking = "DOMINO_HAND_LOOKING";
+    public const string DominoHandAiming = "DOMINO_HAND_AIMING";
+    public const string DominoHandDrawing = "DOMINO_HAND_DRAWING";
+    public const string DominoHandPlacing = "DOMINO_HAND_PLACING";
+
     // PLAYER
     public const string PlayerIdle = "PLAYER_IDLE";
     public const string PlayerWalking = "PLAYER_WALKING";

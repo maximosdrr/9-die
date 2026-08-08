@@ -16,22 +16,28 @@ public partial class GameStarted : State
         Table.PlayersOnMatch = new Array<string>();
         var playersIds = (Array)metadata["players_ids"];
 
+        if (playersIds.Count == 0)
+        {
+            GD.PushWarning("GameStarted recebeu uma partida sem jogadores.");
+            return;
+        }
+
         foreach (var playerIdVariant in playersIds)
         {
             var playerId = (string)playerIdVariant;
             var player = PlayerRegistry.Instance.GetPlayerById(playerId);
 
-            Table.PlayersOnMatch.Add((string)player.Name);
+            // State synchronization can reach a reconnecting client before its replacement Player
+            // node. Keep the authoritative id without dereferencing a disposed/missing object.
+            Table.PlayersOnMatch.Add(playerId);
 
-            if (int.Parse((string)player.Name) == Multiplayer.GetUniqueId())
+            if (player != null && int.TryParse(playerId, out var peerId)
+                && peerId == Multiplayer.GetUniqueId())
                 Table.CurrentTableGame.Player = player;
         }
 
-        Table.CurrentTableGame.TurnOrder = playersIds;
         var firstTurnOwnerId = (string)playersIds[0];
-
-        var firstPlayer = PlayerRegistry.Instance.GetPlayerById(firstTurnOwnerId);
-        Table.CurrentTableGame.TurnOwner = firstPlayer;
+        Table.CurrentTableGame.PrepareMatch(playersIds, firstTurnOwnerId);
 
         if (Multiplayer.IsServer())
             Table.CurrentTableGame.SetupMatch(playersIds, firstTurnOwnerId);

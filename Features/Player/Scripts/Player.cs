@@ -16,6 +16,7 @@ public partial class Player : CharacterBody3D
     public StateMachine StateMachine;
     public PlayerHud Hud;
     public TvShareButton TvShareButton;
+    public CollisionShape3D BodyCollision;
 
     public GlobalCamera Camera;
     public TvScreenShare TvScreen;
@@ -23,6 +24,7 @@ public partial class Player : CharacterBody3D
     public enum ControllerStatesEnum { Player, Game }
 
     public ControllerStatesEnum CurrentControlState = ControllerStatesEnum.Player;
+    public bool IsInSeatedGameMode { get; private set; }
 
     public override void _Ready()
     {
@@ -33,6 +35,7 @@ public partial class Player : CharacterBody3D
         StateMachine = GetNode<StateMachine>("StateMachine");
         Hud = GetNode<PlayerHud>("UI/PlayerHud");
         TvShareButton = GetNode<TvShareButton>("UI/TvShareButton");
+        BodyCollision = GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
 
         // Godot calls _Ready() bottom-up (children before parents), so PlayerHud._Ready()
         // would run before this point and see GameHandler as null if it tried to wire
@@ -51,6 +54,8 @@ public partial class Player : CharacterBody3D
 
     public void TakeControl()
     {
+        ExitSeatedGameMode();
+
         if (!IsMultiplayerAuthority())
             return;
 
@@ -74,10 +79,38 @@ public partial class Player : CharacterBody3D
         CurrentControlState = ControllerStatesEnum.Game;
     }
 
-    public void EnterGameControllerMode()
+    /// <summary>
+    /// Freezes a player that is represented by a chair animation instead of the walking body.
+    /// This is deliberately separate from GiveControl: pool still needs the character collider
+    /// while aiming, whereas domino players must not fight the chair or one another through
+    /// MoveAndSlide while seated.
+    /// </summary>
+    public void EnterSeatedGameMode()
+    {
+        IsInSeatedGameMode = true;
+        SetPhysicsProcess(false);
+        Velocity = Vector3.Zero;
+
+        BodyCollision ??= GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
+        BodyCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
+    }
+
+    /// <summary>Restores the walking collider when the seated controller is released.</summary>
+    public void ExitSeatedGameMode()
+    {
+        IsInSeatedGameMode = false;
+        BodyCollision ??= GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
+        BodyCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, false);
+    }
+
+    public void EnterGameControllerMode(string animationName = "")
     {
         PlayerModel.Hide();
-        StateMachine.ChangeState(StatesRef.PlayerStrike, new Dictionary());
+        var metadata = new Dictionary();
+        if (!string.IsNullOrWhiteSpace(animationName))
+            metadata["animation"] = animationName;
+
+        StateMachine.ChangeState(StatesRef.PlayerStrike, metadata);
     }
 
     public void ExitGameControllerMode()

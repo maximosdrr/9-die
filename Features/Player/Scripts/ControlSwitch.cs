@@ -18,6 +18,10 @@ public partial class ControlSwitch : Node
         if (currentGameController == null)
             return;
 
+        // Some modes own the player continuously and deliberately have nothing to toggle back to.
+        if (!currentGameController.AllowsControlSwitch)
+            return;
+
         if (Player.CurrentControlState == Player.ControllerStatesEnum.Player)
             SwitchToGame(currentGameController);
         else
@@ -26,13 +30,13 @@ public partial class ControlSwitch : Node
         GetViewport().SetInputAsHandled();
     }
 
-    private void SwitchToPlayer(PoolController gameController)
+    private void SwitchToPlayer(GameController gameController)
     {
         gameController.GiveControl();
         Player.TakeControl();
     }
 
-    private void SwitchToGame(PoolController gameController)
+    private void SwitchToGame(GameController gameController)
     {
         if (!gameController.CanTakeControl)
         {
