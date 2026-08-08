@@ -34,6 +34,7 @@
 [ext_resource type="Texture2D" uid="uid://wgiqo7jn63l6" path="res://Assets/BarAssets/BarBuildingKit1845_WallTexture.png" id="32_nfe77"]
 [ext_resource type="Texture2D" uid="uid://b37qg55n7jkgn" path="res://Assets/BarAssets/BarBuildingKit1845_wooden_chair_basecolor.jpg" id="33_1ng3y"]
 [ext_resource type="Texture2D" uid="uid://f2fg6cq10jt8" path="res://Assets/BarAssets/BarBuildingKit1845_wooden_chair_basecolor_25.jpg" id="34_g7l8w"]
+[ext_resource type="PackedScene" path="res://Features/Games/Domino/Domino.tscn" id="35_dmnsc"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
 sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
@@ -2887,6 +2888,10 @@ shape = SubResource("BoxShape3D_b7m75")
 [node name="Table" parent="." unique_id=542657396 instance=ExtResource("3_4e5w7")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25662804, 0, 7.3438463)
 TableGameScene = ExtResource("5_rxpk7")
+
+[node name="DominoTable" parent="." instance=ExtResource("3_4e5w7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.4, 0, 9.0)
+TableGameScene = ExtResource("35_dmnsc")
 
 [node name="Multiplayer" type="Node3D" parent="." unique_id=1197676481]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35158157, 0, 2.1860094)

@@ -32,6 +32,18 @@ public partial class TvShareButton : CanvasLayer
     {
         TvScreen = tvScreen;
 
+        // A level without a TV — or any Player built outside LevelMultiplayerManager, like a
+        // headless test — leaves this null. Stay dormant instead of throwing out of Player._Ready()
+        // and aborting everything after it. Unhandled input goes off too, since every branch of
+        // it dereferences TvScreen (the authority check below can't cover that case).
+        if (TvScreen == null)
+        {
+            Visible = false;
+            SetProcess(false);
+            SetProcessUnhandledInput(false);
+            return;
+        }
+
         if (!IsMultiplayerAuthority())
         {
             Visible = false;

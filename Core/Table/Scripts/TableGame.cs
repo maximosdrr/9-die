@@ -17,6 +17,15 @@ public partial class TableGame : Node3D
     /// <summary>Game modes can exclude non-competitive matches from persistent rankings.</summary>
     public virtual bool CountsWinsForRanking => true;
 
+    /// <summary>How many players the table advertises room for. Display only.</summary>
+    public virtual int MaxPlayers => 4;
+
+    /// <summary>
+    /// Whether a match may begin with this many players standing at the table. Pool is happy
+    /// alone; modes that need opponents (domino) tighten this.
+    /// </summary>
+    public virtual bool CanStartWith(int playerCount) => playerCount >= 1;
+
     [Signal]
     public delegate void TurnChangedEventHandler(string nextPlayerName, Dictionary context);
 

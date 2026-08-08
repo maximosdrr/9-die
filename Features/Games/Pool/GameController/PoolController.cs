@@ -2,10 +2,8 @@ using Godot;
 using Godot.Collections;
 
 [GlobalClass]
-public partial class PoolController : Node3D
+public partial class PoolController : GameController
 {
-	public bool CanTakeControl = false;
-
 	public RemoteTransform3D RemoteAim;
 	public AimCameraPivot AimPivot;
 	public Cue Cue;
@@ -21,7 +19,7 @@ public partial class PoolController : Node3D
 		Cue = GetNode<Cue>("AimPivot/Cue");
 	}
 
-	public void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
+	public override void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
 	{
 		Player = parent;
 		PoolGame = tableGame as PoolGame;
@@ -43,7 +41,7 @@ public partial class PoolController : Node3D
 		SignalUtil.DisconnectGuarded(PoolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 	}
 
-	public void TakeControl()
+	public override void TakeControl()
 	{
 		if (!IsMultiplayerAuthority())
 			return;
@@ -76,7 +74,7 @@ public partial class PoolController : Node3D
 		InputFocus.Capture();
 	}
 
-	public void GiveControl()
+	public override void GiveControl()
 	{
 		if (!IsMultiplayerAuthority())
 			return;
@@ -93,7 +91,7 @@ public partial class PoolController : Node3D
 		Player.ExitGameControllerMode();
 	}
 
-	public async void ApplyControl(string turnOwnerId, Dictionary context)
+	public override async void ApplyControl(string turnOwnerId, Dictionary context)
 	{
 		if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player))
 			return;

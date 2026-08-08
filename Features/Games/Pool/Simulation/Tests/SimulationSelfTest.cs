@@ -40,6 +40,8 @@ public partial class SimulationSelfTest : Node
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
             GD.PushWarning($"{_failed} verificação(ões) de física falharam — ver console.");
+
+        GetTree().Quit(_failed > 0 ? 1 : 0);
     }
 
     // A centre-struck ball leaves the tip sliding and settles into natural roll at exactly

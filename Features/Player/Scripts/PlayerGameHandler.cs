@@ -6,7 +6,7 @@ public partial class PlayerGameHandler : Node
     [Export] public Node3D ContextSlot;
     [Export] public Player Player;
 
-    public PoolController CurrentController = null;
+    public GameController CurrentController = null;
 
     [Signal]
     public delegate void ControllerEquippedEventHandler(TableGame tableGame);
@@ -22,7 +22,7 @@ public partial class PlayerGameHandler : Node
         controllerInstance.Name = "ActiveController";
         controllerInstance.SetMultiplayerAuthority(Player.Id);
 
-        CurrentController = (PoolController)controllerInstance;
+        CurrentController = (GameController)controllerInstance;
 
         CurrentController.Hide();
 

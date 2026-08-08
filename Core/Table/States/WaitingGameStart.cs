@@ -73,6 +73,9 @@ public partial class WaitingGameStart : State
         if (!playersHere.Any(p => (string)p.Name == requesterId.ToString()))
             return;
 
+        if (CurrentGame != null && !CurrentGame.CanStartWith(playersHere.Count))
+            return;
+
         var playersIds = new Array(playersHere.Select(p => Variant.From((string)p.Name)));
         var metadata = new Dictionary { ["players_ids"] = playersIds };
         StateMachine.ChangeState(StatesRef.GameStarting, metadata);
@@ -100,10 +103,17 @@ public partial class WaitingGameStart : State
             StartGameUI.Hide();
     }
 
+    /// <summary>
+    /// The game plugged into this table, or null before Table._Ready spawned it. Read through
+    /// State.Parent so the state stays reusable by any table, whatever game it hosts.
+    /// </summary>
+    private TableGame CurrentGame => (Parent as Table)?.CurrentTableGame;
+
     private void UpdateUiText()
     {
         var totalPlayers = PlayersOnInfluencyArea.Count;
-        var text = $"Waiting Start (Press F)\nPlayers {totalPlayers}/4";
+        var maxPlayers = CurrentGame?.MaxPlayers ?? 4;
+        var text = $"Waiting Start (Press F)\nPlayers {totalPlayers}/{maxPlayers}";
         StartGameUI.SetText(text);
     }
 

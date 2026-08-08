@@ -38,6 +38,7 @@ public partial class SceneLoadTest : Node
         }
 
         TestDisposedTurnOwnerIsIgnored();
+        TestControllerHandoffIsGameAgnostic();
 
         TestRulerHandlesEmptyRack();
         TestGoldenNineBreakRules();
@@ -881,6 +882,23 @@ public partial class SceneLoadTest : Node
         game.Free();
         table.DebugLabel.Free();
         table.Free();
+    }
+
+    // PlayerGameHandler used to be hard-typed to PoolController, which made a second game mode
+    // impossible to equip. These pin the generalisation so it cannot silently slide back — and so
+    // a mode that seats the player can opt out of the E toggle.
+    private void TestControllerHandoffIsGameAgnostic()
+    {
+        Check("controlador de sinuca é um GameController genérico",
+            typeof(GameController).IsAssignableFrom(typeof(PoolController)));
+
+        var controllerField = typeof(PlayerGameHandler).GetField(nameof(PlayerGameHandler.CurrentController));
+        Check("PlayerGameHandler guarda o controlador pelo tipo base",
+            controllerField != null && controllerField.FieldType == typeof(GameController));
+
+        var poolController = new PoolController();
+        Check("sinuca mantém o alternador de controle (E) habilitado", poolController.AllowsControlSwitch);
+        poolController.Free();
     }
 
     // Lockstep's promise: given the same starting layout and the same ShotInput, two independent
