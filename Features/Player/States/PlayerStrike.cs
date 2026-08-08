@@ -19,6 +19,13 @@ public partial class PlayerStrike : State
 
 	public override void Enter(Dictionary metadata)
 	{
-		AnimationPlayer.Play("Idle");
+		var requested = metadata != null && metadata.TryGetValue("animation", out var animation)
+			? animation.AsString()
+			: "";
+		var clip = !string.IsNullOrWhiteSpace(requested) && AnimationPlayer.HasAnimation(requested)
+			? requested
+			: "Idle";
+
+		AnimationPlayer.Play(clip);
 	}
 }

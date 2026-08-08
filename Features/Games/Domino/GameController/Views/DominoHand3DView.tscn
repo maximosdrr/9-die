@@ -33,7 +33,7 @@ CarouselSlideSpeed = 12.0
 [node name="HandRig" type="Node3D" parent="."]
 
 [node name="Palm" type="MeshInstance3D" parent="HandRig"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.028, 0.015)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.048, 0.015)
 mesh = SubResource("BoxMesh_palm")
 
 [node name="TileSlots" type="Node3D" parent="HandRig"]

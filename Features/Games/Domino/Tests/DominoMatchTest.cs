@@ -135,9 +135,27 @@ public partial class DominoMatchTest : Node
 		Check("o controlador equipado é o de dominó",
 			player.GameHandler.CurrentController is DominoController);
 
-		// Seated for the whole match, so the walk/play toggle has nothing to do.
-		Check("a troca de controle fica desligada enquanto sentado",
-			!player.GameHandler.CurrentController.AllowsControlSwitch);
+		var controller = player.GameHandler.CurrentController as DominoController;
+		Check("E pode alternar entre a cadeira e o controle livre",
+			controller is { AllowsControlSwitch: true, CanTakeControl: true });
+
+		if (controller == null || seat == null)
+			return;
+
+		var standExit = seat.GetNodeOrNull<Marker3D>("StandExit");
+		controller.GiveControl();
+		player.TakeControl();
+		Check("levantar restaura movimento, física e colisão do personagem",
+			player.CurrentControlState == Player.ControllerStatesEnum.Player
+			&& !player.IsInSeatedGameMode && player.IsPhysicsProcessing());
+		Check("o jogador levanta fora da colisão da cadeira",
+			standExit != null && player.GlobalPosition.DistanceTo(standExit.GlobalPosition) < 1e-3f);
+
+		player.GiveControl();
+		controller.TakeControl();
+		Check("pressionar E novamente devolve o jogador ao mesmo assento",
+			player.IsInSeatedGameMode && !player.IsPhysicsProcessing()
+			&& player.GlobalPosition.DistanceTo(seat.GlobalPosition) < 1e-3f);
 	}
 
 	private void TestRejections(DominoGame game, DominoTurnResolver resolver)

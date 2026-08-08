@@ -18,7 +18,7 @@ public partial class ControlSwitch : Node
         if (currentGameController == null)
             return;
 
-        // Modes that seat the player for the whole match have nothing to toggle back to.
+        // Some modes own the player continuously and deliberately have nothing to toggle back to.
         if (!currentGameController.AllowsControlSwitch)
             return;
 

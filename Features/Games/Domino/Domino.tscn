@@ -259,8 +259,9 @@ TileScene = ExtResource("4_dtile")
 ChainPresenter = NodePath("../ChainHolder")
 Seats = NodePath("../Seats")
 
-[node name="Seats" type="Node3D" parent="." unique_id=461774480]
+[node name="Seats" type="Node3D" parent="." unique_id=461774480 node_paths=PackedStringArray("Chairs")]
 script = ExtResource("9_danch")
+Chairs = Array[NodePath]([NodePath("../WoodenChair_004"), NodePath("../WoodenChair_005"), NodePath("../WoodenChair_006"), NodePath("../WoodenChair_007")])
 
 [node name="Seat0" type="Marker3D" parent="Seats" unique_id=1281192429]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.9, -0.65)
@@ -268,11 +269,17 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.9, -0.65)
 [node name="SeatView" type="Node3D" parent="Seats/Seat0" unique_id=358818972]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
 
+[node name="StandExit" type="Marker3D" parent="Seats/Seat0"]
+position = Vector3(0, 0, 0.55)
+
 [node name="Seat1" type="Marker3D" parent="Seats" unique_id=1544177101]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.65, 0.9, 0)
 
 [node name="SeatView" type="Node3D" parent="Seats/Seat1" unique_id=897128048]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
+
+[node name="StandExit" type="Marker3D" parent="Seats/Seat1"]
+position = Vector3(0, 0, 0.55)
 
 [node name="Seat2" type="Marker3D" parent="Seats" unique_id=1395997321]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.65)
@@ -280,11 +287,17 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.65)
 [node name="SeatView" type="Node3D" parent="Seats/Seat2" unique_id=701215537]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
 
+[node name="StandExit" type="Marker3D" parent="Seats/Seat2"]
+position = Vector3(0, 0, 0.55)
+
 [node name="Seat3" type="Marker3D" parent="Seats" unique_id=1003789680]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.65, 0.9, 0)
 
 [node name="SeatView" type="Node3D" parent="Seats/Seat3" unique_id=1354855272]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
+
+[node name="StandExit" type="Marker3D" parent="Seats/Seat3"]
+position = Vector3(0, 0, 0.55)
 
 [node name="GameModeHandler" type="Node" parent="." unique_id=1559205914 node_paths=PackedStringArray("CurrentGameMode")]
 script = ExtResource("5_gmhand")

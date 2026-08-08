@@ -19,14 +19,25 @@ public partial class DominoSeatAnchors : Node3D
 	/// <summary>In seating order. Each one claims the seat marker at the same index.</summary>
 	[Export] public Godot.Collections.Array<Node3D> Chairs = new();
 
-	/// <summary>Height of the chair's seat: where the sitting body belongs.</summary>
-	[Export] public float SeatHeight = 0.45f;
+	[ExportGroup("Body placement")]
+	/// <summary>
+	/// Fine adjustment of the character root in the chair's local axes. It stays at floor height
+	/// while the temporary standing idle is in use; the future seated animation can be aligned by
+	/// editing this one value in the inspector.
+	/// </summary>
+	[Export] public Vector3 BodyOffset = Vector3.Zero;
 
-	/// <summary>Eye height above the seat.</summary>
-	[Export] public float EyeHeight = 0.68f;
+	/// <summary>Eye height above the character root while seated.</summary>
+	[Export] public float EyeHeight = 1.13f;
 
 	/// <summary>How far the player leans in over the table from the chair.</summary>
 	[Export] public float EyeLean = 0.30f;
+
+	/// <summary>
+	/// Used when a seat has no hand-placed StandExit child. Positive local Z is behind the chair,
+	/// away from the table, so the walking collider is never restored inside the furniture.
+	/// </summary>
+	[Export] public float StandBackDistance = 0.55f;
 
 	[ExportGroup("Chair collision")]
 	[Export] public bool BuildChairColliders = true;
@@ -82,7 +93,8 @@ public partial class DominoSeatAnchors : Node3D
 		toTable = toTable.Normalized();
 
 		var yaw = Mathf.Atan2(-toTable.X, -toTable.Z);
-		var seatPosition = chairTransform.Origin with { Y = GlobalPosition.Y + SeatHeight };
+		var seatPosition = chairTransform.Origin
+			+ chairTransform.Basis.Orthonormalized() * BodyOffset;
 
 		marker.GlobalTransform = new Transform3D(
 			Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f)), seatPosition);
@@ -91,6 +103,12 @@ public partial class DominoSeatAnchors : Node3D
 		var eye = marker.GetNodeOrNull<Node3D>("SeatView");
 		if (eye != null)
 			eye.Position = new Vector3(0.0f, EyeHeight, -EyeLean);
+
+		// Kept as a child marker so an artist can place the exact get-up point per chair later. The
+		// generated default is already outside the chair collider and remains editable in the scene.
+		var standExit = marker.GetNodeOrNull<Marker3D>("StandExit");
+		if (standExit != null && standExit.Position.IsZeroApprox())
+			standExit.Position = new Vector3(0.0f, 0.0f, StandBackDistance);
 	}
 
 	/// <summary>

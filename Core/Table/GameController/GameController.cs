@@ -19,8 +19,8 @@ public partial class GameController : Node3D
 	public bool CanTakeControl = false;
 
 	/// <summary>
-	/// Whether "switch_control" (E) toggles between walking and playing. Modes that seat the
-	/// player for the whole match — domino — turn this off so the key does nothing mid-game.
+	/// Whether "switch_control" (E) toggles between walking and playing. A mode can turn this off
+	/// while it owns the player continuously, or leave it on when returning is safe.
 	/// </summary>
 	public virtual bool AllowsControlSwitch => true;
 

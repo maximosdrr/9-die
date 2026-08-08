@@ -7,9 +7,8 @@ using Godot.Collections;
 /// The per-player surface of a domino match: takes the seat, owns the two camera views and relays
 /// what the hand view asks for to the server.
 ///
-/// Unlike the pool controller, nothing moves when the turn changes — everyone stays seated for the
-/// whole match and only the hand view's state changes. That is why "switch control" is off: there
-/// is nothing to switch to until the match ends.
+/// Unlike the pool controller, nothing moves when the turn changes. Players normally stay seated,
+/// but may use the shared control switch to get up, walk around and return to their own chair.
 ///
 /// Two views, both driven from here rather than from a fixed marker in the table scene, so each
 /// player looks around independently and sees the table from their own side:
@@ -41,6 +40,12 @@ public partial class DominoController : GameController
 
 	/// <summary>Where the head rests: tilted down at the table, which is what the player wants to see.</summary>
 	[Export] public float RestPitchDeg = -32.0f;
+
+	/// <summary>
+	/// Animation requested while seated. PlayerStrike falls back to Idle until this clip is added
+	/// to the character, so adding the future animation needs no controller rewrite.
+	/// </summary>
+	[Export] public string SeatedAnimationName = "SitForAGame";
 
 	[ExportGroup("Top view")]
 	[Export] public float TopFov = 55.0f;
@@ -86,7 +91,7 @@ public partial class DominoController : GameController
 
 	private static readonly List<MoveOption> NoMoves = new();
 
-	public override bool AllowsControlSwitch => false;
+	public override bool AllowsControlSwitch => true;
 
 	public override void _Ready()
 	{
@@ -110,8 +115,8 @@ public partial class DominoController : GameController
 		if (!_seated || !IsMultiplayerAuthority())
 			return;
 
-		// Getting up is a hold rather than a press, and the progress is shown, so a forfeit is
-		// always a decision the player watched themselves make.
+		// Leaving the MATCH uses Q and is a hold rather than a press, so it cannot be confused with
+		// the harmless E toggle that only gets up from the chair.
 		if (Input.IsActionPressed(InputLeave))
 		{
 			_leaveHeld += (float)delta;
@@ -165,12 +170,16 @@ public partial class DominoController : GameController
 			return;
 
 		SpawnHandView();
-		TakeSeat();
+		CanTakeControl = Game.IsMatchActive;
+		TakeControl();
 		Refresh();
 	}
 
 	public override void _ExitTree()
 	{
+		if (_seated && IsMultiplayerAuthority())
+			MoveToStandExit();
+
 		if (IsInstanceValid(Player))
 			Player.ExitSeatedGameMode();
 
@@ -214,6 +223,26 @@ public partial class DominoController : GameController
 
 	// ---------------------------------------------------------------- seating and views
 
+	/// <summary>Returns from free walking to this player's chair without depending on turn order.</summary>
+	public override void TakeControl()
+	{
+		if (!IsMultiplayerAuthority() || !IsInstanceValid(Game) || !Game.IsMatchActive
+			|| !IsInstanceValid(Player))
+			return;
+
+		if (Game.SeatFor((string)Player.Name) == null)
+		{
+			GD.PushWarning($"Sem assento para o jogador {Player.Name}; não foi possível voltar à mesa.");
+			return;
+		}
+
+		Player.EnterSeatedGameMode();
+		TakeSeat();
+		_handView?.SetInteractive(true);
+		CanTakeControl = true;
+		Refresh();
+	}
+
 	/// <summary>
 	/// Sits the player down and builds both camera rigs around the seat. This runs on the owning
 	/// peer rather than the server because Player replicates its own position outward — a
@@ -248,7 +277,7 @@ public partial class DominoController : GameController
 		Player.Velocity = Vector3.Zero;
 
 		Player.GiveControl();
-		Player.EnterGameControllerMode();
+		Player.EnterGameControllerMode(SeatedAnimationName);
 
 		// The eye point comes from the seat's own marker so an artist can raise or lower it per
 		// chair without touching code.
@@ -403,11 +432,17 @@ public partial class DominoController : GameController
 
 	public override void GiveControl()
 	{
-		if (IsInstanceValid(Player))
-			Player.ExitSeatedGameMode();
+		if (!IsInstanceValid(Player))
+			return;
 
 		if (!IsMultiplayerAuthority())
+		{
+			Player.ExitSeatedGameMode();
 			return;
+		}
+
+		if (_seated)
+			MoveToStandExit();
 
 		_seated = false;
 		SetProcessUnhandledInput(false);
@@ -415,14 +450,36 @@ public partial class DominoController : GameController
 
 		_handView?.SetInteractive(false);
 		Camera?.ResetFov();
-		Player?.ExitGameControllerMode();
+		Player.ExitGameControllerMode();
+		Player.ExitSeatedGameMode();
+	}
+
+	/// <summary>
+	/// Moves the character clear of the chair before restoring its collider. StandExit is a visible
+	/// marker under each seat, so its final placement can be tuned directly in the editor.
+	/// </summary>
+	private void MoveToStandExit()
+	{
+		var seat = Game?.SeatFor((string)Player.Name);
+		if (seat == null)
+			return;
+
+		var standExit = seat?.GetNodeOrNull<Marker3D>("StandExit");
+		var standPosition = standExit?.GlobalPosition
+			?? seat.ToGlobal(new Vector3(
+				0.0f, 0.0f, (Game.Seats as DominoSeatAnchors)?.StandBackDistance ?? 0.55f));
+
+		Player.GlobalPosition = standPosition;
+		Player.GlobalRotation = new Vector3(
+			0.0f, standExit?.GlobalRotation.Y ?? seat.GlobalRotation.Y, 0.0f);
+		Player.Velocity = Vector3.Zero;
 	}
 
 	public override void ApplyControl(string turnOwnerId, Dictionary context)
 	{
-		// Seated players never hand control back and forth mid-match, so a turn change is purely
-		// a repaint.
-		CanTakeControl = false;
+		// A turn change is purely a repaint. It must not pull somebody who is walking back into the
+		// chair, and every participant remains allowed to return regardless of whose turn it is.
+		CanTakeControl = Game?.IsMatchActive == true;
 		Refresh();
 	}
 
@@ -434,6 +491,12 @@ public partial class DominoController : GameController
 	{
 		if (_handView == null || Game == null || Player == null || !IsMultiplayerAuthority())
 			return;
+
+		if (!_seated)
+		{
+			_handView.SetInteractive(false);
+			return;
+		}
 
 		var isYourTurn = Game.IsMatchActive && Game.IsTurnOwner((string)Player.Name);
 

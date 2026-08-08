@@ -506,8 +506,8 @@ public partial class DominoSceneLoadTest : Node
 			typeof(GameController).IsAssignableFrom(typeof(DominoController)));
 
 		var controller = new DominoController();
-		Check("o dominó desliga a troca de controle (E) durante a partida",
-			!controller.AllowsControlSwitch);
+		Check("o dominó permite levantar e voltar à mesa com E",
+			controller.AllowsControlSwitch);
 		controller.Free();
 	}
 

@@ -103,10 +103,14 @@ public partial class Player : CharacterBody3D
         BodyCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, false);
     }
 
-    public void EnterGameControllerMode()
+    public void EnterGameControllerMode(string animationName = "")
     {
         PlayerModel.Hide();
-        StateMachine.ChangeState(StatesRef.PlayerStrike, new Dictionary());
+        var metadata = new Dictionary();
+        if (!string.IsNullOrWhiteSpace(animationName))
+            metadata["animation"] = animationName;
+
+        StateMachine.ChangeState(StatesRef.PlayerStrike, metadata);
     }
 
     public void ExitGameControllerMode()

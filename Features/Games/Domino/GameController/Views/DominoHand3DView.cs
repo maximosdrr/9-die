@@ -993,7 +993,13 @@ public partial class DominoHand3DView : DominoHandView
 	public override void SetInteractive(bool interactive)
 	{
 		if (interactive)
+		{
+			ProcessMode = ProcessModeEnum.Inherit;
+			SetHandVisible(true);
 			return;
+		}
+
+		ProcessMode = ProcessModeEnum.Disabled;
 
 		SetHandVisible(false);
 		SetCrosshairVisible(false);
