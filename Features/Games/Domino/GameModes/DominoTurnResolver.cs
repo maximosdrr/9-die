@@ -24,7 +24,15 @@ public partial class DominoTurnResolver : TurnResolver
 	public DominoGame Game;
 
 	private readonly System.Collections.Generic.Dictionary<string, List<int>> _hands = new();
-	private readonly List<int> _boneyard = new();
+	/// <summary>
+	/// The stock, as (place on the table, tile). Places are handed out once at the deal and never
+	/// reused while occupied, so a place means the same spot from the moment the player aims at it
+	/// to the moment the server reads their request. Only the PLACES are ever made public.
+	/// </summary>
+	private readonly List<(int Slot, int TileId)> _boneyard = new();
+
+	/// <summary>How many places the deal laid out, which bounds every place number for the match.</summary>
+	private int _boneyardPlaces;
 	private readonly DominoBoardState _board = new();
 
 	private ulong _dealSeed;
@@ -42,6 +50,7 @@ public partial class DominoTurnResolver : TurnResolver
 
 		_hands.Clear();
 		_boneyard.Clear();
+		_boneyardPlaces = 0;
 		_board.Reset();
 		_turnToken = 0;
 		_consecutivePasses = 0;
@@ -92,7 +101,10 @@ public partial class DominoTurnResolver : TurnResolver
 			_hands[entry.Key] = entry.Value;
 
 		_boneyard.Clear();
-		_boneyard.AddRange(deal.Boneyard);
+		for (var slot = 0; slot < deal.Boneyard.Count; slot++)
+			_boneyard.Add((slot, deal.Boneyard[slot]));
+
+		_boneyardPlaces = deal.Boneyard.Count;
 
 		_board.Reset();
 		_consecutivePasses = 0;
@@ -128,12 +140,13 @@ public partial class DominoTurnResolver : TurnResolver
 			RpcId(1, MethodName.PlayTileOnServer, turnToken, tileId, end);
 	}
 
-	public void RequestDrawTile(int turnToken)
+	/// <summary><paramref name="slot"/> is the place on the table, never a tile — see _boneyard.</summary>
+	public void RequestDrawTile(int turnToken, int slot)
 	{
 		if (Multiplayer.IsServer())
-			TryDrawTile(Multiplayer.GetUniqueId(), turnToken);
+			TryDrawTile(Multiplayer.GetUniqueId(), turnToken, slot);
 		else
-			RpcId(1, MethodName.DrawTileOnServer, turnToken);
+			RpcId(1, MethodName.DrawTileOnServer, turnToken, slot);
 	}
 
 	public void RequestPass(int turnToken)
@@ -154,12 +167,12 @@ public partial class DominoTurnResolver : TurnResolver
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void DrawTileOnServer(int turnToken)
+	private void DrawTileOnServer(int turnToken, int slot)
 	{
 		if (!Multiplayer.IsServer())
 			return;
 
-		TryDrawTile(Multiplayer.GetRemoteSenderId(), turnToken);
+		TryDrawTile(Multiplayer.GetRemoteSenderId(), turnToken, slot);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -229,7 +242,7 @@ public partial class DominoTurnResolver : TurnResolver
 		Game.CallNextTurn(BuildContext("play", playerId, tileId));
 	}
 
-	private void TryDrawTile(int requesterId, int turnToken)
+	private void TryDrawTile(int requesterId, int turnToken, int slot)
 	{
 		var playerId = requesterId.ToString();
 
@@ -245,6 +258,19 @@ public partial class DominoTurnResolver : TurnResolver
 			return;
 		}
 
+		// The player picked a place on the table, not a tile: they find out what it was when it
+		// reaches their hand, exactly as if they had turned it over.
+		//
+		// Checked before the rules below for the same reason TryPlayTile validates the tile id and
+		// hand membership before it checks whether the tile fits: a malformed request should be
+		// told it is malformed, not handed a rules answer that hides the real problem.
+		var index = _boneyard.FindIndex(entry => entry.Slot == slot);
+		if (index < 0)
+		{
+			Reject(requesterId, turnToken, "invalid_slot");
+			return;
+		}
+
 		// Drawing with a playable tile in hand would be a way to stall forever, and to fish the
 		// boneyard for a better tile.
 		if (DominoRules.HasLegalMove(hand, _board.LeftEnd, _board.RightEnd))
@@ -253,8 +279,8 @@ public partial class DominoTurnResolver : TurnResolver
 			return;
 		}
 
-		hand.Add(_boneyard[^1]);
-		_boneyard.RemoveAt(_boneyard.Count - 1);
+		hand.Add(_boneyard[index].TileId);
+		_boneyard.RemoveAt(index);
 		SendHand(playerId);
 
 		// A draw keeps the turn where it is, which is exactly what TurnExtended already means.
@@ -441,11 +467,21 @@ public partial class DominoTurnResolver : TurnResolver
 			RpcId(peerId, MethodName.ReceiveFullState, BuildSnapshot());
 	}
 
+	/// <summary>The occupied places, in table order. Public; carries no tile identity.</summary>
+	private int[] BoneyardSlots()
+	{
+		var slots = new int[_boneyard.Count];
+		for (var i = 0; i < _boneyard.Count; i++)
+			slots[i] = _boneyard[i].Slot;
+
+		return slots;
+	}
+
 	/// <summary>The public state as it stands, without moving the turn on.</summary>
 	private Dictionary BuildSnapshot() =>
 		BuildContext(Game.LastAction, Game.LastPlayer, Game.LastTile, advanceTurn: false);
 
-	/// <summary>Returns a player's tiles to the bottom of the boneyard when they leave for good.</summary>
+	/// <summary>Puts a player's tiles back on the table when they leave for good.</summary>
 	public void ReturnTilesToBoneyard(string playerId)
 	{
 		if (!Multiplayer.IsServer())
@@ -454,9 +490,30 @@ public partial class DominoTurnResolver : TurnResolver
 		if (!_hands.Remove(playerId, out var hand))
 			return;
 
-		// Kept rather than discarded so "the boneyard is empty" and the locked-game count stay
-		// honest for everyone still playing.
-		_boneyard.InsertRange(0, hand);
+		// Kept rather than discarded so "the stock is empty" and the locked-game count stay honest
+		// for everyone still playing. They go into places freed by earlier draws, so the stock
+		// never needs more places than the deal laid out and no tile lands off the reserved area.
+		var taken = new HashSet<int>();
+		foreach (var entry in _boneyard)
+			taken.Add(entry.Slot);
+
+		var slot = 0;
+		foreach (var tileId in hand)
+		{
+			while (slot < _boneyardPlaces && taken.Contains(slot))
+				slot++;
+
+			if (slot >= _boneyardPlaces)
+			{
+				GD.PushWarning("Sem lugar no monte para as peças de quem saiu; peças descartadas.");
+				break;
+			}
+
+			_boneyard.Add((slot, tileId));
+			taken.Add(slot);
+		}
+
+		_boneyard.Sort((a, b) => a.Slot.CompareTo(b.Slot));
 	}
 
 	// ---------------------------------------------------------------- context packing
@@ -503,7 +560,9 @@ public partial class DominoTurnResolver : TurnResolver
 			["play_players"] = Variant.From(players),
 			["left_end"] = _board.LeftEnd,
 			["right_end"] = _board.RightEnd,
-			["boneyard_count"] = _boneyard.Count,
+			// Places, never tiles. This is the whole reason the player can pick from the stock
+			// without the stock leaking.
+			["boneyard_slots"] = Variant.From(BoneyardSlots()),
 			["hand_players"] = Variant.From(handPlayers.ToArray()),
 			["hand_counts"] = Variant.From(handCounts.ToArray()),
 			["last_action"] = lastAction ?? "",

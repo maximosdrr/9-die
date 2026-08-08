@@ -28,7 +28,8 @@ public partial class DominoHandView : Node3D
 	public delegate void TilePlayRequestedEventHandler(int tileId, int end);
 
 	[Signal]
-	public delegate void DrawRequestedEventHandler();
+	/// <summary><paramref name="slot"/> is the place on the table the player picked, not a tile.</summary>
+	public delegate void DrawRequestedEventHandler(int slot);
 
 	[Signal]
 	public delegate void PassRequestedEventHandler();
@@ -60,6 +61,13 @@ public partial class DominoHandView : Node3D
 
 	/// <summary>Tells the view which camera is live, so it can label the view toggle correctly.</summary>
 	public virtual void SetTopViewActive(bool active) { }
+
+	/// <summary>
+	/// Says something to the player for a moment. The only way anything reaches them in words now
+	/// that there is no panel, so the controller uses it too — for how far along leaving the table
+	/// is, for instance.
+	/// </summary>
+	public virtual void ShowNotice(string text, float seconds = 2.5f) { }
 
 	/// <summary>Reports a server rejection, so the player learns why nothing happened.</summary>
 	public virtual void ShowRejection(string reason) { }

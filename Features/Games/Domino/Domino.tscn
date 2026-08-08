@@ -7,14 +7,15 @@
 [ext_resource type="Script" uid="uid://cf4mbqi8yhg51" path="res://Core/Table/GameMode/GameModeHandler.cs" id="5_gmhand"]
 [ext_resource type="Script" uid="uid://cbbgxnphhve44" path="res://Core/Table/GameMode/GameMode.cs" id="6_gmode"]
 [ext_resource type="Script" uid="uid://c0hpaa0404j7a" path="res://Features/Games/Domino/GameModes/DominoTurnResolver.cs" id="7_dresol"]
+[ext_resource type="Script" path="res://Features/Games/Domino/Scripts/DominoSeatPresenter.cs" id="8_dseat"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
 albedo_color = Color(0.352941, 0.203922, 0.133333, 1)
 roughness = 0.7
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_top"]
-top_radius = 0.45
-bottom_radius = 0.45
+top_radius = 0.55
+bottom_radius = 0.55
 height = 0.05
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_leg"]
@@ -23,13 +24,13 @@ bottom_radius = 0.08
 height = 0.75
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_base"]
-top_radius = 0.3
-bottom_radius = 0.3
+top_radius = 0.36
+bottom_radius = 0.36
 height = 0.04
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_table"]
 height = 0.78
-radius = 0.46
+radius = 0.56
 
 [node name="Domino" type="Node3D" unique_id=724252898 node_paths=PackedStringArray("ChainPresenter", "Seats")]
 script = ExtResource("1_dgame")
@@ -66,28 +67,35 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.775, 0)
 script = ExtResource("3_dpres")
 TileScene = ExtResource("4_dtile")
 
+[node name="SeatPresenter" type="Node3D" parent="." node_paths=PackedStringArray("ChainPresenter", "Seats")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.775, 0)
+script = ExtResource("8_dseat")
+TileScene = ExtResource("4_dtile")
+ChainPresenter = NodePath("../ChainHolder")
+Seats = NodePath("../Seats")
+
 [node name="Seats" type="Node3D" parent="." unique_id=461774480]
 
 [node name="Seat0" type="Marker3D" parent="Seats" unique_id=1281192429]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0.9, -0.62)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.9, -0.72)
 
 [node name="SeatView" type="Node3D" parent="Seats/Seat0" unique_id=358818972]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 
 [node name="Seat1" type="Marker3D" parent="Seats" unique_id=1544177101]
-transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0.62, 0.9, 0)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.72, 0.9, 0)
 
 [node name="SeatView" type="Node3D" parent="Seats/Seat1" unique_id=897128048]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 
 [node name="Seat2" type="Marker3D" parent="Seats" unique_id=1395997321]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.62)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.72)
 
 [node name="SeatView" type="Node3D" parent="Seats/Seat2" unique_id=701215537]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
 
 [node name="Seat3" type="Marker3D" parent="Seats" unique_id=1003789680]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -0.62, 0.9, 0)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.72, 0.9, 0)
 
 [node name="SeatView" type="Node3D" parent="Seats/Seat3" unique_id=1354855272]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)

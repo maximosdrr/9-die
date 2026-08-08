@@ -27,6 +27,29 @@ public static class DominoRules
 	}
 
 	/// <summary>
+	/// Whether a tile HELD WITH <paramref name="leadingPips"/> FACING THE CHAIN fits the aimed end.
+	///
+	/// This is a client-side ergonomics gate, not a rule of the game: which half meets the chain is
+	/// forced by the end being played on, so the server keeps validating plain
+	/// <see cref="CanPlace"/> and nothing extra travels. What this adds is the requirement that the
+	/// player physically turned the tile the right way round before laying it — with 3|5 in hand and
+	/// ends 3 and 5, leading with the 3 while aiming at the 5 end is refused even though the tile
+	/// itself is perfectly legal there.
+	/// </summary>
+	public static bool CanPlaceOriented(int tileId, int leadingPips, ChainEnd end, int leftEnd, int rightEnd)
+	{
+		if (!DominoTileId.IsValid(tileId) || !DominoTileId.Matches(tileId, leadingPips))
+			return false;
+
+		// The opening tile meets nothing, so any half may lead.
+		if (leftEnd == DominoTileId.NoEnd && rightEnd == DominoTileId.NoEnd)
+			return true;
+
+		var matched = end == ChainEnd.Left ? leftEnd : rightEnd;
+		return matched != DominoTileId.NoEnd && matched == leadingPips;
+	}
+
+	/// <summary>
 	/// Everything the hand could do this turn. A tile that fits both ends appears twice, because
 	/// the two placements land in different spots on the table; on an empty board each tile
 	/// appears once, against the right end by convention.

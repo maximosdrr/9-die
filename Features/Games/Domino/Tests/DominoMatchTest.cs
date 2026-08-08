@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Domino.Rules;
 using Godot;
 using Godot.Collections;
@@ -39,6 +40,12 @@ public partial class DominoMatchTest : Node
 			return;
 		}
 
+		// The real path hands the table a camera; without one the controller rightly complains that
+		// seating the player would not move their view.
+		var camera = new GlobalCamera();
+		AddChild(camera);
+		game.SetCamera(camera);
+
 		game.AllowSoloDebug = true;
 		game.TurnOrder = new Array { "1" };
 		game.TurnOwner = player;
@@ -74,6 +81,20 @@ public partial class DominoMatchTest : Node
 			game.HandCounts.TryGetValue("1", out var count) && count == game.LocalHand.Length);
 
 		Check("o servidor carimbou a vez", game.TurnToken > 0);
+
+		// THE STOCK SECRECY PIN. Right after the deal the public places must be exactly 0..N-1.
+		// If anyone ever swaps places for tile ids here, this breaks for essentially any shuffle —
+		// which is the point: it is the one line standing between "pick a face-down tile" and
+		// "every peer knows the whole stock".
+		var placesInOrder = true;
+		for (var i = 0; i < game.BoneyardSlots.Length; i++)
+		{
+			if (game.BoneyardSlots[i] != i)
+				placesInOrder = false;
+		}
+
+		Check($"o monte é publicado como lugares 0..N-1, nunca como peças "
+			  + $"([{string.Join(",", game.BoneyardSlots)}])", placesInOrder);
 	}
 
 	private void TestOpeningTileIsDown(DominoGame game)
@@ -121,13 +142,40 @@ public partial class DominoMatchTest : Node
 
 		// The opener leads a forced tile, so what is left may legitimately not fit either end.
 		// Draw up to a playable hand first — the checks below need a legal move to exist.
+		// A place that never existed is refused as malformed regardless of whether the player has a
+		// move — the structural check runs first, so this does not depend on the shuffle.
+		_lastRejection = null;
+		resolver.RequestDrawTile(game.TurnToken, 9999);
+		Check($"comprar um lugar que não existe é recusado ({_lastRejection})",
+			_lastRejection == "invalid_slot");
+
 		var guard = 0;
+		var drewSomething = false;
+
 		while (DominoRules.LegalMoves(game.LocalHand, game.LeftEnd, game.RightEnd).Count == 0
 			   && game.BoneyardCount > 0
 			   && guard++ < DominoTileId.Count)
 		{
-			resolver.RequestDrawTile(game.TurnToken);
+			// Picking from the middle rather than the top proves the stock is addressed by place.
+			var chosen = game.BoneyardSlots[game.BoneyardSlots.Length / 2];
+			var handBefore = game.LocalHand.Length;
+
+			resolver.RequestDrawTile(game.TurnToken, chosen);
+			drewSomething = true;
+
+			Check($"comprar o lugar {chosen} tira exatamente aquele lugar do monte",
+				game.LocalHand.Length == handBefore + 1
+				&& System.Array.IndexOf(game.BoneyardSlots, chosen) < 0);
+
+			// The gap it left must not be a target either — that tile is gone.
+			_lastRejection = null;
+			resolver.RequestDrawTile(game.TurnToken, chosen);
+			Check($"comprar o lugar {chosen}, agora vazio, é recusado ({_lastRejection})",
+				_lastRejection == "invalid_slot");
 		}
+
+		if (!drewSomething)
+			GD.Print("  (a mão inicial já tinha jogada; compra por lugar coberta no laço da partida)");
 
 		beforePlays = game.Plays.Count;
 		beforeToken = game.TurnToken;
@@ -152,7 +200,7 @@ public partial class DominoMatchTest : Node
 			_lastRejection is "tile_not_in_hand" or "tile_does_not_match");
 
 		_lastRejection = null;
-		resolver.RequestDrawTile(game.TurnToken);
+		resolver.RequestDrawTile(game.TurnToken, game.BoneyardSlots[0]);
 		Check($"comprar com jogada na mão é recusado ({_lastRejection})", _lastRejection == "has_legal_move");
 
 		_lastRejection = null;
@@ -181,7 +229,7 @@ public partial class DominoMatchTest : Node
 			else if (game.BoneyardCount > 0)
 			{
 				draws++;
-				resolver.RequestDrawTile(game.TurnToken);
+				resolver.RequestDrawTile(game.TurnToken, game.BoneyardSlots[^1]);
 			}
 			else
 			{
@@ -205,12 +253,18 @@ public partial class DominoMatchTest : Node
 			  + $"(mesa {game.Plays.Count} + mão {game.LocalHand.Length} + monte {game.BoneyardCount})",
 			game.Plays.Count + game.LocalHand.Length + game.BoneyardCount == DominoTileId.Count);
 
+		// Places are never recycled while occupied, so what is left must still be a set of distinct
+		// places — a duplicate would mean two face-down tiles stacked on one spot.
+		var distinctPlaces = new HashSet<int>(game.BoneyardSlots).Count;
+		Check($"os lugares restantes do monte continuam distintos ({distinctPlaces}/{game.BoneyardCount})",
+			distinctPlaces == game.BoneyardCount);
+
 		Check("o jogador foi solto quando a partida acabou",
 			game.Player.GameHandler.CurrentController == null);
 
 		// A request that lands after the final tile must not restart anything.
 		_lastRejection = null;
-		resolver.RequestDrawTile(game.TurnToken);
+		resolver.RequestDrawTile(game.TurnToken, 0);
 		Check($"ação após o fim da partida é recusada ({_lastRejection})",
 			_lastRejection == "match_not_running");
 	}

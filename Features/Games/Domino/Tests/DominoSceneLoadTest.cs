@@ -24,6 +24,8 @@ public partial class DominoSceneLoadTest : Node
 		TestHandsNeverBroadcast();
 		TestHandViewIsASeam();
 		TestControllerIsAGameController();
+		TestHandStateMachine();
+		TestSeatPresenter();
 		TestEveryTableGetsTheCamera();
 		TestCameraRigs();
 		TestArtPack();
@@ -40,7 +42,7 @@ public partial class DominoSceneLoadTest : Node
 	{
 		LoadScene("res://Features/Games/Domino/Domino.tscn");
 		LoadScene("res://Features/Games/Domino/GameController/DominoController.tscn");
-		LoadScene("res://Features/Games/Domino/GameController/Views/DominoHandHudView.tscn");
+		LoadScene("res://Features/Games/Domino/GameController/Views/DominoHand3DView.tscn");
 		LoadScene("res://Features/Games/Domino/Components/Tiles/DominoTile.tscn");
 	}
 
@@ -83,6 +85,29 @@ public partial class DominoSceneLoadTest : Node
 
 		Check($"a mesa tem quatro assentos (achou {seats})", seats == 4);
 		Check("todo assento tem o ponto de vista do jogador", allHaveEyes);
+
+		// The seat's yaw is what the player's body and the seat camera are aligned to, so a chair
+		// facing the wrong way seats someone with their back to the game. This is checked rather
+		// than eyeballed because opening the scene in the editor has already silently flattened
+		// two of these rotations once.
+		var worstOff = 0.0f;
+		for (var i = 0; i < game.Seats.GetChildCount(); i++)
+		{
+			if (game.Seats.GetChild(i) is not Marker3D seat)
+				continue;
+
+			// A Node3D looks down its own -Z.
+			var facing = -seat.GlobalTransform.Basis.Z;
+			var towardTable = (game.GlobalPosition - seat.GlobalPosition) with { Y = 0.0f };
+			if (towardTable.LengthSquared() < 1e-6f)
+				continue;
+
+			var offBy = Mathf.RadToDeg(
+				new Vector2(facing.X, facing.Z).AngleTo(new Vector2(towardTable.X, towardTable.Z)));
+			worstOff = Mathf.Max(worstOff, Mathf.Abs(offBy));
+		}
+
+		Check($"todo assento está virado para a mesa (pior desvio {worstOff:F1}°)", worstOff < 1.0f);
 
 		// The tiles the presenter lays down have to be the size the layout reserved for them,
 		// otherwise the table looks overlapped while the layout test still passes.
@@ -151,33 +176,56 @@ public partial class DominoSceneLoadTest : Node
 
 		Check("nenhuma RPC transporta a semente da distribuição", !leaksSeed);
 
-		// The public state DominoGame holds must have nowhere to put another player's tiles.
-		var publicTileArrays = typeof(DominoGame)
+		// The public state DominoGame holds must have nowhere to put another player's tiles. Two
+		// int arrays are allowed, each for a stated reason, and anything else appearing here has to
+		// be justified rather than slipped in:
+		//   LocalHand     — this peer's OWN tiles, which arrived through the targeted ReceiveHand.
+		//   BoneyardSlots — places on the table, never tile ids. DominoMatchTest pins that they
+		//                   are published as 0..N-1, which is what keeps the stock face down.
+		var allowed = new HashSet<string> { nameof(DominoGame.LocalHand), nameof(DominoGame.BoneyardSlots) };
+
+		var publicIntArrays = typeof(DominoGame)
 			.GetFields(BindingFlags.Instance | BindingFlags.Public)
 			.Where(field => field.FieldType == typeof(int[]))
 			.Select(field => field.Name)
 			.ToList();
 
-		Check($"o estado público só guarda a própria mão ({string.Join(", ", publicTileArrays)})",
-			publicTileArrays.Count == 1 && publicTileArrays[0] == nameof(DominoGame.LocalHand));
+		var unexpected = publicIntArrays.Where(name => !allowed.Contains(name)).ToList();
+
+		Check($"o estado público não ganhou nenhum vetor de peças novo "
+			  + $"([{string.Join(", ", publicIntArrays)}]"
+			  + (unexpected.Count > 0 ? $", inesperado: {string.Join(", ", unexpected)}" : "") + ")",
+			unexpected.Count == 0 && publicIntArrays.Contains(nameof(DominoGame.LocalHand)));
 	}
 
 	/// <summary>
-	/// What makes the 3D hand a drop-in later: the controller depends on the abstract view, the
-	/// shipping view is a subclass of it, and the four intents are signals on the base.
+	/// What kept the swap from the panel of buttons to the 3D hand a one-line change, and what will
+	/// keep the animated rig a drop-in after it: the controller depends on the abstract view, the
+	/// shipping view is a subclass of it, and the intents are signals on the base.
 	/// </summary>
 	private void TestHandViewIsASeam()
 	{
-		Check("a view em HUD é uma DominoHandView",
-			typeof(DominoHandView).IsAssignableFrom(typeof(DominoHandHudView)));
+		Check("a mão em 3D é uma DominoHandView",
+			typeof(DominoHandView).IsAssignableFrom(typeof(DominoHand3DView)));
 
-		var overrides = new[] { "Refresh", "SetInteractive", "ShowRejection", "Clear" };
+		var overrides = new[]
+		{
+			"Refresh", "SetInteractive", "SetTopViewActive", "ShowNotice", "ShowRejection", "Clear",
+		};
 		var allOverridden = overrides.All(name =>
-			typeof(DominoHandHudView).GetMethod(name,
+			typeof(DominoHand3DView).GetMethod(name,
 				BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-				?.DeclaringType == typeof(DominoHandHudView));
+				?.DeclaringType == typeof(DominoHand3DView));
 
-		Check("a view em HUD implementa toda a superfície da abstração", allOverridden);
+		Check("a mão em 3D implementa toda a superfície da abstração", allOverridden);
+
+		// The controller is wired to the 3D hand and to nothing more specific than the abstraction.
+		var controllerScene = GD.Load<PackedScene>(
+			"res://Features/Games/Domino/GameController/DominoController.tscn");
+		var wired = controllerScene?.Instantiate<DominoController>();
+		Check("o controlador aponta para a mão em 3D",
+			wired?.HandViewScene?.Instantiate() is DominoHand3DView);
+		wired?.QueueFree();
 
 		var signals = new[] { "TilePlayRequested", "DrawRequested", "PassRequested", "SurrenderRequested" };
 		var allDeclared = signals.All(name =>
@@ -186,13 +234,123 @@ public partial class DominoSceneLoadTest : Node
 
 		Check("a abstração declara os quatro sinais de intenção", allDeclared);
 
-		// The controller must not know what a Control is, or the 3D view stops being a drop-in.
-		var controllerTouchesUi = typeof(DominoController)
+		// The controller must not know the CONCRETE view either. This caught a real slip: reaching
+		// for the notice label while wiring "hold to leave the table" quietly re-typed the field to
+		// DominoHand3DView, which would have made the animated rig a rewrite instead of a swap.
+		var controllerFields = typeof(DominoController)
 			.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			.ToList();
+
+		var concreteViewFields = controllerFields
+			.Where(field => typeof(DominoHandView).IsAssignableFrom(field.FieldType)
+							&& field.FieldType != typeof(DominoHandView))
+			.Select(field => field.Name)
+			.ToList();
+
+		Check($"o controlador fala só com a abstração da mão "
+			  + (concreteViewFields.Count > 0 ? $"(concreto: {string.Join(", ", concreteViewFields)})" : ""),
+			concreteViewFields.Count == 0);
+
+		// And it must not know what a Control is, or the view stops being a drop-in at all.
+		var controllerTouchesUi = controllerFields
 			.Any(field => typeof(Control).IsAssignableFrom(field.FieldType)
 						  || typeof(CanvasLayer).IsAssignableFrom(field.FieldType));
 
 		Check("o controlador não referencia nenhum nó de interface", !controllerTouchesUi);
+	}
+
+	/// <summary>
+	/// The hand's states are registered by the Type each one sets in its constructor, not by node
+	/// name, so a typo there registers a state nobody can ever reach — and the machine would sit in
+	/// whatever it started in with no error.
+	/// </summary>
+	private void TestHandStateMachine()
+	{
+		var scene = GD.Load<PackedScene>(
+			"res://Features/Games/Domino/GameController/Views/DominoHand3DView.tscn");
+		if (scene == null)
+			return;
+
+		var view = scene.Instantiate<DominoHand3DView>();
+		AddChild(view);
+
+		var machine = view.GetNodeOrNull<StateMachine>("StateMachine");
+		Check("a mão tem máquina de estados", machine != null);
+
+		if (machine == null)
+		{
+			view.QueueFree();
+			return;
+		}
+
+		var expected = new[]
+		{
+			StatesRef.DominoHandIdle, StatesRef.DominoHandLooking, StatesRef.DominoHandAiming,
+			StatesRef.DominoHandDrawing, StatesRef.DominoHandPlacing,
+		};
+
+		var missing = expected.Where(type => !machine.States.ContainsKey(type)).ToList();
+		Check($"os cinco estados da mão estão registrados "
+			  + (missing.Count > 0 ? $"(faltando: {string.Join(", ", missing)})" : "(todos)"),
+			missing.Count == 0);
+
+		Check($"a mão começa escondida, em {StatesRef.DominoHandIdle}",
+			machine.Current != null && machine.Current.Type == StatesRef.DominoHandIdle);
+
+		// Local presentation, like the cue: the play itself travels through the resolver, so
+		// replicating these states would just be chatter.
+		Check("os estados da mão não são replicados", machine.AuthorityStateSynchronizer == null);
+		Check("a mão só lê input de quem é dono dela",
+			machine.CheckForMultiplayerAuthorityOnStateHandleInput);
+
+		view.QueueFree();
+
+		Check("a ação de cancelar está mapeada", InputMap.HasAction("cancel_action"));
+		Check("a ação de sair da mesa está mapeada", InputMap.HasAction("leave_table"));
+
+		// Free look is no longer an action: with the mouse captured, looking around is simply
+		// moving it, and the right button was freed up to cancel.
+		Check("free_look foi removida", !InputMap.HasAction("free_look"));
+	}
+
+	/// <summary>
+	/// The table's furniture replaces the panel: it must be driven entirely off public state, and
+	/// the stock the crosshair aims at must be laid out with the same numbers it is drawn with.
+	/// </summary>
+	private void TestSeatPresenter()
+	{
+		var scene = GD.Load<PackedScene>("res://Features/Games/Domino/Domino.tscn");
+		if (scene == null)
+			return;
+
+		var game = scene.Instantiate<DominoGame>();
+		AddChild(game);
+
+		var presenter = game.GetNodeOrNull<DominoSeatPresenter>("SeatPresenter");
+		Check("a mesa tem o apresentador de assentos", presenter != null);
+
+		if (presenter == null)
+		{
+			game.QueueFree();
+			return;
+		}
+
+		Check("o apresentador conhece a mesa e os assentos",
+			presenter.ChainPresenter != null && presenter.Seats != null && presenter.TileScene != null);
+
+		// One source for where the stock lies, or the crosshair aims at empty cloth.
+		var drawn = presenter.ChainPresenter.Spec;
+		Check($"o monte é medido pela mesma peça da corrente "
+			  + $"({game.StockSpec.TileLength:F3} x {game.StockSpec.TileWidth:F3} m)",
+			Mathf.IsEqualApprox(game.StockSpec.TileLength, drawn.TileLength)
+			&& Mathf.IsEqualApprox(game.StockSpec.TileWidth, drawn.TileWidth));
+
+		var bounds = DominoBoneyardLayout.Bounds(21, game.StockSpec);
+		Check($"o monte configurado na cena não invade a área de jogo "
+			  + $"(começa em z={bounds.Position.Y:F3}, área vai até {drawn.PlayHalfExtents.Y:F3})",
+			bounds.Position.Y > drawn.PlayHalfExtents.Y);
+
+		game.QueueFree();
 	}
 
 	private void TestControllerIsAGameController()
@@ -308,10 +466,20 @@ public partial class DominoSceneLoadTest : Node
 			controller.GetNode<Node3D>("LookRig").TopLevel
 			&& controller.GetNode<Node3D>("TopRig").TopLevel);
 
+		// With the mouse captured the overhead view has to be movable, or a crosshair locked to
+		// the screen centre could only ever point at the middle of the table.
+		Check($"a vista de cima pode ser deslocada "
+			  + $"({controller.TopPanSensitivity:F4} por pixel, limite {controller.TopPanLimit})",
+			controller.TopPanSensitivity > 0.0f
+			&& controller.TopPanLimit.X > 0.0f && controller.TopPanLimit.Y > 0.0f);
+
+		// Getting up mid-match forfeits, so it must be a hold rather than a tap.
+		Check($"sair da mesa exige segurar ({controller.LeaveHoldSeconds:F1}s)",
+			controller.LeaveHoldSeconds >= 0.5f);
+
 		controller.QueueFree();
 
-		Check("as ações de câmera estão mapeadas",
-			InputMap.HasAction("free_look") && InputMap.HasAction("toggle_top_view"));
+		Check("a ação da vista de cima está mapeada", InputMap.HasAction("toggle_top_view"));
 	}
 
 	/// <summary>

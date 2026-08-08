@@ -34,7 +34,20 @@ public partial class DominoGame : TableGame
 
 	public int LeftEnd = DominoTileId.NoEnd;
 	public int RightEnd = DominoTileId.NoEnd;
-	public int BoneyardCount;
+	/// <summary>
+	/// The places on the table still holding a stock tile. Places, never tiles — what is face down
+	/// stays face down. The hand view aims at these; the server maps a place back to a tile.
+	/// </summary>
+	public int[] BoneyardSlots = System.Array.Empty<int>();
+
+	public int BoneyardCount => BoneyardSlots.Length;
+
+	/// <summary>
+	/// Where the stock lies on the cloth. Kept here, on the shared game, because the seat presenter
+	/// draws the face-down tiles from it and the hand view aims at them with it — two readers of
+	/// one value, so the crosshair can never point at where the tiles are not.
+	/// </summary>
+	public BoneyardSpec StockSpec { get; set; } = BoneyardSpec.Default;
 
 	/// <summary>Server-issued stamp for the current turn; a request carrying a stale one is dropped.</summary>
 	public int TurnToken;
@@ -113,7 +126,7 @@ public partial class DominoGame : TableGame
 		HandCounts.Clear();
 		LeftEnd = DominoTileId.NoEnd;
 		RightEnd = DominoTileId.NoEnd;
-		BoneyardCount = 0;
+		BoneyardSlots = System.Array.Empty<int>();
 		TurnToken = 0;
 		LastAction = "";
 		LastPlayer = "";
@@ -145,7 +158,7 @@ public partial class DominoGame : TableGame
 
 		LeftEnd = (int)context["left_end"];
 		RightEnd = (int)context["right_end"];
-		BoneyardCount = (int)context["boneyard_count"];
+		BoneyardSlots = context["boneyard_slots"].AsInt32Array();
 		TurnToken = (int)context["turn_token"];
 
 		HandCounts.Clear();
@@ -195,13 +208,11 @@ public partial class DominoGame : TableGame
 
 	private void OnPlayerRemovedFromMatch(string playerId, Array turnOrder)
 	{
-		// Their tiles go back to the boneyard. Every peer can work the new count out for itself
-		// from the hand size it already knew, so this needs no message of its own.
-		if (HandCounts.TryGetValue(playerId, out var heldTiles))
-		{
-			BoneyardCount += heldTiles;
-			HandCounts.Remove(playerId);
-		}
+		HandCounts.Remove(playerId);
+
+		// Their tiles go back onto the table, but only the server knows which places they land in,
+		// so the stock is left alone here and corrected by the next turn context. A peer can be one
+		// turn behind on the stock's size; it cannot be wrong about where a tile is.
 
 		// TableGame fires this signal before it builds the handoff context, so moving the real
 		// tiles now is what keeps that context's counts honest.

@@ -44,9 +44,25 @@ public partial class DominoController : GameController
 	/// <summary>Height above the cloth. Framed so the whole playing area fills the shot at TopFov.</summary>
 	[Export] public float TopHeight = 0.5f;
 
+	/// <summary>
+	/// How far the overhead view slides per pixel of mouse movement. Without panning, a crosshair
+	/// locked to the screen centre would only ever point at the middle of the table.
+	/// </summary>
+	[Export] public float TopPanSensitivity = 0.0012f;
+
+	/// <summary>How far the overhead view may wander from the middle of the cloth.</summary>
+	[Export] public Vector2 TopPanLimit = new(0.34f, 0.34f);
+
+	[ExportGroup("Leaving")]
+	/// <summary>Held, not tapped: getting up mid-match forfeits, so it must not be a slip.</summary>
+	[Export] public float LeaveHoldSeconds = 1.0f;
+
 	public DominoGame Game;
 	public Player Player;
 	public GlobalCamera Camera;
+
+	private const string InputTopView = "toggle_top_view";
+	private const string InputLeave = "leave_table";
 
 	private DominoHandView _handView;
 	private Node3D _lookRig;
@@ -58,9 +74,11 @@ public partial class DominoController : GameController
 	private float _seatYaw;
 	private float _lookYaw;
 	private float _lookPitch2;
-	private bool _isLooking;
 	private bool _inTopView;
 	private bool _seated;
+	private Vector2 _topPan;
+	private Vector3 _clothCentre;
+	private float _leaveHeld;
 
 	private static readonly List<MoveOption> NoMoves = new();
 
@@ -85,10 +103,29 @@ public partial class DominoController : GameController
 
 	public override void _Process(double delta)
 	{
-		// A window that loses focus mid-drag never delivers the button release, which would leave
-		// the cursor captured and the hand unclickable with no way back.
-		if (_isLooking && !Input.IsActionPressed("free_look"))
-			StopLooking();
+		if (!_seated || !IsMultiplayerAuthority())
+			return;
+
+		// Getting up is a hold rather than a press, and the progress is shown, so a forfeit is
+		// always a decision the player watched themselves make.
+		if (Input.IsActionPressed(InputLeave))
+		{
+			_leaveHeld += (float)delta;
+
+			if (_leaveHeld >= LeaveHoldSeconds)
+			{
+				_leaveHeld = 0.0f;
+				_handView?.ShowNotice("Saindo da mesa", 2.0f);
+				OnSurrenderRequested();
+				return;
+			}
+
+			var remaining = Mathf.Max(0.0f, LeaveHoldSeconds - _leaveHeld);
+			_handView?.ShowNotice($"Segure para sair da mesa… {remaining:F1}s", 0.2f);
+			return;
+		}
+
+		_leaveHeld = 0.0f;
 	}
 
 	public override void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
@@ -124,9 +161,6 @@ public partial class DominoController : GameController
 
 	public override void _ExitTree()
 	{
-		if (_isLooking)
-			InputFocus.Release();
-
 		if (Game == null)
 			return;
 
@@ -214,15 +248,22 @@ public partial class DominoController : GameController
 
 		PlaceTopRig();
 
+		_clothCentre = Game.ChainPresenter != null
+			? Game.ChainPresenter.GlobalPosition
+			: _lookRig.GlobalPosition;
+		_topPan = Vector2.Zero;
+
 		_seated = true;
 		_inTopView = false;
+		_leaveHeld = 0.0f;
 		SetProcessUnhandledInput(true);
 		SetProcess(true);
 		ShowSeatView();
 
-		// The opposite of the pool controller: the hand is clicked, so the cursor stays free and
-		// looking around is a deliberate drag instead.
-		InputFocus.Release();
+		// Captured for the whole match: nothing is clicked any more, the hand is driven from the
+		// keyboard and the aim is the centre of the screen, so looking around is just moving the
+		// mouse. Escape gives the cursor back when the player needs to leave the window.
+		InputFocus.Capture();
 	}
 
 	/// <summary>
@@ -232,11 +273,11 @@ public partial class DominoController : GameController
 	/// </summary>
 	private void PlaceTopRig()
 	{
-		var cloth = Game.ChainPresenter != null
-			? Game.ChainPresenter.GlobalPosition
-			: _lookRig.GlobalPosition;
+		// The pan is applied in the player's own frame, so pushing the mouse right always slides
+		// the view right from where they are sitting, whichever side of the table that is.
+		var offset = new Vector3(_topPan.X, TopHeight, _topPan.Y).Rotated(Vector3.Up, _seatYaw);
 
-		_topRig.GlobalPosition = cloth + new Vector3(0.0f, TopHeight, 0.0f);
+		_topRig.GlobalPosition = _clothCentre + offset;
 		_topRig.GlobalRotation = new Vector3(-Mathf.Pi * 0.5f, _seatYaw, 0.0f);
 	}
 
@@ -265,10 +306,7 @@ public partial class DominoController : GameController
 			return;
 
 		_inTopView = !_inTopView;
-
-		// Looking around is a seat-view gesture; leave the drag behind when the view changes.
-		if (_isLooking)
-			StopLooking();
+		_topPan = Vector2.Zero;
 
 		if (_inTopView)
 			ShowTopView();
@@ -283,44 +321,52 @@ public partial class DominoController : GameController
 		if (!_seated || !IsMultiplayerAuthority())
 			return;
 
-		if (@event.IsActionPressed("toggle_top_view"))
+		if (@event.IsActionPressed(InputTopView))
 		{
 			ToggleTopView();
 			GetViewport().SetInputAsHandled();
 			return;
 		}
 
-		// Free look is a hold-to-drag: the cursor has to stay available for the hand, so the
-		// mouse is only captured while the button is down.
-		if (@event.IsActionPressed("free_look") && !_inTopView)
+		// Escape hands the cursor back so the player can leave the window; any click takes it
+		// again. HeadPivot normally owns this, but its input is off while seated.
+		if (@event.IsActionPressed("ui_cancel"))
 		{
-			_isLooking = true;
+			InputFocus.Release();
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+
+		if (@event is InputEventMouseButton { Pressed: true } && !InputFocus.IsCaptured)
+		{
 			InputFocus.Capture();
 			GetViewport().SetInputAsHandled();
 			return;
 		}
 
-		if (@event.IsActionReleased("free_look"))
-		{
-			StopLooking();
-			GetViewport().SetInputAsHandled();
+		if (@event is not InputEventMouseMotion motion || !InputFocus.IsCaptured)
 			return;
-		}
 
-		if (_isLooking && @event is InputEventMouseMotion motion)
-		{
+		if (_inTopView)
+			PanTopView(motion.Relative);
+		else
 			ApplyLook(motion.Relative);
-			GetViewport().SetInputAsHandled();
-		}
+
+		GetViewport().SetInputAsHandled();
 	}
 
-	private void StopLooking()
+	/// <summary>
+	/// Slides the overhead view across the cloth. The crosshair never leaves the middle of the
+	/// screen, so moving the camera is how the player reaches the far end of the chain and the
+	/// stock from above.
+	/// </summary>
+	private void PanTopView(Vector2 relative)
 	{
-		if (!_isLooking)
-			return;
+		_topPan = new Vector2(
+			Mathf.Clamp(_topPan.X + relative.X * TopPanSensitivity, -TopPanLimit.X, TopPanLimit.X),
+			Mathf.Clamp(_topPan.Y + relative.Y * TopPanSensitivity, -TopPanLimit.Y, TopPanLimit.Y));
 
-		_isLooking = false;
-		InputFocus.Release();
+		PlaceTopRig();
 	}
 
 	/// <summary>
@@ -347,7 +393,6 @@ public partial class DominoController : GameController
 		if (!IsMultiplayerAuthority())
 			return;
 
-		StopLooking();
 		_seated = false;
 		SetProcessUnhandledInput(false);
 		SetProcess(false);
@@ -393,7 +438,7 @@ public partial class DominoController : GameController
 	private void OnTilePlayRequested(int tileId, int end) =>
 		Game?.Resolver?.RequestPlayTile(Game.TurnToken, tileId, end);
 
-	private void OnDrawRequested() => Game?.Resolver?.RequestDrawTile(Game.TurnToken);
+	private void OnDrawRequested(int slot) => Game?.Resolver?.RequestDrawTile(Game.TurnToken, slot);
 
 	private void OnPassRequested() => Game?.Resolver?.RequestPass(Game.TurnToken);
 
