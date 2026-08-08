@@ -36,7 +36,9 @@ public partial class DominoHandDrawingState : State
 		View.PlayClip(ClipName);
 		View.HideGhost();
 		View.SetCrosshairVisible(true);
-		View.ShowNotice("Mire uma peça do monte e clique", 3.0f);
+		// States why they are here as well as what to do: arriving at the stock without asking is
+		// only helpful if the reason is on screen.
+		View.ShowNotice("Sem peça para jogar — mire no monte e clique", 3.5f);
 	}
 
 	public override void Exit(Dictionary metadata)
@@ -74,10 +76,14 @@ public partial class DominoHandDrawingState : State
 			return;
 		}
 
-		// The drawn tile has landed and something is playable now, so the player goes back to
-		// choosing. Driven by the hand contents rather than by the reply, because the hand only
-		// changes when the server has actually granted the draw.
-		if (View.HasPlayableTile)
+		// Leaves the moment drawing stops being possible, which covers both ways out: the drawn
+		// tile made something playable, OR the stock ran dry and the only move left is to pass.
+		// Checking "can I play now" instead would strand the player here staring at an empty table
+		// when the stock is gone.
+		//
+		// Driven by the state the server confirmed rather than by the reply to the request,
+		// because the hand only changes once the draw was actually granted.
+		if (!View.CanDraw)
 		{
 			StateMachine.ChangeState(StatesRef.DominoHandLooking, new Dictionary());
 			return;

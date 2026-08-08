@@ -7,7 +7,7 @@
 [ext_resource type="Script" uid="uid://cf4mbqi8yhg51" path="res://Core/Table/GameMode/GameModeHandler.cs" id="5_gmhand"]
 [ext_resource type="Script" uid="uid://cbbgxnphhve44" path="res://Core/Table/GameMode/GameMode.cs" id="6_gmode"]
 [ext_resource type="Script" uid="uid://c0hpaa0404j7a" path="res://Features/Games/Domino/GameModes/DominoTurnResolver.cs" id="7_dresol"]
-[ext_resource type="Script" path="res://Features/Games/Domino/Scripts/DominoSeatPresenter.cs" id="8_dseat"]
+[ext_resource type="Script" uid="uid://7lj00ufafks3" path="res://Features/Games/Domino/Scripts/DominoSeatPresenter.cs" id="8_dseat"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
 albedo_color = Color(0.352941, 0.203922, 0.133333, 1)
@@ -67,7 +67,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.775, 0)
 script = ExtResource("3_dpres")
 TileScene = ExtResource("4_dtile")
 
-[node name="SeatPresenter" type="Node3D" parent="." node_paths=PackedStringArray("ChainPresenter", "Seats")]
+[node name="SeatPresenter" type="Node3D" parent="." unique_id=1561634516 node_paths=PackedStringArray("ChainPresenter", "Seats")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.775, 0)
 script = ExtResource("8_dseat")
 TileScene = ExtResource("4_dtile")

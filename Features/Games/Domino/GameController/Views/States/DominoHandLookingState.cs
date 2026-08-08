@@ -38,8 +38,10 @@ public partial class DominoHandLookingState : State
 
 		View.SetHandVisible(true);
 		View.PlayClip(ClipName);
-		View.SelectFirstPlayable();
 		View.HideGhost();
+
+		// The selection is deliberately left alone: the player was already browsing their hand
+		// while waiting, and their turn arriving should not throw that away.
 	}
 
 	public override void HandleInput(InputEvent @event)
@@ -72,19 +74,28 @@ public partial class DominoHandLookingState : State
 			return;
 		}
 
-		if (View.CanDraw)
-		{
-			StateMachine.ChangeState(StatesRef.DominoHandDrawing, new Dictionary());
-			return;
-		}
-
+		// Drawing is not reachable from here any more — Process has already moved to the stock by
+		// the time a stuck player could click. All that is left is the dead end: nothing to play
+		// and nothing to draw.
 		if (View.MustPass)
 			View.RequestPassTurn();
 	}
 
 	public override void Process(double delta)
 	{
-		if (View is { IsYourTurn: false })
+		if (View == null)
+			return;
+
+		if (!View.IsYourTurn)
+		{
 			StateMachine.ChangeState(StatesRef.DominoHandIdle, new Dictionary());
+			return;
+		}
+
+		// Nothing in hand fits, so drawing is the only move there is. Going there by itself spares
+		// the player having to work out that a click they have no reason to make is what unlocks
+		// the stock.
+		if (!View.HasPlayableTile && View.CanDraw)
+			StateMachine.ChangeState(StatesRef.DominoHandDrawing, new Dictionary());
 	}
 }

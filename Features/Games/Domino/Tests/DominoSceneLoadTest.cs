@@ -25,6 +25,7 @@ public partial class DominoSceneLoadTest : Node
 		TestHandViewIsASeam();
 		TestControllerIsAGameController();
 		TestHandStateMachine();
+		TestHandStateFlow();
 		TestSeatPresenter();
 		TestEveryTableGetsTheCamera();
 		TestCameraRigs();
@@ -315,6 +316,86 @@ public partial class DominoSceneLoadTest : Node
 		// Free look is no longer an action: with the mouse captured, looking around is simply
 		// moving it, and the right button was freed up to cancel.
 		Check("free_look foi removida", !InputMap.HasAction("free_look"));
+	}
+
+	/// <summary>
+	/// Drives the hand through the turn without a camera or a table, by feeding it the same summary
+	/// the controller feeds it and ticking the machine by hand.
+	///
+	/// These are the rules a player notices immediately when they break: whether they can look at
+	/// their tiles while waiting, and whether being stuck leaves them staring at a table with no
+	/// idea that drawing is the only move.
+	/// </summary>
+	private void TestHandStateFlow()
+	{
+		var scene = GD.Load<PackedScene>(
+			"res://Features/Games/Domino/GameController/Views/DominoHand3DView.tscn");
+		if (scene == null)
+			return;
+
+		var view = scene.Instantiate<DominoHand3DView>();
+		AddChild(view);
+
+		var machine = view.GetNodeOrNull<StateMachine>("StateMachine");
+		if (machine == null)
+		{
+			view.QueueFree();
+			return;
+		}
+
+		var hand = new[] { DominoTileId.From(0, 1), DominoTileId.From(2, 3), DominoTileId.From(4, 5) };
+		var nothing = new List<MoveOption>();
+		var something = new List<MoveOption> { new(DominoTileId.From(0, 1), ChainEnd.Right) };
+
+		// Somebody else's turn: resting, but the tiles are in front of the player.
+		view.Refresh(hand, nothing, isYourTurn: false, canDraw: false, mustPass: false);
+		Tick(machine, 3);
+		Check("fora da vez a mão fica em repouso",
+			machine.Current?.Type == StatesRef.DominoHandIdle);
+		Check("mas continua à vista para o jogador planejar", view.HandRig.Visible);
+
+		var before = view.SelectedTileId;
+		view.SelectStep(1);
+		Check($"dá para folhear a mão fora da vez ({before} -> {view.SelectedTileId})",
+			view.SelectedTileId != before);
+
+		// The browsing must survive a state update, or planning is impossible.
+		var chosen = view.SelectedTileId;
+		view.Refresh(hand, nothing, isYourTurn: false, canDraw: false, mustPass: false);
+		Check("a seleção do jogador não é puxada quando o estado atualiza",
+			view.SelectedTileId == chosen);
+
+		// Turn arrives with something to play: choose.
+		view.Refresh(hand, something, isYourTurn: true, canDraw: false, mustPass: false);
+		Tick(machine, 3);
+		Check("a vez chegando leva a escolher",
+			machine.Current?.Type == StatesRef.DominoHandLooking);
+
+		// Turn arrives with nothing to play: go to the stock without being asked.
+		view.Refresh(hand, nothing, isYourTurn: true, canDraw: true, mustPass: false);
+		Tick(machine, 3);
+		Check("sem jogada, a mão vai sozinha para o monte",
+			machine.Current?.Type == StatesRef.DominoHandDrawing);
+
+		// Stock runs dry while still stuck: back out, so passing is reachable.
+		view.Refresh(hand, nothing, isYourTurn: true, canDraw: false, mustPass: true);
+		Tick(machine, 3);
+		Check("monte vazio devolve a mão para poder passar",
+			machine.Current?.Type == StatesRef.DominoHandLooking);
+
+		// And the turn ending always returns to rest.
+		view.Refresh(hand, nothing, isYourTurn: false, canDraw: false, mustPass: false);
+		Tick(machine, 3);
+		Check("o fim da vez devolve a mão ao repouso",
+			machine.Current?.Type == StatesRef.DominoHandIdle);
+
+		view.QueueFree();
+	}
+
+	private static void Tick(StateMachine machine, int frames)
+	{
+		for (var i = 0; i < frames; i++)
+			machine._Process(1.0 / 60.0);
 	}
 
 	/// <summary>

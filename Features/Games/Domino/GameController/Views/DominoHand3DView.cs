@@ -263,14 +263,24 @@ public partial class DominoHand3DView : DominoHandView
 			? Game.BoneyardSlots[0]
 			: DominoTileId.NoEnd;
 
+		// Anchored to the TILE, not to its slot in the hand. The player browses their tiles while
+		// waiting for their turn, and re-anchoring on every refresh — which is what "reselect
+		// whenever the pick is not playable" amounted to — would yank the selection away from them
+		// mid-thought. It only moves when the tile they were holding is genuinely gone.
+		var previous = SelectedTileId;
+
 		RebuildFan();
 
-		// The hand changed under whatever the player had picked, so re-anchor the selection rather
-		// than leaving it pointing at a tile that moved or was played.
-		if (!IsPlayable(SelectedTileId))
-			SelectFirstPlayable();
-		else
+		var stillHeld = System.Array.IndexOf(_hand, previous);
+		if (stillHeld >= 0)
+		{
+			SelectedIndex = stillHeld;
 			ApplyFanHighlight();
+		}
+		else
+		{
+			SelectFirstPlayable();
+		}
 	}
 
 	// ---------------------------------------------------------------- selection
