@@ -47,6 +47,9 @@ public partial class DominoMatchTest : Node
 		game.SetCamera(camera);
 
 		game.AllowSoloDebug = true;
+		// The scene may temporarily request a larger hand for presentation checks. This test pins the
+		// official match flow, so keep that visual-only override out of it.
+		game.DebugStartingHandSize = 0;
 		game.TurnOrder = new Array { "1" };
 		game.TurnOwner = player;
 		game.Player = player;

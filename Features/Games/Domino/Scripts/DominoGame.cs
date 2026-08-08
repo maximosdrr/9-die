@@ -24,6 +24,12 @@ public partial class DominoGame : TableGame
 	/// </summary>
 	[Export] public bool AllowSoloDebug;
 
+	/// <summary>
+	/// Temporary presentation aid. Zero keeps the official deal; a positive value is used only when
+	/// every seated player can receive that many tiles from the double-six set.
+	/// </summary>
+	[Export(PropertyHint.Range, "0,14,1")] public int DebugStartingHandSize;
+
 	public GlobalCamera Camera;
 	public bool IsSoloMatch { get; private set; }
 

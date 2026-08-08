@@ -393,6 +393,22 @@ public partial class DominoSceneLoadTest : Node
 		Check("o fim da vez devolve a mão ao repouso",
 			machine.Current?.Type == StatesRef.DominoHandIdle);
 
+		// A validation-sized hand is wider than the useful part of the viewport. Its centre should
+		// follow A/D only after selection reaches an edge, then return when selection wraps.
+		var largeHand = DominoTileId.FullSet().Take(10).ToArray();
+		view.Refresh(largeHand, nothing, isYourTurn: false, canDraw: false, mustPass: false);
+		var leftEdgeTarget = view.FanCarouselTarget;
+		for (var i = 0; i < largeHand.Length - 1; i++)
+			view.SelectStep(1);
+
+		var rightEdgeTarget = view.FanCarouselTarget;
+		Check("o leque desliza para acompanhar a selecao na borda direita",
+			rightEdgeTarget > leftEdgeTarget);
+
+		view.SelectStep(1);
+		Check("o carrossel volta para a borda esquerda quando a selecao da a volta",
+			view.SelectedIndex == 0 && view.FanCarouselTarget < rightEdgeTarget);
+
 		view.QueueFree();
 	}
 

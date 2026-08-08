@@ -27,6 +27,8 @@ FanStepDeg = 8.0
 FanRadius = 0.42
 SelectedLift = 0.028
 TileTiltDeg = -22.0
+CarouselVisibleTiles = 7
+CarouselSlideSpeed = 12.0
 
 [node name="HandRig" type="Node3D" parent="."]
 

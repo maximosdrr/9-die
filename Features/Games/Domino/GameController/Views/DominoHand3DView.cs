@@ -53,6 +53,16 @@ public partial class DominoHand3DView : DominoHandView
 	/// <summary>Backward lean of the held tiles, so the faces angle toward the player's eyes.</summary>
 	[Export] public float TileTiltDeg = -22.0f;
 
+	/// <summary>
+	/// How many neighbouring tiles fit comfortably in the useful part of the screen. Larger hands
+	/// still keep every tile in the fan; browsing near an edge slides the fan just enough to bring
+	/// the selected tile back inside this window.
+	/// </summary>
+	[Export(PropertyHint.Range, "3,15,1")] public int CarouselVisibleTiles = 7;
+
+	/// <summary>How quickly the fan catches up with the selection, in responses per second.</summary>
+	[Export(PropertyHint.Range, "1,30,0.5")] public float CarouselSlideSpeed = 12.0f;
+
 
 	private readonly List<DominoTile> _fan = new();
 	private int[] _hand = System.Array.Empty<int>();
@@ -61,6 +71,10 @@ public partial class DominoHand3DView : DominoHandView
 	private readonly MeshInstance3D[] _frame = new MeshInstance3D[4];
 	private StandardMaterial3D _outlineMaterial;
 	private float _messageSeconds;
+	private float _fanCarouselCenter;
+	private float _fanCarouselTarget;
+	private int _carouselHandSize;
+	private bool _fanCarouselInitialized;
 
 	[ExportGroup("Ghost")]
 	/// <summary>How much of the real face shows through the preview.</summary>
@@ -110,6 +124,9 @@ public partial class DominoHand3DView : DominoHandView
 	public int AimedSlot { get; private set; } = DominoTileId.NoEnd;
 
 	public bool HasPlayableTile => _moves.Count > 0;
+
+	/// <summary>Exposed read-only so scene tests can verify that large hands scroll at both edges.</summary>
+	public float FanCarouselTarget => _fanCarouselTarget;
 
 	/// <summary>
 	/// Whether the hand should be listening at all. Godot delivers unhandled input to children
@@ -169,6 +186,7 @@ public partial class DominoHand3DView : DominoHandView
 			return;
 
 		UpdateStockHighlightPulse((float)delta);
+		UpdateFanCarousel((float)delta);
 
 		if (HandRig == null || Game?.Camera == null)
 			return;
@@ -286,6 +304,10 @@ public partial class DominoHand3DView : DominoHandView
 		if (!IsMultiplayerAuthority())
 			return;
 
+		// Read this before replacing the array: selection belongs to a tile, not to whatever happens
+		// to occupy the same index in the newly received hand.
+		var previous = SelectedTileId;
+
 		_hand = hand ?? System.Array.Empty<int>();
 		_moves = playableMoves ?? new List<MoveOption>();
 		IsYourTurn = isYourTurn;
@@ -301,14 +323,13 @@ public partial class DominoHand3DView : DominoHandView
 		// waiting for their turn, and re-anchoring on every refresh — which is what "reselect
 		// whenever the pick is not playable" amounted to — would yank the selection away from them
 		// mid-thought. It only moves when the tile they were holding is genuinely gone.
-		var previous = SelectedTileId;
-
 		RebuildFan();
 
 		var stillHeld = System.Array.IndexOf(_hand, previous);
 		if (stillHeld >= 0)
 		{
 			SelectedIndex = stillHeld;
+			UpdateFanCarouselTarget();
 			ApplyFanHighlight();
 		}
 		else
@@ -534,6 +555,7 @@ public partial class DominoHand3DView : DominoHandView
 		}
 
 		ResetLeadingPips();
+		UpdateFanCarouselTarget();
 		ApplyFanHighlight();
 	}
 
@@ -553,6 +575,7 @@ public partial class DominoHand3DView : DominoHandView
 		SelectedIndex = ((start + direction) % _hand.Length + _hand.Length) % _hand.Length;
 
 		ResetLeadingPips();
+		UpdateFanCarouselTarget();
 		ApplyFanHighlight();
 	}
 
@@ -685,6 +708,8 @@ public partial class DominoHand3DView : DominoHandView
 		if (TileSlots == null || TileScene == null)
 			return;
 
+		EnsureFanCarouselRange();
+
 		while (_fan.Count > _hand.Length)
 		{
 			var last = _fan[^1];
@@ -733,7 +758,8 @@ public partial class DominoHand3DView : DominoHandView
 	private Transform3D FanTransform(int index, int count)
 	{
 		var step = Mathf.DegToRad(FanStepDeg);
-		var angle = (index - (count - 1) * 0.5f) * step;
+		var centre = _fanCarouselInitialized ? _fanCarouselCenter : (count - 1) * 0.5f;
+		var angle = (index - centre) * step;
 
 		var selected = index == SelectedIndex;
 
@@ -760,6 +786,76 @@ public partial class DominoHand3DView : DominoHandView
 	{
 		for (var i = 0; i < _fan.Count && i < _hand.Length; i++)
 			_fan[i].Transform = FanTransform(i, _hand.Length);
+	}
+
+	/// <summary>
+	/// Keeps the selected tile inside a configurable central window. The centre only advances one
+	/// slot at a time near either edge, so browsing a large hand reads as a carousel rather than the
+	/// whole fan snapping to every selection.
+	/// </summary>
+	private void UpdateFanCarouselTarget()
+	{
+		EnsureFanCarouselRange();
+		if (_hand.Length == 0 || SelectedIndex < 0)
+			return;
+
+		var visible = Mathf.Clamp(CarouselVisibleTiles, 1, _hand.Length);
+		if (_hand.Length <= visible)
+		{
+			_fanCarouselTarget = (_hand.Length - 1) * 0.5f;
+			return;
+		}
+
+		var halfWindow = (visible - 1) * 0.5f;
+		if (SelectedIndex < _fanCarouselTarget - halfWindow)
+			_fanCarouselTarget = SelectedIndex + halfWindow;
+		else if (SelectedIndex > _fanCarouselTarget + halfWindow)
+			_fanCarouselTarget = SelectedIndex - halfWindow;
+
+		_fanCarouselTarget = Mathf.Clamp(
+			_fanCarouselTarget,
+			halfWindow,
+			_hand.Length - 1 - halfWindow);
+	}
+
+	private void EnsureFanCarouselRange()
+	{
+		var normalCentre = _hand.Length > 0 ? (_hand.Length - 1) * 0.5f : 0.0f;
+		if (!_fanCarouselInitialized || _carouselHandSize == 0)
+		{
+			_fanCarouselCenter = normalCentre;
+			_fanCarouselTarget = normalCentre;
+			_fanCarouselInitialized = true;
+		}
+
+		_carouselHandSize = _hand.Length;
+		if (_hand.Length == 0)
+		{
+			_fanCarouselCenter = 0.0f;
+			_fanCarouselTarget = 0.0f;
+			return;
+		}
+
+		var visible = Mathf.Clamp(CarouselVisibleTiles, 1, _hand.Length);
+		var halfWindow = (visible - 1) * 0.5f;
+		var minCentre = _hand.Length <= visible ? normalCentre : halfWindow;
+		var maxCentre = _hand.Length <= visible ? normalCentre : _hand.Length - 1 - halfWindow;
+
+		_fanCarouselCenter = Mathf.Clamp(_fanCarouselCenter, minCentre, maxCentre);
+		_fanCarouselTarget = Mathf.Clamp(_fanCarouselTarget, minCentre, maxCentre);
+	}
+
+	private void UpdateFanCarousel(float delta)
+	{
+		if (!_fanCarouselInitialized || Mathf.IsEqualApprox(_fanCarouselCenter, _fanCarouselTarget))
+			return;
+
+		var response = 1.0f - Mathf.Exp(-Mathf.Max(CarouselSlideSpeed, 1.0f) * delta);
+		_fanCarouselCenter = Mathf.Lerp(_fanCarouselCenter, _fanCarouselTarget, response);
+		if (Mathf.Abs(_fanCarouselCenter - _fanCarouselTarget) < 0.001f)
+			_fanCarouselCenter = _fanCarouselTarget;
+
+		ApplyFanHighlight();
 	}
 
 	// ---------------------------------------------------------------- the ghost

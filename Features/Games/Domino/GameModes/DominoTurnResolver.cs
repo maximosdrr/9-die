@@ -112,7 +112,16 @@ public partial class DominoTurnResolver : TurnResolver
 			return;
 
 		_dealSeed = ((ulong)GD.Randi() << 32) | GD.Randi();
-		var deal = DominoDeal.Deal(playerIds, _dealSeed);
+		var requestedHandSize = Game.DebugStartingHandSize;
+		var effectiveHandSize = DominoDeal.HandSize(playerIds.Count, requestedHandSize);
+		if (requestedHandSize > 0 && effectiveHandSize != requestedHandSize)
+		{
+			GD.PushWarning(
+				$"Domino debug hand size {requestedHandSize} does not fit {playerIds.Count} players; "
+				+ $"using the standard size {effectiveHandSize}.");
+		}
+
+		var deal = DominoDeal.Deal(playerIds, _dealSeed, requestedHandSize);
 
 		_hands.Clear();
 		foreach (var entry in deal.Hands)

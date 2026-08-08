@@ -232,6 +232,7 @@ GameControllerScene = ExtResource("2_dctrl")
 ChainPresenter = NodePath("ChainHolder")
 Seats = NodePath("Seats")
 AllowSoloDebug = true
+DebugStartingHandSize = 0
 
 [node name="DominoTableModel" type="StaticBody3D" parent="." unique_id=1201481350]
 collision_layer = 4

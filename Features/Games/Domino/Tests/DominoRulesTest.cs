@@ -97,6 +97,15 @@ public partial class DominoRulesTest : Node
 		Check("dois jogadores recebem 7 peças e sobram 14 no monte",
 			dealTwo.Hands["1"].Count == 7 && dealTwo.Boneyard.Count == 14);
 
+		var debugTen = DominoDeal.Deal(two, 12345UL, handSizeOverride: 10);
+		Check("override temporario da 10 pecas a dois jogadores e preserva o monte",
+			debugTen.Hands["1"].Count == 10 && debugTen.Hands["2"].Count == 10
+			&& debugTen.Boneyard.Count == 8);
+
+		var unsafeDebugTen = DominoDeal.Deal(three, 12345UL, handSizeOverride: 10);
+		Check("override que nao cabe no conjunto volta automaticamente ao padrao",
+			unsafeDebugTen.Hands["1"].Count == 7 && unsafeDebugTen.Boneyard.Count == 7);
+
 		Check("a distribuição não perde nem duplica peça", ConservesTheSet(dealFour, four));
 
 		var again = DominoDeal.Deal(four, 12345UL);

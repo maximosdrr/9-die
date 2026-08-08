@@ -21,15 +21,23 @@ public static class DominoDeal
 	/// Six tiles at a full table, seven otherwise. Four hands of seven would consume the whole set
 	/// and leave no boneyard, which removes drawing from the game entirely.
 	/// </summary>
-	public static int HandSize(int playerCount) => playerCount >= 4 ? 6 : 7;
+	public static int HandSize(int playerCount, int handSizeOverride = 0)
+	{
+		var standard = playerCount >= 4 ? 6 : 7;
+		return handSizeOverride > 0
+			&& playerCount > 0
+			&& handSizeOverride * playerCount <= DominoTileId.Count
+			? handSizeOverride
+			: standard;
+	}
 
-	public static DealResult Deal(IReadOnlyList<string> playerIds, ulong seed)
+	public static DealResult Deal(IReadOnlyList<string> playerIds, ulong seed, int handSizeOverride = 0)
 	{
 		var result = new DealResult();
 		var deck = DominoTileId.FullSet();
 		Shuffle(deck, seed);
 
-		var handSize = HandSize(playerIds.Count);
+		var handSize = HandSize(playerIds.Count, handSizeOverride);
 		var next = 0;
 
 		foreach (var playerId in playerIds)
