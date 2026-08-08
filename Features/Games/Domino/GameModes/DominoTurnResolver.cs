@@ -60,8 +60,8 @@ public partial class DominoTurnResolver : TurnResolver
 		if (!Multiplayer.IsServer())
 			return;
 
-		// A peer that connects mid-match never runs SetupMatch — GameStarted only calls it on the
-		// server — so without this it would sit in front of an empty table until the next turn.
+		// The shared bridge rebuilds the mode for a late peer; this packet then catches its public
+		// board up to the exact current turn.
 		SignalUtil.ConnectGuarded(NetworkManager.Instance.NetworkProvider,
 			NetworkProvider.SignalName.PlayerConnected,
 			new Callable(this, MethodName.OnPeerConnected));
@@ -70,6 +70,24 @@ public partial class DominoTurnResolver : TurnResolver
 	public override void HandleNewTurnContext(Dictionary context) => Game?.ApplyPublicSnapshot(context);
 
 	public override void HandleTurnExtensionContext(Dictionary context) => Game?.ApplyPublicSnapshot(context);
+
+	public override void _ExitTree()
+	{
+		var provider = NetworkManager.Instance?.NetworkProvider;
+		if (provider != null)
+		{
+			SignalUtil.DisconnectGuarded(provider, NetworkProvider.SignalName.PlayerConnected,
+				new Callable(this, MethodName.OnPeerConnected));
+		}
+	}
+
+	public override void HandleMatchEnded()
+	{
+		_matchRunning = false;
+		_hands.Clear();
+		_boneyard.Clear();
+		_dealSeed = 0;
+	}
 
 	/// <summary>
 	/// Context handed to the next player when the current one leaves. TableGame has already put
@@ -369,7 +387,7 @@ public partial class DominoTurnResolver : TurnResolver
 			return false;
 		}
 
-		if (Game.TurnOwner == null || (string)Game.TurnOwner.Name != playerId)
+		if (!Game.IsTurnOwner(playerId))
 		{
 			reason = "not_your_turn";
 			return false;

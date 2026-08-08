@@ -126,6 +126,8 @@ public partial class DominoMatchTest : Node
 
 		Check("o corpo do jogador foi travado para a partida",
 			player.CurrentControlState == Player.ControllerStatesEnum.Game);
+		Check("a física do personagem fica desligada enquanto ele está sentado",
+			player.IsInSeatedGameMode && !player.IsPhysicsProcessing());
 
 		Check("o controlador equipado é o de dominó",
 			player.GameHandler.CurrentController is DominoController);
@@ -260,7 +262,9 @@ public partial class DominoMatchTest : Node
 			distinctPlaces == game.BoneyardCount);
 
 		Check("o jogador foi solto quando a partida acabou",
-			game.Player.GameHandler.CurrentController == null);
+			game.Player.GameHandler.CurrentController == null
+			&& !game.Player.IsInSeatedGameMode
+			&& game.Player.IsPhysicsProcessing());
 
 		// A request that lands after the final tile must not restart anything.
 		_lastRejection = null;

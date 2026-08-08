@@ -140,12 +140,13 @@ public partial class PlayerHud : CanvasLayer
 
 	private void Refresh()
 	{
-		if (_poolGame == null || !IsInstanceValid(_poolGame) || _poolGame.TurnOwner == null)
+		if (_poolGame == null || !IsInstanceValid(_poolGame)
+			|| string.IsNullOrEmpty(_poolGame.TurnOwnerId))
 			return;
 
-		var isYourTurn = (string)_poolGame.TurnOwner.Name == Player.Name;
+		var isYourTurn = _poolGame.IsTurnOwner((string)Player.Name);
 
-		TurnLabel.Text = isYourTurn ? "Sua vez!" : $"Vez de {GetPlayerLabel((string)_poolGame.TurnOwner.Name)}";
+		TurnLabel.Text = isYourTurn ? "Sua vez!" : $"Vez de {GetPlayerLabel(_poolGame.TurnOwnerId)}";
 		if (_poolGame.PushOutDeclared)
 			TurnLabel.Text += " • push-out";
 		else if (_poolGame.PushOutChoicePending && isYourTurn)

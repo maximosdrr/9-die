@@ -141,6 +141,7 @@ public static class DominoTileMeshes
 		var minusY = PackFaces[node, 1];
 		var tileId = DominoTileId.From(plusY, minusY);
 
+		ImproveReadability(mesh);
 		_meshes[tileId] = mesh;
 
 		// FaceUp lands the +Y half on +Z. The game's convention is that +Z carries the HIGH half,
@@ -150,5 +151,23 @@ public static class DominoTileMeshes
 		basis = basis.Scaled(new Vector3(SourceScale, SourceScale, SourceScale));
 
 		_transforms[tileId] = new Transform3D(basis, -(basis * mesh.GetAabb().GetCenter()));
+	}
+
+	/// <summary>
+	/// The player sees most tiles at a steep angle. Anisotropic filtering keeps the atlas pips and
+	/// centre divider sharper in that situation, while extra roughness prevents the pub lights from
+	/// washing the ivory face out. The material belongs only to this domino pack and is shared by
+	/// all 28 meshes, so applying this repeatedly is harmless and avoids per-tile material copies.
+	/// </summary>
+	private static void ImproveReadability(Mesh mesh)
+	{
+		for (var surface = 0; surface < mesh.GetSurfaceCount(); surface++)
+		{
+			if (mesh.SurfaceGetMaterial(surface) is not BaseMaterial3D material)
+				continue;
+
+			material.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic;
+			material.Roughness = Mathf.Max(material.Roughness, 0.62f);
+		}
 	}
 }

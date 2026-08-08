@@ -10,7 +10,37 @@ public partial class TableGame : Node3D
     public Table Table;
     public GameModeHandler GameModeHandler;
     public Array TurnOrder = new();
-    public Player TurnOwner;
+    private Player _turnOwner;
+    private string _turnOwnerId = "";
+
+    /// <summary>
+    /// The scene node that currently owns the turn. Its id is cached on assignment because a
+    /// disconnected Player can be freed before the reconnection grace period expires. Reading
+    /// Name from that stale Godot object throws ObjectDisposedException.
+    /// </summary>
+    public Player TurnOwner
+    {
+        get => _turnOwner;
+        set
+        {
+            _turnOwner = value;
+            if (IsInstanceValid(value))
+                _turnOwnerId = (string)value.Name;
+            else if (value == null)
+                _turnOwnerId = "";
+        }
+    }
+
+    public string TurnOwnerId
+    {
+        get
+        {
+            if (IsInstanceValid(_turnOwner))
+                _turnOwnerId = (string)_turnOwner.Name;
+            return _turnOwnerId;
+        }
+    }
+    public bool IsMatchActive { get; private set; }
     public Player Player;
     public TableTurnNetworkBridge NetworkTurnSyncronization;
 
@@ -42,7 +72,7 @@ public partial class TableGame : Node3D
     public delegate void PlayerRemovedFromMatchEventHandler(string playerId, Array turnOrder);
 
     [Signal]
-    public delegate void PlayerReclaimedEventHandler(string oldPlayerId, string newPlayerId, Array turnOrder);
+    public delegate void PlayerReclaimedEventHandler(string oldPlayerId, string newPlayerId, Array turnOrder, Dictionary context);
 
     public virtual void Setup(Table table)
     {
@@ -54,9 +84,37 @@ public partial class TableGame : Node3D
         NetworkManager.Instance.NetworkProvider.PlayerDisconnected += OnPlayerDisconnected;
     }
 
+    public override void _ExitTree()
+    {
+        var provider = NetworkManager.Instance?.NetworkProvider;
+        if (provider != null)
+            provider.PlayerDisconnected -= OnPlayerDisconnected;
+    }
+
+    /// <summary>Initializes the mode-independent match identity on every peer.</summary>
+    public void PrepareMatch(Array players, string firstTurnOwnerId)
+    {
+        TurnOrder = new Array(players);
+        SetTurnOwner(firstTurnOwnerId);
+        if (!IsInstanceValid(Player) || !players.Contains((string)Player.Name))
+            Player = null;
+        IsMatchActive = true;
+    }
+
+    public bool IsTurnOwner(string playerId) =>
+        !string.IsNullOrEmpty(playerId) && TurnOwnerId == playerId;
+
+    private void SetTurnOwner(string playerId)
+    {
+        _turnOwnerId = playerId ?? "";
+        _turnOwner = string.IsNullOrEmpty(_turnOwnerId)
+            ? null
+            : PlayerRegistry.Instance?.GetPlayerById(_turnOwnerId);
+    }
+
     private void OnPlayerDisconnected(int peerId)
     {
-        if (!Multiplayer.IsServer())
+        if (!Multiplayer.IsServer() || !IsMatchActive)
             return;
 
         var playerId = peerId.ToString();
@@ -103,13 +161,13 @@ public partial class TableGame : Node3D
 
     public void RemovePlayerFromMatch(string playerId, string reason)
     {
-        if (!Multiplayer.IsServer())
+        if (!Multiplayer.IsServer() || !IsMatchActive)
             return;
 
         if (!TurnOrder.Contains(playerId))
             return;
 
-        var wasCurrentTurn = TurnOwner != null && (string)TurnOwner.Name == playerId;
+        var wasCurrentTurn = IsTurnOwner(playerId);
         var previousIndex = TurnOrder.IndexOf(playerId);
 
         var newTurnOrder = new Array(TurnOrder);
@@ -148,7 +206,7 @@ public partial class TableGame : Node3D
     // the newly spawned Player node for that peer instead of forfeiting.
     public void ReclaimSlot(string oldPlayerId, string newPlayerId)
     {
-        if (!Multiplayer.IsServer())
+        if (!Multiplayer.IsServer() || !IsMatchActive)
             return;
 
         var index = TurnOrder.IndexOf(oldPlayerId);
@@ -158,16 +216,27 @@ public partial class TableGame : Node3D
         var newTurnOrder = new Array(TurnOrder);
         newTurnOrder[index] = newPlayerId;
 
-        ApplyPlayerReclaimed(oldPlayerId, newPlayerId, newTurnOrder);
+        var context = GameModeHandler?.CurrentGameMode?.TurnResolver
+            ?.BuildHandoffContext(oldPlayerId) ?? new Dictionary();
+        ApplyPlayerReclaimed(oldPlayerId, newPlayerId, newTurnOrder, context);
     }
 
-    public void ApplyPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder)
+    public void ApplyPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder, Dictionary context)
     {
         TurnOrder = turnOrder;
         Table.PlayersOnMatch.Remove(oldPlayerId);
         Table.PlayersOnMatch.Add(newPlayerId);
 
-        EmitSignal(SignalName.PlayerReclaimed, oldPlayerId, newPlayerId, turnOrder);
+        if (IsTurnOwner(oldPlayerId))
+            SetTurnOwner(newPlayerId);
+
+        if (int.TryParse(newPlayerId, out var peerId)
+            && peerId == Multiplayer.GetUniqueId())
+        {
+            Player = PlayerRegistry.Instance?.GetPlayerById(newPlayerId);
+        }
+
+        EmitSignal(SignalName.PlayerReclaimed, oldPlayerId, newPlayerId, turnOrder, context);
     }
 
     private void SetupNetworkTurnSyncronization(TableGame tableGame)
@@ -215,7 +284,12 @@ public partial class TableGame : Node3D
 
     public void CallNextTurn(Dictionary context)
     {
-        var currentId = (string)TurnOwner.Name;
+        var currentId = TurnOwnerId;
+        if (string.IsNullOrEmpty(currentId) || TurnOrder.Count == 0)
+        {
+            GD.PushWarning("CallNextTurn: partida sem dono de turno ou ordem de jogadores.");
+            return;
+        }
         var currentIndex = TurnOrder.IndexOf(currentId);
 
         if (currentIndex == -1)
@@ -235,14 +309,13 @@ public partial class TableGame : Node3D
     public void ApplyNewTurn(string playerId, Dictionary context)
     {
         var nextPlayer = PlayerRegistry.Instance.GetPlayerById(playerId);
+        SetTurnOwner(playerId);
 
+        // A reliable turn packet can arrive just before the corresponding Player node is spawned
+        // on a reconnecting peer. The cached identity is enough to apply the rules snapshot; the
+        // reclaimed-player packet attaches the concrete node as soon as it exists.
         if (nextPlayer == null)
-        {
-            GD.PushError("Tentativa de mudar turno para jogador inexistente: " + playerId);
-            return;
-        }
-
-        TurnOwner = nextPlayer;
+            GD.PushWarning("Turno recebido antes do jogador ser criado localmente: " + playerId);
 
         if (GameModeHandler != null)
             GameModeHandler.CurrentGameMode.TurnResolver.HandleNewTurnContext(context);
@@ -255,7 +328,7 @@ public partial class TableGame : Node3D
     public void CallExtendCurrentTurn(Dictionary context)
     {
         ApplyTurnExtension(context);
-        GD.Print("Turn extended for: ", TurnOwner.Name);
+        GD.Print("Turn extended for: ", TurnOwnerId);
     }
 
     public void ApplyTurnExtension(Dictionary context)
@@ -270,11 +343,39 @@ public partial class TableGame : Node3D
 
     public void ApplyMatchOver(string winner, Dictionary context)
     {
+        if (!IsMatchActive)
+            return;
+
+        IsMatchActive = false;
+        context ??= new Dictionary();
         context["winner"] = winner;
-        Table.StateMachine.ChangeState(StatesRef.GameFinished, context);
+        GameModeHandler?.CurrentGameMode?.TurnResolver?.HandleMatchEnded();
+        if (Multiplayer.IsServer()
+            || Table.StateMachine.AuthorityStateSynchronizer == null)
+        {
+            Table.StateMachine.ChangeState(StatesRef.GameFinished, context);
+        }
         EmitSignal(SignalName.MatchOver, winner, context);
+
+        ReleaseMatchControllers();
 
         if (Multiplayer.IsServer() && winner != null && CountsWinsForRanking)
             MatchRanking.Instance.RegisterWin(winner);
+    }
+
+    private void ReleaseMatchControllers()
+    {
+        foreach (var playerIdVariant in TurnOrder)
+        {
+            var player = PlayerRegistry.Instance?.GetPlayerById((string)playerIdVariant);
+            var handler = player?.GameHandler;
+            if (handler == null || !IsInstanceValid(handler.CurrentController)
+                || handler.CurrentTableGame != this)
+                continue;
+
+            handler.CurrentController.GiveControl();
+            handler.UnequipCurrentController();
+            player.TakeControl();
+        }
     }
 }

@@ -35,10 +35,25 @@ public partial class DominoSeatPresenter : Node3D
 	[Export] public Color TurnColor = new(1.0f, 0.478431f, 0.2f);
 	[Export] public Color IdleColor = new(0.678431f, 0.752941f, 0.839216f);
 
+	[ExportGroup("Turn ring")]
+	/// <summary>Near the rim, beyond the chain and the players' tile fans.</summary>
+	[Export] public float TurnRingRadius = 0.57f;
+	[Export] public float TurnRingWidth = 0.009f;
+	[Export] public float TurnRingHeight = 0.003f;
+	[Export] public float TurnRingGapDegrees = 8.0f;
+	[Export] public int TurnRingArcSteps = 20;
+	[Export] public Color ActiveTurnRingColor = new(0.18f, 0.82f, 0.34f, 0.82f);
+	[Export] public Color OccupiedTurnRingColor = new(0.88f, 0.22f, 0.20f, 0.62f);
+	[Export] public Color EmptyTurnRingColor = new(0.48f, 0.50f, 0.54f, 0.38f);
+
 	private DominoGame _game;
 	private readonly List<DominoTile> _stock = new();
 	private readonly Dictionary<string, List<DominoTile>> _seatTiles = new();
 	private readonly Dictionary<string, Label3D> _seatNames = new();
+	private readonly List<MeshInstance3D> _turnRingSegments = new();
+	private readonly List<StandardMaterial3D> _turnRingMaterials = new();
+
+	public IReadOnlyList<MeshInstance3D> TurnRingSegments => _turnRingSegments;
 
 	public override void _Ready()
 	{
@@ -50,7 +65,6 @@ public partial class DominoSeatPresenter : Node3D
 		}
 
 		_game.StockSpec = BuildStockSpec();
-
 		SignalUtil.ConnectGuarded(_game, DominoGame.SignalName.HudStateUpdated,
 			new Callable(this, MethodName.Refresh));
 	}
@@ -150,6 +164,120 @@ public partial class DominoSeatPresenter : Node3D
 			_seatNames[playerId].QueueFree();
 			_seatNames.Remove(playerId);
 		}
+
+		RefreshTurnRing();
+	}
+
+	/// <summary>
+	/// Four subtle arcs follow the real seat directions. The current seat is green, the other
+	/// occupied seats are red and unused seats stay grey, all derived from public match state.
+	/// </summary>
+	private void RefreshTurnRing()
+	{
+		EnsureTurnRing();
+		if (_turnRingSegments.Count == 0)
+			return;
+
+		for (var seatIndex = 0; seatIndex < _turnRingSegments.Count; seatIndex++)
+		{
+			var playerId = _game != null && seatIndex < _game.TurnOrder.Count
+				? (string)_game.TurnOrder[seatIndex]
+				: "";
+
+			var color = string.IsNullOrEmpty(playerId) || !_game.IsMatchActive
+				? EmptyTurnRingColor
+				: _game.IsTurnOwner(playerId)
+					? ActiveTurnRingColor
+					: OccupiedTurnRingColor;
+
+			var material = _turnRingMaterials[seatIndex];
+			material.AlbedoColor = color;
+			material.Emission = color;
+			_turnRingSegments[seatIndex].Show();
+		}
+	}
+
+	private void EnsureTurnRing()
+	{
+		if (_turnRingSegments.Count > 0 || Seats == null)
+			return;
+
+		var seatCount = Mathf.Min(4, Seats.GetChildCount());
+		for (var seatIndex = 0; seatIndex < seatCount; seatIndex++)
+		{
+			if (Seats.GetChild(seatIndex) is not Marker3D seat)
+				continue;
+
+			var localSeat = ToLocal(seat.GlobalPosition);
+			var direction = new Vector2(localSeat.X, localSeat.Z);
+			if (direction.LengthSquared() < 1e-6f)
+				continue;
+
+			var material = BuildTurnRingMaterial();
+			var segment = new MeshInstance3D
+			{
+				Name = $"TurnRingSeat{seatIndex}",
+				Mesh = BuildTurnRingSegment(direction.Normalized(), material),
+				Position = new Vector3(0.0f, TurnRingHeight, 0.0f),
+			};
+
+			AddChild(segment);
+			_turnRingMaterials.Add(material);
+			_turnRingSegments.Add(segment);
+		}
+	}
+
+	private StandardMaterial3D BuildTurnRingMaterial()
+	{
+		return new StandardMaterial3D
+		{
+			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+			AlbedoColor = EmptyTurnRingColor,
+			EmissionEnabled = true,
+			Emission = EmptyTurnRingColor,
+			EmissionEnergyMultiplier = 0.7f,
+			CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+		};
+	}
+
+	private ImmediateMesh BuildTurnRingSegment(Vector2 seatDirection, StandardMaterial3D material)
+	{
+		var radius = Mathf.Max(TurnRingRadius, 0.05f);
+		var halfWidth = Mathf.Max(TurnRingWidth, 0.002f) * 0.5f;
+		var innerRadius = radius - halfWidth;
+		var outerRadius = radius + halfWidth;
+		var steps = Mathf.Max(TurnRingArcSteps, 4);
+		var centreAngle = Mathf.Atan2(seatDirection.Y, seatDirection.X);
+		var halfArc = Mathf.DegToRad(Mathf.Clamp(90.0f - TurnRingGapDegrees, 10.0f, 90.0f) * 0.5f);
+
+		var mesh = new ImmediateMesh();
+		mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, material);
+		for (var step = 0; step < steps; step++)
+		{
+			var angle0 = Mathf.Lerp(centreAngle - halfArc, centreAngle + halfArc, step / (float)steps);
+			var angle1 = Mathf.Lerp(centreAngle - halfArc, centreAngle + halfArc, (step + 1) / (float)steps);
+			var inner0 = RingPoint(angle0, innerRadius);
+			var outer0 = RingPoint(angle0, outerRadius);
+			var inner1 = RingPoint(angle1, innerRadius);
+			var outer1 = RingPoint(angle1, outerRadius);
+
+			AddRingTriangle(mesh, inner0, outer0, outer1);
+			AddRingTriangle(mesh, inner0, outer1, inner1);
+		}
+		mesh.SurfaceEnd();
+		return mesh;
+	}
+
+	private static Vector3 RingPoint(float angle, float radius) =>
+		new(Mathf.Cos(angle) * radius, 0.0f, Mathf.Sin(angle) * radius);
+
+	private static void AddRingTriangle(ImmediateMesh mesh, Vector3 a, Vector3 b, Vector3 c)
+	{
+		mesh.SurfaceSetNormal(Vector3.Up);
+		mesh.SurfaceAddVertex(a);
+		mesh.SurfaceAddVertex(b);
+		mesh.SurfaceAddVertex(c);
 	}
 
 	/// <summary>
@@ -201,7 +329,7 @@ public partial class DominoSeatPresenter : Node3D
 			_seatNames[playerId] = label;
 		}
 
-		var isTurn = _game.TurnOwner != null && (string)_game.TurnOwner.Name == playerId;
+		var isTurn = _game.IsMatchActive && _game.IsTurnOwner(playerId);
 		var position = facing * (SeatFanRadius + 0.06f);
 
 		label.Text = NameOf(playerId);

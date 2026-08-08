@@ -59,7 +59,38 @@ public partial class BallPlacementManager : Node
 
 	public override void _ExitTree()
 	{
+		CancelPlacement();
+	}
+
+	/// <summary>
+	/// Releases camera, input, preview and server authorization when a match ends or the table is
+	/// removed. This deliberately does not commit a ball position.
+	/// </summary>
+	public void CancelPlacement()
+	{
+		var wasPlacing = _isPlacing;
+		_isPlacing = false;
+		SetProcessUnhandledInput(false);
+		if (wasPlacing)
+		{
+			SetInputActive(false);
+			SwitchCameraMode(false);
+		}
 		RemovePreviewVisual(restoreRealBall: true);
+
+		_ball = null;
+		_otherBalls.Clear();
+		_localPlacementRegion = PlacementRegion.FullTable;
+		_localHeadStringZ = 0.0f;
+
+		_authorizedPlacerId = 0;
+		_authorizedBall = null;
+		_authorizedPlacementRegion = PlacementRegion.FullTable;
+		_authorizedHeadStringZ = 0.0f;
+		_lastServerPreviewAtMsec = 0;
+
+		if (wasPlacing)
+			EmitSignal(SignalName.PlacementFinished);
 	}
 
 	public void AuthorizePlacement(int playerId, Ball ball,

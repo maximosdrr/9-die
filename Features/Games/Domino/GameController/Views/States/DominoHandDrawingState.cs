@@ -36,9 +36,9 @@ public partial class DominoHandDrawingState : State
 		View.PlayClip(ClipName);
 		View.HideGhost();
 		View.SetCrosshairVisible(true);
-		// States why they are here as well as what to do: arriving at the stock without asking is
-		// only helpful if the reason is on screen.
-		View.ShowNotice("Sem peça para jogar — mire no monte e clique", 3.5f);
+		// The yellow frame around the stock now carries this instruction without interrupting play
+		// with a text message. Clear any short-lived notice left by the previous state.
+		View.HideMessage();
 	}
 
 	public override void Exit(Dictionary metadata)

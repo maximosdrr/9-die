@@ -6,7 +6,7 @@
 [node name="DominoController" type="Node3D"]
 script = ExtResource("1_dctrl")
 HandViewScene = ExtResource("2_dhview")
-SeatFov = 55.0
+SeatFov = 48.0
 MouseSensitivity = 0.004
 MaxYawDeg = 100.0
 MinPitchDeg = -70.0

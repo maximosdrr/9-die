@@ -46,13 +46,12 @@ public partial class PoolController : GameController
 		if (!IsMultiplayerAuthority())
 			return;
 
-		if (!IsInstanceValid(PoolGame) || !IsInstanceValid(Player)
-			|| !IsInstanceValid(PoolGame.TurnOwner))
+		if (!IsInstanceValid(PoolGame) || !PoolGame.IsMatchActive || !IsInstanceValid(Player))
 		{
 			return;
 		}
 
-		if (Player.Name != PoolGame.TurnOwner.Name)
+		if (!PoolGame.IsTurnOwner((string)Player.Name))
 		{
 			GD.PushError("Cannot take control, it's not your turn!");
 			return;
@@ -115,9 +114,9 @@ public partial class PoolController : GameController
 				// ball placement owns the camera and input, including before the opening break.
 				GiveControl();
 				await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
-				if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player)
-					|| !IsInstanceValid(PoolGame.TurnOwner)
-					|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
+				if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !PoolGame.IsMatchActive
+					|| !IsInstanceValid(Player)
+					|| !PoolGame.IsTurnOwner((string)Player.Name))
 					return;
 
 				TakeControl();
@@ -139,8 +138,8 @@ public partial class PoolController : GameController
 	private void OnTurnExtended(Dictionary context)
 	{
 		if (!IsMultiplayerAuthority() || !IsInstanceValid(PoolGame)
-			|| !IsInstanceValid(Player) || !IsInstanceValid(PoolGame.TurnOwner)
-			|| (string)PoolGame.TurnOwner.Name != (string)Player.Name)
+			|| !PoolGame.IsMatchActive || !IsInstanceValid(Player)
+			|| !PoolGame.IsTurnOwner((string)Player.Name))
 			return;
 
 		if (context.ContainsKey("ball_replacement"))

@@ -17,6 +17,15 @@ public partial class AuthorityStateSynchronizer : Node
         StateMachine.StateChanged += OnLocalStateChange;
     }
 
+    public override void _ExitTree()
+    {
+        if (StateMachine != null)
+            StateMachine.StateChanged -= OnLocalStateChange;
+
+        if (Multiplayer.IsServer())
+            Multiplayer.PeerConnected -= OnClientConnect;
+    }
+
     private void OnClientConnect(long peerId)
     {
         if (Multiplayer.IsServer())
@@ -42,13 +51,12 @@ public partial class AuthorityStateSynchronizer : Node
     {
         var senderId = Multiplayer.GetRemoteSenderId();
 
-        if (Multiplayer.IsServer() && senderId != 1)
+        // Every peer, including clients, accepts state only from this state machine's authority.
+        // The previous check protected the server but let one client forge state on another.
+        if (senderId != GetMultiplayerAuthority())
         {
-            if (senderId != GetMultiplayerAuthority())
-            {
-                GD.PushWarning($"Peer {senderId} attempted to change state without authority.");
-                return;
-            }
+            GD.PushWarning($"Peer {senderId} attempted to change state without authority.");
+            return;
         }
 
         IsIncomingNetworkChange = true;

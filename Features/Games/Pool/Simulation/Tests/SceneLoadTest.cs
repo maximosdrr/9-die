@@ -39,6 +39,8 @@ public partial class SceneLoadTest : Node
 
         TestDisposedTurnOwnerIsIgnored();
         TestControllerHandoffIsGameAgnostic();
+        TestPoolPublicSnapshotRoundTrip();
+        TestCountdownDropsMissingPlayers();
 
         TestRulerHandlesEmptyRack();
         TestGoldenNineBreakRules();
@@ -209,6 +211,13 @@ public partial class SceneLoadTest : Node
         Check("bola objeto se moveu", Mathf.Abs(target.Position.Z - 0.3f) > 0.01f);
         Check("bolas continuam na altura de repouso",
             Mathf.Abs(cueBall.Position.Y - (float)BilliardConstants.Radius) < 1e-3f);
+
+        var finishedByCancellation = false;
+        runner.ShotFinished += () => finishedByCancellation = true;
+        var cancellationStarted = runner.ExecuteShot(new ShotInput(0.0, 0.0, 1.0, 0.0, 0.0));
+        runner.CancelPlayback();
+        Check("encerrar a partida cancela a reprodução sem resolver outro turno",
+            cancellationStarted && !runner.IsPlaying && !finishedByCancellation);
     }
 
     // A potted ball has to be seen dropping into the hole. The first version of this hid the ball
@@ -653,6 +662,7 @@ public partial class SceneLoadTest : Node
             !runner.TryValidatePlacement(new Vector3(float.NaN, 0.0f, 0.0f), cueBall, out _));
 
         var placementManager = new BallPlacementManager { SimulationRunner = runner };
+        AddChild(placementManager);
         const float headStringZ = -0.5f;
         var behindHeadString = runner.TableToGlobalPosition(new Vector2(0.2f, -0.7f));
         var beyondHeadString = runner.TableToGlobalPosition(new Vector2(0.2f, -0.3f));
@@ -665,7 +675,13 @@ public partial class SceneLoadTest : Node
         Check("ball-in-hand após falta continua aceitando a mesa inteira",
             placementManager.TryValidatePlacement(beyondHeadString, cueBall,
                 BallPlacementManager.PlacementRegion.FullTable, headStringZ, out _));
-        placementManager.Free();
+        placementManager.AuthorizePlacement(1, cueBall);
+        Check("encerrar a partida registra a autorização de reposicionamento",
+            placementManager.IsPlacementPendingFor("1"));
+        placementManager.CancelPlacement();
+        Check("reposicionamento não permanece autorizado após a limpeza",
+            !placementManager.IsPlacementPendingFor("1"));
+        placementManager.QueueFree();
 
         runner.QueueFree();
         holder.QueueFree();
@@ -868,6 +884,9 @@ public partial class SceneLoadTest : Node
         game.TurnOwner = player;
         player.Free();
 
+        Check("identidade do turno sobrevive ao Player liberado durante a reconexão",
+            game.IsTurnOwner("peer") && game.TurnOwnerId == "peer");
+
         var safe = true;
         try
         {
@@ -896,9 +915,44 @@ public partial class SceneLoadTest : Node
         Check("PlayerGameHandler guarda o controlador pelo tipo base",
             controllerField != null && controllerField.FieldType == typeof(GameController));
 
+        var tableProperty = typeof(PlayerGameHandler).GetProperty(nameof(PlayerGameHandler.CurrentTableGame));
+        Check("PlayerGameHandler registra a mesa dona do controlador",
+            tableProperty != null && tableProperty.PropertyType == typeof(TableGame));
+
         var poolController = new PoolController();
         Check("sinuca mantém o alternador de controle (E) habilitado", poolController.AllowsControlSwitch);
         poolController.Free();
+    }
+
+    private void TestPoolPublicSnapshotRoundTrip()
+    {
+        var source = new PoolGame();
+        source.ApplyHudUpdate(4, "7", new Array { 1, 3 });
+        source.ApplyFoulUpdate("7", 2);
+        source.ApplyPushOutState(false, true, false, "8");
+
+        var restored = new PoolGame();
+        restored.ApplyPublicSnapshot(source.BuildPublicSnapshot());
+
+        var ballsRestored = restored.BallsPocketedByPlayer.TryGetValue("7", out var balls)
+                            && balls.Count == 2
+                            && balls.Contains(1) && balls.Contains(3);
+        Check("snapshot tardio restaura placar e alvo da sinuca",
+            restored.CurrentTargetBallIndex == 4 && ballsRestored);
+        Check("snapshot tardio restaura faltas e decisão de push-out",
+            restored.ConsecutiveFoulsByPlayer.TryGetValue("7", out var fouls) && fouls == 2
+            && restored.PushOutChoicePending && restored.PushOutShooterId == "8");
+
+        source.Free();
+        restored.Free();
+    }
+
+    private void TestCountdownDropsMissingPlayers()
+    {
+        var retained = GameStarting.RetainPresentPlayers(
+            new Array { "1", "2", "3" }, new[] { "3", "1" });
+        Check("contagem regressiva remove quem saiu sem reordenar os demais",
+            retained.Count == 2 && (string)retained[0] == "1" && (string)retained[1] == "3");
     }
 
     // Lockstep's promise: given the same starting layout and the same ShotInput, two independent

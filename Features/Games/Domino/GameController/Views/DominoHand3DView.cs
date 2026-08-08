@@ -72,9 +72,24 @@ public partial class DominoHand3DView : DominoHandView
 	[Export] public Color ValidColor = new(0.45f, 0.90f, 0.55f, 0.82f);
 	[Export] public Color InvalidColor = new(0.93f, 0.42f, 0.38f, 0.82f);
 
+	[ExportGroup("Stock guidance")]
+	[Export] public Color StockHighlightColor = new(1.0f, 0.82f, 0.12f, 0.92f);
+	[Export] public float StockHighlightThickness = 0.004f;
+	[Export] public float StockHighlightPadding = 0.007f;
+	[Export] public float StockHighlightLift = 0.002f;
+	[Export] public float StockHighlightPulseSeconds = 1.35f;
+	[Export(PropertyHint.Range, "0,1,0.01")] public float StockHighlightMinAlpha = 0.28f;
+	[Export(PropertyHint.Range, "0,1,0.01")] public float StockHighlightMaxAlpha = 0.92f;
+
+	private Node3D _stockHighlight;
+	private readonly MeshInstance3D[] _stockHighlightBars = new MeshInstance3D[4];
+	private StandardMaterial3D _stockHighlightMaterial;
+	private float _stockHighlightPulseTime;
+
 	public bool IsYourTurn { get; private set; }
 	public bool CanDraw { get; private set; }
 	public bool MustPass { get; private set; }
+	public bool ShouldHighlightStock { get; private set; }
 
 	/// <summary>Index into the hand, or -1. Always a playable tile while it is the player's turn.</summary>
 	public int SelectedIndex { get; private set; } = -1;
@@ -135,9 +150,24 @@ public partial class DominoHand3DView : DominoHandView
 		HideGhost();
 	}
 
+	public override void _ExitTree()
+	{
+		// The highlight uses a top-level transform so it follows the cloth rather than the
+		// first-person hand. Explicit cleanup also keeps it from surviving this local controller.
+		if (IsInstanceValid(_stockHighlight))
+			_stockHighlight.QueueFree();
+
+		_stockHighlight = null;
+	}
+
 	public override void _Process(double delta)
 	{
-		if (!IsMultiplayerAuthority() || HandRig == null || Game?.Camera == null)
+		if (!IsMultiplayerAuthority())
+			return;
+
+		UpdateStockHighlightPulse((float)delta);
+
+		if (HandRig == null || Game?.Camera == null)
 			return;
 
 		// Rides the live camera rather than being parented to it: the camera is a single shared
@@ -258,6 +288,7 @@ public partial class DominoHand3DView : DominoHandView
 		IsYourTurn = isYourTurn;
 		CanDraw = canDraw;
 		MustPass = mustPass;
+		SetStockHighlight(isYourTurn && canDraw);
 
 		AimedSlot = Game != null && Game.BoneyardSlots.Length > 0
 			? Game.BoneyardSlots[0]
@@ -281,6 +312,145 @@ public partial class DominoHand3DView : DominoHandView
 		{
 			SelectFirstPlayable();
 		}
+	}
+
+	// ---------------------------------------------------------------- stock guidance
+
+	/// <summary>
+	/// Draws a thin emissive frame around the occupied stock. This remains a local-only hint:
+	/// whether this player's private hand has a legal move is not information sent to opponents.
+	/// </summary>
+	private void SetStockHighlight(bool highlighted)
+	{
+		ShouldHighlightStock = highlighted;
+
+		if (!highlighted || Game?.ChainPresenter == null || Game.BoneyardSlots.Length == 0)
+		{
+			_stockHighlightPulseTime = 0.0f;
+			if (IsInstanceValid(_stockHighlight))
+				_stockHighlight.Hide();
+			return;
+		}
+
+		EnsureStockHighlight();
+		if (!IsInstanceValid(_stockHighlight)
+			|| !TryOccupiedStockBounds(Game.BoneyardSlots, Game.StockSpec, out var bounds))
+			return;
+
+		_stockHighlight.GlobalTransform = Game.ChainPresenter.GlobalTransform;
+
+		var padding = Mathf.Max(StockHighlightPadding, 0.0f);
+		bounds = bounds.Grow(padding);
+
+		var thickness = Mathf.Max(StockHighlightThickness, 0.002f);
+		// The frame surrounds rather than covers the tiles, so it can sit directly on the cloth.
+		var y = Mathf.Max(StockHighlightLift, thickness * 0.13f);
+		var centre = bounds.GetCenter();
+		var half = bounds.Size * 0.5f;
+
+		SetStockHighlightBar(0, new Vector3(bounds.Size.X + thickness, thickness * 0.25f, thickness),
+			new Vector3(centre.X, y, centre.Y - half.Y));
+		SetStockHighlightBar(1, new Vector3(bounds.Size.X + thickness, thickness * 0.25f, thickness),
+			new Vector3(centre.X, y, centre.Y + half.Y));
+		SetStockHighlightBar(2, new Vector3(thickness, thickness * 0.25f, bounds.Size.Y + thickness),
+			new Vector3(centre.X - half.X, y, centre.Y));
+		SetStockHighlightBar(3, new Vector3(thickness, thickness * 0.25f, bounds.Size.Y + thickness),
+			new Vector3(centre.X + half.X, y, centre.Y));
+
+		_stockHighlight.Show();
+	}
+
+	private void UpdateStockHighlightPulse(float delta)
+	{
+		if (!ShouldHighlightStock || !IsInstanceValid(_stockHighlight)
+			|| !_stockHighlight.Visible || _stockHighlightMaterial == null)
+			return;
+
+		_stockHighlightPulseTime += delta;
+		var duration = Mathf.Max(StockHighlightPulseSeconds, 0.2f);
+		// Cosine starts bright and eases naturally at both ends instead of blinking linearly.
+		var pulse = 0.5f + 0.5f * Mathf.Cos(_stockHighlightPulseTime * Mathf.Tau / duration);
+		var minAlpha = Mathf.Clamp(StockHighlightMinAlpha, 0.0f, 1.0f);
+		var maxAlpha = Mathf.Clamp(StockHighlightMaxAlpha, minAlpha, 1.0f);
+		var colour = StockHighlightColor;
+		colour.A = Mathf.Lerp(minAlpha, maxAlpha, pulse);
+
+		_stockHighlightMaterial.AlbedoColor = colour;
+		_stockHighlightMaterial.Emission = colour;
+		_stockHighlightMaterial.EmissionEnergyMultiplier = Mathf.Lerp(0.35f, 1.05f, pulse);
+	}
+
+	private void EnsureStockHighlight()
+	{
+		if (IsInstanceValid(_stockHighlight) || Game?.ChainPresenter == null)
+			return;
+
+		_stockHighlightMaterial = new StandardMaterial3D
+		{
+			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+			AlbedoColor = StockHighlightColor,
+			EmissionEnabled = true,
+			Emission = StockHighlightColor,
+			EmissionEnergyMultiplier = 1.15f,
+		};
+
+		// Keep this out of ChainPresenter: its children have the strict semantic of one rendered
+		// domino per play, which rules and integration checks rely on.
+		_stockHighlight = new Node3D { Name = "LocalStockHighlight" };
+		AddChild(_stockHighlight);
+		_stockHighlight.TopLevel = true;
+		_stockHighlight.GlobalTransform = Game.ChainPresenter.GlobalTransform;
+
+		for (var i = 0; i < _stockHighlightBars.Length; i++)
+		{
+			_stockHighlightBars[i] = new MeshInstance3D
+			{
+				Name = $"Border{i}",
+				MaterialOverride = _stockHighlightMaterial,
+			};
+			_stockHighlight.AddChild(_stockHighlightBars[i]);
+		}
+	}
+
+	private void SetStockHighlightBar(int index, Vector3 size, Vector3 position)
+	{
+		var bar = _stockHighlightBars[index];
+		if (bar == null)
+			return;
+
+		bar.Mesh = new BoxMesh { Size = size };
+		bar.Position = position;
+	}
+
+	private static bool TryOccupiedStockBounds(
+		IReadOnlyList<int> occupiedSlots,
+		BoneyardSpec spec,
+		out Rect2 bounds)
+	{
+		bounds = default;
+		if (occupiedSlots == null || occupiedSlots.Count == 0)
+			return false;
+
+		var half = DominoBoneyardLayout.HalfExtents(spec);
+		var hasSlot = false;
+		foreach (var slot in occupiedSlots)
+		{
+			if (slot < 0)
+				continue;
+
+			var centre = DominoBoneyardLayout.SlotPosition(slot, spec);
+			if (!hasSlot)
+			{
+				bounds = new Rect2(centre - half, half * 2.0f);
+				hasSlot = true;
+				continue;
+			}
+
+			bounds = bounds.Expand(centre - half).Expand(centre + half);
+		}
+
+		return hasSlot;
 	}
 
 	// ---------------------------------------------------------------- selection
@@ -672,6 +842,7 @@ public partial class DominoHand3DView : DominoHandView
 		SetCrosshairVisible(false);
 		HideGhost();
 		HideMessage();
+		SetStockHighlight(false);
 	}
 
 	public override void SetTopViewActive(bool active)
@@ -713,5 +884,6 @@ public partial class DominoHand3DView : DominoHandView
 		SelectedIndex = -1;
 		HideGhost();
 		SetHandVisible(false);
+		SetStockHighlight(false);
 	}
 }

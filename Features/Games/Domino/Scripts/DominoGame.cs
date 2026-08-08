@@ -104,6 +104,7 @@ public partial class DominoGame : TableGame
 
 	public override void SetupMatch(Array players, string firstTurnOwner)
 	{
+		PrepareMatch(players, firstTurnOwner);
 		IsSoloMatch = players.Count == 1;
 
 		ResetPublicState();
@@ -230,7 +231,7 @@ public partial class DominoGame : TableGame
 		leavingPlayer.TakeControl();
 	}
 
-	private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder)
+	private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder, Dictionary context)
 	{
 		var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
 		if (newPlayer == null)
@@ -243,11 +244,6 @@ public partial class DominoGame : TableGame
 			HandCounts.Remove(oldPlayerId);
 			HandCounts[newPlayerId] = heldTiles;
 		}
-
-		// The old Player node is already gone, so TurnOwner may be a stale reference; this only
-		// reads the name it carries, the same way RemovePlayerFromMatch does.
-		if (TurnOwner != null && (string)TurnOwner.Name == oldPlayerId)
-			TurnOwner = newPlayer;
 
 		EmitSignal(SignalName.HudStateUpdated);
 

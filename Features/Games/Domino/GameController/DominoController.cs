@@ -27,10 +27,10 @@ public partial class DominoController : GameController
 
 	[ExportGroup("Seat view")]
 	/// <summary>
-	/// The same angle as walking. A tighter one magnifies the table but reads as a tunnel, so
-	/// legibility is bought with tile size instead.
+	/// Slightly tighter than the walking camera so the pips remain readable from the chair without
+	/// changing the physical tile size or the layout shared by every peer.
 	/// </summary>
-	[Export] public float SeatFov = 55.0f;
+	[Export] public float SeatFov = 48.0f;
 	[Export] public float MouseSensitivity = 0.004f;
 
 	/// <summary>How far the head turns to either side before a real person would move their body.</summary>
@@ -144,6 +144,12 @@ public partial class DominoController : GameController
 			return;
 		}
 
+		// Every peer owns a physical copy of every player. Disable the seated body's simulation and
+		// collider on all of them, not only on its authority, or a spectator could still collide
+		// with an apparently motionless remote player occupying the same chair.
+		if (Game.SeatFor((string)Player.Name) != null)
+			Player.EnterSeatedGameMode();
+
 		SignalUtil.ConnectGuarded(Game, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
 		SignalUtil.ConnectGuarded(Game, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 		SignalUtil.ConnectGuarded(Game, DominoGame.SignalName.HudStateUpdated, new Callable(this, MethodName.Refresh));
@@ -165,6 +171,9 @@ public partial class DominoController : GameController
 
 	public override void _ExitTree()
 	{
+		if (IsInstanceValid(Player))
+			Player.ExitSeatedGameMode();
+
 		if (Game == null)
 			return;
 
@@ -394,6 +403,9 @@ public partial class DominoController : GameController
 
 	public override void GiveControl()
 	{
+		if (IsInstanceValid(Player))
+			Player.ExitSeatedGameMode();
+
 		if (!IsMultiplayerAuthority())
 			return;
 
@@ -423,8 +435,7 @@ public partial class DominoController : GameController
 		if (_handView == null || Game == null || Player == null || !IsMultiplayerAuthority())
 			return;
 
-		var isYourTurn = IsInstanceValid(Game.TurnOwner)
-						 && (string)Game.TurnOwner.Name == (string)Player.Name;
+		var isYourTurn = Game.IsMatchActive && Game.IsTurnOwner((string)Player.Name);
 
 		// The same pure functions the server re-runs on whatever comes back, so the interface can
 		// never offer a move the server would reject.

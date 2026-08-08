@@ -376,12 +376,16 @@ public partial class DominoSceneLoadTest : Node
 		Tick(machine, 3);
 		Check("sem jogada, a mão vai sozinha para o monte",
 			machine.Current?.Type == StatesRef.DominoHandDrawing);
+		Check("a área do monte fica destacada quando comprar é obrigatório",
+			view.ShouldHighlightStock);
 
 		// Stock runs dry while still stuck: back out, so passing is reachable.
 		view.Refresh(hand, nothing, isYourTurn: true, canDraw: false, mustPass: true);
 		Tick(machine, 3);
 		Check("monte vazio devolve a mão para poder passar",
 			machine.Current?.Type == StatesRef.DominoHandLooking);
+		Check("o destaque do monte some quando comprar deixa de ser possível",
+			!view.ShouldHighlightStock);
 
 		// And the turn ending always returns to rest.
 		view.Refresh(hand, nothing, isYourTurn: false, canDraw: false, mustPass: false);
@@ -422,6 +426,48 @@ public partial class DominoSceneLoadTest : Node
 
 		Check("o apresentador conhece a mesa e os assentos",
 			presenter.ChainPresenter != null && presenter.Seats != null && presenter.TileScene != null);
+		var anchors = game.Seats as DominoSeatAnchors;
+		var chairsHaveColliders = anchors != null && anchors.Chairs.Count == 4;
+		if (anchors != null)
+		{
+			foreach (var chair in anchors.Chairs)
+			{
+				var collider = chair?.GetNodeOrNull<StaticBody3D>("Collision");
+				chairsHaveColliders &= collider != null
+					&& collider.CollisionLayer == 4
+					&& collider.GetNodeOrNull<CollisionShape3D>("CollisionShape3D")?.Shape != null;
+			}
+		}
+		Check("as quatro cadeiras bloqueiam o jogador com colisões próprias", chairsHaveColliders);
+
+		var fakeTurnOwner = new Player { Name = "seat-test" };
+		game.PrepareMatch(new Godot.Collections.Array { "seat-test", "occupied-test" }, "");
+		game.TurnOwner = fakeTurnOwner;
+		game.Player = fakeTurnOwner;
+		presenter.Refresh();
+		Check("o indicador de turno tem um quarto para cada cadeira",
+			presenter.TurnRingSegments.Count == 4);
+		var activeRingMaterial = presenter.TurnRingSegments.Count > 0
+			? presenter.TurnRingSegments[0].Mesh.SurfaceGetMaterial(0) as StandardMaterial3D
+			: null;
+		var occupiedRingMaterial = presenter.TurnRingSegments.Count > 1
+			? presenter.TurnRingSegments[1].Mesh.SurfaceGetMaterial(0) as StandardMaterial3D
+			: null;
+		var emptyRingMaterial = presenter.TurnRingSegments.Count > 2
+			? presenter.TurnRingSegments[2].Mesh.SurfaceGetMaterial(0) as StandardMaterial3D
+			: null;
+		Check("o quarto da vez fica verde",
+			activeRingMaterial != null
+			&& activeRingMaterial.AlbedoColor.IsEqualApprox(presenter.ActiveTurnRingColor));
+		Check("outro quarto ocupado fica vermelho",
+			occupiedRingMaterial != null
+			&& occupiedRingMaterial.AlbedoColor.IsEqualApprox(presenter.OccupiedTurnRingColor));
+		Check("cadeiras sem jogador ficam cinzas",
+			emptyRingMaterial != null
+			&& emptyRingMaterial.AlbedoColor.IsEqualApprox(presenter.EmptyTurnRingColor));
+		game.TurnOwner = null;
+		game.Player = null;
+		fakeTurnOwner.Free();
 
 		// One source for where the stock lies, or the crosshair aims at empty cloth.
 		var drawn = presenter.ChainPresenter.Spec;
