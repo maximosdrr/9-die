@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://Features/Games/Poker/GameController/PokerController.tscn" id="10_pctrl"]
 [ext_resource type="AudioStream" path="res://Assets/SoundEffects/Strike.ogg" id="11_pknock"]
 [ext_resource type="Resource" path="res://Features/Games/Poker/PokerVisualAssets.tres" id="12_visuals"]
+[ext_resource type="Resource" path="res://Features/Games/Poker/PokerPresentationProfile.tres" id="13_timing"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_pokertable"]
 height = 0.718
@@ -165,6 +166,7 @@ CardScene = ExtResource("6_pcard")
 BoardPresenter = NodePath("../BoardHolder")
 Seats = NodePath("../Seats")
 KnockSound = ExtResource("11_pknock")
+PresentationProfile = ExtResource("13_timing")
 
 [node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
 script = ExtResource("5_panch")
@@ -215,3 +217,4 @@ script = ExtResource("3_gmode")
 
 [node name="Resolver" type="Node" parent="GameModeHandler/TexasHoldem" unique_id=1752055218]
 script = ExtResource("4_presol")
+PresentationProfile = ExtResource("13_timing")

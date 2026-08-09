@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Poker.Rules;
+using ChipBatch = PokerChipAnimator.Batch;
+using ChipBatchPhase = PokerChipAnimator.Phase;
 
 /// <summary>
 /// Everything each seat owns, said with objects on the table instead of a panel: two face-down
@@ -16,9 +18,16 @@ using Poker.Rules;
 [GlobalClass]
 public partial class PokerSeatPresenter : Node3D
 {
+	/// <summary>
+	/// Reconnect/new-hand policy: never replay stale local events. Discard unfinished motion and
+	/// rebuild the latest public board, bets, banks and organized pot in one hidden update.
+	/// </summary>
+	public const string InterruptedPresentationPolicy = "SnapToAuthoritativeState";
+
 	[Export] public PackedScene CardScene;
 	[Export] public PokerBoardPresenter BoardPresenter;
 	[Export] public Node3D Seats;
+	[Export] public PokerPresentationProfile PresentationProfile;
 
 	[ExportGroup("Labels")]
 	[Export] public float NameHeight = 0.16f;
@@ -94,7 +103,7 @@ public partial class PokerSeatPresenter : Node3D
 
 	[ExportGroup("Betting chips")]
 	/// <summary>How long chips take to go from a stack to the middle.</summary>
-	[Export] public float ChipFlightSeconds = 0.68f;
+	public float ChipFlightSeconds { get => Profile.ChipFlightSeconds; set => Profile.ChipFlightSeconds = value; }
 
 	/// <summary>Height of the short toss/push above the felt.</summary>
 	[Export] public float ChipFlightArc = 0.042f;
@@ -111,22 +120,27 @@ public partial class PokerSeatPresenter : Node3D
 	[Export] public float BankColumnSpacing = 0.034f;
 
 	[ExportGroup("Presentation sequence")]
-	[Export] public float ChipLandingSeconds = 0.28f;
-	[Export] public float ChipCollectSeconds = 0.62f;
-	[Export] public float ChipOrganizeSeconds = 0.46f;
-	[Export] public float ChipCollectStagger = 0.08f;
-	[Export] public float ChipPayoutSeconds = 0.82f;
-	[Export] public float ChipPayoutStagger = 0.045f;
+	public float ChipLandingSeconds { get => Profile.ChipLandingSeconds; set => Profile.ChipLandingSeconds = value; }
+	public float ChipCollectSeconds { get => Profile.ChipCollectSeconds; set => Profile.ChipCollectSeconds = value; }
+	public float ChipOrganizeSeconds { get => Profile.ChipOrganizeSeconds; set => Profile.ChipOrganizeSeconds = value; }
+	public float ChipCollectStagger { get => Profile.ChipCollectStagger; set => Profile.ChipCollectStagger = value; }
+	public float ChipPayoutSeconds { get => Profile.ChipPayoutSeconds; set => Profile.ChipPayoutSeconds = value; }
+	public float ChipPayoutStagger { get => Profile.ChipPayoutStagger; set => Profile.ChipPayoutStagger = value; }
 	[Export] public float PotColumnSpacing = 0.050f;
-	[Export] public int ChipBatchPoolSize = 80;
+	/// <summary>
+	/// Maximum ordinary number of independently moving chip groups. Above this, chips of the same
+	/// denomination travel together; denomination columns and represented value remain exact.
+	/// </summary>
+	public int MaxAnimatedChipGroups { get => Profile.MaxAnimatedChipGroups; set => Profile.MaxAnimatedChipGroups = value; }
+	[Export] public int ChipBatchPoolSize = PokerPresentationTiming.DefaultMaxAnimatedChipGroups;
 	[Export] public int PrewarmedChipsPerBatch = 1;
 
 	[ExportGroup("Showdown comparison")]
 	/// <summary>Time left for everyone to read the exposed hole cards before ranking rearranges them.</summary>
-	[Export] public float ShowdownRevealHoldSeconds = 2.5f;
-	[Export] public float ShowdownCardSeconds = 0.72f;
-	[Export] public float ShowdownRowStagger = 0.12f;
-	[Export] public float ShowdownCardStagger = 0.035f;
+	public float ShowdownRevealHoldSeconds { get => Profile.ShowdownRevealHoldSeconds; set => Profile.ShowdownRevealHoldSeconds = value; }
+	public float ShowdownCardSeconds { get => Profile.ShowdownCardSeconds; set => Profile.ShowdownCardSeconds = value; }
+	public float ShowdownRowStagger { get => Profile.ShowdownRowStagger; set => Profile.ShowdownRowStagger = value; }
+	public float ShowdownCardStagger { get => Profile.ShowdownCardStagger; set => Profile.ShowdownCardStagger = value; }
 	[Export] public float ShowdownRowSpacing = 0.118f;
 	[Export] public float ShowdownCardSpacing = 0.075f;
 	[Export] public float ShowdownArc = 0.034f;
@@ -136,44 +150,10 @@ public partial class PokerSeatPresenter : Node3D
 	/// <summary>Placeholder knuckle on wood. Any short, dry hit reads correctly.</summary>
 	[Export] public AudioStream KnockSound;
 
-	private enum ChipBatchPhase
-	{
-		Unused,
-		ToBet,
-		Landing,
-		AtBet,
-		ToPot,
-		AtPotLoose,
-		Organizing,
-		InPot,
-		ToWinner,
-		AtWinner,
-	}
-
-	/// <summary>
-	/// One persistent group of physical chips. The same nodes travel from the stack to the bet and
-	/// later into the pot; changing phase never clears or rebuilds them.
-	/// </summary>
-	private sealed class ChipBatch
-	{
-		public PokerChipPile Pile;
-		public ChipBatchPhase Phase;
-		public string PlayerId = "";
-		public int Amount;
-		public float Progress;
-		public float Delay;
-		public Vector3 From;
-		public Vector3 To;
-		public Vector3 OrganizeFrom;
-		public Vector3 OrganizeTo;
-		public float StartSpread;
-		public Basis Basis = Basis.Identity;
-		public int Sequence;
-		public bool JustStarted;
-		public string WinnerId = "";
-		public Basis FromBasis = Basis.Identity;
-		public Basis ToBasis = Basis.Identity;
-	}
+	[ExportGroup("Dealer change")]
+	[Export] public AudioStream DealerChangeSound;
+	[Export] public AnimationPlayer DealerAnimator;
+	[Export] public string DealerChangeAnimation = "ExchangeChips";
 
 	private readonly struct PendingChipAction
 	{
@@ -191,19 +171,11 @@ public partial class PokerSeatPresenter : Node3D
 		}
 	}
 
-	private sealed class ShowdownCardMove
-	{
-		public PokerCard Card;
-		public Transform3D From;
-		public Transform3D To;
-		public float Delay;
-		public bool Settled;
-	}
-
 	private readonly Dictionary<string, SeatHand> _holeCards = new();
 	private bool _lastPickedUp;
 	private int _lastGestureToken = -1;
 	private AudioStreamPlayer3D _knock;
+	private AudioStreamPlayer3D _dealerChangeAudio;
 
 	/// <summary>
 	/// Whether this peer's own pair has finished arriving. The hand view waits on it before playing
@@ -212,17 +184,14 @@ public partial class PokerSeatPresenter : Node3D
 	public bool LocalHandLanded { get; private set; }
 	private readonly Dictionary<string, PokerChipPile> _stacks = new();
 	private readonly Dictionary<string, Label3D> _names = new();
-	private readonly List<ChipBatch> _chipBatches = new();
+	private PokerChipAnimator _chipAnimator;
 	private readonly Queue<PendingChipAction> _pendingChipActions = new();
 	private readonly Dictionary<string, int> _observedStacks = new();
 	private readonly Dictionary<string, int> _observedCommitted = new();
 	private readonly Dictionary<string, int> _displayStacks = new();
 	private readonly Dictionary<string, List<ChipRun>> _bankRuns = new();
-	private readonly List<PokerCard> _showdownCardPool = new();
-	private readonly List<Label3D> _showdownLabels = new();
-	private readonly List<Color> _showdownLabelColors = new();
-	private readonly List<ShowdownCardMove> _showdownMoves = new();
-	private readonly List<string> _showdownDisplayOrder = new();
+	private PokerShowdownPresenter _showdownPresenter;
+	private PokerPayoutSequencer _payoutSequencer;
 	private int _presentationHand = -1;
 	private int _presentationActionSeq = -1;
 	private PokerStreet _visibleStreet = PokerStreet.Preflop;
@@ -231,16 +200,11 @@ public partial class PokerSeatPresenter : Node3D
 	private bool _organizing;
 	private bool _collectionRequested;
 	private bool _settlementCollected;
-	private bool _payoutStarted;
-	private bool _payoutCompleted;
-	private int _showdownHand = -1;
-	private bool _showdownPresentationActive;
-	private bool _showdownPresentationSettled;
-	private float _showdownElapsed;
-	private float _showdownRevealHoldElapsed;
 	private bool _lastPresentationReady;
 	private int _nextChipSequence;
 	private MeshInstance3D _dealerButton;
+	public bool LastRecoveryDiscardedAnimation { get; private set; }
+	private PokerPresentationProfile Profile => PresentationProfile ??= new PokerPresentationProfile();
 
 	public override void _Ready()
 	{
@@ -252,7 +216,7 @@ public partial class PokerSeatPresenter : Node3D
 			new Callable(this, MethodName.Refresh));
 
 		BuildChipBatchPool();
-		BuildShowdownPool();
+		BuildPresentationComponents();
 	}
 
 	public override void _ExitTree()
@@ -476,7 +440,7 @@ public partial class PokerSeatPresenter : Node3D
 		var turned = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
 		var deck = BoardPresenter.DeckPosition;
 
-		if (_showdownPresentationActive && shown)
+		if ((_showdownPresenter?.Active ?? false) && shown)
 		{
 			foreach (var source in hand.Cards)
 				source.Visible = false;
@@ -697,7 +661,11 @@ public partial class PokerSeatPresenter : Node3D
 		}
 
 		moved |= AdvanceChipPresentation((float)delta);
-		moved |= AdvanceShowdownPresentation((float)delta);
+		var showdownBlocked = _collecting || _organizing || _collectionRequested
+			|| HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
+				ChipBatchPhase.ToPot, ChipBatchPhase.Organizing)
+			|| _holeCards.Values.Any(hand => hand.Returning);
+		moved |= _showdownPresenter?.Advance((float)delta, showdownBlocked) ?? false;
 
 		// Only when something actually changed: this presenter redraws every seat's chips and
 		// labels, and there is no reason to pay for that on a still table.
@@ -812,7 +780,7 @@ public partial class PokerSeatPresenter : Node3D
 		// restart from another refresh of the same hand and prevents the old pot/street from leaking in.
 		if (_presentationHand != _game.HandNumber || _game.ActionSeq < _presentationActionSeq)
 		{
-			ResetChipPresentation(spec);
+			SnapToAuthoritativeState(spec);
 			return;
 		}
 
@@ -843,19 +811,30 @@ public partial class PokerSeatPresenter : Node3D
 		RememberPublicChipState();
 	}
 
-	private void ResetChipPresentation(PokerLayoutSpec spec)
+	/// <summary>Public recovery hook for a peer that has just received a fresh authoritative snapshot.</summary>
+	public void SnapToAuthoritativeState()
 	{
-		ResetShowdownPresentation();
+		if (_game != null && BoardPresenter != null)
+			SnapToAuthoritativeState(BoardPresenter.Spec);
+	}
+
+	private void SnapToAuthoritativeState(PokerLayoutSpec spec)
+	{
+		LastRecoveryDiscardedAnimation = _presentationHand >= 0
+			&& (_pendingChipActions.Count > 0 || _collecting || _organizing || _collectionRequested
+				|| HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
+					ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner)
+				|| ((_showdownPresenter?.Active ?? false) && !(_showdownPresenter?.ReadyForPayout ?? true)));
+		_showdownPresenter?.Reset();
 		_presentationHand = _game.HandNumber;
 		_presentationActionSeq = _game.ActionSeq;
-		_visibleStreet = PokerStreet.Preflop;
+		_visibleStreet = _game.Street;
 		_requestedStreet = _game.Street;
 		_collecting = false;
 		_organizing = false;
 		_collectionRequested = false;
-		_settlementCollected = false;
-		_payoutStarted = false;
-		_payoutCompleted = false;
+		_settlementCollected = _game.HandSettled;
+		_payoutSequencer?.Reset(_game.HandSettled);
 		_pendingChipActions.Clear();
 		_observedStacks.Clear();
 		_observedCommitted.Clear();
@@ -863,10 +842,9 @@ public partial class PokerSeatPresenter : Node3D
 		_bankRuns.Clear();
 		_nextChipSequence = 0;
 
-		foreach (var batch in _chipBatches)
-			ResetBatch(batch);
+		_chipAnimator?.ResetAll();
 
-		BoardPresenter.EnablePresentationGate(PokerStreet.Preflop);
+		BoardPresenter.EnablePresentationGate(_visibleStreet);
 
 		foreach (var playerId in _game.SeatOrder)
 		{
@@ -877,9 +855,15 @@ public partial class PokerSeatPresenter : Node3D
 				PlaceInitialBet(playerId, blind, spec);
 		}
 
+		// PotInMiddle is already authoritative on a late join. Replaying historical calls would be
+		// both impossible and visually misleading, so reconstruct the same denomination columns now.
+		if (!_game.HandSettled && _game.PotInMiddle > 0)
+			PlaceOrganizedPotSnapshot(_game.PotInMiddle);
+
+		if (_game.HandSettled)
+			_showdownPresenter?.Reset(authoritativeSettled: true, hand: _game.HandNumber);
+
 		RememberPublicChipState();
-		if (_requestedStreet > _visibleStreet)
-			_collectionRequested = true;
 	}
 
 	private void RememberPublicChipState()
@@ -898,7 +882,7 @@ public partial class PokerSeatPresenter : Node3D
 		&& !_organizing
 		&& !_collectionRequested
 		&& !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
-			ChipBatchPhase.Organizing, ChipBatchPhase.ToWinner)
+			ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner)
 		&& _visibleStreet >= _requestedStreet
 		&& (BoardPresenter?.Settled ?? true);
 
@@ -907,44 +891,15 @@ public partial class PokerSeatPresenter : Node3D
 	/// regression aid: their identity must survive landing, collection and organization.
 	/// </summary>
 	public IReadOnlyList<ulong> ActiveChipVisualIds()
-	{
-		var ids = new List<ulong>();
-		foreach (var batch in _chipBatches)
-		{
-			if (batch.Phase == ChipBatchPhase.Unused || batch.Pile == null)
-				continue;
-
-			foreach (var child in batch.Pile.GetChildren())
-			{
-				if (child is Node3D { Visible: true } visual)
-					ids.Add(visual.GetInstanceId());
-			}
-		}
-
-		return ids;
-	}
+		=> _chipAnimator?.ActiveVisualIds() ?? System.Array.Empty<ulong>();
 
 	/// <summary>Current table-local positions keyed by persistent chip instance.</summary>
 	public IReadOnlyDictionary<ulong, Vector3> ActiveChipVisualPositions()
-	{
-		var positions = new Dictionary<ulong, Vector3>();
-		foreach (var batch in _chipBatches)
-		{
-			if (batch.Phase == ChipBatchPhase.Unused || batch.Pile == null)
-				continue;
-
-			foreach (var child in batch.Pile.GetChildren())
-			{
-				if (child is Node3D { Visible: true } visual)
-					positions[visual.GetInstanceId()] = batch.Pile.Transform * visual.Position;
-			}
-		}
-
-		return positions;
-	}
+		=> _chipAnimator?.ActiveVisualPositions()
+			?? new Dictionary<ulong, Vector3>();
 
 	/// <summary>Regression guard for the first rendered frame of a call or raise.</summary>
-	public bool NewlyStartedBatchesAreAtTheirOrigin => _chipBatches.All(batch =>
+	public bool NewlyStartedBatchesAreAtTheirOrigin => _chipAnimator.Batches.All(batch =>
 		batch.Phase != ChipBatchPhase.ToBet || batch.Progress > 0.0f
 		|| batch.Pile.Position.DistanceTo(batch.From) < 0.0001f);
 
@@ -977,10 +932,10 @@ public partial class PokerSeatPresenter : Node3D
 		return positions;
 	}
 
-	public bool BetsAreVisuallyLoose => _chipBatches.Any(batch =>
+	public bool BetsAreVisuallyLoose => _chipAnimator.Batches.Any(batch =>
 		batch.Phase == ChipBatchPhase.AtBet && batch.Pile.Spread > 0.95f);
 
-	public bool PotIsLooseWhileOrganizing => _chipBatches.Any(batch =>
+	public bool PotIsLooseWhileOrganizing => _chipAnimator.Batches.Any(batch =>
 		batch.Phase == ChipBatchPhase.Organizing && batch.Progress < 0.25f
 		&& batch.Pile.Spread > 0.70f);
 
@@ -989,7 +944,7 @@ public partial class PokerSeatPresenter : Node3D
 		get
 		{
 			var found = false;
-			foreach (var batch in _chipBatches)
+			foreach (var batch in _chipAnimator.Batches)
 			{
 				if (batch.Phase != ChipBatchPhase.InPot)
 					continue;
@@ -1002,17 +957,27 @@ public partial class PokerSeatPresenter : Node3D
 	}
 
 	/// <summary>Number of denomination columns currently visible in the organized pot.</summary>
-	public int PotDenominationColumnCount => _chipBatches
+	public int PotDenominationColumnCount => _chipAnimator.Batches
 		.Where(batch => batch.Phase == ChipBatchPhase.InPot)
 		.Select(DenominationOf).Where(value => value > 0).Distinct().Count();
 
-	public bool PayoutStarted => _payoutStarted;
-	public bool PayoutCompleted => _payoutCompleted;
-	public int ChipsDeliveredToWinners => _chipBatches.Count(batch =>
+	public bool PayoutStarted => _payoutSequencer?.Started ?? false;
+	public bool PayoutCompleted => _payoutSequencer?.Completed ?? false;
+	public bool DealerChangeInProgress => _payoutSequencer?.DealerChangeInProgress ?? false;
+	public bool DealerChangeCompleted => _payoutSequencer?.DealerChangeCompleted ?? false;
+	public int ChipsDeliveredToWinners => _chipAnimator.Batches.Count(batch =>
 		batch.Phase == ChipBatchPhase.AtWinner);
-	public int PayoutRecipientCount => _chipBatches
+	public int PayoutRecipientCount => _chipAnimator.Batches
 		.Where(batch => batch.Phase == ChipBatchPhase.AtWinner)
 		.Select(batch => batch.WinnerId).Where(id => !string.IsNullOrEmpty(id)).Distinct().Count();
+	public int ActiveChipGroupCount => _chipAnimator?.ActiveBatchCount ?? 0;
+	public int PayoutPhysicalValueOf(string playerId) => _chipAnimator?.Batches
+		.Where(batch => batch.Phase == ChipBatchPhase.AtWinner && batch.WinnerId == playerId)
+		.Sum(batch => batch.Amount) ?? 0;
+	public IReadOnlyList<int> PotPhysicalGroupValues() => _chipAnimator?.Batches
+		.Where(batch => batch.Phase == ChipBatchPhase.InPot)
+		.OrderByDescending(batch => batch.Amount).ThenBy(batch => batch.Sequence)
+		.Select(batch => batch.Amount).ToList() ?? new List<int>();
 
 	/// <summary>
 	/// Stack value currently represented on the cloth. This deliberately trails the authoritative
@@ -1024,100 +989,148 @@ public partial class PokerSeatPresenter : Node3D
 
 	private void BuildChipBatchPool()
 	{
-		for (var i = _chipBatches.Count; i < Mathf.Max(1, ChipBatchPoolSize); i++)
+		_chipAnimator = GetNodeOrNull<PokerChipAnimator>("ChipAnimator");
+		if (_chipAnimator == null)
 		{
-			var pile = new PokerChipPile
-			{
-				Name = $"ChipBatch{i}",
-				ChipScene = _game?.ChipScene,
-				Scatter = ChipScatter,
-				CombineRunsIntoColumns = true,
-				LooseWhenSpread = true,
-				Spread = 0.0f,
-				// The batch root owns take-off and landing. Letting PokerChipPile start its own
-				// settle-drop here made the chip jump vertically for a frame before the throw.
-				SettleSeconds = 0.0f,
-			};
-
-			AddChild(pile);
-			pile.Prewarm(Mathf.Max(1, PrewarmedChipsPerBatch));
-			pile.Visible = false;
-			_chipBatches.Add(new ChipBatch { Pile = pile, Phase = ChipBatchPhase.Unused });
+			_chipAnimator = new PokerChipAnimator { Name = "ChipAnimator" };
+			AddChild(_chipAnimator);
 		}
+
+		_chipAnimator.Configure(_game?.ChipScene, ChipScatter,
+			ChipBatchPoolSize, PrewarmedChipsPerBatch,
+			ChipFlightSeconds, ChipFlightArc, ChipLandingSeconds,
+			ChipCollectSeconds, ChipOrganizeSeconds, ChipPayoutSeconds,
+			Profile.DealerChangeSeconds);
 	}
 
-	private ChipBatch AcquireBatch()
+	private void BuildPresentationComponents()
 	{
-		foreach (var batch in _chipBatches)
+		_showdownPresenter = GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter");
+		if (_showdownPresenter == null)
 		{
-			if (batch.Phase == ChipBatchPhase.Unused)
-				return batch;
+			_showdownPresenter = new PokerShowdownPresenter { Name = "ShowdownPresenter" };
+			AddChild(_showdownPresenter);
 		}
+		_showdownPresenter.Configure(_game, BoardPresenter, CardScene, Profile,
+			ShowdownSourceTransform, NameOf, HideShowdownSources,
+			ShowdownRowSpacing, ShowdownCardSpacing, ShowdownArc,
+			ShowdownWinnerColor, ShowdownOtherColor);
 
-		// A very long hand may exceed the warm pool. Growing here is a safe fallback; normal play
-		// never takes it, so actions remain allocation-free.
-		var pile = new PokerChipPile
+		_payoutSequencer = GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer");
+		if (_payoutSequencer == null)
 		{
-			Name = $"ChipBatch{_chipBatches.Count}",
-			ChipScene = _game?.ChipScene,
-			Scatter = ChipScatter,
-			CombineRunsIntoColumns = true,
-			LooseWhenSpread = true,
-			SettleSeconds = 0.0f,
+			_payoutSequencer = new PokerPayoutSequencer { Name = "PayoutSequencer" };
+			AddChild(_payoutSequencer);
+		}
+		_payoutSequencer.Configure(_chipAnimator, Profile, MaxAnimatedChipGroups,
+			AcquireBatch, NextChipSequence, TryPayoutSeatPlaces, WinnerStackOffset);
+		SignalUtil.ConnectGuarded(_payoutSequencer,
+			PokerPayoutSequencer.SignalName.DealerChangeStarted,
+			new Callable(this, MethodName.OnDealerChangeStarted));
+	}
+
+	private void OnDealerChangeStarted()
+	{
+		if (DealerAnimator != null && !string.IsNullOrWhiteSpace(DealerChangeAnimation)
+			&& DealerAnimator.HasAnimation(DealerChangeAnimation))
+			DealerAnimator.Play(DealerChangeAnimation);
+
+		if (DealerChangeSound == null)
+			return;
+		_dealerChangeAudio ??= new AudioStreamPlayer3D
+		{
+			Name = "DealerChangeAudio",
+			UnitSize = 2.0f,
+			MaxDistance = 10.0f,
 		};
-		AddChild(pile);
-		pile.Prewarm(Mathf.Max(1, PrewarmedChipsPerBatch));
-		var extra = new ChipBatch { Pile = pile, Phase = ChipBatchPhase.Unused };
-		_chipBatches.Add(extra);
-		return extra;
+		if (_dealerChangeAudio.GetParent() == null)
+			AddChild(_dealerChangeAudio);
+		_dealerChangeAudio.Position = BoardPresenter.DeckPosition;
+		_dealerChangeAudio.Stream = DealerChangeSound;
+		_dealerChangeAudio.Play();
 	}
 
-	private static void ResetBatch(ChipBatch batch)
+	private int NextChipSequence() => _nextChipSequence++;
+
+	private bool TryPayoutSeatPlaces(string playerId, out Basis basis, out Vector3 stack)
+		=> TrySeatChipPlaces(playerId, BoardPresenter.Spec, out basis, out stack, out _);
+
+	private void HideShowdownSources(IReadOnlyList<string> players)
 	{
-		// Hide first: a pooled batch may still be parked at last action's destination.
-		batch.Pile.Visible = false;
-		batch.Phase = ChipBatchPhase.Unused;
-		batch.PlayerId = "";
-		batch.Amount = 0;
-		batch.Progress = 0.0f;
-		batch.Delay = 0.0f;
-		batch.Sequence = -1;
-		batch.JustStarted = false;
-		batch.WinnerId = "";
-		batch.FromBasis = Basis.Identity;
-		batch.ToBasis = Basis.Identity;
-		batch.Pile.FlightProgress = 1.0f;
-		batch.Pile.Spread = 0.0f;
-		batch.Pile.LooseSlotOffset = 0;
-		batch.Pile.Clear();
-		batch.Pile.Transform = Transform3D.Identity;
+		for (var index = 0; index < PokerDeal.BoardCount; index++)
+		{
+			var source = BoardPresenter.BoardCardNodeAt(index);
+			if (source != null)
+				source.Visible = false;
+		}
+		foreach (var playerId in players)
+		{
+			if (!_holeCards.TryGetValue(playerId, out var hand))
+				continue;
+			foreach (var source in hand.Cards)
+				source.Visible = false;
+		}
 	}
+
+	private ChipBatch AcquireBatch() => _chipAnimator.Acquire();
 
 	private void PlaceInitialBet(string playerId, int amount, PokerLayoutSpec spec)
 	{
 		if (!TrySeatChipPlaces(playerId, spec, out var basis, out _, out var bet))
 			return;
 
-		foreach (var run in PokerChipStack.Decompose(amount))
+		var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
+		foreach (var run in PokerChipAnimator.GroupRuns(PokerChipStack.Decompose(amount), available))
 		{
-			for (var chip = 0; chip < run.Count; chip++)
-			{
-				var batch = AcquireBatch();
-				batch.PlayerId = playerId;
-				batch.Amount = run.Denomination;
-				batch.Basis = basis;
-				batch.Sequence = _nextChipSequence++;
-				batch.Phase = ChipBatchPhase.AtBet;
-				batch.To = bet;
-				batch.Pile.Visible = false;
-				batch.Pile.Transform = new Transform3D(basis, batch.To);
-				batch.Pile.LooseSlotOffset = NextBetLooseSlot(playerId);
-				batch.Pile.Spread = 1.0f;
-				batch.Pile.FlightProgress = 1.0f;
-				batch.Pile.SetRuns(new[] { new ChipRun(run.Denomination, 1) });
-				batch.Pile.Visible = true;
-			}
+			var batch = AcquireBatch();
+			batch.PlayerId = playerId;
+			batch.Amount = run.Value;
+			batch.Basis = basis;
+			batch.Sequence = _nextChipSequence++;
+			batch.Phase = ChipBatchPhase.AtBet;
+			batch.To = bet;
+			batch.Pile.Visible = false;
+			batch.Pile.Transform = new Transform3D(basis, batch.To);
+			batch.Pile.LooseSlotOffset = NextBetLooseSlot(playerId);
+			batch.Pile.Spread = 1.0f;
+			batch.Pile.FlightProgress = 1.0f;
+			batch.Pile.SetRuns(new[] { run });
+			batch.Pile.Visible = true;
 		}
+	}
+
+	private void PlaceOrganizedPotSnapshot(int amount)
+	{
+		var centre = BoardPresenter.PotPosition;
+		var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
+		foreach (var run in PokerChipAnimator.GroupRuns(PokerChipStack.Decompose(amount), available))
+		{
+			var batch = AcquireBatch();
+			batch.Amount = run.Value;
+			batch.Sequence = _nextChipSequence++;
+			batch.Basis = Basis.Identity;
+			batch.From = centre;
+			batch.To = centre;
+			batch.Phase = ChipBatchPhase.AtPotLoose;
+			batch.Pile.Visible = false;
+			batch.Pile.Transform = new Transform3D(Basis.Identity, centre);
+			batch.Pile.Spread = 1.0f;
+			batch.Pile.FlightProgress = 1.0f;
+			batch.Pile.SetRuns(new[] { run });
+			batch.Pile.Visible = true;
+		}
+
+		BeginOrganization();
+		foreach (var batch in _chipAnimator.Batches)
+		{
+			if (batch.Phase != ChipBatchPhase.Organizing)
+				continue;
+			batch.Pile.Transform = new Transform3D(batch.ToBasis, batch.OrganizeTo);
+			batch.Pile.Spread = 0.0f;
+			batch.Progress = 1.0f;
+			batch.Phase = ChipBatchPhase.InPot;
+		}
+		_organizing = false;
 	}
 
 	private bool StartChipAction(PendingChipAction action)
@@ -1137,45 +1150,45 @@ public partial class PokerSeatPresenter : Node3D
 			&& _bankRuns.TryGetValue(action.PlayerId, out var bank))
 			bankPile.SetRuns(bank);
 
-		var physicalIndex = 0;
-		foreach (var run in payment)
+		var groupIndex = 0;
+		var paidByDenomination = new Dictionary<int, int>();
+		var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
+		foreach (var run in PokerChipAnimator.GroupRuns(payment, available))
 		{
-			for (var chip = 0; chip < run.Count; chip++)
-			{
-				var batch = AcquireBatch();
-				batch.PlayerId = action.PlayerId;
-				batch.Amount = run.Denomination;
-				batch.Basis = basis;
-				batch.Sequence = _nextChipSequence++;
-				batch.To = bet;
-				batch.Progress = 0.0f;
-				batch.Delay = physicalIndex++ * 0.025f;
-				batch.Phase = ChipBatchPhase.ToBet;
-				var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
-					? PaymentDepartureOffset(bankAfter, run.Denomination, chip, bankPile)
-					: Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
-				batch.From = stack + basis * departure;
+			var batch = AcquireBatch();
+			batch.PlayerId = action.PlayerId;
+			batch.Amount = run.Value;
+			batch.Basis = basis;
+			batch.Sequence = _nextChipSequence++;
+			batch.To = bet;
+			batch.Progress = 0.0f;
+			batch.Delay = groupIndex++ * Profile.ChipFlightStagger;
+			batch.Phase = ChipBatchPhase.ToBet;
+			var paidBefore = paidByDenomination.GetValueOrDefault(run.Denomination);
+			paidByDenomination[run.Denomination] = paidBefore + run.Count;
+			var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
+				? PaymentDepartureOffset(bankAfter, run.Denomination, paidBefore, bankPile)
+				: Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
+			batch.From = stack + basis * departure;
 
-				// Configure while hidden and reveal at the physical source, never at the pooled
-				// node's previous destination. One chip per batch also prevents a group from briefly
-				// changing shape when its denominations separate.
-				batch.Pile.Visible = false;
-				batch.Pile.Transform = new Transform3D(basis, batch.From);
-				batch.Pile.LooseSlotOffset = NextBetLooseSlot(action.PlayerId);
-				batch.Pile.Spread = 0.0f;
-				batch.Pile.FlightProgress = 0.0f;
-				batch.Pile.SetRuns(new[] { new ChipRun(run.Denomination, 1) });
-				batch.JustStarted = true;
-				batch.Pile.Visible = true;
-			}
+			// Configure while hidden and reveal at the real physical source. A large stack may travel
+			// as a compact same-denomination group, but it never changes value or chip type in flight.
+			batch.Pile.Visible = false;
+			batch.Pile.Transform = new Transform3D(basis, batch.From);
+			batch.Pile.LooseSlotOffset = NextBetLooseSlot(action.PlayerId);
+			batch.Pile.Spread = 0.0f;
+			batch.Pile.FlightProgress = 0.0f;
+			batch.Pile.SetRuns(new[] { run });
+			batch.JustStarted = true;
+			batch.Pile.Visible = true;
 		}
-		return physicalIndex > 0;
+		return groupIndex > 0;
 	}
 
 	private int NextBetLooseSlot(string playerId)
 	{
 		var next = 0;
-		foreach (var batch in _chipBatches)
+		foreach (var batch in _chipAnimator.Batches)
 		{
 			if (batch.PlayerId != playerId || batch.Phase is not
 				(ChipBatchPhase.ToBet or ChipBatchPhase.Landing or ChipBatchPhase.AtBet))
@@ -1273,36 +1286,20 @@ public partial class PokerSeatPresenter : Node3D
 			moved |= StartChipAction(next);
 		}
 
-		foreach (var batch in _chipBatches)
+		foreach (var batch in _chipAnimator.Batches)
 		{
-			switch (batch.Phase)
+			var phaseBefore = batch.Phase;
+			moved |= _chipAnimator.Advance(batch, delta);
+			if (phaseBefore == ChipBatchPhase.ToWinner
+				&& batch.Phase == ChipBatchPhase.AtWinner)
 			{
-				case ChipBatchPhase.ToBet:
-					AdvanceToBet(batch, delta);
-					moved = true;
-					break;
-
-				case ChipBatchPhase.Landing:
-					AdvanceLanding(batch, delta);
-					moved = true;
-					break;
-
-				case ChipBatchPhase.ToPot:
-					AdvanceToPot(batch, delta);
-					moved = true;
-					break;
-
-				case ChipBatchPhase.Organizing:
-					AdvanceOrganization(batch, delta);
-					moved = true;
-					break;
-
-				case ChipBatchPhase.ToWinner:
-					AdvanceToWinner(batch, delta);
-					moved = true;
-					break;
+				_displayStacks[batch.WinnerId] = Mathf.Min(_game.StackOf(batch.WinnerId),
+					_displayStacks.GetValueOrDefault(batch.WinnerId) + batch.Amount);
 			}
 		}
+
+		var payoutWasCompleted = _payoutSequencer?.Completed ?? false;
+		moved |= _payoutSequencer?.Advance() ?? false;
 
 		var visibleActionPending = _pendingChipActions.TryPeek(out var queued)
 			&& queued.Street <= _visibleStreet;
@@ -1332,69 +1329,18 @@ public partial class PokerSeatPresenter : Node3D
 
 		if (ShouldBeginPayout())
 		{
-			BeginPayout();
-			moved = true;
+			moved |= _payoutSequencer?.Begin(_game.Winners, _game.SeatOrder,
+				BoardPresenter.DeckPosition + Vector3.Up * 0.006f) ?? false;
 		}
 
-		if (_payoutStarted && !_payoutCompleted && !HasPhase(ChipBatchPhase.ToWinner))
+		if (!payoutWasCompleted && (_payoutSequencer?.Completed ?? false))
 		{
-			_payoutCompleted = true;
 			foreach (var winner in _game.Winners.Keys)
 				_displayStacks[winner] = _game.StackOf(winner);
 			moved = true;
 		}
 
 		return moved;
-	}
-
-	private void AdvanceToBet(ChipBatch batch, float delta)
-	{
-		// Preserve one complete rendered frame at the real source. Besides making the take-off readable,
-		// this prevents a newly reused batch from ever exposing its old destination transform.
-		if (batch.JustStarted)
-		{
-			batch.JustStarted = false;
-			batch.Pile.Transform = new Transform3D(batch.Basis, batch.From);
-			return;
-		}
-		if (batch.Delay > 0.0f)
-		{
-			batch.Delay = Mathf.Max(0.0f, batch.Delay - delta);
-			return;
-		}
-
-		batch.Progress = Mathf.Min(1.0f,
-			batch.Progress + delta / Mathf.Max(ChipFlightSeconds, 0.01f));
-		var path = PokerMotion.ChipThrow(
-			new Vector2(batch.From.X, batch.From.Z),
-			new Vector2(batch.To.X, batch.To.Z),
-			batch.Progress, ChipFlightArc,
-			PokerChipPile.Noise(batch.Amount, 14) * 0.010f);
-		var wave = Mathf.Sin(batch.Progress * Mathf.Pi);
-		var yaw = PokerChipPile.Noise(batch.Amount, 13) * 0.10f * wave;
-
-		batch.Pile.Transform = new Transform3D(batch.Basis * new Basis(Vector3.Up, yaw), path);
-		batch.Pile.FlightProgress = batch.Progress;
-		batch.Pile.Spread = PokerMotion.Smooth(batch.Progress);
-
-		if (batch.Progress < 1.0f)
-			return;
-
-		batch.Progress = 0.0f;
-		batch.Phase = ChipBatchPhase.Landing;
-		batch.Pile.FlightProgress = 1.0f;
-	}
-
-	private void AdvanceLanding(ChipBatch batch, float delta)
-	{
-		batch.Progress = Mathf.Min(1.0f,
-			batch.Progress + delta / Mathf.Max(ChipLandingSeconds, 0.01f));
-		var decay = 1.0f - batch.Progress;
-		var bounce = Mathf.Abs(Mathf.Sin(batch.Progress * Mathf.Pi * 2.0f)) * decay * 0.009f;
-		batch.Pile.Transform = new Transform3D(batch.Basis, batch.To + Vector3.Up * bounce);
-
-		if (batch.Progress >= 1.0f)
-			batch.Phase = ChipBatchPhase.AtBet;
 	}
 
 	private void BeginCollection()
@@ -1404,13 +1350,13 @@ public partial class PokerSeatPresenter : Node3D
 		var order = 0;
 		var looseSlot = 0;
 		var pot = BoardPresenter.PotPosition;
-		foreach (var batch in _chipBatches)
+		foreach (var batch in _chipAnimator.Batches)
 		{
 			if (batch.Phase == ChipBatchPhase.InPot)
 				looseSlot += batch.Pile.ChipCount;
 		}
 
-		foreach (var batch in _chipBatches)
+		foreach (var batch in _chipAnimator.Batches)
 		{
 			if (batch.Phase != ChipBatchPhase.AtBet)
 				continue;
@@ -1437,215 +1383,31 @@ public partial class PokerSeatPresenter : Node3D
 		}
 	}
 
-	private void AdvanceToPot(ChipBatch batch, float delta)
-	{
-		if (batch.Delay > 0.0f)
-		{
-			batch.Delay -= delta;
-			return;
-		}
-
-		batch.Progress = Mathf.Min(1.0f,
-			batch.Progress + delta / Mathf.Max(ChipCollectSeconds, 0.01f));
-		var path = PokerMotion.ChipThrow(
-			new Vector2(batch.From.X, batch.From.Z),
-			new Vector2(batch.To.X, batch.To.Z),
-			batch.Progress, 0.028f,
-			PokerChipPile.Noise(batch.Amount, 16) * 0.012f);
-		// All batches finish on the same world-aligned loose lattice. Interpolating the yaw during
-		// collection avoids rotating a player's already-landed chips in a single frame.
-		var rotation = new Transform3D(batch.Basis, Vector3.Zero).InterpolateWith(
-			new Transform3D(Basis.Identity, Vector3.Zero), PokerMotion.Smooth(batch.Progress)).Basis;
-		batch.Pile.Transform = new Transform3D(rotation, path);
-		batch.Pile.FlightProgress = batch.Progress;
-		batch.Pile.LooseLayoutProgress = PokerMotion.Smooth(batch.Progress);
-
-		if (batch.Progress >= 1.0f)
-		{
-			batch.Phase = ChipBatchPhase.AtPotLoose;
-			batch.Pile.FlightProgress = 1.0f;
-		}
-	}
-
 	private void BeginOrganization()
 	{
-		var potBatches = new List<ChipBatch>();
-		foreach (var batch in _chipBatches)
-		{
-			if (batch.Phase is ChipBatchPhase.AtPotLoose or ChipBatchPhase.InPot)
-				potBatches.Add(batch);
-		}
-
-		if (potBatches.Count == 0)
-		{
-			_organizing = true;
-			return;
-		}
-
 		_organizing = true;
-		var centre = BoardPresenter.PotPosition;
 		var reader = new Basis(Vector3.Up, ReaderYaw(Vector2.Down));
-		potBatches.Sort((left, right) => left.Sequence.CompareTo(right.Sequence));
-		var denominations = potBatches.Select(DenominationOf).Where(value => value > 0)
-			.Distinct().OrderByDescending(value => value).ToList();
-		var heights = denominations.ToDictionary(value => value, _ => 0.0f);
-
-		for (var i = 0; i < potBatches.Count; i++)
-		{
-			var batch = potBatches[i];
-			var denomination = DenominationOf(batch);
-			var lane = Mathf.Max(0, denominations.IndexOf(denomination));
-			var x = (lane - (denominations.Count - 1) * 0.5f) * PotColumnSpacing;
-			batch.OrganizeFrom = batch.Pile.Position;
-			batch.OrganizeTo = centre + reader * new Vector3(x, heights.GetValueOrDefault(denomination), 0.0f);
-			batch.FromBasis = batch.Pile.Basis;
-			batch.ToBasis = reader;
-			batch.StartSpread = batch.Pile.Spread;
-			batch.Progress = 0.0f;
-			batch.Phase = ChipBatchPhase.Organizing;
-			heights[denomination] = heights.GetValueOrDefault(denomination) + batch.Pile.TopHeight;
-		}
+		_chipAnimator.BeginOrganization(BoardPresenter.PotPosition, reader, PotColumnSpacing);
 	}
 
-	private void AdvanceOrganization(ChipBatch batch, float delta)
-	{
-		batch.Progress = Mathf.Min(1.0f,
-			batch.Progress + delta / Mathf.Max(ChipOrganizeSeconds, 0.01f));
-		var t = PokerMotion.Smooth(batch.Progress);
-		var basis = new Transform3D(batch.FromBasis, Vector3.Zero).InterpolateWith(
-			new Transform3D(batch.ToBasis, Vector3.Zero), t).Basis;
-		batch.Pile.Transform = new Transform3D(
-			basis, batch.OrganizeFrom.Lerp(batch.OrganizeTo, t));
-		batch.Pile.Spread = Mathf.Lerp(batch.StartSpread, 0.0f, t);
-
-		if (batch.Progress >= 1.0f)
-			batch.Phase = ChipBatchPhase.InPot;
-	}
-
-	private static int DenominationOf(ChipBatch batch) =>
-		batch?.Pile?.Runs.Count > 0 ? batch.Pile.Runs[0].Denomination : 0;
+	private static int DenominationOf(ChipBatch batch) => PokerChipAnimator.DenominationOf(batch);
 
 	private bool ShouldBeginPayout()
 	{
-		if (_payoutStarted || _payoutCompleted || !_game.HandSettled || !_settlementCollected
+		if ((_payoutSequencer?.Started ?? false) || (_payoutSequencer?.Completed ?? false)
+			|| !_game.HandSettled || !_settlementCollected
 			|| _collecting || _organizing || _collectionRequested
 			|| HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
-				ChipBatchPhase.ToPot, ChipBatchPhase.Organizing))
+				ChipBatchPhase.ToPot, ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer))
 			return false;
 
 		// In an uncontested hand there is no comparison to wait for. At a showdown, however, the
 		// chips only leave after everyone has read the revealed hands and the ranking is in place.
-		if (_game.RevealedHoleCards.Count > 0 && !_showdownPresentationSettled)
+		if (_game.RevealedHoleCards.Count > 0 && !(_showdownPresenter?.ReadyForPayout ?? false))
 			return false;
 
 		return _game.Winners.Count > 0
-			&& _chipBatches.Any(batch => batch.Phase == ChipBatchPhase.InPot);
-	}
-
-	private void BeginPayout()
-	{
-		var winners = _game.Winners.Where(entry => entry.Value > 0)
-			.OrderBy(entry => System.Array.IndexOf(_game.SeatOrder, entry.Key)).ToList();
-		var potChips = _chipBatches.Where(batch => batch.Phase == ChipBatchPhase.InPot)
-			.OrderByDescending(batch => batch.Amount).ThenBy(batch => batch.Sequence).ToList();
-		if (winners.Count == 0 || potChips.Count == 0)
-			return;
-
-		_payoutStarted = true;
-		var assignments = new Dictionary<ChipBatch, string>();
-		var recipients = AssignPayoutRecipients(
-			potChips.Select(batch => batch.Amount).ToList(), _game.Winners, _game.SeatOrder);
-		for (var i = 0; i < potChips.Count && i < recipients.Length; i++)
-			assignments[potChips[i]] = recipients[i];
-
-		var arrivals = new Dictionary<(string PlayerId, int Denomination), int>();
-		var order = 0;
-		foreach (var batch in assignments.Keys.OrderBy(batch => batch.Sequence))
-		{
-			var winnerId = assignments[batch];
-			if (!TrySeatChipPlaces(winnerId, BoardPresenter.Spec,
-					out var basis, out var stack, out _))
-				continue;
-
-			var denomination = DenominationOf(batch);
-			var key = (winnerId, denomination);
-			var arrival = arrivals.GetValueOrDefault(key);
-			arrivals[key] = arrival + 1;
-
-			batch.WinnerId = winnerId;
-			batch.From = batch.Pile.Position;
-			batch.To = stack + basis * WinnerStackOffset(
-				winnerId, denomination, arrival, batch.Pile);
-			batch.FromBasis = batch.Pile.Basis;
-			batch.ToBasis = basis;
-			batch.Progress = 0.0f;
-			batch.Delay = order++ * ChipPayoutStagger;
-			batch.JustStarted = true;
-			batch.Phase = ChipBatchPhase.ToWinner;
-			batch.Pile.FlightProgress = 0.0f;
-			batch.Pile.Spread = 0.0f;
-		}
-	}
-
-	/// <summary>
-	/// Maps physical pot chips to every paid player. Exact subsets are preferred; if a split requires
-	/// change that is not physically on the cloth (38/37 from three 25s, for example), it still gives
-	/// both players a visible delivery and lets the authoritative stack settle the change afterward.
-	/// </summary>
-	public static string[] AssignPayoutRecipients(
-		IReadOnlyList<int> chipValues, IReadOnlyDictionary<string, int> awards,
-		IReadOnlyList<string> seatOrder)
-	{
-		if (chipValues == null || awards == null)
-			return System.Array.Empty<string>();
-
-		var winners = awards.Where(entry => entry.Value > 0)
-			.OrderBy(entry => SeatIndexOf(seatOrder, entry.Key)).ToList();
-		if (winners.Count == 0)
-			return new string[chipValues.Count];
-
-		var remaining = winners.ToDictionary(entry => entry.Key, entry => entry.Value);
-		var recipients = Enumerable.Repeat("", chipValues.Count).ToArray();
-		var available = Enumerable.Range(0, chipValues.Count).ToList();
-
-		foreach (var winner in winners.OrderBy(entry => entry.Value))
-		{
-			if (available.Count == 0)
-				break;
-			var chosen = available.Where(index => chipValues[index] <= winner.Value)
-				.OrderByDescending(index => chipValues[index]).FirstOrDefault(-1);
-			if (chosen < 0)
-				chosen = available[^1];
-			recipients[chosen] = winner.Key;
-			remaining[winner.Key] -= chipValues[chosen];
-			available.Remove(chosen);
-		}
-
-		foreach (var index in available)
-		{
-			var value = chipValues[index];
-			var fitting = winners.Where(entry => remaining[entry.Key] >= value)
-				.OrderByDescending(entry => remaining[entry.Key]).FirstOrDefault();
-			var winnerId = !string.IsNullOrEmpty(fitting.Key)
-				? fitting.Key
-				: winners.OrderByDescending(entry => remaining[entry.Key]).First().Key;
-			recipients[index] = winnerId;
-			remaining[winnerId] -= value;
-		}
-
-		return recipients;
-	}
-
-	private static int SeatIndexOf(IReadOnlyList<string> seats, string playerId)
-	{
-		if (seats == null)
-			return int.MaxValue;
-		for (var i = 0; i < seats.Count; i++)
-		{
-			if (seats[i] == playerId)
-				return i;
-		}
-		return int.MaxValue;
+			&& _chipAnimator.Batches.Any(batch => batch.Phase == ChipBatchPhase.InPot);
 	}
 
 	private Vector3 WinnerStackOffset(
@@ -1663,64 +1425,20 @@ public partial class PokerSeatPresenter : Node3D
 			(existing + arrival) * movingPile.EffectiveThickness, 0.0f);
 	}
 
-	private void AdvanceToWinner(ChipBatch batch, float delta)
-	{
-		if (batch.JustStarted)
-		{
-			batch.JustStarted = false;
-			batch.Pile.Transform = new Transform3D(batch.FromBasis, batch.From);
-			return;
-		}
-		if (batch.Delay > 0.0f)
-		{
-			batch.Delay = Mathf.Max(0.0f, batch.Delay - delta);
-			return;
-		}
-
-		batch.Progress = Mathf.Min(1.0f,
-			batch.Progress + delta / Mathf.Max(ChipPayoutSeconds, 0.01f));
-		var t = PokerMotion.Smooth(batch.Progress);
-		var position = PokerMotion.ChipThrow(batch.From, batch.To, batch.Progress,
-			0.055f, PokerChipPile.Noise(batch.Sequence, 31) * 0.014f);
-		var basis = new Transform3D(batch.FromBasis, Vector3.Zero).InterpolateWith(
-			new Transform3D(batch.ToBasis, Vector3.Zero), t).Basis;
-		batch.Pile.Transform = new Transform3D(basis, position);
-		batch.Pile.FlightProgress = batch.Progress;
-
-		if (batch.Progress < 1.0f)
-			return;
-
-		batch.Pile.Transform = new Transform3D(batch.ToBasis, batch.To);
-		batch.Pile.FlightProgress = 1.0f;
-		batch.Phase = ChipBatchPhase.AtWinner;
-		_displayStacks[batch.WinnerId] = Mathf.Min(_game.StackOf(batch.WinnerId),
-			_displayStacks.GetValueOrDefault(batch.WinnerId) + batch.Amount);
-	}
-
-	private bool HasPhase(params ChipBatchPhase[] phases)
-	{
-		foreach (var batch in _chipBatches)
-		{
-			foreach (var phase in phases)
-			{
-				if (batch.Phase == phase)
-					return true;
-			}
-		}
-
-		return false;
-	}
+	private bool HasPhase(params ChipBatchPhase[] phases) =>
+		_chipAnimator?.HasPhase(phases) ?? false;
 
 	/// <summary>Whether the ranked five-card rows have finished reaching their comparison layout.</summary>
-	public bool ShowdownPresentationSettled => _showdownPresentationSettled;
+	public bool ShowdownPresentationSettled => _showdownPresenter?.Settled ?? false;
 
 	/// <summary>Elapsed portion of the face-up reading beat before ranking begins.</summary>
-	public float ShowdownRevealHoldElapsed => _showdownRevealHoldElapsed;
+	public float ShowdownRevealHoldElapsed => _showdownPresenter?.RevealHoldElapsed ?? 0.0f;
 
 	/// <summary>Players in the same best-to-worst order currently shown on the cloth.</summary>
-	public IReadOnlyList<string> ShowdownDisplayOrder => _showdownDisplayOrder;
+	public IReadOnlyList<string> ShowdownDisplayOrder =>
+		_showdownPresenter?.DisplayOrder ?? System.Array.Empty<string>();
 
-	public int ShowdownDisplayedCardCount => _showdownMoves.Count;
+	public int ShowdownDisplayedCardCount => _showdownPresenter?.DisplayedCardCount ?? 0;
 
 	public string DebugShowdownState()
 	{
@@ -1731,241 +1449,22 @@ public partial class PokerSeatPresenter : Node3D
 			if (hand.Returning)
 				returning++;
 		}
-		foreach (var batch in _chipBatches)
+		foreach (var batch in _chipAnimator.Batches)
 			phases[batch.Phase] = phases.GetValueOrDefault(batch.Phase) + 1;
 		var moving = new List<string>();
-		foreach (var batch in _chipBatches)
+		foreach (var batch in _chipAnimator.Batches)
 		{
 			if (batch.Phase is ChipBatchPhase.ToBet or ChipBatchPhase.Landing
-				or ChipBatchPhase.ToPot or ChipBatchPhase.Organizing)
+				or ChipBatchPhase.ToPot or ChipBatchPhase.Organizing or ChipBatchPhase.ToDealer)
 				moving.Add($"{batch.Phase}:{batch.Progress:F2}/{batch.Delay:F2}");
 		}
 
-		return $"active={_showdownPresentationActive} settled={_showdownPresentationSettled} "
-			+ $"hand={_game?.HandNumber}/{_showdownHand} result={_game?.HandSettled} "
+		return $"active={_showdownPresenter?.Active} settled={_showdownPresenter?.Settled} "
+			+ $"hand={_game?.HandNumber} result={_game?.HandSettled} "
 			+ $"reveals={_game?.RevealedHoleCards.Count} board={BoardPresenter?.Settled} "
 			+ $"pending={_pendingChipActions.Count} collect={_collecting}/{_organizing}/{_collectionRequested} "
 			+ $"returning={returning} visible={_visibleStreet} requested={_requestedStreet} "
 			+ $"phases={string.Join(",", phases)} moving={string.Join(",", moving)}";
-	}
-
-	private void BuildShowdownPool()
-	{
-		const int MaximumRows = 4;
-		const int CardsPerRow = 5;
-
-		for (var i = 0; i < MaximumRows * CardsPerRow; i++)
-		{
-			var card = _game?.CreateCard(CardScene);
-			if (card == null)
-				break;
-
-			card.Name = $"ShowdownCard{i}";
-			card.Visible = false;
-			AddChild(card);
-			_showdownCardPool.Add(card);
-		}
-
-		for (var i = 0; i < MaximumRows; i++)
-		{
-			var label = new Label3D
-			{
-				Name = $"ShowdownLabel{i}",
-				Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-				NoDepthTest = true,
-				PixelSize = 0.00020f,
-				FontSize = 64,
-				OutlineSize = 10,
-				Visible = false,
-			};
-
-			AddChild(label);
-			_showdownLabels.Add(label);
-			_showdownLabelColors.Add(ShowdownOtherColor);
-		}
-	}
-
-	private void ResetShowdownPresentation()
-	{
-		_showdownPresentationActive = false;
-		_showdownPresentationSettled = false;
-		_showdownHand = -1;
-		_showdownElapsed = 0.0f;
-		_showdownRevealHoldElapsed = 0.0f;
-		_showdownMoves.Clear();
-		_showdownDisplayOrder.Clear();
-
-		foreach (var card in _showdownCardPool)
-			card.Visible = false;
-		foreach (var label in _showdownLabels)
-			label.Visible = false;
-	}
-
-	private bool AdvanceShowdownPresentation(float delta)
-	{
-		if (!_showdownPresentationActive)
-			return TryStartShowdownPresentation(delta);
-
-		if (_showdownPresentationSettled)
-			return false;
-
-		_showdownElapsed += delta;
-		var allSettled = true;
-		for (var index = 0; index < _showdownMoves.Count; index++)
-		{
-			var move = _showdownMoves[index];
-			var raw = (_showdownElapsed - move.Delay) / Mathf.Max(ShowdownCardSeconds, 0.01f);
-			var t = Mathf.Clamp(raw, 0.0f, 1.0f);
-			if (t < 1.0f)
-				allSettled = false;
-
-			var position = PokerMotion.CardThrow(
-				move.From.Origin, move.To.Origin, t, ShowdownArc,
-				PokerChipPile.Noise(index, 24) * 0.010f);
-			var transform = move.From.InterpolateWith(move.To, PokerMotion.Smooth(t));
-			move.Card.Transform = new Transform3D(transform.Basis, position);
-			move.Settled = t >= 1.0f;
-		}
-
-		for (var row = 0; row < _showdownDisplayOrder.Count && row < _showdownLabels.Count; row++)
-		{
-			var delay = row * ShowdownRowStagger + ShowdownCardSeconds * 0.72f;
-			var alpha = PokerMotion.Smooth(Mathf.Clamp((_showdownElapsed - delay) / 0.24f, 0.0f, 1.0f));
-			var color = _showdownLabelColors[row];
-			color.A *= alpha;
-			_showdownLabels[row].Modulate = color;
-		}
-
-		_showdownPresentationSettled = allSettled;
-		return true;
-	}
-
-	private bool TryStartShowdownPresentation(float delta)
-	{
-		if (_game.HandNumber <= 0 || _showdownHand == _game.HandNumber
-			|| !_game.HandSettled || _game.RevealedHoleCards.Count == 0
-			|| BoardPresenter == null || !BoardPresenter.Settled
-			|| _collecting || _organizing || _collectionRequested
-			|| HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
-				ChipBatchPhase.ToPot, ChipBatchPhase.Organizing))
-		{
-			_showdownRevealHoldElapsed = 0.0f;
-			return false;
-		}
-
-		foreach (var hand in _holeCards.Values)
-		{
-			if (hand.Returning)
-			{
-				_showdownRevealHoldElapsed = 0.0f;
-				return false;
-			}
-		}
-
-		// The cards are now face up on the felt. Leave the original hands intact for a deliberate
-		// reading beat before the best-five comparison borrows and rearranges those visuals.
-		_showdownRevealHoldElapsed += Mathf.Max(0.0f, delta);
-		if (_showdownRevealHoldElapsed < Mathf.Max(0.0f, ShowdownRevealHoldSeconds))
-			return false;
-
-		var ranked = new List<(string PlayerId, PokerHandRank Rank, int[] Cards)>();
-		foreach (var entry in _game.RevealedHoleCards)
-		{
-			var rank = PokerHandEvaluator.Evaluate(entry.Value, _game.Board);
-			var cards = PokerHandEvaluator.BestFive(entry.Value, _game.Board);
-			if (cards.Length == 5)
-				ranked.Add((entry.Key, rank, cards));
-		}
-
-		ranked.Sort((left, right) =>
-		{
-			var strength = right.Rank.CompareTo(left.Rank);
-			if (strength != 0)
-				return strength;
-
-			return System.Array.IndexOf(_game.SeatOrder, left.PlayerId)
-				.CompareTo(System.Array.IndexOf(_game.SeatOrder, right.PlayerId));
-		});
-
-		if (ranked.Count == 0 || ranked.Count * 5 > _showdownCardPool.Count)
-			return false;
-
-		_showdownHand = _game.HandNumber;
-		_showdownPresentationActive = true;
-		_showdownPresentationSettled = false;
-		_showdownElapsed = 0.0f;
-		_showdownMoves.Clear();
-		_showdownDisplayOrder.Clear();
-
-		var spec = BoardPresenter.Spec;
-		var reader = new Basis(Vector3.Up, ReaderYaw(Vector2.Down));
-		var rowCentre = (ranked.Count - 1) * 0.5f;
-		var visualIndex = 0;
-
-		for (var row = 0; row < ranked.Count; row++)
-		{
-			var result = ranked[row];
-			_showdownDisplayOrder.Add(result.PlayerId);
-			var rowZ = (row - rowCentre) * ShowdownRowSpacing;
-			var isWinner = _game.Winners.ContainsKey(result.PlayerId);
-
-			for (var cardIndex = 0; cardIndex < result.Cards.Length; cardIndex++)
-			{
-				var cardId = result.Cards[cardIndex];
-				var card = _showdownCardPool[visualIndex];
-				var source = ShowdownSourceTransform(result.PlayerId, cardId);
-				var x = (cardIndex - 2.0f) * ShowdownCardSpacing;
-				var targetPosition = reader * new Vector3(
-					x, spec.CardThickness * 0.5f + 0.004f + row * 0.0005f, rowZ);
-				var target = new Transform3D(reader * PokerCard.Orientation(false), targetPosition);
-
-				card.Configure(cardId, spec);
-				card.Transform = source;
-				card.Visible = true;
-				_showdownMoves.Add(new ShowdownCardMove
-				{
-					Card = card,
-					From = source,
-					To = target,
-					Delay = row * ShowdownRowStagger + cardIndex * ShowdownCardStagger,
-				});
-				visualIndex++;
-			}
-
-			var label = _showdownLabels[row];
-			var place = row + 1;
-			label.Text = isWinner
-				? $"VENCEDOR · {NameOf(result.PlayerId)} — {result.Rank.Describe()}"
-				: $"{place}º · {NameOf(result.PlayerId)} — {result.Rank.Describe()}";
-			label.Position = reader * new Vector3(-0.31f, 0.030f, rowZ);
-			label.Visible = true;
-			_showdownLabelColors[row] = isWinner ? ShowdownWinnerColor : ShowdownOtherColor;
-			label.Modulate = _showdownLabelColors[row] with { A = 0.0f };
-		}
-
-		for (var index = visualIndex; index < _showdownCardPool.Count; index++)
-			_showdownCardPool[index].Visible = false;
-		for (var row = ranked.Count; row < _showdownLabels.Count; row++)
-			_showdownLabels[row].Visible = false;
-
-		// Swap at identical transforms: the comparison cards are already exactly over their physical
-		// sources when those sources disappear, so the eye sees one card begin moving, not a spawn.
-		for (var index = 0; index < PokerDeal.BoardCount; index++)
-		{
-			var source = BoardPresenter.BoardCardNodeAt(index);
-			if (source != null)
-				source.Visible = false;
-		}
-
-		foreach (var result in ranked)
-		{
-			if (!_holeCards.TryGetValue(result.PlayerId, out var hand))
-				continue;
-			foreach (var source in hand.Cards)
-				source.Visible = false;
-		}
-
-		return true;
 	}
 
 	private Transform3D ShowdownSourceTransform(string playerId, int cardId)

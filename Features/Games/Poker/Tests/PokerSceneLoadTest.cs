@@ -55,6 +55,9 @@ public partial class PokerSceneLoadTest : Node
 		LoadScene("res://Features/Games/Poker/Components/Chips/PokerChip.tscn");
 		Check("carrega o pacote central de assets",
 			GD.Load<PokerVisualAssets>("res://Features/Games/Poker/PokerVisualAssets.tres") != null);
+		Check("carrega o perfil temporal compartilhado",
+			GD.Load<PokerPresentationProfile>(
+				"res://Features/Games/Poker/PokerPresentationProfile.tres") != null);
 	}
 
 	private PackedScene LoadScene(string path)
@@ -90,6 +93,17 @@ public partial class PokerSceneLoadTest : Node
 		Check("a mesa tem o apresentador de assentos", seatPresenter != null);
 		Check("o apresentador de assentos conhece a mesa e os assentos",
 			seatPresenter is { BoardPresenter: not null, Seats: not null, CardScene: not null });
+		Check("o servidor e a apresentacao usam o mesmo perfil temporal",
+			seatPresenter?.PresentationProfile != null
+			&& ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));
+		Check("showdown e pagamento vivem em componentes independentes",
+			seatPresenter?.GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter") != null
+			&& seatPresenter.GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer") != null
+			&& seatPresenter.GetNodeOrNull<PokerChipAnimator>("ChipAnimator") != null);
+		Check("o futuro dealer tem pontos de extensao para animacao e som",
+			typeof(PokerPayoutSequencer).GetEvent("DealerChangeStarted") != null
+			&& typeof(PokerSeatPresenter).GetField("DealerAnimator") != null
+			&& typeof(PokerSeatPresenter).GetField("DealerChangeSound") != null);
 
 		Check($"as apostas são coerentes ({game.SmallBlind}/{game.BigBlind} com stack {game.StartingStack})",
 			game.SmallBlind > 0 && game.BigBlind > game.SmallBlind

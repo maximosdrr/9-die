@@ -33,6 +33,10 @@ public partial class PokerLayoutTest : Node
 		TestLoosePotOrganizesIntoATower();
 		TestChipsSettleLikeChips();
 		TestNaturalMotionCurves();
+		TestBoundedChipGroups();
+		TestCalculatedPresentationTiming();
+		TestDealerChangePlanningAndMotion();
+		TestLargeFourWayPayout();
 
 		GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
 		if (_failed > 0)
@@ -476,6 +480,97 @@ public partial class PokerLayoutTest : Node
 			&& new Vector2(chipEnd.X, chipEnd.Z).IsEqualApprox(chipTo));
 		Check($"o lançamento de fichas não levanta uma pilha 15 cm ({chipMiddle.Y * 100.0f:F1} cm)",
 			chipMiddle.Y > 0.025f && chipMiddle.Y < 0.06f);
+	}
+
+	private void TestBoundedChipGroups()
+	{
+		var large = new List<ChipRun> { new(25, 60), new(5, 40), new(1, 20) };
+		var grouped = PokerChipAnimator.GroupRuns(large, 12);
+		Check("um stack grande respeita o limite de atores moveis", grouped.Count == 12);
+		Check("agrupar fichas preserva exatamente o valor do pagamento",
+			PokerChipStack.Total(grouped) == PokerChipStack.Total(large));
+		Check("nenhuma denominacao desaparece ao limitar os atores",
+			grouped.Select(run => run.Denomination).Distinct().OrderBy(value => value)
+				.SequenceEqual(new[] { 1, 5, 25 }));
+
+		var small = PokerChipAnimator.GroupRuns(new[] { new ChipRun(25, 3) }, 80);
+		Check("pagamentos comuns continuam animando uma ficha por vez",
+			small.Count == 3 && small.All(run => run.Count == 1));
+	}
+
+	private void TestCalculatedPresentationTiming()
+	{
+		var smallFold = PokerPresentationTiming.MinimumHandPause(false, 3, 1, 1);
+		var largeFold = PokerPresentationTiming.MinimumHandPause(false, 30, 1, 1);
+		var showdown = PokerPresentationTiming.MinimumHandPause(true, 30, 3, 2);
+		Check("um pote maior reserva mais tempo antes da proxima mao", largeFold > smallFold);
+		Check("o showdown inclui leitura, ranking e entrega do pote",
+			showdown > largeFold + PokerPresentationTiming.RankedHandsReadingSeconds);
+		Check("a estimativa de atores tambem e limitada",
+			PokerPresentationTiming.EstimateChipGroups(new[] { 100000, 100000 }, 16) == 16);
+	}
+
+	private void TestDealerChangePlanningAndMotion()
+	{
+		var awards = new Dictionary<string, int> { ["A"] = 38, ["B"] = 37 };
+		var needsChange = PokerPayoutPlanner.Create(
+			new[] { 25, 25, 25 }, awards, new[] { "A", "B" });
+		Check("tres fichas de 25 exigem troco para pagar 38 e 37",
+			needsChange.RequiresDealerChange && needsChange.TotalAward == 75);
+		Check("o plano de troco preserva exatamente os dois premios",
+			needsChange.Winners.All(winner =>
+				PokerChipStack.Total(winner.ExactRuns) == winner.Amount));
+
+		var alreadyExact = PokerPayoutPlanner.Create(
+			new[] { 25, 25, 10, 10, 1, 1, 1, 1, 1 }, awards, new[] { "A", "B" });
+		Check("o dealer nao troca fichas quando o pote ja permite a divisao exata",
+			!alreadyExact.RequiresDealerChange);
+
+		var animator = new PokerChipAnimator();
+		AddChild(animator);
+		animator.Configure(null, 0.011f, 2, 1,
+			0.10f, 0.03f, 0.05f, 0.10f, 0.10f, 0.10f, 0.10f);
+		var batch = animator.Acquire();
+		batch.Pile.SetRuns(new[] { new ChipRun(25, 1) });
+		batch.Pile.Visible = true;
+		batch.From = Vector3.Zero;
+		batch.To = new Vector3(0.18f, 0.0f, 0.04f);
+		batch.FromBasis = Basis.Identity;
+		batch.ToBasis = Basis.Identity;
+		batch.JustStarted = true;
+		batch.Phase = PokerChipAnimator.Phase.ToDealer;
+		for (var frame = 0; frame < 30 && batch.Phase != PokerChipAnimator.Phase.AtDealer; frame++)
+			animator.Advance(batch, 1.0f / 60.0f);
+		Check("a ficha chega fisicamente ao ponto de troco antes de mudar denominacao",
+			batch.Phase == PokerChipAnimator.Phase.AtDealer
+			&& batch.Pile.Position.DistanceTo(batch.To) < 0.0001f);
+		animator.QueueFree();
+	}
+
+	private void TestLargeFourWayPayout()
+	{
+		var profile = new PokerPresentationProfile { MaxAnimatedChipGroups = 24 };
+		var contributions = new[] { 100000, 100000, 100000, 100000 };
+		Check("um pote extremo de quatro jogadores continua limitado",
+			profile.EstimateChipGroups(contributions) == 24);
+
+		var awards = new Dictionary<string, int>
+		{
+			["A"] = 100003, ["B"] = 99999, ["C"] = 100001, ["D"] = 99997,
+		};
+		var plan = PokerPayoutPlanner.Create(
+			new[] { 100000, 100000, 100000, 100000 }, awards,
+			new[] { "A", "B", "C", "D" });
+		Check("um rateio grande de quatro vencedores preserva todo o valor",
+			plan.TotalAward == contributions.Sum()
+			&& plan.Winners.Count == 4
+			&& plan.Winners.All(winner =>
+				PokerChipStack.Total(winner.ExactRuns) == winner.Amount));
+		Check("o rateio solicita troco quando os quatro grupos nao representam os premios",
+			plan.RequiresDealerChange);
+		Check("o tempo calculado cresce para quatro vencedores sem constante magica",
+			profile.MinimumHandPause(true, 24, 4, 4)
+			> profile.MinimumHandPause(true, 24, 2, 1));
 	}
 
 	private static List<Vector3> ChipSpots(PokerChipPile pile) =>

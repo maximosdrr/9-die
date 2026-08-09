@@ -310,8 +310,8 @@ public partial class PokerMatchTest : Node
 			return;
 		}
 		resolver.AutoAdvanceHands = false;
-		var warmedBatchSizes = presenter.GetChildren().OfType<PokerChipPile>()
-			.Where(pile => pile.Name.ToString().StartsWith("ChipBatch"))
+		var chipAnimator = presenter.GetNodeOrNull<PokerChipAnimator>("ChipAnimator");
+		var warmedBatchSizes = chipAnimator.Batches.Select(batch => batch.Pile)
 			.ToDictionary(pile => pile.Name.ToString(), pile => pile.GetChildCount());
 
 		var raiser = game.TurnOwnerId;
@@ -362,15 +362,13 @@ public partial class PokerMatchTest : Node
 
 		var inFlightIds = presenter.ActiveChipVisualIds().ToHashSet();
 		Check("nenhuma ficha e instanciada durante o pagamento",
-			presenter.GetChildren().OfType<PokerChipPile>()
-				.Where(pile => pile.Name.ToString().StartsWith("ChipBatch"))
+			chipAnimator.Batches.Select(batch => batch.Pile)
 				.All(pile => warmedBatchSizes.GetValueOrDefault(pile.Name.ToString())
 					== pile.GetChildCount()));
 		Check("o call que fecha a rodada não é engolido",
 			inFlightIds.Count > 0 && !presenter.PresentationReadyForAction);
 		Check("o lançamento não disputa com uma segunda queda interna",
-			presenter.GetChildren().OfType<PokerChipPile>()
-				.Where(pile => pile.Name.ToString().StartsWith("ChipBatch"))
+			chipAnimator.Batches.Select(batch => batch.Pile)
 				.All(pile => Mathf.IsZeroApprox(pile.SettleSeconds)));
 		Check("o flop espera as fichas pousarem e serem recolhidas",
 			game.Street == PokerStreet.Flop && board.VisibleFaceUpCount == 0);
@@ -402,6 +400,23 @@ public partial class PokerMatchTest : Node
 			inFlightIds.Count > 0 && inFlightIds.SetEquals(potIds));
 		Check("o flop só aparece depois de o pote terminar a organização",
 			presenter.PresentationReadyForAction && board.VisibleFaceUpCount == PokerDeal.BoardSize(PokerStreet.Flop));
+
+		// Simulate a reconnect/new public snapshot while a newly accepted action is still queued. The
+		// client must not replay that stale local event over the authoritative bets it just received.
+		var recoveryActor = game.TurnOwnerId;
+		var recoveryOptions = PokerBetting.LegalActions(
+			game.BetStateOf(recoveryActor), game.CurrentBet, game.MinRaiseIncrement);
+		var recoveryRaise = recoveryOptions.FirstOrDefault(option => option.Kind == PokerActionKind.Raise);
+		if (recoveryRaise.Kind == PokerActionKind.Raise)
+			resolver.ApplyActionFor(recoveryActor, game.TurnToken,
+				(int)recoveryRaise.Kind, recoveryRaise.MinTotal);
+		presenter.SnapToAuthoritativeState();
+		Check("uma reconexao descarta a animacao local que ficou pendente",
+			recoveryRaise.Kind != PokerActionKind.Raise || presenter.LastRecoveryDiscardedAnimation);
+		Check("a reconexao reaparece diretamente no estado publico atual",
+			presenter.PresentationReadyForAction
+			&& board.VisibleFaceUpCount == PokerDeal.BoardSize(game.Street)
+			&& presenter.ActiveChipGroupCount <= presenter.MaxAnimatedChipGroups);
 
 		var safety = 0;
 		while (!game.HandSettled && safety++ < 20)
@@ -459,6 +474,42 @@ public partial class PokerMatchTest : Node
 		Check("as mãos aparecem da melhor para a pior", ordered.Count > 0 && bestFirst);
 		Check("todo vencedor fica identificado pela melhor sequência mostrada",
 			game.Winners.Keys.All(winner => ordered.Contains(winner)));
+		Check("o pagamento nao comeca no mesmo instante em que o ranking termina",
+			!presenter.PayoutStarted);
+		var rankingReadFrames = Mathf.Max(0, Mathf.FloorToInt(
+			presenter.PresentationProfile.RankedHandsReadingSeconds * 60.0f) - 2);
+		for (var frame = 0; frame < rankingReadFrames; frame++)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+		}
+		Check("o ranking permanece sozinho na mesa durante o tempo de leitura",
+			!presenter.PayoutStarted);
+
+		// Force one payout topology that the current denominations cannot express. This exercises the
+		// complete pot -> dealer -> exact replacement -> winners path, not only the pure planner.
+		var potGroups = presenter.PotPhysicalGroupValues();
+		var potValue = potGroups.Sum();
+		var forcedPlayers = game.SeatOrder.Take(2).ToArray();
+		var forcedAwards = new System.Collections.Generic.Dictionary<string, int>();
+		for (var first = 1; first < potValue && forcedPlayers.Length == 2; first++)
+		{
+			var candidate = new System.Collections.Generic.Dictionary<string, int>
+			{
+				[forcedPlayers[0]] = first,
+				[forcedPlayers[1]] = potValue - first,
+			};
+			if (!PokerPayoutPlanner.Create(potGroups, candidate, game.SeatOrder).RequiresDealerChange)
+				continue;
+			forcedAwards = candidate;
+			break;
+		}
+		if (forcedAwards.Count == 2)
+		{
+			game.Winners.Clear();
+			foreach (var award in forcedAwards)
+				game.Winners[award.Key] = award.Value;
+		}
 
 		var payoutIds = presenter.ActiveChipVisualIds().ToHashSet();
 		Check($"o pote organizado separa as denominações ({presenter.PotDenominationColumnCount} colunas)",
@@ -484,19 +535,37 @@ public partial class PokerMatchTest : Node
 			&& presenter.ChipsDeliveredToWinners > 0);
 		Check("todo jogador premiado recebe fichas visíveis",
 			presenter.PayoutRecipientCount == game.Winners.Count);
-		var splitRecipients = PokerSeatPresenter.AssignPayoutRecipients(
+		Check("o pote percorre o ponto do dealer quando precisa de troco",
+			forcedAwards.Count != 2 || presenter.DealerChangeCompleted);
+		var splitPlan = PokerPayoutPlanner.Create(
 			new[] { 25, 25, 25 },
 			new System.Collections.Generic.Dictionary<string, int> { ["A"] = 38, ["B"] = 37 },
 			new[] { "A", "B" });
-		Check("um pote dividido envia fichas para todos os ganhadores",
-			splitRecipients.Distinct().Count() == 2
-			&& splitRecipients.Contains("A") && splitRecipients.Contains("B"));
+		Check("um empate impossivel com as fichas atuais solicita troco do dealer",
+			splitPlan.RequiresDealerChange);
+		Check("o troco monta fisicamente premios exatos de 38 e 37",
+			splitPlan.Winners.All(winner =>
+				PokerChipStack.Total(winner.ExactRuns) == winner.Amount));
+		Check("o valor fisico entregue coincide com cada premio publicado",
+			game.Winners.All(winner =>
+				presenter.PayoutPhysicalValueOf(winner.Key) == winner.Value));
 		Check("a transferência preserva as mesmas instâncias das fichas",
-			payoutIds.SetEquals(presenter.ActiveChipVisualIds()));
+			presenter.DealerChangeCompleted || payoutIds.SetEquals(presenter.ActiveChipVisualIds()));
 		Check($"o pagamento também não pisca entre quadros ({payoutMaximumStep * 100.0f:F2} cm)",
 			payoutMaximumStep < 0.025f);
 		Check("o saldo visual só alcança o resultado depois que as fichas chegam",
 			game.Winners.Keys.All(winner => presenter.DisplayedStackOf(winner) == game.StackOf(winner)));
+
+		var interrupted = chipAnimator.Batches.FirstOrDefault(batch =>
+			batch.Phase == PokerChipAnimator.Phase.AtWinner);
+		if (interrupted != null)
+			interrupted.Phase = PokerChipAnimator.Phase.ToWinner;
+		presenter.SnapToAuthoritativeState();
+		Check("uma reconexao durante o premio cancela a sequencia incompleta",
+			interrupted == null || (presenter.LastRecoveryDiscardedAnimation
+				&& presenter.PayoutCompleted && presenter.ActiveChipGroupCount == 0));
+		Check("depois da reconexao o saldo visual coincide com o servidor",
+			game.SeatOrder.All(player => presenter.DisplayedStackOf(player) == game.StackOf(player)));
 	}
 
 	private static void AdvancePresentation(

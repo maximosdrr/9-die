@@ -469,6 +469,9 @@ public partial class PokerGame : TableGame
 		newPlayer.GameHandler.EquipGameController(GameControllerScene, this, Camera);
 
 		EmitSignal(SignalName.HudStateUpdated);
+		// A reclaimed peer can arrive while this machine is halfway through chips, payout or showdown.
+		// Rebuild from public state instead of attempting to resume a sequence with missing history.
+		SeatPresenter?.SnapToAuthoritativeState();
 
 		if (Multiplayer.IsServer())
 			Resolver?.ReissueStateTo(oldPlayerId, newPlayerId);

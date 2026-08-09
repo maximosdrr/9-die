@@ -88,6 +88,9 @@ public partial class SeatedTableController : GameController
 	private Vector2 _topPan;
 	private Vector3 _surfaceCentre;
 	private float _leaveHeld;
+	private Vector3 _cachedStandPosition;
+	private float _cachedStandYaw;
+	private bool _hasCachedStandExit;
 
 	/// <summary>Whether the player is currently in their chair rather than walking.</summary>
 	protected bool Seated { get; private set; }
@@ -288,6 +291,7 @@ public partial class SeatedTableController : GameController
 		// chair without touching code.
 		var eye = seat.GetNodeOrNull<Node3D>("SeatView");
 		_lookRig.GlobalPosition = eye?.GlobalPosition ?? seat.GlobalPosition;
+		CacheStandExit(seat);
 
 		_lookYaw = 0.0f;
 		_lookPitch2 = Mathf.DegToRad(RestPitchDeg);
@@ -465,18 +469,26 @@ public partial class SeatedTableController : GameController
 	private void MoveToStandExit()
 	{
 		var seat = SeatFor((string)Player.Name);
-		if (seat == null)
+		if (seat != null && seat.IsInsideTree())
+			CacheStandExit(seat);
+		if (!_hasCachedStandExit)
 			return;
 
+		Player.GlobalPosition = _cachedStandPosition;
+		Player.GlobalRotation = new Vector3(0.0f, _cachedStandYaw, 0.0f);
+		Player.Velocity = Vector3.Zero;
+	}
+
+	private void CacheStandExit(Marker3D seat)
+	{
+		if (seat == null || !seat.IsInsideTree())
+			return;
 		var standExit = seat.GetNodeOrNull<Marker3D>("StandExit");
-		var standPosition = standExit?.GlobalPosition
+		_cachedStandPosition = standExit?.GlobalPosition
 			?? seat.ToGlobal(new Vector3(
 				0.0f, 0.0f, (SeatsRoot as TableSeatAnchors)?.StandBackDistance ?? 0.55f));
-
-		Player.GlobalPosition = standPosition;
-		Player.GlobalRotation = new Vector3(
-			0.0f, standExit?.GlobalRotation.Y ?? seat.GlobalRotation.Y, 0.0f);
-		Player.Velocity = Vector3.Zero;
+		_cachedStandYaw = standExit?.GlobalRotation.Y ?? seat.GlobalRotation.Y;
+		_hasCachedStandExit = true;
 	}
 
 	public override void ApplyControl(string turnOwnerId, Dictionary context)

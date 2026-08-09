@@ -213,8 +213,14 @@ public partial class SecretHandTurnResolver : TurnResolver
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	protected void ReceiveFullState(Dictionary context)
 	{
-		ApplyPublicSnapshot(context);
+		ApplyFullSnapshot(context);
 	}
+
+	/// <summary>
+	/// Full reconnect snapshots may require presentation code to discard an interrupted local
+	/// sequence. Ordinary turn contexts deliberately continue through ApplyPublicSnapshot.
+	/// </summary>
+	protected virtual void ApplyFullSnapshot(Dictionary context) => ApplyPublicSnapshot(context);
 
 	/// <summary>Sends a reconnected peer its own holding and the whole public state.</summary>
 	protected void ReissueTo(string newPlayerId)

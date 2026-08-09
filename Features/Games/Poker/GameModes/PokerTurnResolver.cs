@@ -19,6 +19,10 @@ using Poker.Rules;
 [GlobalClass]
 public partial class PokerTurnResolver : SecretHandTurnResolver
 {
+	[Export] public PokerPresentationProfile PresentationProfile;
+	private PokerPresentationProfile Profile =>
+		PresentationProfile ??= new PokerPresentationProfile();
+
 	/// <summary>How long the table sits on a finished hand before the next one is dealt.</summary>
 	// Includes the exposed-hand reading beat and still leaves roughly eight seconds for the ranked
 	// best-five comparison before the next hand clears the cloth.
@@ -88,6 +92,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 	protected override void ApplyLocalHand(int[] items) => Game?.ApplyLocalHoleCards(items);
 
 	protected override void ApplyPublicSnapshot(Dictionary context) => Game?.ApplyPublicSnapshot(context);
+
+	protected override void ApplyFullSnapshot(Dictionary context)
+	{
+		Game?.ApplyPublicSnapshot(context);
+		Game?.SeatPresenter?.SnapToAuthoritativeState();
+	}
 
 	protected override Dictionary BuildSnapshot() =>
 		BuildContext(_lastAction, _lastPlayer, _lastAmount, advanceTurn: false);
@@ -546,7 +556,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 		// The LAST hand of a session gets the same pause as any other. Ending the match the instant
 		// the chips moved cut straight to the results screen, so nobody ever saw the hand that won
 		// the whole thing — the one hand they most wanted to look at.
-		var pause = showdown && contenders.Count > 1 ? ShowdownSeconds : FoldedHandSeconds;
+		var hasShowdown = showdown && contenders.Count > 1;
+		var configuredFloor = hasShowdown ? ShowdownSeconds : FoldedHandSeconds;
+		var chipGroups = Profile.EstimateChipGroups(contributions.Values);
+		var calculated = Profile.MinimumHandPause(
+			hasShowdown, chipGroups, contenders.Count, _awards.Count);
+		// Zero remains an intentional instant/headless mode. Positive values are floors rather than
+		// brittle exact delays: the physical presentation may extend them for a large or split pot.
+		var pause = configuredFloor <= 0.0f ? 0.0f : Mathf.Max(configuredFloor, calculated);
 
 		// Zero deals straight on. That is a real setting — a table with no pause between hands — and
 		// it is also what lets a headless test play a whole session without waiting on the clock.
