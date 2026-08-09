@@ -28,6 +28,8 @@ public partial class PokerLayoutTest : Node
 		TestNothingOverlaps();
 		TestEverythingFitsTheTable();
 		TestSceneMatchesTheLayout();
+		TestChipsKeepTheirIdentity();
+		TestChipsSettleLikeChips();
 
 		GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
 		if (_failed > 0)
@@ -206,6 +208,158 @@ public partial class PokerLayoutTest : Node
 
 		game.QueueFree();
 	}
+
+	/// <summary>
+	/// A pile that GROWS keeps the chips it already had.
+	///
+	/// This is the bug the player reported as "the chips change colour when they land". A bet redrawn
+	/// from its total re-decomposes the whole thing, so pushing 10 onto 20 replaced two blue tens with
+	/// a red twenty-five and a green five — under their hand, after they had already thrown it.
+	/// </summary>
+	private void TestChipsKeepTheirIdentity()
+	{
+		var pile = new PokerChipPile();
+		AddChild(pile);
+
+		pile.Show(20);
+		var first = pile.Runs.Select(run => (run.Denomination, run.Count)).ToList();
+
+		Check($"20 vira duas fichas de 10 ({Describe(pile)})",
+			pile.Runs.Count == 1 && pile.Runs[0].Denomination == 10 && pile.Runs[0].Count == 2);
+
+		pile.AddUpTo(30);
+
+		Check($"empurrar mais 10 mantém as duas fichas de 10 e acrescenta uma ({Describe(pile)})",
+			pile.Runs.Count == 1 && pile.Runs[0].Denomination == 10 && pile.Runs[0].Count == 3);
+		Check($"e o monte continua valendo o que diz ({pile.Value})", pile.Value == 30);
+
+		// The contrast that makes the check mean something: redrawn from the total, the same 30 is a
+		// different set of chips entirely.
+		var fresh = new PokerChipPile();
+		AddChild(fresh);
+		fresh.Show(30);
+
+		Check($"redesenhar 30 do zero daria outras fichas ({Describe(fresh)})",
+			fresh.Runs.Count == 2 && fresh.Runs[0].Denomination == 25);
+
+		// Growing repeatedly must not drift: the cap rounds the tail UP, and measuring the next
+		// addition against what is drawn rather than against the request is what stops that piling up.
+		var running = new PokerChipPile();
+		AddChild(running);
+
+		var worstOver = 0;
+		var total = 0;
+
+		foreach (var step in new[] { 5, 10, 25, 5, 130, 45, 1, 999 })
+		{
+			total += step;
+			running.AddUpTo(total);
+			worstOver = Mathf.Max(worstOver, running.Value - total);
+		}
+
+		Check($"o monte nunca vale menos do que foi apostado (excesso máximo {worstOver})",
+			worstOver >= 0 && running.Value >= total);
+		Check($"e o excesso não se acumula ({running.Value} contra {total})", worstOver < 25);
+
+		Check($"a primeira decomposição sobrevive a tudo isso ({first.Count} corrida(s))", first.Count == 1);
+
+		// Swept away rather than paid out of: a pile that shrinks is simply redrawn.
+		running.AddUpTo(0);
+		Check($"varrer o monte não deixa ficha nenhuma ({running.ChipCount})",
+			running.ChipCount == 0 && running.Value == 0);
+
+		pile.QueueFree();
+		fresh.QueueFree();
+		running.QueueFree();
+	}
+
+	/// <summary>
+	/// Thrown chips have to land like chips: scattered, leaning, and dropping the last of the way.
+	///
+	/// The player's words were that they fall exactly on top of one another. The scatter is derived
+	/// from the chip's own index rather than rolled, so it is the same on every peer and stable from
+	/// frame to frame — nothing about it is replicated, and nothing about it crawls.
+	/// </summary>
+	private void TestChipsSettleLikeChips()
+	{
+		Check("o ruído de assentamento é determinístico",
+			Enumerable.Range(0, 64).All(i => Mathf.IsEqualApprox(
+				PokerChipPile.Noise(i, 0), PokerChipPile.Noise(i, 0))));
+
+		var values = Enumerable.Range(0, 512).Select(i => PokerChipPile.Noise(i, 1)).ToList();
+		Check($"e fica na faixa esperada ({values.Min():F2} a {values.Max():F2})",
+			values.All(value => value >= -1.0f && value <= 1.0f));
+		Check($"e não é uma constante disfarçada ({values.Distinct().Count()} valores distintos)",
+			values.Distinct().Count() > 400);
+
+		// Five chips of one value: a single column, which is exactly the shape the player described
+		// as falling on top of one another.
+		var pile = new PokerChipPile { Scatter = 0.011f, TiltDegrees = 8.0f };
+		AddChild(pile);
+		pile.SetRuns(new[] { new ChipRun(10, 5) });
+
+		// In the hand, before they are let go, they ARE a tidy column. The whole spread happens on
+		// the way down, which is what makes a throw read as a throw.
+		pile.Spread = 0.0f;
+		var stacked = ChipSpots(pile);
+
+		Check($"na mão as fichas estão empilhadas ({stacked.Count} fichas)",
+			stacked.Count == 5 && stacked.All(spot =>
+				new Vector2(spot.X, spot.Z).Length() < 0.0001f));
+
+		pile.Spread = 1.0f;
+		var scattered = ChipSpots(pile);
+
+		var closest = float.MaxValue;
+		var apart = 0;
+
+		for (var i = 0; i < scattered.Count; i++)
+		{
+			for (var j = i + 1; j < scattered.Count; j++)
+			{
+				var gap = new Vector2(scattered[i].X - scattered[j].X, scattered[i].Z - scattered[j].Z);
+				if (gap.Length() > 0.0008f)
+					apart++;
+
+				closest = Mathf.Min(closest, gap.Length());
+			}
+		}
+
+		Check($"ao aterrissar nenhuma cai exatamente sobre a outra ({apart} pares afastados, "
+			  + $"menor distância {closest * 1000.0f:F1} mm)",
+			apart == scattered.Count * (scattered.Count - 1) / 2);
+
+		Check($"e todas continuam empilhadas em altura ({scattered.Count} fichas)",
+			scattered.Select(spot => spot.Y).Distinct().Count() == scattered.Count);
+
+		Check($"a queda começa no alto e acaba no lugar "
+			  + $"({PokerChipPile.DropCurve(0.0f):F2} a {PokerChipPile.DropCurve(1.0f):F2})",
+			Mathf.IsEqualApprox(PokerChipPile.DropCurve(0.0f), 1.0f)
+			&& Mathf.IsEqualApprox(PokerChipPile.DropCurve(1.0f), 0.0f));
+
+		Check("a queda acelera em vez de descer a passo constante",
+			PokerChipCurveAccelerates());
+
+		Check($"e a ficha quica uma vez, pequeno ({PokerChipPile.DropCurve(0.8f):F3})",
+			PokerChipPile.DropCurve(0.8f) > 0.0f && PokerChipPile.DropCurve(0.8f) < 0.2f);
+
+		pile.QueueFree();
+	}
+
+	/// <summary>The first half of the fall covers less ground than the second.</summary>
+	private static bool PokerChipCurveAccelerates() =>
+		PokerChipPile.DropCurve(0.0f) - PokerChipPile.DropCurve(0.155f)
+		< PokerChipPile.DropCurve(0.465f) - PokerChipPile.DropCurve(0.62f);
+
+	private static List<Vector3> ChipSpots(PokerChipPile pile) =>
+		pile.GetChildren()
+			.OfType<Node3D>()
+			.Where(chip => chip.Visible)
+			.Select(chip => chip.Position)
+			.ToList();
+
+	private static string Describe(PokerChipPile pile) =>
+		string.Join(" + ", pile.Runs.Select(run => $"{run.Count}x{run.Denomination}"));
 
 	private static IEnumerable<Vector2> Facings()
 	{

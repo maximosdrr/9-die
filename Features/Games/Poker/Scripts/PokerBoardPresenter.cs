@@ -43,15 +43,21 @@ public partial class PokerBoardPresenter : Node3D
 	/// <summary>How many cards are drawn in the stack. Enough to read as a deck, not 52.</summary>
 	[Export] public int DeckDepth = 8;
 
+	/// <summary>
+	/// Where thrown-away hands land, in the reader's own frame: the dealer's other side, opposite the
+	/// deck, so the discards never pile up on the cards still to come.
+	/// </summary>
+	[Export] public Vector3 MuckOffset = new(-0.30f, 0.0f, -0.16f);
+
 	[ExportGroup("Dealing")]
 	/// <summary>Where a card slides in from. Zero means "from the deck", which is what it should be.</summary>
 	[Export] public Vector3 DealOrigin = Vector3.Zero;
 
 	/// <summary>Seconds for one card to travel to its place.</summary>
-	[Export] public float DealSeconds = 0.32f;
+	[Export] public float DealSeconds = 0.55f;
 
 	/// <summary>Gap between one card setting off and the next, so they land in order.</summary>
-	[Export] public float DealStagger = 0.09f;
+	[Export] public float DealStagger = 0.26f;
 
 	/// <summary>Seconds for one card to turn over.</summary>
 	[Export] public float FlipSeconds = 0.5f;
@@ -92,6 +98,9 @@ public partial class PokerBoardPresenter : Node3D
 
 	/// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
 	public Vector3 DeckPosition => new Basis(Vector3.Up, ReaderYaw()) * DeckOffset;
+
+	/// <summary>Where thrown-away hands lie, in this presenter's space.</summary>
+	public Vector3 MuckPosition => new Basis(Vector3.Up, ReaderYaw()) * MuckOffset;
 
 	/// <summary>
 	/// A short stack of backs. Cosmetic — the real deck is the server's and never leaves it — but it
@@ -175,6 +184,19 @@ public partial class PokerBoardPresenter : Node3D
 		}
 	}
 
+	/// <summary>Per-card progress, for a test that needs to say WHY the row has not settled.</summary>
+	public string DebugState()
+	{
+		var parts = new List<string>();
+		foreach (var card in _cards)
+		{
+			parts.Add($"[vis={card.Node.Visible} espera={card.Wait:F2} entrou={card.Dealt:F2} "
+					  + $"virou={card.Flipped:F2} quer={card.WantsFaceUp}]");
+		}
+
+		return string.Join(" ", parts);
+	}
+
 	/// <summary>
 	/// Takes the public board. <paramref name="board"/> holds only the cards the server has turned
 	/// face up; the rest are laid out face down from the moment the hand is dealt.
@@ -235,7 +257,10 @@ public partial class PokerBoardPresenter : Node3D
 		var potPlace = reader * new Vector3(0.0f, 0.0f, spec.BoardOffset + spec.CardLength * 0.5f + 0.07f);
 
 		PotPile.Transform = new Transform3D(reader, potPlace);
-		PotPile.Show(potTotal);
+
+		// Grows by having the swept chips ADDED to it, so a pot that goes from 60 to 90 does not
+		// re-decompose and repaint the chips already in the middle.
+		PotPile.AddUpTo(potTotal);
 	}
 
 	public override void _Process(double delta)
@@ -269,7 +294,14 @@ public partial class PokerBoardPresenter : Node3D
 	private static bool Advance(ref float value, float target, float seconds, float delta)
 	{
 		if (Mathf.IsEqualApprox(value, target))
+		{
+			// SNAP. Stopping at "approximately there" leaves the value a hair short, and everything
+			// downstream compares exactly: Settled asks Dealt < 1, and the flip is gated behind
+			// Dealt >= 1. A card resting at 0.9999999 therefore never settled and never turned over —
+			// invisible until a change in speed happened to land the accumulation inside the epsilon.
+			value = target;
 			return false;
+		}
 
 		var step = seconds <= 0.0f ? 1.0f : delta / seconds;
 		value = Mathf.MoveToward(value, target, step);

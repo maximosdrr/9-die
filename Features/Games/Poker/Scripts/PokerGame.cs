@@ -90,6 +90,13 @@ public partial class PokerGame : TableGame
 	public string LastPlayer = "";
 	public int LastAmount;
 
+	/// <summary>
+	/// Counts player actions. Changes exactly once per action, which is what a gesture keys off —
+	/// the turn stamp cannot do that job, because one action can produce several contexts and
+	/// several contexts can carry the same action.
+	/// </summary>
+	public int ActionSeq;
+
 	/// <summary>This peer's own two cards. Empty on every peer that is not their owner.</summary>
 	public int[] LocalHoleCards = System.Array.Empty<int>();
 
@@ -143,6 +150,26 @@ public partial class PokerGame : TableGame
 	}
 
 	// ---------------------------------------------------------------- derived reads
+
+	/// <summary>
+	/// What is actually in the middle right now: the hand's total minus whatever is still sitting in
+	/// front of the players this street.
+	///
+	/// The pot pile draws this rather than the total, because a chip bet this street is already
+	/// drawn at its owner's seat — showing the total as well put every one of those chips on the
+	/// table twice. The HUD still says the TOTAL, which is what a player is playing for.
+	/// </summary>
+	public int PotInMiddle
+	{
+		get
+		{
+			var street = 0;
+			foreach (var value in BetThisRound.Values)
+				street += value;
+
+			return Mathf.Max(0, PotTotal - street);
+		}
+	}
 
 	public int StackOf(string playerId) => Stacks.GetValueOrDefault(playerId);
 
@@ -273,11 +300,12 @@ public partial class PokerGame : TableGame
 		LastAction = context.TryGetValue("last_action", out var action) ? (string)action : "";
 		LastPlayer = context.TryGetValue("last_player", out var player) ? (string)player : "";
 		LastAmount = context.TryGetValue("last_amount", out var amount) ? (int)amount : 0;
+		ActionSeq = context.TryGetValue("action_seq", out var seq) ? (int)seq : 0;
 
 		ReadReveals(context);
 		ReadResult(context);
 
-		BoardPresenter?.Sync(Board, PotTotal, HandNumber, Street);
+		BoardPresenter?.Sync(Board, PotInMiddle, HandNumber, Street);
 		EmitSignal(SignalName.HudStateUpdated);
 	}
 

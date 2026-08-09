@@ -485,13 +485,15 @@ public partial class PokerHand3DView : PokerHandView
 			_fan.Add(card);
 		}
 
-		// The pair is on the cloth until it is picked up, and back on it at a showdown. Either way
-		// the seat presenter owns it — keeping a copy in hand as well showed the player their own
-		// hand twice, in two places, at different angles.
+		// The pair is on the cloth until it is picked up, in the muck once it is thrown away, and
+		// back on the cloth at a showdown. In all three the seat presenter owns it — keeping a copy
+		// in hand as well showed the player their own hand twice, in two places, at different
+		// angles, and after a fold left them still holding cards they had just given up.
+		var playerId = Player == null ? null : (string)Player.Name;
 		var laidDown = !_pickedUp
-					   || (Player != null
+					   || (playerId != null
 						   && Game != null
-						   && Game.RevealedHoleCards.ContainsKey((string)Player.Name));
+						   && (Game.RevealedHoleCards.ContainsKey(playerId) || Game.HasFolded(playerId)));
 
 		for (var i = 0; i < _fan.Count; i++)
 		{

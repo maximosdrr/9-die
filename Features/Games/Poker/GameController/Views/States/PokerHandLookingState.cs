@@ -42,13 +42,13 @@ public partial class PokerHandLookingState : State
 
 		if (@event.IsActionPressed(PokerInput.Fold))
 		{
-			Act(PokerActionKind.Fold, PokerClips.PlaceCards);
+			Act(PokerActionKind.Fold, PokerGesture.Fold);
 			return;
 		}
 
 		if (@event.IsActionPressed(PokerInput.Raise))
 		{
-			Act(PokerActionKind.Raise, PokerClips.ThrowChips);
+			Act(PokerActionKind.Raise, PokerGesture.ThrowChips);
 			return;
 		}
 
@@ -57,9 +57,9 @@ public partial class PokerHandLookingState : State
 			// One key for both, because from the player's side they are the same decision — stay in
 			// the hand for whatever it currently costs, which is sometimes nothing.
 			if (View.HasAction(PokerActionKind.Check))
-				Act(PokerActionKind.Check, PokerClips.Idle);
+				Act(PokerActionKind.Check, PokerGesture.Knock);
 			else
-				Act(PokerActionKind.Call, PokerClips.ThrowChips);
+				Act(PokerActionKind.Call, PokerGesture.ThrowChips);
 
 			return;
 		}
@@ -81,7 +81,7 @@ public partial class PokerHandLookingState : State
 		return true;
 	}
 
-	private void Act(PokerActionKind kind, string clip)
+	private void Act(PokerActionKind kind, PokerGesture gesture)
 	{
 		View.GetViewport().SetInputAsHandled();
 
@@ -94,7 +94,7 @@ public partial class PokerHandLookingState : State
 			return;
 		}
 
-		Send(kind, View.TotalFor(kind), clip);
+		Send(kind, View.TotalFor(kind), gesture);
 	}
 
 	private void ActAllIn()
@@ -110,13 +110,13 @@ public partial class PokerHandLookingState : State
 			return;
 		}
 
-		Send(kind, total, PokerClips.ThrowChips);
+		Send(kind, total, PokerGesture.ThrowChips);
 	}
 
-	private void Send(PokerActionKind kind, int total, string clip)
+	private void Send(PokerActionKind kind, int total, PokerGesture gesture)
 	{
 		View.RequestAction(kind, total);
-		StateMachine.ChangeState(StatesRef.PokerHandActing, new Dictionary { ["clip"] = clip });
+		StateMachine.ChangeState(StatesRef.PokerHandActing, new Dictionary { ["gesture"] = (int)gesture });
 	}
 
 	public override void Process(double delta)

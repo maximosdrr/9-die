@@ -25,11 +25,13 @@ public partial class PokerHandActingState : State
 	{
 		_elapsed = 0.0f;
 
-		var clip = metadata != null && metadata.TryGetValue("clip", out var requested)
-			? requested.AsString()
-			: PokerClips.Idle;
+		var gesture = metadata != null && metadata.TryGetValue("gesture", out var requested)
+			? (PokerGesture)requested.AsInt32()
+			: PokerGesture.None;
 
-		View?.PlayClip(clip);
+		// First person only. The seated bodies replay the same gesture off the turn context, which
+		// every peer already has — including this one, so the local body is covered too.
+		View?.PlayClip(PokerClips.FirstPerson(gesture));
 	}
 
 	public override void Process(double delta)

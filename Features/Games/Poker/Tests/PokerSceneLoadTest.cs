@@ -33,6 +33,7 @@ public partial class PokerSceneLoadTest : Node
 		TestCardsNeverReachTheTable();
 		TestFovIsCoherent();
 		TestHud();
+		TestGestureVocabulary();
 		TestBoardDealAndFlip();
 		TestChipPack();
 		TestCardAtlas();
@@ -335,13 +336,24 @@ public partial class PokerSceneLoadTest : Node
 
 		// The rig is the swap point for the animated hand: when it arrives, the AnimationPlayer is
 		// assigned here and nothing else in the feature moves.
-		Check("a mão tem um AnimationPlayer com os clipes do contrato",
-			view.AnimationPlayer != null
-			&& view.AnimationPlayer.HasAnimation(PokerClips.Idle)
-			&& view.AnimationPlayer.HasAnimation(PokerClips.PickUpCards)
-			&& view.AnimationPlayer.HasAnimation(PokerClips.ThrowChips)
-			&& view.AnimationPlayer.HasAnimation(PokerClips.PlaceCards)
-			&& view.AnimationPlayer.HasAnimation(PokerClips.RevealCards));
+		var gestures = new[]
+		{
+			PokerGesture.PickUpCards, PokerGesture.ThrowChips,
+			PokerGesture.Knock, PokerGesture.Fold, PokerGesture.Reveal,
+		};
+
+		var missingClips = gestures
+			.Select(PokerClips.FirstPerson)
+			.Append(PokerClips.Idle)
+			.Where(clip => view.AnimationPlayer?.HasAnimation(clip) != true)
+			.ToList();
+
+		Check($"a mão tem um clipe para cada gesto ({string.Join(", ", missingClips)})",
+			view.AnimationPlayer != null && missingClips.Count == 0);
+
+		// Chips and the table knock are left-handed, so the rig needs a second hand for them.
+		Check("o rig tem uma mão esquerda para as fichas e o toque na mesa",
+			view.HandRig?.GetNodeOrNull<Node3D>("LeftHand") != null);
 
 		view.QueueFree();
 	}
@@ -623,8 +635,12 @@ public partial class PokerSceneLoadTest : Node
 	/// <summary>Runs the presenter's animation to a standstill, as frames would.</summary>
 	private static void Settle(PokerBoardPresenter board)
 	{
-		for (var frame = 0; frame < 600 && !board.Settled; frame++)
+		var frame = 0;
+		for (; frame < 900 && !board.Settled; frame++)
 			board._Process(1.0 / 60.0);
+
+		if (!board.Settled)
+			GD.Print($"  ---- mesa não assentou em {frame} quadros: {board.DebugState()}");
 	}
 
 	private static int VisibleCards(PokerBoardPresenter board)
@@ -653,6 +669,63 @@ public partial class PokerSceneLoadTest : Node
 		}
 
 		return count;
+	}
+
+	/// <summary>
+	/// The gesture vocabulary: one name per thing a player does, resolving to a first-person clip
+	/// and a third-person one.
+	///
+	/// The third-person clips do not exist yet, which is exactly why this is worth pinning — the
+	/// names have to be reachable and distinct NOW so the animator has somewhere to deliver them,
+	/// and so a body gesture cannot silently resolve to the same clip as another.
+	/// </summary>
+	private void TestGestureVocabulary()
+	{
+		var gestures = new[]
+		{
+			PokerGesture.PickUpCards, PokerGesture.ThrowChips,
+			PokerGesture.Knock, PokerGesture.Fold, PokerGesture.Reveal,
+		};
+
+		var bodyClips = gestures.Select(PokerClips.ThirdPerson).ToList();
+		Check($"cada gesto tem um clipe de terceira pessoa distinto ({bodyClips.Count} nomes)",
+			bodyClips.Distinct().Count() == gestures.Length);
+
+		Check("nenhum gesto cai no idle do corpo por engano",
+			bodyClips.All(clip => clip != PokerClips.BodyIdle));
+
+		// A gesture nobody made resolves to idle in both, which is what "nothing happened" means.
+		Check("sem gesto, corpo e mão ficam parados",
+			PokerClips.ThirdPerson(PokerGesture.None) == PokerClips.BodyIdle
+			&& PokerClips.FirstPerson(PokerGesture.None) == PokerClips.Idle);
+
+		// Every action code the server can put in a context has to map to something, or a peer
+		// watching somebody else would see them do nothing at all.
+		Check("as ações do servidor viram gestos",
+			PokerClips.ForAction("fold") == PokerGesture.Fold
+			&& PokerClips.ForAction("check") == PokerGesture.Knock
+			&& PokerClips.ForAction("call") == PokerGesture.ThrowChips
+			&& PokerClips.ForAction("raise") == PokerGesture.ThrowChips
+			&& PokerClips.ForAction("showdown") == PokerGesture.Reveal);
+
+		Check("uma ação que não é um gesto não anima nada",
+			PokerClips.ForAction("deal") == PokerGesture.None
+			&& PokerClips.ForAction("") == PokerGesture.None);
+
+		// The body gesture is replayed by the seat presenter from the context, so the hook it calls
+		// has to exist on Player — it is a no-op today and must stay callable.
+		Check("o corpo sentado tem por onde receber um gesto",
+			typeof(Player).GetMethod(nameof(Player.PlaySeatedGesture)) != null);
+
+		var scene = GD.Load<PackedScene>("res://Features/Games/Poker/Poker.tscn");
+		var game = scene?.Instantiate<PokerGame>();
+
+		if (game == null)
+			return;
+
+		AddChild(game);
+		Check("o toque na mesa tem som", game.SeatPresenter?.KnockSound != null);
+		game.QueueFree();
 	}
 
 	/// <summary>The chips are the one thing the art pack could actually supply.</summary>

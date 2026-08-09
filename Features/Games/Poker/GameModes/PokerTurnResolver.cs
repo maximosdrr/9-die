@@ -54,6 +54,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 	private int _bigBlind;
 	private bool _handInProgress;
 
+	private int _actionSeq;
 	private string _lastAction = "";
 	private string _lastPlayer = "";
 	private int _lastAmount;
@@ -322,6 +323,19 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 		_lastPlayer = playerId;
 		_lastAmount = total;
 
+		// Counts PLAYER actions, not contexts. A gesture has to fire exactly once per action, and
+		// the turn stamp cannot be used for that — several contexts can carry the same action, and
+		// one action can produce several contexts.
+		_actionSeq++;
+
+		// Every action gets a moment of its own, before anything is decided on top of it.
+		//
+		// Advance can settle the whole hand — a fold that leaves one player standing does exactly
+		// that — and settling overwrites the action code with "won". Without this the commonest fold
+		// at a heads-up table was the one nobody ever saw: no knock, no throw, no cards in the muck.
+		// The turn does not move here, so this is purely "here is what just happened".
+		Game.CallExtendCurrentTurn(BuildContext(_lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
+
 		Advance();
 	}
 
@@ -435,7 +449,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 			return;
 		}
 
-		Game.ApplyNewTurn(_seatOrder[_actingSeat], BuildContext("street", "", 0));
+		// Carries the action that CLOSED the previous street rather than wiping it.
+		//
+		// An action that ends a betting round never gets a context of its own — Advance goes
+		// straight here — so overwriting the code with "street" made that action invisible to every
+		// peer. Whoever acted last on a street was silent: no gesture, no knock on the table. The
+		// street itself is already in the context as a field, so the code is free to say something
+		// more useful.
+		Game.ApplyNewTurn(_seatOrder[_actingSeat], BuildContext(_lastAction, _lastPlayer, _lastAmount));
 	}
 
 	/// <summary>Turns whatever board is left and settles the hand at a showdown.</summary>
@@ -668,6 +689,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 			["last_action"] = action ?? "",
 			["last_player"] = player ?? "",
 			["last_amount"] = amount,
+			["action_seq"] = _actionSeq,
 
 			["reveal_players"] = revealPlayers,
 			["reveal_cards"] = revealCards.ToArray(),

@@ -32,6 +32,17 @@ public partial class PokerMatchTest : Node
 	private int _conservationBreaks;
 	private int _worstTotal;
 
+	/// <summary>
+	/// Every action code the table was told about, in order, one entry per action.
+	///
+	/// The gesture and the sound a peer plays are read off this and nothing else, so a code that is
+	/// never published is an action nobody outside the server ever sees.
+	/// </summary>
+	private readonly List<string> _actionsPublished = new();
+
+	private PokerGame _game;
+	private int _lastSeqSeen = -1;
+
 	public override void _Ready()
 	{
 		GD.Print("=== Teste de sessão de poker ===");
@@ -56,6 +67,10 @@ public partial class PokerMatchTest : Node
 		game.SmallBlind = 5;
 		game.BigBlind = 10;
 		game.BlindIncreaseEveryHands = 6;
+
+		_game = game;
+		SignalUtil.ConnectGuarded(game, PokerGame.SignalName.HudStateUpdated,
+			new Callable(this, MethodName.OnPublicStateChanged));
 
 		var order = new Array { "1", "2" };
 		game.TurnOrder = order;
@@ -83,9 +98,11 @@ public partial class PokerMatchTest : Node
 
 		TestDeal(game);
 		TestPickUpGesture(game);
+		TestFoldThrowsTheCards(game);
 		TestSecrecy(game);
 		TestRejections(game, resolver);
 		TestSessionRunsToTheEnd(game, resolver);
+		TestEveryActionIsPublished();
 		TestSecondSessionIsPlayable(game, resolver, order);
 
 		Finish();
@@ -120,6 +137,12 @@ public partial class PokerMatchTest : Node
 		Check($"o servidor carimbou a vez ({game.TurnToken})", game.TurnToken > 0);
 		Check($"ninguém está all-in nem desistiu na largada",
 			game.Folded.Count == 0 && game.AllIn.Count == 0);
+
+		// The chips a player has bet THIS street sit in front of them, not in the middle. Drawing the
+		// hand's total in the middle as well put every one of those chips on the table twice.
+		Check($"o meio da mesa não repete as fichas que estão na frente dos jogadores "
+			  + $"(pote {game.PotTotal}, no meio {game.PotInMiddle})",
+			game.PotInMiddle == 0);
 
 		CheckConservation(game, "logo após a distribuição");
 	}
@@ -176,6 +199,71 @@ public partial class PokerMatchTest : Node
 
 		Check($"a mesa não fica com as cartas de quem já as pegou ({stillOnCloth} visíveis)",
 			stillOnCloth == 0);
+	}
+
+	/// <summary>
+	/// Giving up THROWS the cards. They go into the middle and stay there, face down, for the rest of
+	/// the hand — they do not simply stop being drawn.
+	///
+	/// Driven straight at the public state the presenter reads rather than through a real fold: heads
+	/// up, folding ends the hand at once and the muck would be swept before anyone could look at it.
+	/// What is under test is the presenter, and this is exactly what a fold hands it.
+	/// </summary>
+	private void TestFoldThrowsTheCards(PokerGame game)
+	{
+		var presenter = game.SeatPresenter;
+		var board = game.BoardPresenter;
+
+		if (presenter == null || board == null || game.Player == null)
+		{
+			Check("a mesa tem apresentadores para desenhar o descarte", false);
+			return;
+		}
+
+		var me = (string)game.Player.Name;
+
+		// Through the signal the server's context would raise, not by poking the presenter: the hand
+		// in front of the eye and the cards on the cloth are two different listeners, and a fold has
+		// to reach both.
+		game.Folded.Add(me);
+		game.EmitSignal(PokerGame.SignalName.HudStateUpdated);
+
+		for (var frame = 0; frame < 120; frame++)
+			presenter._Process(1.0 / 60.0);
+
+		var thrown = presenter.GetChildren()
+			.OfType<PokerCard>()
+			.Where(card => card.Visible)
+			.ToList();
+
+		Check($"desistir devolve as duas cartas para a mesa ({thrown.Count} visíveis)",
+			thrown.Count == PokerDeal.HoleCardCount);
+
+		var muck = board.MuckPosition;
+		var worst = thrown.Count == 0
+			? float.MaxValue
+			: thrown.Max(card => new Vector2(
+				card.Position.X - muck.X, card.Position.Z - muck.Z).Length());
+
+		Check($"e elas param no descarte, longe do assento ({worst * 100.0f:F1} cm do ponto)",
+			worst < 0.10f);
+
+		Check("e ficam viradas para baixo", thrown.All(card => card.IsFaceDown));
+
+		// The hand in front of the eye has to let go at the same moment, or the player is left
+		// holding cards they just gave up.
+		var view = game.Player.GameHandler.CurrentController?.GetNodeOrNull<PokerHand3DView>("HandView");
+		var held = view == null
+			? -1
+			: view.GetNode<Node3D>("HandRig/Hand/CardSlots").GetChildren()
+				.OfType<PokerCard>().Count(card => card.Visible);
+
+		Check($"e a mão de quem desistiu fica vazia ({held} cartas)", held == 0);
+
+		// Put it back: the next context from the server rebuilds this set anyway, and nothing after
+		// this point should inherit a fold that never happened.
+		game.Folded.Remove(me);
+		game.EmitSignal(PokerGame.SignalName.HudStateUpdated);
 	}
 
 	/// <summary>
@@ -308,6 +396,53 @@ public partial class PokerMatchTest : Node
 		resolver.ApplyActionFor("1", game.TurnToken, (int)PokerActionKind.Call, 0);
 		Check($"ação depois do fim da sessão é recusada ({_lastRejection})",
 			_lastRejection == "match_not_running");
+	}
+
+	/// <summary>
+	/// Every action a player makes has to reach the table as an action.
+	///
+	/// This is the "the sound only plays on the host" report. A gesture and its sound are derived
+	/// from the published action code and nothing else, and two paths were throwing that code away
+	/// before anybody was told: opening a street replaced it with "street", and settling a hand
+	/// replaced it with "won". Between them they silenced whoever acted LAST on a street and every
+	/// fold that ended a hand — which, heads-up, is every fold there is.
+	///
+	/// One peer here, so this cannot prove delivery across the wire; the contexts checked are the
+	/// same ones the bridge mirrors verbatim, and what broke was that they never carried the action
+	/// in the first place.
+	/// </summary>
+	private void TestEveryActionIsPublished()
+	{
+		var actions = _actionsPublished.Where(code => PokerClips.ForAction(code) != PokerGesture.None)
+			.ToList();
+
+		var folds = actions.Count(code => code == "fold");
+		var knocks = actions.Count(code => code == "check");
+		var throws = actions.Count(code => code is "call" or "raise");
+
+		Check($"as desistências chegaram à mesa como desistências ({folds})", folds > 0);
+		Check($"os \"passar\" chegaram à mesa, e não só ao host ({knocks})", knocks > 0);
+		Check($"as apostas chegaram à mesa ({throws})", throws > 0);
+
+		Check($"nenhum código de ação virou \"street\" ou \"won\" no caminho "
+			  + $"({_actionsPublished.Count(code => code is "street")} viraram rua)",
+			!_actionsPublished.Contains("street"));
+
+		// The counter is what a peer compares against to fire a gesture exactly once. If it moved
+		// without an action, tables would knock on the wood at random.
+		Check($"o contador de ações acompanha as ações publicadas "
+			  + $"({_game.ActionSeq} contra {_actionsPublished.Count} contextos novos)",
+			_game.ActionSeq > 0 && _actionsPublished.Count >= _game.ActionSeq);
+	}
+
+	/// <summary>Records the action carried by each new context, once per action.</summary>
+	private void OnPublicStateChanged()
+	{
+		if (_game == null || _game.ActionSeq == _lastSeqSeen)
+			return;
+
+		_lastSeqSeen = _game.ActionSeq;
+		_actionsPublished.Add(_game.LastAction);
 	}
 
 	private static ActionOption PickAction(

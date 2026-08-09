@@ -12,6 +12,7 @@
 [ext_resource type="Texture2D" uid="uid://f2fg6cq10jt8" path="res://Assets/BarAssets/BarBuildingKit1845_wooden_chair_basecolor_25.jpg" id="9_k7e2d"]
 [ext_resource type="Script" uid="uid://hgv5ik8lqfaf" path="res://Features/Games/Poker/Scripts/PokerChipPile.cs" id="9_ppile"]
 [ext_resource type="PackedScene" path="res://Features/Games/Poker/GameController/PokerController.tscn" id="10_pctrl"]
+[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Strike.ogg" id="11_pknock"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_pokertable"]
 height = 0.718
@@ -150,6 +151,10 @@ PotPile = NodePath("PotPile")
 
 [node name="PotPile" type="Node3D" parent="BoardHolder" unique_id=302199022]
 script = ExtResource("9_ppile")
+Scatter = 0.016
+TiltDegrees = 9.0
+SettleSeconds = 0.26
+SettleHeight = 0.02
 
 [node name="SeatPresenter" type="Node3D" parent="." unique_id=637816955 node_paths=PackedStringArray("BoardPresenter", "Seats")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
@@ -157,6 +162,7 @@ script = ExtResource("8_pseat")
 CardScene = ExtResource("6_pcard")
 BoardPresenter = NodePath("../BoardHolder")
 Seats = NodePath("../Seats")
+KnockSound = ExtResource("11_pknock")
 
 [node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
 script = ExtResource("5_panch")

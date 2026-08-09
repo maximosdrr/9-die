@@ -119,6 +119,27 @@ public partial class Player : CharacterBody3D
         StateMachine.ChangeState(StatesRef.PlayerIdle, new Dictionary());
     }
 
+    /// <summary>
+    /// Plays a one-shot on the SEATED body — what everyone else sees this player do at the table.
+    ///
+    /// Deliberately not routed through the state machine: ChangeState is a no-op when the state is
+    /// already current, so a second gesture in the same seat would never replay. This drives the
+    /// character's own AnimationPlayer directly and leaves the state alone.
+    ///
+    /// Silently does nothing when the clip does not exist, which is every table gesture today — the
+    /// rig carries only Idle and Walk. The call sites are what matter now; the clips drop in later
+    /// with no change here.
+    /// </summary>
+    public void PlaySeatedGesture(string animationName)
+    {
+        if (!IsInSeatedGameMode || string.IsNullOrWhiteSpace(animationName))
+            return;
+
+        var animation = GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer");
+        if (animation != null && animation.HasAnimation(animationName))
+            animation.Play(animationName);
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         if (!IsMultiplayerAuthority())

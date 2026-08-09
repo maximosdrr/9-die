@@ -1,0 +1,164 @@
+using System.Linq;
+using Godot;
+using Godot.Collections;
+using Poker.Rules;
+
+/// <summary>
+/// Renders the cloth to a PNG so the presentation can be LOOKED at rather than only asserted.
+///
+/// Temporary scaffolding, not part of the suite: it needs a real renderer, so it cannot run headless
+/// alongside the other tests. It stages one moment — chips thrown into the middle and a hand in the
+/// muck — from the same public state a real table would be holding.
+/// </summary>
+public partial class PokerVisualCheck : Node3D
+{
+	[Export] public string OutputPath = "user://poker_visual.png";
+
+	/// <summary>Frames of settling before the shot, so the throws and the muck are where they end up.</summary>
+	[Export] public int WarmUpFrames = 150;
+
+	private PokerGame _game;
+	private int _frames;
+	private bool _shot;
+
+	public override void _Ready()
+	{
+		var players = BuildPlayers("1", "2", "3");
+		var table = BuildTable();
+
+		_game = table.CurrentTableGame as PokerGame;
+		if (_game == null)
+		{
+			GD.PushError("A cena de poker não instanciou.");
+			GetTree().Quit(1);
+			return;
+		}
+
+		var camera = new GlobalCamera();
+		AddChild(camera);
+		_game.SetCamera(camera);
+
+		_game.AllowSoloDebug = true;
+		_game.StartingStack = 500;
+		_game.SmallBlind = 5;
+		_game.BigBlind = 10;
+
+		var order = new Array { "1", "2", "3" };
+		_game.TurnOrder = order;
+		_game.TurnOwner = players["1"];
+		_game.Player = players["1"];
+
+		var resolver = _game.Resolver;
+		resolver.ShowdownSeconds = 0.0f;
+		resolver.FoldedHandSeconds = 0.0f;
+
+		_game.SetupMatch(order, "1");
+
+		// A raise, a call and a fold: one seat with chips in the middle, one that matched it, and one
+		// whose cards are on their way to the muck.
+		Act(PokerActionKind.Raise, 40);
+		Act(PokerActionKind.Call, 40);
+		Act(PokerActionKind.Fold, 0);
+
+		BuildCamera();
+	}
+
+	private void Act(PokerActionKind kind, int total)
+	{
+		var actor = _game.TurnOwnerId;
+		if (string.IsNullOrEmpty(actor))
+			return;
+
+		var state = _game.BetStateOf(actor);
+		var options = PokerBetting.LegalActions(state, _game.CurrentBet, _game.MinRaiseIncrement);
+		var option = options.FirstOrDefault(o => o.Kind == kind);
+
+		if (option.Kind == PokerActionKind.None)
+			option = options.First();
+
+		var amount = Mathf.Clamp(total, option.MinTotal, option.MaxTotal);
+		_game.Resolver.ApplyActionFor(actor, _game.TurnToken, (int)option.Kind, amount);
+	}
+
+	/// <summary>Low and close, roughly where a seated player's eye is, so chip edges read.</summary>
+	private void BuildCamera()
+	{
+		var camera = new Camera3D { Fov = 48.0f, Current = true };
+		AddChild(camera);
+
+		camera.GlobalPosition = new Vector3(0.0f, 1.06f, 0.72f);
+		camera.LookAt(new Vector3(0.0f, 0.718f, -0.06f), Vector3.Up);
+
+		var light = new DirectionalLight3D { LightEnergy = 1.4f, ShadowEnabled = true };
+		AddChild(light);
+		light.GlobalPosition = new Vector3(0.6f, 2.4f, 0.9f);
+		light.LookAt(new Vector3(0.0f, 0.718f, 0.0f), Vector3.Up);
+
+		var fill = new OmniLight3D { LightEnergy = 1.1f, OmniRange = 6.0f };
+		AddChild(fill);
+		fill.GlobalPosition = new Vector3(-0.8f, 1.7f, 0.6f);
+
+		var ambient = new WorldEnvironment
+		{
+			Environment = new Godot.Environment
+			{
+				BackgroundMode = Godot.Environment.BGMode.Color,
+				BackgroundColor = new Color(0.06f, 0.07f, 0.09f),
+				AmbientLightSource = Godot.Environment.AmbientSource.Color,
+				AmbientLightColor = new Color(0.5f, 0.52f, 0.58f),
+				AmbientLightEnergy = 0.9f,
+			},
+		};
+
+		AddChild(ambient);
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_shot)
+			return;
+
+		if (++_frames < WarmUpFrames)
+			return;
+
+		_shot = true;
+
+		var image = GetViewport().GetTexture().GetImage();
+		image.SavePng(OutputPath);
+		GD.Print($"IMAGEM: {ProjectSettings.GlobalizePath(OutputPath)}");
+
+		GetTree().Quit(0);
+	}
+
+	private System.Collections.Generic.Dictionary<string, Player> BuildPlayers(params string[] ids)
+	{
+		var container = new Node3D { Name = "PlayersContainer" };
+		AddChild(container);
+		PlayerRegistry.Instance.PlayersContainer = container;
+
+		var scene = GD.Load<PackedScene>("res://Features/Player/Player.tscn");
+		var players = new System.Collections.Generic.Dictionary<string, Player>();
+
+		foreach (var id in ids)
+		{
+			var player = scene.Instantiate<Player>();
+			player.Name = id;
+			player.Id = int.Parse(id);
+			container.AddChild(player);
+			players[id] = player;
+		}
+
+		return players;
+	}
+
+	private Table BuildTable()
+	{
+		var table = GD.Load<PackedScene>("res://Core/Table/Table.tscn").Instantiate<Table>();
+
+		table.EnableNetworkTurnSyncronization = false;
+		table.TableGameScene = GD.Load<PackedScene>("res://Features/Games/Poker/Poker.tscn");
+
+		AddChild(table);
+		return table;
+	}
+}
