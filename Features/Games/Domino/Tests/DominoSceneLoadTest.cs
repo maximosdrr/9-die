@@ -228,10 +228,14 @@ public partial class DominoSceneLoadTest : Node
 			wired?.HandViewScene?.Instantiate() is DominoHand3DView);
 		wired?.QueueFree();
 
+		// FlattenHierarchy because SurrenderRequested is declared on SeatedHandView — leaving a match
+		// is not a domino idea. What matters is that all four reach the controller THROUGH the
+		// abstraction, which is what this walks; a signal that disappeared entirely still fails.
 		var signals = new[] { "TilePlayRequested", "DrawRequested", "PassRequested", "SurrenderRequested" };
 		var allDeclared = signals.All(name =>
 			typeof(DominoHandView).GetNestedType("SignalName", BindingFlags.Public)
-				?.GetField(name, BindingFlags.Public | BindingFlags.Static) != null);
+				?.GetField(name,
+					BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy) != null);
 
 		Check("a abstração declara os quatro sinais de intenção", allDeclared);
 
@@ -442,7 +446,7 @@ public partial class DominoSceneLoadTest : Node
 
 		Check("o apresentador conhece a mesa e os assentos",
 			presenter.ChainPresenter != null && presenter.Seats != null && presenter.TileScene != null);
-		var anchors = game.Seats as DominoSeatAnchors;
+		var anchors = game.Seats as TableSeatAnchors;
 		var chairsHaveColliders = anchors != null && anchors.Chairs.Count == 4;
 		if (anchors != null)
 		{
@@ -488,11 +492,11 @@ public partial class DominoSceneLoadTest : Node
 		// One source for where the stock lies, or the crosshair aims at empty cloth.
 		var drawn = presenter.ChainPresenter.Spec;
 		Check($"o monte é medido pela mesma peça da corrente "
-			  + $"({game.StockSpec.TileLength:F3} x {game.StockSpec.TileWidth:F3} m)",
-			Mathf.IsEqualApprox(game.StockSpec.TileLength, drawn.TileLength)
-			&& Mathf.IsEqualApprox(game.StockSpec.TileWidth, drawn.TileWidth));
+			  + $"({game.StockSpec.SlotLength:F3} x {game.StockSpec.SlotWidth:F3} m)",
+			Mathf.IsEqualApprox(game.StockSpec.SlotLength, drawn.TileLength)
+			&& Mathf.IsEqualApprox(game.StockSpec.SlotWidth, drawn.TileWidth));
 
-		var bounds = DominoBoneyardLayout.Bounds(21, game.StockSpec);
+		var bounds = SlotGrid.Bounds(21, game.StockSpec);
 		Check($"o monte configurado na cena não invade a área de jogo "
 			  + $"(começa em z={bounds.Position.Y:F3}, área vai até {drawn.PlayHalfExtents.Y:F3})",
 			bounds.Position.Y > drawn.PlayHalfExtents.Y);
@@ -535,6 +539,14 @@ public partial class DominoSceneLoadTest : Node
 
 		Check($"o nível tem mais de uma mesa (achou {tables.Count})", tables.Count >= 2);
 
+		// A mode whose game is not named here would pass by falling through to the default, which is
+		// exactly how the domino table was silently left without a camera the first time.
+		var known = tables.Count(table =>
+			table.CurrentTableGame is DominoGame or PoolGame or PokerGame);
+
+		Check($"toda mesa do nível é de um modo que este teste sabe conferir ({known}/{tables.Count})",
+			known == tables.Count);
+
 		var wired = 0;
 		var missing = new List<string>();
 		foreach (var table in tables)
@@ -552,6 +564,7 @@ public partial class DominoSceneLoadTest : Node
 			{
 				DominoGame domino => domino.Camera != null,
 				PoolGame pool => pool.Camera != null,
+				PokerGame poker => poker.Camera != null,
 				_ => true,
 			};
 

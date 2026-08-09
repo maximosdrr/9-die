@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://Features/Games/Domino/GameController/Views/DominoHand3DView.cs" id="1_dh3d"]
-[ext_resource type="Script" path="res://Features/Games/Domino/GameController/Views/DominoHandCrosshair.cs" id="9_cross"]
+[ext_resource type="Script" path="res://Core/Util/UI/AimCrosshair.cs" id="9_cross"]
 [ext_resource type="PackedScene" path="res://Features/Games/Domino/Components/Tiles/DominoTile.tscn" id="2_dtile"]
 [ext_resource type="Script" path="res://Core/StateMachine/StateMachine.cs" id="3_smach"]
 [ext_resource type="Script" path="res://Features/Games/Domino/GameController/Views/States/DominoHandIdleState.cs" id="4_sidle"]

@@ -9,12 +9,12 @@ using Godot;
 /// is imported as bare meshes.
 ///
 /// Body and head are placed separately on purpose. A chair sits about a metre from the middle of
-/// the table; putting the camera there too would push the tiles far enough away to undo the work
-/// that made them readable. A seated player leans in, so the eye is offset toward the table while
-/// the body stays on the chair, where the sitting animation will need it.
+/// the table; putting the camera there too would push whatever is played on the cloth far enough
+/// away to undo the work that made it readable. A seated player leans in, so the eye is offset
+/// toward the table while the body stays on the chair, where the sitting animation will need it.
 /// </summary>
 [GlobalClass]
-public partial class DominoSeatAnchors : Node3D
+public partial class TableSeatAnchors : Node3D
 {
 	/// <summary>In seating order. Each one claims the seat marker at the same index.</summary>
 	[Export] public Godot.Collections.Array<Node3D> Chairs = new();

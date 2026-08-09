@@ -4,26 +4,19 @@ using Godot;
 using Godot.Collections;
 
 /// <summary>
-/// Runs a domino match server side and is the only place a hand ever exists.
+/// Runs a domino match server side.
 ///
-/// The secrecy contract, stated once: <see cref="_hands"/>, <see cref="_boneyard"/> and
-/// <see cref="_dealSeed"/> never leave this node. A hand reaches its owner and nobody else, through
-/// the single targeted <see cref="ReceiveHand"/>. The seed in particular would reconstruct every
-/// hand at once, so it is never put in a context, a broadcast or a log.
+/// The private half — the hands, the deal seed, the turn stamp and the one targeted channel a hand
+/// travels on — is <see cref="SecretHandTurnResolver"/>'s, shared with every other hidden-information
+/// game. Added here is the part that is dominoes: the stock, the board, and the rulings.
 ///
-/// Everything public — the chain, the ends, the counts — rides the turn context that
-/// TableTurnNetworkBridge already replicates. Reusing that channel rather than adding a second one
-/// means the board can never arrive out of step with the turn it belongs to.
-///
-/// This node belongs to the server, unlike CueNetworkBridge which belongs to a player, so
-/// RpcMode.Authority is correct for every server-to-client message here.
+/// <see cref="_boneyard"/> joins the inherited secrets: only the PLACES are ever made public.
 /// </summary>
 [GlobalClass]
-public partial class DominoTurnResolver : TurnResolver
+public partial class DominoTurnResolver : SecretHandTurnResolver
 {
-	public DominoGame Game;
+	public DominoGame Game => Table as DominoGame;
 
-	private readonly System.Collections.Generic.Dictionary<string, List<int>> _hands = new();
 	/// <summary>
 	/// The stock, as (place on the table, tile). Places are handed out once at the deal and never
 	/// reused while occupied, so a place means the same spot from the moment the player aims at it
@@ -35,59 +28,27 @@ public partial class DominoTurnResolver : TurnResolver
 	private int _boneyardPlaces;
 	private readonly DominoBoardState _board = new();
 
-	private ulong _dealSeed;
-	private int _turnToken;
 	private int _consecutivePasses;
 	private string _lastPlayerId = "";
-	private bool _matchRunning;
 
-	[Signal]
-	public delegate void ActionRejectedEventHandler(string reason);
-
-	public override void Setup(TableGame tableGame)
+	protected override void ResetSecretState()
 	{
-		Game = (DominoGame)tableGame;
-
-		_hands.Clear();
 		_boneyard.Clear();
 		_boneyardPlaces = 0;
 		_board.Reset();
-		_turnToken = 0;
 		_consecutivePasses = 0;
 		_lastPlayerId = "";
-		_matchRunning = false;
-
-		if (!Multiplayer.IsServer())
-			return;
-
-		// The shared bridge rebuilds the mode for a late peer; this packet then catches its public
-		// board up to the exact current turn.
-		SignalUtil.ConnectGuarded(NetworkManager.Instance.NetworkProvider,
-			NetworkProvider.SignalName.PlayerConnected,
-			new Callable(this, MethodName.OnPeerConnected));
 	}
 
-	public override void HandleNewTurnContext(Dictionary context) => Game?.ApplyPublicSnapshot(context);
+	protected override void ClearSecretState() => _boneyard.Clear();
 
-	public override void HandleTurnExtensionContext(Dictionary context) => Game?.ApplyPublicSnapshot(context);
+	protected override void ApplyLocalHand(int[] items) => Game?.ApplyLocalHand(items);
 
-	public override void _ExitTree()
-	{
-		var provider = NetworkManager.Instance?.NetworkProvider;
-		if (provider != null)
-		{
-			SignalUtil.DisconnectGuarded(provider, NetworkProvider.SignalName.PlayerConnected,
-				new Callable(this, MethodName.OnPeerConnected));
-		}
-	}
+	protected override void ApplyPublicSnapshot(Dictionary context) => Game?.ApplyPublicSnapshot(context);
 
-	public override void HandleMatchEnded()
-	{
-		_matchRunning = false;
-		_hands.Clear();
-		_boneyard.Clear();
-		_dealSeed = 0;
-	}
+	/// <summary>The public state as it stands, without moving the turn on.</summary>
+	protected override Dictionary BuildSnapshot() =>
+		BuildContext(Game.LastAction, Game.LastPlayer, Game.LastTile, advanceTurn: false);
 
 	/// <summary>
 	/// Context handed to the next player when the current one leaves. TableGame has already put
@@ -111,7 +72,7 @@ public partial class DominoTurnResolver : TurnResolver
 		if (playerIds.Count == 0)
 			return;
 
-		_dealSeed = ((ulong)GD.Randi() << 32) | GD.Randi();
+		DealSeed = ((ulong)GD.Randi() << 32) | GD.Randi();
 		var requestedHandSize = Game.DebugStartingHandSize;
 		var effectiveHandSize = DominoDeal.HandSize(playerIds.Count, requestedHandSize);
 		if (requestedHandSize > 0 && effectiveHandSize != requestedHandSize)
@@ -121,11 +82,11 @@ public partial class DominoTurnResolver : TurnResolver
 				+ $"using the standard size {effectiveHandSize}.");
 		}
 
-		var deal = DominoDeal.Deal(playerIds, _dealSeed, requestedHandSize);
+		var deal = DominoDeal.Deal(playerIds, DealSeed, requestedHandSize);
 
-		_hands.Clear();
+		Hands.Clear();
 		foreach (var entry in deal.Hands)
-			_hands[entry.Key] = entry.Value;
+			Hands[entry.Key] = entry.Value;
 
 		_boneyard.Clear();
 		for (var slot = 0; slot < deal.Boneyard.Count; slot++)
@@ -135,17 +96,17 @@ public partial class DominoTurnResolver : TurnResolver
 
 		_board.Reset();
 		_consecutivePasses = 0;
-		_matchRunning = true;
+		MatchRunning = true;
 
 		foreach (var playerId in playerIds)
 			SendHand(playerId);
 
 		// Highest double leads, which is rarely whoever GameStarted happened to seat first.
-		var opener = DominoDeal.PickOpener(_hands, playerIds, out var openingTile);
+		var opener = DominoDeal.PickOpener(Hands, playerIds, out var openingTile);
 		if (opener == null || openingTile == DominoTileId.NoEnd)
 			return;
 
-		_hands[opener].Remove(openingTile);
+		Hands[opener].Remove(openingTile);
 		_board.TryPlay(opener, openingTile, ChainEnd.Right);
 		_lastPlayerId = opener;
 		SendHand(opener);
@@ -261,7 +222,7 @@ public partial class DominoTurnResolver : TurnResolver
 
 		if (hand.Count == 0)
 		{
-			_matchRunning = false;
+			MatchRunning = false;
 			Game.ApplyMatchOver(playerId, BuildContext("domino", playerId, tileId));
 			return;
 		}
@@ -349,7 +310,7 @@ public partial class DominoTurnResolver : TurnResolver
 
 	private void ResolveLockedGame()
 	{
-		_matchRunning = false;
+		MatchRunning = false;
 
 		var turnOrder = new List<string>();
 		foreach (var playerVariant in Game.TurnOrder)
@@ -358,7 +319,7 @@ public partial class DominoTurnResolver : TurnResolver
 		var pipTotals = new System.Collections.Generic.Dictionary<string, int>();
 		foreach (var playerId in turnOrder)
 		{
-			if (_hands.TryGetValue(playerId, out var hand))
+			if (Hands.TryGetValue(playerId, out var hand))
 				pipTotals[playerId] = DominoRules.PipTotal(hand);
 		}
 
@@ -381,100 +342,7 @@ public partial class DominoTurnResolver : TurnResolver
 		Game.ApplyMatchOver(winner, context);
 	}
 
-	/// <summary>
-	/// The three checks every action shares: the match is live, it is this player's turn, and the
-	/// request quotes the turn stamp the server is currently on. The stamp is what kills a double
-	/// click, a click that lands after the turn already moved, and a replayed packet.
-	/// </summary>
-	private bool TurnIsOpenFor(string playerId, int turnToken, out List<int> hand, out string reason)
-	{
-		hand = null;
-
-		if (!_matchRunning || Game == null)
-		{
-			reason = "match_not_running";
-			return false;
-		}
-
-		if (!Game.IsTurnOwner(playerId))
-		{
-			reason = "not_your_turn";
-			return false;
-		}
-
-		if (turnToken != _turnToken)
-		{
-			reason = "stale_turn";
-			return false;
-		}
-
-		if (!_hands.TryGetValue(playerId, out hand))
-		{
-			reason = "not_in_match";
-			return false;
-		}
-
-		reason = null;
-		return true;
-	}
-
-	// ---------------------------------------------------------------- private hand channel
-
-	private void SendHand(string playerId)
-	{
-		if (!Multiplayer.IsServer() || !_hands.TryGetValue(playerId, out var hand))
-			return;
-
-		var tiles = hand.ToArray();
-
-		if (!int.TryParse(playerId, out var peerId))
-			return;
-
-		if (peerId == Multiplayer.GetUniqueId())
-			Game.ApplyLocalHand(tiles);
-		else
-			RpcId(peerId, MethodName.ReceiveHand, tiles);
-	}
-
-	/// <summary>
-	/// The one and only route a hand takes. Covers the deal, every draw and a reclaimed slot, so
-	/// there is a single method to audit for the secrecy rule.
-	/// </summary>
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveHand(int[] tileIds)
-	{
-		Game?.ApplyLocalHand(tileIds);
-	}
-
-	private void Reject(int requesterId, int turnToken, string reason)
-	{
-		if (requesterId == Multiplayer.GetUniqueId())
-			EmitSignal(SignalName.ActionRejected, reason);
-		else
-			RpcId(requesterId, MethodName.ReceiveActionRejected, turnToken, reason);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveActionRejected(int turnToken, string reason)
-	{
-		EmitSignal(SignalName.ActionRejected, reason);
-	}
-
-	// ---------------------------------------------------------------- late joiners and reconnects
-
-	private void OnPeerConnected(int peerId)
-	{
-		if (!Multiplayer.IsServer() || !_matchRunning)
-			return;
-
-		RpcId(peerId, MethodName.ReceiveFullState, BuildSnapshot());
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveFullState(Dictionary context)
-	{
-		Game?.ApplyPublicSnapshot(context);
-	}
+	// ---------------------------------------------------------------- reconnects
 
 	/// <summary>Hands a reclaimed slot's tiles and the whole board to the peer that came back.</summary>
 	public void ReissueStateTo(string oldPlayerId, string newPlayerId)
@@ -482,16 +350,13 @@ public partial class DominoTurnResolver : TurnResolver
 		if (!Multiplayer.IsServer())
 			return;
 
-		if (_hands.Remove(oldPlayerId, out var hand))
-			_hands[newPlayerId] = hand;
+		if (Hands.Remove(oldPlayerId, out var hand))
+			Hands[newPlayerId] = hand;
 
 		if (_lastPlayerId == oldPlayerId)
 			_lastPlayerId = newPlayerId;
 
-		SendHand(newPlayerId);
-
-		if (int.TryParse(newPlayerId, out var peerId) && peerId != Multiplayer.GetUniqueId())
-			RpcId(peerId, MethodName.ReceiveFullState, BuildSnapshot());
+		ReissueTo(newPlayerId);
 	}
 
 	/// <summary>The occupied places, in table order. Public; carries no tile identity.</summary>
@@ -504,9 +369,6 @@ public partial class DominoTurnResolver : TurnResolver
 		return slots;
 	}
 
-	/// <summary>The public state as it stands, without moving the turn on.</summary>
-	private Dictionary BuildSnapshot() =>
-		BuildContext(Game.LastAction, Game.LastPlayer, Game.LastTile, advanceTurn: false);
 
 	/// <summary>Puts a player's tiles back on the table when they leave for good.</summary>
 	public void ReturnTilesToBoneyard(string playerId)
@@ -514,7 +376,7 @@ public partial class DominoTurnResolver : TurnResolver
 		if (!Multiplayer.IsServer())
 			return;
 
-		if (!_hands.Remove(playerId, out var hand))
+		if (!Hands.Remove(playerId, out var hand))
 			return;
 
 		// Kept rather than discarded so "the stock is empty" and the locked-game count stay honest
@@ -556,7 +418,7 @@ public partial class DominoTurnResolver : TurnResolver
 		// Only a real turn boundary burns the stamp. A catch-up snapshot for a late joiner must
 		// not, or it would invalidate the action the current player is in the middle of sending.
 		if (advanceTurn)
-			_turnToken++;
+			TurnStamp++;
 
 		var plays = _board.Plays;
 		var tiles = new int[plays.Count];
@@ -576,12 +438,12 @@ public partial class DominoTurnResolver : TurnResolver
 		{
 			var playerId = (string)playerVariant;
 			handPlayers.Add(playerId);
-			handCounts.Add(_hands.TryGetValue(playerId, out var hand) ? hand.Count : 0);
+			handCounts.Add(Hands.TryGetValue(playerId, out var hand) ? hand.Count : 0);
 		}
 
 		return new Dictionary
 		{
-			["turn_token"] = _turnToken,
+			["turn_token"] = TurnStamp,
 			["play_tiles"] = Variant.From(tiles),
 			["play_ends"] = Variant.From(ends),
 			["play_players"] = Variant.From(players),

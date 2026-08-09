@@ -15,7 +15,7 @@ public partial class DominoAimTest : Node
 	private int _failed;
 
 	private static readonly LayoutSpec Spec = LayoutSpec.Default;
-	private static readonly BoneyardSpec Stock = BoneyardSpec.Default;
+	private static readonly SlotGridSpec Stock = DominoBoneyardLayout.Default;
 
 	public override void _Ready()
 	{
@@ -197,21 +197,21 @@ public partial class DominoAimTest : Node
 		var stable = true;
 		for (var slot = 0; slot < stockSize; slot++)
 		{
-			if (DominoBoneyardLayout.SlotPosition(slot, Stock)
-				!= DominoBoneyardLayout.SlotPosition(slot, Stock))
+			if (SlotGrid.SlotPosition(slot, Stock)
+				!= SlotGrid.SlotPosition(slot, Stock))
 				stable = false;
 		}
 
 		Check("a posição de um lugar depende só do número dele", stable);
 
-		var half = DominoBoneyardLayout.HalfExtents(Stock);
+		var half = SlotGrid.HalfExtents(Stock);
 		var worstOverlap = 0.0f;
 		for (var a = 0; a < stockSize; a++)
 		{
 			for (var b = a + 1; b < stockSize; b++)
 			{
-				var delta = (DominoBoneyardLayout.SlotPosition(a, Stock)
-							 - DominoBoneyardLayout.SlotPosition(b, Stock)).Abs();
+				var delta = (SlotGrid.SlotPosition(a, Stock)
+							 - SlotGrid.SlotPosition(b, Stock)).Abs();
 				var overlap = Mathf.Min(half.X * 2.0f - delta.X, half.Y * 2.0f - delta.Y);
 				worstOverlap = Mathf.Max(worstOverlap, overlap);
 			}
@@ -221,7 +221,7 @@ public partial class DominoAimTest : Node
 			worstOverlap <= 0.0f);
 
 		// The stock must sit clear of where the chain grows, or tiles would land on top of it.
-		var bounds = DominoBoneyardLayout.Bounds(stockSize, Stock);
+		var bounds = SlotGrid.Bounds(stockSize, Stock);
 		Check($"o monte fica fora da área de jogo (começa em z={bounds.Position.Y:F3}, "
 			  + $"área vai até {Spec.PlayHalfExtents.Y:F3})",
 			bounds.Position.Y > Spec.PlayHalfExtents.Y);
@@ -248,23 +248,23 @@ public partial class DominoAimTest : Node
 		for (var slot = 0; slot < stockSize; slot++)
 			occupied.Add(slot);
 
-		var before = DominoBoneyardLayout.SlotPosition(9, Stock);
+		var before = SlotGrid.SlotPosition(9, Stock);
 		occupied.Remove(7);
-		var after = DominoBoneyardLayout.SlotPosition(9, Stock);
+		var after = SlotGrid.SlotPosition(9, Stock);
 
 		Check("comprar um lugar não move os outros", before == after);
 
 		Check("a mira encontra o lugar mais próximo",
-			DominoBoneyardLayout.NearestSlot(occupied, Stock,
-				DominoBoneyardLayout.SlotPosition(12, Stock)) == 12);
+			SlotGrid.NearestSlot(occupied, Stock,
+				SlotGrid.SlotPosition(12, Stock)) == 12);
 
 		// A gap is not a target — the tile is gone.
 		Check("um lugar já comprado não é alvo",
-			DominoBoneyardLayout.NearestSlot(occupied, Stock,
-				DominoBoneyardLayout.SlotPosition(7, Stock)) != 7);
+			SlotGrid.NearestSlot(occupied, Stock,
+				SlotGrid.SlotPosition(7, Stock)) != 7);
 
 		Check("monte vazio não tem alvo",
-			DominoBoneyardLayout.NearestSlot(new List<int>(), Stock, Vector2.Zero) == DominoTileId.NoEnd);
+			SlotGrid.NearestSlot(new List<int>(), Stock, Vector2.Zero) == DominoTileId.NoEnd);
 	}
 
 	private void Check(string label, bool condition)

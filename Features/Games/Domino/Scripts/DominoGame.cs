@@ -53,7 +53,7 @@ public partial class DominoGame : TableGame
 	/// draws the face-down tiles from it and the hand view aims at them with it — two readers of
 	/// one value, so the crosshair can never point at where the tiles are not.
 	/// </summary>
-	public BoneyardSpec StockSpec { get; set; } = BoneyardSpec.Default;
+	public SlotGridSpec StockSpec { get; set; } = DominoBoneyardLayout.Default;
 
 	/// <summary>Server-issued stamp for the current turn; a request carrying a stale one is dropped.</summary>
 	public int TurnToken;

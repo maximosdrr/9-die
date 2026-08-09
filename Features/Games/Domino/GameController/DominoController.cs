@@ -4,161 +4,49 @@ using Godot;
 using Godot.Collections;
 
 /// <summary>
-/// The per-player surface of a domino match: takes the seat, owns the two camera views and relays
-/// what the hand view asks for to the server.
+/// The per-player surface of a domino match.
 ///
-/// Unlike the pool controller, nothing moves when the turn changes. Players normally stay seated,
-/// but may use the shared control switch to get up, walk around and return to their own chair.
+/// The chair, the first-person and overhead cameras and the hold-to-leave are all
+/// <see cref="SeatedTableController"/>'s and are shared with every other seated game. What is left
+/// here is only what is dominoes: which tiles are legal right now, and relaying the four intents the
+/// hand view emits to the server.
 ///
-/// Two views, both driven from here rather than from a fixed marker in the table scene, so each
-/// player looks around independently and sees the table from their own side:
-///   - the SEAT view, a first-person head the player can turn by holding the free-look button;
-///   - the TOP view, straight down over the table, rotated so their own side is nearest.
+/// Nothing moves when the turn changes. Players normally stay seated, but may use the shared
+/// control switch to get up, walk around and return to their own chair.
 /// </summary>
 [GlobalClass]
-public partial class DominoController : GameController
+public partial class DominoController : SeatedTableController
 {
-	/// <summary>
-	/// Swap this to change the entire hand presentation. The 3D rack view drops in here with no
-	/// other change anywhere — see <see cref="DominoHandView"/> for the contract it must keep.
-	/// </summary>
-	[Export] public PackedScene HandViewScene;
-
-	[ExportGroup("Seat view")]
-	/// <summary>
-	/// Slightly tighter than the walking camera so the pips remain readable from the chair without
-	/// changing the physical tile size or the layout shared by every peer.
-	/// </summary>
-	[Export] public float SeatFov = 48.0f;
-	[Export] public float MouseSensitivity = 0.004f;
-
-	/// <summary>How far the head turns to either side before a real person would move their body.</summary>
-	[Export] public float MaxYawDeg = 100.0f;
-
-	[Export] public float MinPitchDeg = -70.0f;
-	[Export] public float MaxPitchDeg = 25.0f;
-
-	/// <summary>Where the head rests: tilted down at the table, which is what the player wants to see.</summary>
-	[Export] public float RestPitchDeg = -32.0f;
-
-	/// <summary>
-	/// Animation requested while seated. PlayerStrike falls back to Idle until this clip is added
-	/// to the character, so adding the future animation needs no controller rewrite.
-	/// </summary>
-	[Export] public string SeatedAnimationName = "SitForAGame";
-
-	[ExportGroup("Top view")]
-	[Export] public float TopFov = 55.0f;
-
-	/// <summary>Height above the cloth. Framed so the whole playing area fills the shot at TopFov.</summary>
-	[Export] public float TopHeight = 0.58f;
-
-	/// <summary>
-	/// How far the overhead view slides per pixel of mouse movement. Without panning, a crosshair
-	/// locked to the screen centre would only ever point at the middle of the table.
-	/// </summary>
-	[Export] public float TopPanSensitivity = 0.0012f;
-
-	/// <summary>How far the overhead view may wander from the middle of the cloth.</summary>
-	[Export] public Vector2 TopPanLimit = new(0.34f, 0.34f);
-
-	[ExportGroup("Leaving")]
-	/// <summary>Held, not tapped: getting up mid-match forfeits, so it must not be a slip.</summary>
-	[Export] public float LeaveHoldSeconds = 1.0f;
-
-	public DominoGame Game;
-	public Player Player;
-	public GlobalCamera Camera;
-
-	private const string InputTopView = "toggle_top_view";
-	private const string InputLeave = "leave_table";
+	public DominoGame Game => Table as DominoGame;
 
 	private DominoHandView _handView;
-	private Node3D _lookRig;
-	private Node3D _lookPitch;
-	private RemoteTransform3D _remoteSeat;
-	private Node3D _topRig;
-	private RemoteTransform3D _remoteTop;
-
-	private float _seatYaw;
-	private float _lookYaw;
-	private float _lookPitch2;
-	private bool _inTopView;
-	private bool _seated;
-	private Vector2 _topPan;
-	private Vector3 _clothCentre;
-	private float _leaveHeld;
 
 	private static readonly List<MoveOption> NoMoves = new();
 
 	public override bool AllowsControlSwitch => true;
 
-	public override void _Ready()
+	// ---------------------------------------------------------------- what the seat needs to know
+
+	protected override SeatedHandView HandView => _handView;
+
+	protected override Node3D TableSurface => Game?.ChainPresenter;
+
+	protected override Marker3D SeatFor(string playerId) => Game?.SeatFor(playerId);
+
+	protected override Node3D SeatsRoot => Game?.Seats;
+
+	protected override bool OnSetup()
 	{
-		_lookRig = GetNode<Node3D>("LookRig");
-		_lookPitch = GetNode<Node3D>("LookRig/LookPitch");
-		_remoteSeat = GetNode<RemoteTransform3D>("LookRig/LookPitch/RemoteSeat");
-		_topRig = GetNode<Node3D>("TopRig");
-		_remoteTop = GetNode<RemoteTransform3D>("TopRig/RemoteTop");
-
-		// Both rigs are placed in world space from the seat, so they must not inherit the player's
-		// transform — the same trick AimCameraPivot uses to ride the cue ball.
-		_lookRig.TopLevel = true;
-		_topRig.TopLevel = true;
-
-		SetProcessUnhandledInput(false);
-		SetProcess(false);
-	}
-
-	public override void _Process(double delta)
-	{
-		if (!_seated || !IsMultiplayerAuthority())
-			return;
-
-		// Leaving the MATCH uses Q and is a hold rather than a press, so it cannot be confused with
-		// the harmless E toggle that only gets up from the chair.
-		if (Input.IsActionPressed(InputLeave))
-		{
-			_leaveHeld += (float)delta;
-
-			if (_leaveHeld >= LeaveHoldSeconds)
-			{
-				_leaveHeld = 0.0f;
-				_handView?.ShowNotice("Saindo da mesa", 2.0f);
-				OnSurrenderRequested();
-				return;
-			}
-
-			var remaining = Mathf.Max(0.0f, LeaveHoldSeconds - _leaveHeld);
-			_handView?.ShowNotice($"Segure para sair da mesa… {remaining:F1}s", 0.2f);
-			return;
-		}
-
-		_leaveHeld = 0.0f;
-	}
-
-	public override void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
-	{
-		Player = parent;
-		Game = tableGame as DominoGame;
-		Camera = camera;
-
 		if (Game == null)
 		{
 			GD.PushError("DominoController equipado num jogo que não é dominó.");
-			return;
+			return false;
 		}
-
-		// Every peer owns a physical copy of every player. Disable the seated body's simulation and
-		// collider on all of them, not only on its authority, or a spectator could still collide
-		// with an apparently motionless remote player occupying the same chair.
-		if (Game.SeatFor((string)Player.Name) != null)
-			Player.EnterSeatedGameMode();
 
 		SignalUtil.ConnectGuarded(Game, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
 		SignalUtil.ConnectGuarded(Game, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
-		SignalUtil.ConnectGuarded(Game, DominoGame.SignalName.HudStateUpdated, new Callable(this, MethodName.Refresh));
-		SignalUtil.ConnectGuarded(Game, DominoGame.SignalName.LocalHandChanged, new Callable(this, MethodName.Refresh));
+		SignalUtil.ConnectGuarded(Game, DominoGame.SignalName.HudStateUpdated, new Callable(this, MethodName.OnStateUpdated));
+		SignalUtil.ConnectGuarded(Game, DominoGame.SignalName.LocalHandChanged, new Callable(this, MethodName.OnStateUpdated));
 
 		if (Game.Resolver != null)
 		{
@@ -166,30 +54,35 @@ public partial class DominoController : GameController
 				new Callable(this, MethodName.OnActionRejected));
 		}
 
-		if (!IsMultiplayerAuthority())
-			return;
+		return true;
+	}
 
-		SpawnHandView();
-		CanTakeControl = Game.IsMatchActive;
-		TakeControl();
-		Refresh();
+	protected override void OnHandViewSpawned(SeatedHandView view)
+	{
+		_handView = view as DominoHandView;
+		if (_handView == null)
+		{
+			GD.PushError("A cena de mão do dominó não é uma DominoHandView.");
+			return;
+		}
+
+		_handView.Setup(Game, Player);
+		_handView.TilePlayRequested += OnTilePlayRequested;
+		_handView.DrawRequested += OnDrawRequested;
+		_handView.PassRequested += OnPassRequested;
 	}
 
 	public override void _ExitTree()
 	{
-		if (_seated && IsMultiplayerAuthority())
-			MoveToStandExit();
-
-		if (IsInstanceValid(Player))
-			Player.ExitSeatedGameMode();
+		base._ExitTree();
 
 		if (Game == null)
 			return;
 
 		SignalUtil.DisconnectGuarded(Game, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
 		SignalUtil.DisconnectGuarded(Game, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
-		SignalUtil.DisconnectGuarded(Game, DominoGame.SignalName.HudStateUpdated, new Callable(this, MethodName.Refresh));
-		SignalUtil.DisconnectGuarded(Game, DominoGame.SignalName.LocalHandChanged, new Callable(this, MethodName.Refresh));
+		SignalUtil.DisconnectGuarded(Game, DominoGame.SignalName.HudStateUpdated, new Callable(this, MethodName.OnStateUpdated));
+		SignalUtil.DisconnectGuarded(Game, DominoGame.SignalName.LocalHandChanged, new Callable(this, MethodName.OnStateUpdated));
 
 		if (Game.Resolver != null)
 		{
@@ -198,301 +91,24 @@ public partial class DominoController : GameController
 		}
 	}
 
-	private void SpawnHandView()
-	{
-		if (HandViewScene == null)
-		{
-			GD.PushError("DominoController sem HandViewScene: o jogador não terá como jogar.");
-			return;
-		}
+	// ---------------------------------------------------------------- the domino part
 
-		_handView = HandViewScene.Instantiate<DominoHandView>();
-		_handView.Name = "HandView";
+	private void OnTurnChanged(string nextPlayerId, Dictionary context) => RefreshView();
 
-		// Authority has to be set before the view enters the tree, because its _Ready hides itself
-		// on peers that do not own it.
-		_handView.SetMultiplayerAuthority(Player.Id);
-		AddChild(_handView);
-
-		_handView.Setup(Game, Player);
-		_handView.TilePlayRequested += OnTilePlayRequested;
-		_handView.DrawRequested += OnDrawRequested;
-		_handView.PassRequested += OnPassRequested;
-		_handView.SurrenderRequested += OnSurrenderRequested;
-	}
-
-	// ---------------------------------------------------------------- seating and views
-
-	/// <summary>Returns from free walking to this player's chair without depending on turn order.</summary>
-	public override void TakeControl()
-	{
-		if (!IsMultiplayerAuthority() || !IsInstanceValid(Game) || !Game.IsMatchActive
-			|| !IsInstanceValid(Player))
-			return;
-
-		if (Game.SeatFor((string)Player.Name) == null)
-		{
-			GD.PushWarning($"Sem assento para o jogador {Player.Name}; não foi possível voltar à mesa.");
-			return;
-		}
-
-		Player.EnterSeatedGameMode();
-		TakeSeat();
-		_handView?.SetInteractive(true);
-		CanTakeControl = true;
-		Refresh();
-	}
+	private void OnTurnExtended(Dictionary context) => RefreshView();
 
 	/// <summary>
-	/// Sits the player down and builds both camera rigs around the seat. This runs on the owning
-	/// peer rather than the server because Player replicates its own position outward — a
-	/// server-side teleport would be overwritten by the owner's next update.
+	/// Signals are dispatched by name through Godot, so the target has to be a method declared on
+	/// this script rather than an override of one further up — hence the wrapper.
 	/// </summary>
-	private void TakeSeat()
-	{
-		// Every view change below is null-guarded, so without this the player is seated and then
-		// left staring wherever they were facing, with no clue why. Loud, because the cause is a
-		// wiring mistake in the level rather than anything the player did.
-		if (Camera == null)
-		{
-			GD.PushError($"Mesa de dominó sem câmera: o jogador {Player.Name} vai sentar mas a "
-						 + "visão não vai mudar. Main precisa chamar SetCamera nesta mesa.");
-		}
+	private void OnStateUpdated() => RefreshView();
 
-		var seat = Game.SeatFor((string)Player.Name);
-		if (seat == null)
-		{
-			GD.PushWarning($"Sem assento para o jogador {Player.Name}; ele fica em pé onde estava.");
-			return;
-		}
-
-		// PlayerGameHandler hides every controller it equips, which is right for the pool cue but
-		// would leave the camera rigs inside a hidden subtree. Nothing here is visible anyway.
-		Show();
-
-		Player.GlobalPosition = seat.GlobalPosition;
-		// Yaw only: a seat marker tilted to frame the camera must not tip the player over.
-		_seatYaw = seat.GlobalRotation.Y;
-		Player.GlobalRotation = new Vector3(0.0f, _seatYaw, 0.0f);
-		Player.Velocity = Vector3.Zero;
-
-		Player.GiveControl();
-		Player.EnterGameControllerMode(SeatedAnimationName);
-
-		// The eye point comes from the seat's own marker so an artist can raise or lower it per
-		// chair without touching code.
-		var eye = seat.GetNodeOrNull<Node3D>("SeatView");
-		_lookRig.GlobalPosition = eye?.GlobalPosition ?? seat.GlobalPosition;
-
-		_lookYaw = 0.0f;
-		_lookPitch2 = Mathf.DegToRad(RestPitchDeg);
-		ApplyLookRotation();
-
-		PlaceTopRig();
-
-		_clothCentre = Game.ChainPresenter != null
-			? Game.ChainPresenter.GlobalPosition
-			: _lookRig.GlobalPosition;
-		_topPan = Vector2.Zero;
-
-		_seated = true;
-		_inTopView = false;
-		_leaveHeld = 0.0f;
-		SetProcessUnhandledInput(true);
-		SetProcess(true);
-		ShowSeatView();
-
-		// Captured for the whole match: nothing is clicked any more, the hand is driven from the
-		// keyboard and the aim is the centre of the screen, so looking around is just moving the
-		// mouse. Escape gives the cursor back when the player needs to leave the window.
-		InputFocus.Capture();
-	}
-
-	/// <summary>
-	/// Parks the overhead rig above the middle of the cloth, turned so the player's own side of
-	/// the table is at the bottom of their screen. Each player gets their own orientation because
-	/// the rig lives on the controller rather than in the shared table scene.
-	/// </summary>
-	private void PlaceTopRig()
-	{
-		// The pan is applied in the player's own frame, so pushing the mouse right always slides
-		// the view right from where they are sitting, whichever side of the table that is.
-		var offset = new Vector3(_topPan.X, TopHeight, _topPan.Y).Rotated(Vector3.Up, _seatYaw);
-
-		_topRig.GlobalPosition = _clothCentre + offset;
-		_topRig.GlobalRotation = new Vector3(-Mathf.Pi * 0.5f, _seatYaw, 0.0f);
-	}
-
-	private void ApplyLookRotation()
-	{
-		_lookRig.GlobalRotation = new Vector3(0.0f, _seatYaw + _lookYaw, 0.0f);
-		_lookPitch.Rotation = new Vector3(_lookPitch2, 0.0f, 0.0f);
-	}
-
-	private void ShowSeatView()
-	{
-		Camera?.SetGlobalCameraFov(SeatFov);
-		Camera?.TransitionTo(_remoteSeat);
-	}
-
-	private void ShowTopView()
-	{
-		PlaceTopRig();
-		Camera?.SetGlobalCameraFov(TopFov);
-		Camera?.TransitionTo(_remoteTop);
-	}
-
-	public void ToggleTopView()
-	{
-		if (!_seated || !IsMultiplayerAuthority())
-			return;
-
-		_inTopView = !_inTopView;
-		_topPan = Vector2.Zero;
-
-		if (_inTopView)
-			ShowTopView();
-		else
-			ShowSeatView();
-
-		_handView?.SetTopViewActive(_inTopView);
-	}
-
-	public override void _UnhandledInput(InputEvent @event)
-	{
-		if (!_seated || !IsMultiplayerAuthority())
-			return;
-
-		if (@event.IsActionPressed(InputTopView))
-		{
-			ToggleTopView();
-			GetViewport().SetInputAsHandled();
-			return;
-		}
-
-		// Escape hands the cursor back so the player can leave the window; any click takes it
-		// again. HeadPivot normally owns this, but its input is off while seated.
-		if (@event.IsActionPressed("ui_cancel"))
-		{
-			InputFocus.Release();
-			GetViewport().SetInputAsHandled();
-			return;
-		}
-
-		if (@event is InputEventMouseButton { Pressed: true } && !InputFocus.IsCaptured)
-		{
-			InputFocus.Capture();
-			GetViewport().SetInputAsHandled();
-			return;
-		}
-
-		if (@event is not InputEventMouseMotion motion || !InputFocus.IsCaptured)
-			return;
-
-		if (_inTopView)
-			PanTopView(motion.Relative);
-		else
-			ApplyLook(motion.Relative);
-
-		GetViewport().SetInputAsHandled();
-	}
-
-	/// <summary>
-	/// Slides the overhead view across the cloth. The crosshair never leaves the middle of the
-	/// screen, so moving the camera is how the player reaches the far end of the chain and the
-	/// stock from above.
-	/// </summary>
-	private void PanTopView(Vector2 relative)
-	{
-		_topPan = new Vector2(
-			Mathf.Clamp(_topPan.X + relative.X * TopPanSensitivity, -TopPanLimit.X, TopPanLimit.X),
-			Mathf.Clamp(_topPan.Y + relative.Y * TopPanSensitivity, -TopPanLimit.Y, TopPanLimit.Y));
-
-		PlaceTopRig();
-	}
-
-	/// <summary>
-	/// Turns the head. Yaw is clamped either side of the seat's facing rather than wrapping, so
-	/// the player can look around the bar but never ends up facing backwards while seated.
-	/// </summary>
-	private void ApplyLook(Vector2 relative)
-	{
-		var yawLimit = Mathf.DegToRad(MaxYawDeg);
-
-		_lookYaw = Mathf.Clamp(_lookYaw - relative.X * MouseSensitivity, -yawLimit, yawLimit);
-		_lookPitch2 = Mathf.Clamp(
-			_lookPitch2 - relative.Y * MouseSensitivity,
-			Mathf.DegToRad(MinPitchDeg),
-			Mathf.DegToRad(MaxPitchDeg));
-
-		ApplyLookRotation();
-	}
-
-	// ---------------------------------------------------------------- control handover
-
-	public override void GiveControl()
-	{
-		if (!IsInstanceValid(Player))
-			return;
-
-		if (!IsMultiplayerAuthority())
-		{
-			Player.ExitSeatedGameMode();
-			return;
-		}
-
-		if (_seated)
-			MoveToStandExit();
-
-		_seated = false;
-		SetProcessUnhandledInput(false);
-		SetProcess(false);
-
-		_handView?.SetInteractive(false);
-		Camera?.ResetFov();
-		Player.ExitGameControllerMode();
-		Player.ExitSeatedGameMode();
-	}
-
-	/// <summary>
-	/// Moves the character clear of the chair before restoring its collider. StandExit is a visible
-	/// marker under each seat, so its final placement can be tuned directly in the editor.
-	/// </summary>
-	private void MoveToStandExit()
-	{
-		var seat = Game?.SeatFor((string)Player.Name);
-		if (seat == null)
-			return;
-
-		var standExit = seat?.GetNodeOrNull<Marker3D>("StandExit");
-		var standPosition = standExit?.GlobalPosition
-			?? seat.ToGlobal(new Vector3(
-				0.0f, 0.0f, (Game.Seats as DominoSeatAnchors)?.StandBackDistance ?? 0.55f));
-
-		Player.GlobalPosition = standPosition;
-		Player.GlobalRotation = new Vector3(
-			0.0f, standExit?.GlobalRotation.Y ?? seat.GlobalRotation.Y, 0.0f);
-		Player.Velocity = Vector3.Zero;
-	}
-
-	public override void ApplyControl(string turnOwnerId, Dictionary context)
-	{
-		// A turn change is purely a repaint. It must not pull somebody who is walking back into the
-		// chair, and every participant remains allowed to return regardless of whose turn it is.
-		CanTakeControl = Game?.IsMatchActive == true;
-		Refresh();
-	}
-
-	private void OnTurnChanged(string nextPlayerId, Dictionary context) => Refresh();
-
-	private void OnTurnExtended(Dictionary context) => Refresh();
-
-	private void Refresh()
+	protected override void RefreshView()
 	{
 		if (_handView == null || Game == null || Player == null || !IsMultiplayerAuthority())
 			return;
 
-		if (!_seated)
+		if (!Seated)
 		{
 			_handView.SetInteractive(false);
 			return;
@@ -520,8 +136,6 @@ public partial class DominoController : GameController
 
 	private void OnPassRequested() => Game?.Resolver?.RequestPass(Game.TurnToken);
 
-	private void OnSurrenderRequested() => Game?.RequestSurrender((string)Player.Name);
-
 	private void OnActionRejected(string reason)
 	{
 		if (!IsMultiplayerAuthority())
@@ -530,6 +144,6 @@ public partial class DominoController : GameController
 		_handView?.ShowRejection(reason);
 		// The rejection may have been "the turn already moved", so repaint from real state rather
 		// than leaving the interface showing what the player thought was true.
-		Refresh();
+		RefreshView();
 	}
 }

@@ -24,6 +24,11 @@ public partial class StatesRef : RefCounted
     public const string DominoHandDrawing = "DOMINO_HAND_DRAWING";
     public const string DominoHandPlacing = "DOMINO_HAND_PLACING";
 
+    // POKER HAND
+    public const string PokerHandIdle = "POKER_HAND_IDLE";
+    public const string PokerHandLooking = "POKER_HAND_LOOKING";
+    public const string PokerHandActing = "POKER_HAND_ACTING";
+
     // PLAYER
     public const string PlayerIdle = "PLAYER_IDLE";
     public const string PlayerWalking = "PLAYER_WALKING";

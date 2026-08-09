@@ -1,0 +1,776 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Godot;
+using Poker.Rules;
+
+/// <summary>
+/// The wiring the rules tests cannot see: that the scenes parse and point at each other, that every
+/// RPC carries the mode the protocol assumes, that NO BROADCAST CAN CARRY A HOLE CARD, and that the
+/// hand view is still a swappable seam.
+///
+/// The secrecy checks matter more here than they did for the dominoes. A leaked domino spoils a
+/// match; a leaked hole card makes the entire game pointless and is invisible to everyone but the
+/// person exploiting it.
+/// </summary>
+public partial class PokerSceneLoadTest : Node
+{
+	private int _passed;
+	private int _failed;
+
+	public override void _Ready()
+	{
+		GD.Print("=== Teste de integração do poker ===");
+
+		TestScenesLoad();
+		TestGameScene();
+		TestRpcModes();
+		TestHoleCardsNeverBroadcast();
+		TestHandViewIsASeam();
+		TestControllerIsASeatedController();
+		TestHandStateMachine();
+		TestCameraRigs();
+		TestCardsNeverReachTheTable();
+		TestFovIsCoherent();
+		TestHud();
+		TestBoardDealAndFlip();
+		TestChipPack();
+		TestCardAtlas();
+		TestPlayerCountGate();
+
+		GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
+		if (_failed > 0)
+			GD.PushWarning($"{_failed} verificação(ões) de integração do poker falharam.");
+
+		GetTree().Quit(_failed > 0 ? 1 : 0);
+	}
+
+	private void TestScenesLoad()
+	{
+		LoadScene("res://Features/Games/Poker/Poker.tscn");
+		LoadScene("res://Features/Games/Poker/GameController/PokerController.tscn");
+		LoadScene("res://Features/Games/Poker/GameController/Views/PokerHand3DView.tscn");
+		LoadScene("res://Features/Games/Poker/Components/Cards/PokerCard.tscn");
+	}
+
+	private PackedScene LoadScene(string path)
+	{
+		var scene = GD.Load<PackedScene>(path);
+		var ok = scene != null && scene.CanInstantiate();
+		Check($"carrega {path.GetFile()}", ok);
+		return ok ? scene : null;
+	}
+
+	private void TestGameScene()
+	{
+		var scene = GD.Load<PackedScene>("res://Features/Games/Poker/Poker.tscn");
+		if (scene == null)
+			return;
+
+		var game = scene.Instantiate<PokerGame>();
+		AddChild(game);
+
+		Check("o jogo aponta para o controlador, a mesa e os assentos",
+			game.GameControllerScene != null && game.BoardPresenter != null && game.Seats != null);
+		Check("o jogo tem um resolvedor de poker ligado pelo GameModeHandler", game.Resolver != null);
+		Check("o apresentador da mesa sabe desenhar cartas",
+			game.BoardPresenter != null && game.BoardPresenter.CardScene != null);
+
+		var seatPresenter = game.GetNodeOrNull<PokerSeatPresenter>("SeatPresenter");
+		Check("a mesa tem o apresentador de assentos", seatPresenter != null);
+		Check("o apresentador de assentos conhece a mesa e os assentos",
+			seatPresenter is { BoardPresenter: not null, Seats: not null, CardScene: not null });
+
+		Check($"as apostas são coerentes ({game.SmallBlind}/{game.BigBlind} com stack {game.StartingStack})",
+			game.SmallBlind > 0 && game.BigBlind > game.SmallBlind
+			&& game.StartingStack >= game.BigBlind * 10);
+
+		// Without this a cautious session between two players never ends.
+		Check($"os blinds sobem para garantir que a sessão acaba ({game.BlindIncreaseEveryHands} mãos)",
+			game.BlindIncreaseEveryHands > 0);
+
+		TestChairsAndSeats(game);
+
+		game.QueueFree();
+	}
+
+	/// <summary>
+	/// The seats are DERIVED from the chairs at load, so this checks the thing that actually decides
+	/// where a player ends up rather than the transforms typed into the scene.
+	/// </summary>
+	private void TestChairsAndSeats(PokerGame game)
+	{
+		var anchors = game.Seats as TableSeatAnchors;
+		Check("os assentos são dirigidos pelas cadeiras", anchors != null);
+
+		if (anchors == null)
+			return;
+
+		Check($"há uma cadeira por assento ({anchors.Chairs.Count})", anchors.Chairs.Count == 4);
+
+		var chairsHaveColliders = true;
+		var worstFloorGap = 0.0f;
+
+		foreach (var chair in anchors.Chairs)
+		{
+			var collider = chair?.GetNodeOrNull<StaticBody3D>("Collision");
+			chairsHaveColliders &= collider != null
+				&& collider.CollisionLayer == 4
+				&& collider.GetNodeOrNull<CollisionShape3D>("CollisionShape3D")?.Shape != null;
+
+			if (chair is MeshInstance3D mesh && mesh.Mesh != null)
+			{
+				var bottom = mesh.GlobalPosition.Y + mesh.GetAabb().Position.Y * mesh.Scale.Y;
+				worstFloorGap = Mathf.Max(worstFloorGap, Mathf.Abs(bottom));
+			}
+		}
+
+		Check("as quatro cadeiras bloqueiam o jogador com colisões próprias", chairsHaveColliders);
+		Check($"nenhuma cadeira está flutuando ({worstFloorGap * 1000.0f:F0} mm do chão)",
+			worstFloorGap < 0.02f);
+
+		// Every seat has to end up on a chair, facing in, with the eye leaning over the cloth —
+		// which is what keeps the cards readable from a chair a metre out.
+		var worstOffChair = 0.0f;
+		var worstEyeOverTable = 0.0f;
+		var closestEye = float.MaxValue;
+
+		for (var i = 0; i < 4 && i < anchors.Chairs.Count; i++)
+		{
+			if (game.Seats.GetChild(i) is not Marker3D seat || anchors.Chairs[i] == null)
+				continue;
+
+			worstOffChair = Mathf.Max(worstOffChair,
+				seat.GlobalPosition.DistanceTo(anchors.Chairs[i].GlobalPosition));
+
+			var eye = seat.GetNodeOrNull<Node3D>("SeatView");
+			if (eye == null)
+				continue;
+
+			var flat = eye.GlobalPosition with { Y = 0.0f };
+			closestEye = Mathf.Min(closestEye, flat.DistanceTo(game.GlobalPosition with { Y = 0.0f }));
+			worstEyeOverTable = Mathf.Max(worstEyeOverTable, eye.GlobalPosition.Y);
+		}
+
+		Check($"todo assento cai na sua cadeira (pior desvio {worstOffChair * 1000.0f:F0} mm)",
+			worstOffChair < 0.05f);
+		Check($"o olho se inclina sobre a mesa ({closestEye:F2} m do centro, {worstEyeOverTable:F2} m de altura)",
+			closestEye < 0.80f && worstEyeOverTable is > 1.0f and < 1.3f);
+	}
+
+	private void TestRpcModes()
+	{
+		// A request must be AnyPeer or a client could never send it; a server message must be
+		// Authority or a client would refuse it. Everything is reliable: a dropped action stalls the
+		// hand. The three receivers are inherited from SecretHandTurnResolver — reflection walks the
+		// derived type, so this pins what poker actually dispatches.
+		CheckRpc<PokerTurnResolver>("ActOnServer", MultiplayerApi.RpcMode.AnyPeer, false);
+		CheckRpc<PokerTurnResolver>("ReceiveHand", MultiplayerApi.RpcMode.Authority, false);
+		CheckRpc<PokerTurnResolver>("ReceiveActionRejected", MultiplayerApi.RpcMode.Authority, false);
+		CheckRpc<PokerTurnResolver>("ReceiveFullState", MultiplayerApi.RpcMode.Authority, false);
+	}
+
+	private void CheckRpc<T>(string methodName, MultiplayerApi.RpcMode mode, bool callLocal)
+	{
+		var method = typeof(T).GetMethod(methodName,
+			BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+		var attribute = method?.GetCustomAttribute<RpcAttribute>();
+
+		Check($"{methodName} é [Rpc({mode}, CallLocal={callLocal}, Reliable)]",
+			attribute != null
+			&& attribute.Mode == mode
+			&& attribute.CallLocal == callLocal
+			&& attribute.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable);
+	}
+
+	/// <summary>
+	/// The secrecy rule, enforced statically. Cards are int arrays; if one ever appears on a method
+	/// that is not the single targeted channel, some refactor has started dealing everyone's hand to
+	/// the whole table.
+	/// </summary>
+	private void TestHoleCardsNeverBroadcast()
+	{
+		var carriers = typeof(PokerTurnResolver)
+			.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			.Where(method => method.GetCustomAttribute<RpcAttribute>() != null)
+			.Where(method => method.GetParameters()
+				.Any(parameter => parameter.ParameterType == typeof(int[])
+								  || parameter.ParameterType == typeof(long[])))
+			.Select(method => method.Name)
+			.ToList();
+
+		Check($"só ReceiveHand transporta cartas ({string.Join(", ", carriers)})",
+			carriers.Count == 1 && carriers[0] == "ReceiveHand");
+
+		// The seed is worse than any one hand: it reconstructs every hand at once.
+		var leaksSeed = typeof(PokerTurnResolver)
+			.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			.Where(method => method.GetCustomAttribute<RpcAttribute>() != null)
+			.Any(method => method.GetParameters().Any(parameter => parameter.ParameterType == typeof(ulong)));
+
+		Check("nenhuma RPC transporta a semente do embaralhamento", !leaksSeed);
+
+		// The public state PokerGame holds must have nowhere to put somebody else's cards. Two int
+		// arrays are allowed, each for a stated reason, and anything else here has to be justified
+		// rather than slipped in:
+		//   Board          — the community cards, public by definition.
+		//   LocalHoleCards — this peer's OWN cards, which arrived through the targeted ReceiveHand.
+		var allowed = new HashSet<string>
+			{ nameof(PokerGame.Board), nameof(PokerGame.LocalHoleCards) };
+
+		var publicIntArrays = typeof(PokerGame)
+			.GetFields(BindingFlags.Instance | BindingFlags.Public)
+			.Where(field => field.FieldType == typeof(int[]))
+			.Select(field => field.Name)
+			.Where(name => !allowed.Contains(name))
+			.ToList();
+
+		Check($"o estado público não tem onde guardar carta alheia ({string.Join(", ", publicIntArrays)})",
+			publicIntArrays.Count == 0);
+
+		// The one deliberate exception, and it must be explicit rather than accidental: the showdown.
+		Check("o showdown tem um lugar declarado para as cartas que são reveladas",
+			typeof(PokerGame).GetField(nameof(PokerGame.RevealedHoleCards)) != null);
+	}
+
+	private void TestHandViewIsASeam()
+	{
+		Check("a mão em 3D é uma PokerHandView",
+			typeof(PokerHandView).IsAssignableFrom(typeof(PokerHand3DView)));
+		Check("a abstração do poker é uma SeatedHandView do Core",
+			typeof(SeatedHandView).IsAssignableFrom(typeof(PokerHandView)));
+
+		var overrides = new[]
+		{
+			"Refresh", "SetInteractive", "SetTopViewActive", "ShowNotice", "ShowRejection", "Clear",
+		};
+
+		var allOverridden = overrides.All(name =>
+			typeof(PokerHand3DView).GetMethod(name,
+				BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+				?.DeclaringType == typeof(PokerHand3DView));
+
+		Check("a mão em 3D implementa toda a superfície da abstração", allOverridden);
+
+		// FlattenHierarchy because SurrenderRequested is declared on SeatedHandView — leaving a match
+		// is not a poker idea. What matters is that both reach the controller through the abstraction.
+		var signals = new[] { "ActionRequested", "SurrenderRequested" };
+		var allDeclared = signals.All(name =>
+			typeof(PokerHandView).GetNestedType("SignalName", BindingFlags.Public)
+				?.GetField(name,
+					BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy) != null);
+
+		Check("a abstração declara os sinais de intenção", allDeclared);
+
+		var controllerScene = GD.Load<PackedScene>(
+			"res://Features/Games/Poker/GameController/PokerController.tscn");
+		var wired = controllerScene?.Instantiate<PokerController>();
+		Check("o controlador aponta para a mão em 3D",
+			wired?.HandViewScene?.Instantiate() is PokerHand3DView);
+		wired?.QueueFree();
+
+		// The controller must not know the CONCRETE view either, or swapping in the animated rig
+		// becomes a rewrite instead of one PackedScene in the inspector.
+		var concreteViewFields = typeof(PokerController)
+			.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			.Where(field => typeof(PokerHandView).IsAssignableFrom(field.FieldType)
+							&& field.FieldType != typeof(PokerHandView))
+			.Select(field => field.Name)
+			.ToList();
+
+		Check($"o controlador não conhece a view concreta ({string.Join(", ", concreteViewFields)})",
+			concreteViewFields.Count == 0);
+	}
+
+	private void TestControllerIsASeatedController()
+	{
+		Check("o controlador de poker é um SeatedTableController",
+			typeof(SeatedTableController).IsAssignableFrom(typeof(PokerController)));
+		Check("e portanto um GameController, que é o que o jogador equipa",
+			typeof(GameController).IsAssignableFrom(typeof(PokerController)));
+
+		var controller = new PokerController();
+		Check("o poker mantém o alternador de controle (E) habilitado", controller.AllowsControlSwitch);
+		controller.Free();
+	}
+
+	private void TestHandStateMachine()
+	{
+		var scene = GD.Load<PackedScene>(
+			"res://Features/Games/Poker/GameController/Views/PokerHand3DView.tscn");
+		if (scene == null)
+			return;
+
+		var view = scene.Instantiate<PokerHand3DView>();
+		AddChild(view);
+
+		var machine = view.GetNodeOrNull<StateMachine>("StateMachine");
+		Check("a mão tem uma máquina de estados", machine != null);
+
+		if (machine == null)
+		{
+			view.QueueFree();
+			return;
+		}
+
+		// A typo in a Type registers a state nobody can reach, and the machine sits in whatever it
+		// started in with no error at all.
+		var expected = new[]
+		{
+			StatesRef.PokerHandIdle, StatesRef.PokerHandLooking, StatesRef.PokerHandActing,
+		};
+
+		var missing = expected.Where(type => !machine.States.ContainsKey(type)).ToList();
+		Check($"todos os estados da mão estão registrados ({string.Join(", ", missing)})",
+			missing.Count == 0);
+
+		Check($"a mão começa parada ({machine.InitialState})",
+			machine.InitialState == StatesRef.PokerHandIdle);
+		Check("a máquina só ouve entrada de quem tem autoridade",
+			machine.CheckForMultiplayerAuthorityOnStateHandleInput);
+
+		Check("a view tem HUD, aviso e rig de mão",
+			view.Hud != null && view.MessageLabel != null && view.HandRig != null);
+
+		// The rig is the swap point for the animated hand: when it arrives, the AnimationPlayer is
+		// assigned here and nothing else in the feature moves.
+		Check("a mão tem um AnimationPlayer com os clipes do contrato",
+			view.AnimationPlayer != null
+			&& view.AnimationPlayer.HasAnimation(PokerClips.Idle)
+			&& view.AnimationPlayer.HasAnimation(PokerClips.PickUpCards)
+			&& view.AnimationPlayer.HasAnimation(PokerClips.ThrowChips)
+			&& view.AnimationPlayer.HasAnimation(PokerClips.PlaceCards)
+			&& view.AnimationPlayer.HasAnimation(PokerClips.RevealCards));
+
+		view.QueueFree();
+	}
+
+	private void TestCameraRigs()
+	{
+		var scene = GD.Load<PackedScene>(
+			"res://Features/Games/Poker/GameController/PokerController.tscn");
+		if (scene == null)
+			return;
+
+		var controller = scene.Instantiate<PokerController>();
+		AddChild(controller);
+
+		Check("o controlador tem o rig do assento",
+			controller.GetNodeOrNull<RemoteTransform3D>("LookRig/LookPitch/RemoteSeat") != null);
+		Check("o controlador tem o rig de cima",
+			controller.GetNodeOrNull<RemoteTransform3D>("TopRig/RemoteTop") != null);
+		Check("os dois rigs são independentes do corpo do jogador",
+			controller.GetNode<Node3D>("LookRig").TopLevel
+			&& controller.GetNode<Node3D>("TopRig").TopLevel);
+
+		Check($"o giro do pescoço é limitado ({controller.MaxYawDeg}°)",
+			controller.MaxYawDeg is > 0.0f and <= 180.0f);
+		Check($"a inclinação é limitada ({controller.MinPitchDeg}° a {controller.MaxPitchDeg}°)",
+			controller.MinPitchDeg < controller.MaxPitchDeg
+			&& controller.RestPitchDeg >= controller.MinPitchDeg
+			&& controller.RestPitchDeg <= controller.MaxPitchDeg);
+		Check($"sair da mesa exige segurar ({controller.LeaveHoldSeconds:F1}s)",
+			controller.LeaveHoldSeconds >= 0.5f);
+
+		controller.QueueFree();
+	}
+
+	/// <summary>
+	/// THE invariant behind the held cards: across the whole pitch range and the whole peek gesture,
+	/// no corner of a card may reach the tabletop.
+	///
+	/// This was a real bug — the hand offset was longer than the drop from the eye to the cloth, so
+	/// past about 57 degrees of looking down the cards sank into the table. Tuning it by eye fixes it
+	/// until the next person touches the fan, the eye height or the pitch clamp, which is why it is a
+	/// swept measurement instead: it reports the worst clearance it found, in millimetres.
+	/// </summary>
+	private void TestCardsNeverReachTheTable()
+	{
+		var viewScene = GD.Load<PackedScene>(
+			"res://Features/Games/Poker/GameController/Views/PokerHand3DView.tscn");
+		var controllerScene = GD.Load<PackedScene>(
+			"res://Features/Games/Poker/GameController/PokerController.tscn");
+		var gameScene = GD.Load<PackedScene>("res://Features/Games/Poker/Poker.tscn");
+
+		if (viewScene == null || controllerScene == null || gameScene == null)
+			return;
+
+		var view = viewScene.Instantiate<PokerHand3DView>();
+		var controller = controllerScene.Instantiate<PokerController>();
+		var game = gameScene.Instantiate<PokerGame>();
+		AddChild(view);
+		AddChild(controller);
+		AddChild(game);
+
+		// The real numbers from the real scenes: the eye off the seat, the cloth off the presenter.
+		var seat = game.Seats.GetChild(0) as Marker3D;
+		var eyeY = seat?.GetNodeOrNull<Node3D>("SeatView")?.GlobalPosition.Y ?? 1.13f;
+		var clothY = game.BoardPresenter.GlobalPosition.Y;
+		var spec = game.BoardPresenter.Spec;
+
+		var worstClearance = float.MaxValue;
+		var worstPitch = 0.0f;
+		var worstPeek = 0.0f;
+
+		for (var step = 0; step <= 40; step++)
+		{
+			var pitch = Mathf.DegToRad(Mathf.Lerp(controller.MinPitchDeg, controller.MaxPitchDeg, step / 40.0f));
+
+			// Yaw never changes world height, so pitch alone decides how far the hand swings down.
+			var camera = new Basis(Vector3.Right, pitch);
+
+			for (var peekStep = 0; peekStep <= 10; peekStep++)
+			{
+				var peek = peekStep / 10.0f;
+				var fan = view.FanSpecAt(peek);
+
+				for (var card = 0; card < PokerDeal.HoleCardCount; card++)
+				{
+					var slot = HandFan.SlotTransform(
+						card, HandFan.NaturalCentre(PokerDeal.HoleCardCount), false, fan);
+
+					// A card is width on its own X and length on its own Z — see PokerCard.Apply.
+					for (var corner = 0; corner < 4; corner++)
+					{
+						var local = new Vector3(
+							(corner % 2 == 0 ? -0.5f : 0.5f) * spec.CardWidth,
+							0.0f,
+							(corner < 2 ? -0.5f : 0.5f) * spec.CardLength);
+
+						var inHand = view.HandOffset + slot * local;
+						var worldY = eyeY + (camera * inHand).Y;
+						var clearance = worldY - clothY;
+
+						if (clearance >= worstClearance)
+							continue;
+
+						worstClearance = clearance;
+						worstPitch = Mathf.RadToDeg(pitch);
+						worstPeek = peek;
+					}
+				}
+			}
+		}
+
+		Check($"as cartas nunca alcançam a mesa (pior folga {worstClearance * 1000.0f:F0} mm "
+			  + $"a {worstPitch:F0}° com espiada {worstPeek:F1})",
+			worstClearance > 0.02f);
+
+		view.QueueFree();
+		controller.QueueFree();
+		game.QueueFree();
+	}
+
+	private void TestFovIsCoherent()
+	{
+		var poker = GD.Load<PackedScene>("res://Features/Games/Poker/GameController/PokerController.tscn")
+			?.Instantiate<PokerController>();
+		var domino = GD.Load<PackedScene>("res://Features/Games/Domino/GameController/DominoController.tscn")
+			?.Instantiate<DominoController>();
+
+		if (poker == null || domino == null)
+			return;
+
+		AddChild(poker);
+		AddChild(domino);
+
+		Check($"o poker senta no mesmo enquadramento do dominó ({poker.SeatFov}° e {domino.SeatFov}°)",
+			Mathf.IsEqualApprox(poker.SeatFov, domino.SeatFov));
+
+		// Toggling to the overhead view has to LOOK like something happened. Equal FOVs made it
+		// read as if nothing had changed but the angle.
+		Check($"a vista de cima muda o enquadramento ({poker.SeatFov}° para {poker.TopFov}°)",
+			!Mathf.IsEqualApprox(poker.SeatFov, poker.TopFov));
+
+		Check($"o assento é mais fechado que a câmera de caminhar ({poker.SeatFov}° de 75°)",
+			poker.SeatFov < 75.0f);
+
+		poker.QueueFree();
+		domino.QueueFree();
+	}
+
+	/// <summary>
+	/// The corner panel, and the keys it promises.
+	///
+	/// The keys are the whole interface now, so the thing worth pinning is that what the HUD PRINTS
+	/// and what the states LISTEN FOR cannot drift apart — both read <see cref="PokerInput"/>, and
+	/// every one of those actions has to actually exist in the input map or the key does nothing.
+	/// </summary>
+	private void TestHud()
+	{
+		var actions = new[]
+		{
+			(PokerInput.Call, PokerInput.CallKey, Key.C),
+			(PokerInput.Raise, PokerInput.RaiseKey, Key.R),
+			(PokerInput.Fold, PokerInput.FoldKey, Key.X),
+			(PokerInput.AllIn, PokerInput.AllInKey, Key.Z),
+		};
+
+		foreach (var (action, printed, key) in actions)
+		{
+			var mapped = InputMap.HasAction(action)
+						 && InputMap.ActionGetEvents(action)
+							 .OfType<InputEventKey>()
+							 .Any(entry => entry.PhysicalKeycode == key);
+
+			Check($"{action} está mapeada na tecla que a HUD mostra ({printed})", mapped);
+		}
+
+		Check("espiar as cartas está no botão esquerdo",
+			InputMap.HasAction(PokerInput.Peek)
+			&& InputMap.ActionGetEvents(PokerInput.Peek)
+				.OfType<InputEventMouseButton>()
+				.Any(entry => entry.ButtonIndex == MouseButton.Left));
+
+		var scene = GD.Load<PackedScene>("res://Features/Games/Poker/GameController/Views/PokerHud.tscn");
+		Check("a cena da HUD carrega", scene != null && scene.CanInstantiate());
+
+		if (scene == null)
+			return;
+
+		var hud = scene.Instantiate<PokerHud>();
+		AddChild(hud);
+
+		Check("a HUD encontra todos os nós que o script usa",
+			hud.Root != null && hud.TurnLabel != null && hud.StakesLabel != null
+			&& hud.ActionList != null && hud.ResultLabel != null && hud.HintsLabel != null);
+
+		Check($"a HUD fica acima das outras camadas ({hud.Layer})", hud.Layer > 1);
+
+		// One row per action the layout knows about, plus all-in. Built once in _Ready rather than
+		// rebuilt per refresh, which would flicker.
+		Check($"a HUD monta uma linha por ação ({hud.ActionList.GetChildCount()})",
+			hud.ActionList.GetChildCount() == 5);
+
+		Check("a HUD começa escondida", !hud.Root.Visible);
+
+		// A Control that swallows the click breaks the recapture SeatedTableController does after
+		// Escape — the player would be left with a loose cursor and no way to get it back.
+		var greedy = new List<string>();
+		CollectGreedyControls(hud.Root, greedy);
+
+		Check($"nenhum Control da HUD engole o clique ({string.Join(", ", greedy)})", greedy.Count == 0);
+
+		hud.QueueFree();
+	}
+
+	private static void CollectGreedyControls(Node node, List<string> into)
+	{
+		if (node is Control control && control.MouseFilter != Control.MouseFilterEnum.Ignore)
+			into.Add((string)control.Name);
+
+		foreach (var child in node.GetChildren())
+			CollectGreedyControls(child, into);
+	}
+
+	/// <summary>
+	/// The community row: all five dealt face down at the start of the hand, turned over a street at
+	/// a time.
+	///
+	/// The reveal is entirely local — the server says only HOW MANY are face up — so this also pins
+	/// the thing that would leak: a card must not be face up before the server has sent it.
+	/// </summary>
+	private void TestBoardDealAndFlip()
+	{
+		var scene = GD.Load<PackedScene>("res://Features/Games/Poker/Poker.tscn");
+		if (scene == null)
+			return;
+
+		var game = scene.Instantiate<PokerGame>();
+		AddChild(game);
+
+		var board = game.BoardPresenter;
+		if (board == null)
+		{
+			game.QueueFree();
+			return;
+		}
+
+		// A hand is dealt with nothing turned over yet.
+		board.Sync(new List<int>(), 0, handNumber: 1, PokerStreet.Preflop);
+
+		Check($"as cinco comunitárias entram no começo da mão ({VisibleCards(board)})",
+			VisibleCards(board) == PokerDeal.BoardCount);
+		Check("elas começam a mão ainda chegando", !board.Settled);
+
+		Settle(board);
+		Check("depois de entrarem, a mesa assenta", board.Settled);
+		Check($"e todas estão de costas ({FaceUpCards(board)} viradas)", FaceUpCards(board) == 0);
+
+		// The flop turns exactly three.
+		board.Sync(new List<int> { 0, 1, 2 }, 0, 1, PokerStreet.Flop);
+		Settle(board);
+		Check($"o flop vira três ({FaceUpCards(board)})", FaceUpCards(board) == 3);
+
+		board.Sync(new List<int> { 0, 1, 2, 3 }, 0, 1, PokerStreet.Turn);
+		Settle(board);
+		Check($"o turn vira a quarta ({FaceUpCards(board)})", FaceUpCards(board) == 4);
+
+		board.Sync(new List<int> { 0, 1, 2, 3, 4 }, 0, 1, PokerStreet.River);
+		Settle(board);
+		Check($"o river vira a quinta ({FaceUpCards(board)})", FaceUpCards(board) == 5);
+
+		// The next hand takes the whole row back off and deals again face down.
+		board.Sync(new List<int>(), 0, handNumber: 2, PokerStreet.Preflop);
+		Settle(board);
+		Check($"a mão seguinte recomeça com todas de costas ({FaceUpCards(board)})",
+			FaceUpCards(board) == 0);
+
+		game.QueueFree();
+	}
+
+	/// <summary>Runs the presenter's animation to a standstill, as frames would.</summary>
+	private static void Settle(PokerBoardPresenter board)
+	{
+		for (var frame = 0; frame < 600 && !board.Settled; frame++)
+			board._Process(1.0 / 60.0);
+	}
+
+	private static int VisibleCards(PokerBoardPresenter board)
+	{
+		var count = 0;
+		foreach (var child in board.GetChildren())
+		{
+			if (child is PokerCard { Visible: true })
+				count++;
+		}
+
+		return count;
+	}
+
+	/// <summary>
+	/// A card is face up when its own +Y still points up. The turn is half a revolution about the
+	/// long axis, so a back-up card has that axis inverted.
+	/// </summary>
+	private static int FaceUpCards(PokerBoardPresenter board)
+	{
+		var count = 0;
+		foreach (var child in board.GetChildren())
+		{
+			if (child is PokerCard { Visible: true } card && card.Transform.Basis.Y.Y > 0.5f)
+				count++;
+		}
+
+		return count;
+	}
+
+	/// <summary>The chips are the one thing the art pack could actually supply.</summary>
+	private void TestChipPack()
+	{
+		Check("o pacote de fichas carrega", PokerChipMeshes.IsAvailable);
+
+		if (!PokerChipMeshes.IsAvailable)
+			return;
+
+		Check($"a ficha fica com o tamanho de uma ficha ({PokerChipMeshes.Diameter * 1000.0f:F0} x "
+			  + $"{PokerChipMeshes.Thickness * 1000.0f:F1} mm)",
+			PokerChipMeshes.Diameter is > 0.030f and < 0.050f
+			&& PokerChipMeshes.Thickness is > 0.002f and < 0.006f);
+
+		// The rim is the wider of the two surfaces; if they ever swap, the chip renders inside out.
+		Check($"o aro é mais largo que o corpo "
+			  + $"({PokerChipMeshes.Rim.GetAabb().Size.X:F1} contra {PokerChipMeshes.Body.GetAabb().Size.X:F1})",
+			PokerChipMeshes.Rim.GetAabb().Size.X > PokerChipMeshes.Body.GetAabb().Size.X);
+
+		var pile = new PokerChipPile();
+		AddChild(pile);
+		pile.Show(225);
+
+		Check($"a pilha empilha pela espessura real da ficha ({pile.EffectiveThickness * 1000.0f:F1} mm)",
+			Mathf.IsEqualApprox(pile.EffectiveThickness, PokerChipMeshes.Thickness));
+		Check($"a pilha desenha as fichas de 225 ({pile.GetChildCount()} fichas)",
+			pile.GetChildCount() == 3);
+
+		pile.QueueFree();
+	}
+
+	/// <summary>
+	/// The atlas mapping. The pack's columns are NOT in rank order, so this is the one place a
+	/// differently-ordered sheet would show up — and it must show up here rather than as a player
+	/// quietly holding the wrong card.
+	/// </summary>
+	private void TestCardAtlas()
+	{
+		var patches = new HashSet<Vector3>();
+		for (var card = 0; card < CardId.Count; card++)
+			patches.Add(PokerCardFaces.UvOffset(card));
+
+		Check($"as 52 cartas apontam para 52 recortes distintos do atlas ({patches.Count})",
+			patches.Count == CardId.Count);
+
+		var scale = PokerCardFaces.UvScale;
+		Check($"o recorte é 1/13 por 1/4 ({scale.X:F4} x {scale.Y:F4})",
+			Mathf.IsEqualApprox(scale.X, 1.0f / PokerCardFaces.Columns)
+			&& Mathf.IsEqualApprox(scale.Y, 1.0f / PokerCardFaces.Rows));
+
+		var inside = true;
+		foreach (var patch in patches)
+		{
+			if (patch.X < 0.0f || patch.X > 1.0f - scale.X + 0.001f
+				|| patch.Y < 0.0f || patch.Y > 1.0f - scale.Y + 0.001f)
+				inside = false;
+		}
+
+		Check("nenhum recorte cai fora da folha", inside);
+
+		// The pack runs A,2,…,10,J,K,Q: the ace is the FIRST column and the queen the last.
+		Check("o ás está na primeira coluna",
+			Mathf.IsZeroApprox(PokerCardFaces.UvOffset(CardId.From(CardId.Ace, CardId.Clubs)).X));
+		Check("a dama vem DEPOIS do rei, como no pacote",
+			PokerCardFaces.UvOffset(CardId.From(CardId.Queen, CardId.Clubs)).X
+			> PokerCardFaces.UvOffset(CardId.From(CardId.King, CardId.Clubs)).X);
+
+		// Rows are suits, so two cards of the same suit share a row and two of the same rank a column.
+		var sameSuitRow = Mathf.IsEqualApprox(
+			PokerCardFaces.UvOffset(CardId.From(CardId.Two, CardId.Hearts)).Y,
+			PokerCardFaces.UvOffset(CardId.From(CardId.Ace, CardId.Hearts)).Y);
+
+		Check("cartas do mesmo naipe ficam na mesma linha", sameSuitRow);
+
+		// With no art the cards must still be playable rather than blank.
+		var cardScene = GD.Load<PackedScene>("res://Features/Games/Poker/Components/Cards/PokerCard.tscn");
+		var sample = cardScene?.Instantiate<PokerCard>();
+		if (sample != null)
+		{
+			AddChild(sample);
+			sample.Configure(CardId.From(CardId.Ace, CardId.Spades), PokerLayoutSpec.Default);
+
+			Check($"sem arte a carta ainda se identifica ({sample.FaceLabel?.Text})",
+				PokerCardFaces.IsAvailable || sample.FaceLabel is { Visible: true, Text: "A♠" });
+
+			sample.QueueFree();
+		}
+	}
+
+	private void TestPlayerCountGate()
+	{
+		var game = new PokerGame();
+
+		game.AllowSoloDebug = false;
+		Check("sem o modo solo, uma pessoa não abre a mesa", !game.CanStartWith(1));
+		Check("duas pessoas abrem a mesa", game.CanStartWith(2));
+
+		game.AllowSoloDebug = true;
+		Check("com o modo solo, uma pessoa abre a mesa", game.CanStartWith(1));
+
+		Check($"a mesa recusa mais gente do que tem cadeira ({game.MaxPlayers})",
+			game.CanStartWith(game.MaxPlayers) && !game.CanStartWith(game.MaxPlayers + 1));
+
+		game.Free();
+	}
+
+	private void Check(string label, bool condition)
+	{
+		if (condition)
+		{
+			_passed++;
+			GD.Print($"  OK   {label}");
+		}
+		else
+		{
+			_failed++;
+			GD.Print($"  FALHA {label}");
+		}
+	}
+}

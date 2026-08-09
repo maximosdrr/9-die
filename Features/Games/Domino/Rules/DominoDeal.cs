@@ -35,7 +35,7 @@ public static class DominoDeal
 	{
 		var result = new DealResult();
 		var deck = DominoTileId.FullSet();
-		Shuffle(deck, seed);
+		SeededShuffle.Shuffle(deck, seed);
 
 		var handSize = HandSize(playerIds.Count, handSizeOverride);
 		var next = 0;
@@ -109,30 +109,5 @@ public static class DominoDeal
 			return pips > againstPips;
 
 		return DominoTileId.High(tileId) > DominoTileId.High(againstId);
-	}
-
-	/// <summary>
-	/// Fisher-Yates over splitmix64. A self-contained generator rather than GD.Randi or
-	/// System.Random keeps "same seed, same deal" true across runs, runtimes and machines, which
-	/// is what the deal test pins.
-	/// </summary>
-	private static void Shuffle(int[] deck, ulong seed)
-	{
-		var state = seed;
-
-		for (var i = deck.Length - 1; i > 0; i--)
-		{
-			var j = (int)(NextRandom(ref state) % (ulong)(i + 1));
-			(deck[i], deck[j]) = (deck[j], deck[i]);
-		}
-	}
-
-	private static ulong NextRandom(ref ulong state)
-	{
-		state += 0x9E3779B97F4A7C15UL;
-		var z = state;
-		z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
-		z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
-		return z ^ (z >> 31);
 	}
 }

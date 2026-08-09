@@ -22,7 +22,7 @@ public partial class DominoHand3DView : DominoHandView
 	[Export] public PackedScene TileScene;
 
 	/// <summary>The aiming dot. The only screen-space element left in the game.</summary>
-	[Export] public DominoHandCrosshair Crosshair;
+	[Export] public AimCrosshair Crosshair;
 
 	/// <summary>
 	/// Everything the game needs to say in words, in world space rather than on a panel: a refused
@@ -210,34 +210,9 @@ public partial class DominoHand3DView : DominoHandView
 
 	// ---------------------------------------------------------------- aiming from the crosshair
 
-	/// <summary>
-	/// Where the crosshair meets the cloth, in table-local coordinates.
-	///
-	/// A ray against the table PLANE rather than a physics cast: the tiles are not colliders and
-	/// the table's own collider is a fat cylinder, so a plane through the tile surface is both
-	/// cheaper and exactly the surface the chain is laid out on. Same technique the pool game uses
-	/// for ball-in-hand, aimed at the screen centre instead of the cursor.
-	/// </summary>
-	public bool TryAimPoint(out Vector2 tableLocal)
-	{
-		tableLocal = Vector2.Zero;
-
-		var camera = Game?.Camera;
-		var cloth = Game?.ChainPresenter;
-		if (camera == null || cloth == null || !IsInsideTree())
-			return false;
-
-		var centre = GetViewport().GetVisibleRect().Size * 0.5f;
-		var plane = new Plane(cloth.GlobalBasis.Y.Normalized(), cloth.GlobalPosition);
-
-		var hit = plane.IntersectsRay(camera.ProjectRayOrigin(centre), camera.ProjectRayNormal(centre));
-		if (hit == null)
-			return false;
-
-		var local = cloth.ToLocal(hit.Value);
-		tableLocal = new Vector2(local.X, local.Z);
-		return true;
-	}
+	/// <summary>Where the crosshair meets the cloth, in table-local coordinates.</summary>
+	public bool TryAimPoint(out Vector2 tableLocal) =>
+		AimPlane.TryAim(Game?.Camera, Game?.ChainPresenter, out tableLocal);
 
 	/// <summary>Points the placement at whichever open end the crosshair is nearest.</summary>
 	public void UpdateAimFromCrosshair()
@@ -265,7 +240,7 @@ public partial class DominoHand3DView : DominoHandView
 
 		// The layout comes off the game, which is also what the seat presenter draws the stock
 		// from — one source, so the aim can never be pointing at where the tiles are not.
-		AimedSlot = DominoBoneyardLayout.NearestSlot(Game.BoneyardSlots, Game.StockSpec, aim);
+		AimedSlot = SlotGrid.NearestSlot(Game.BoneyardSlots, Game.StockSpec, aim);
 	}
 
 	public void SetCrosshairVisible(bool visible)
@@ -507,21 +482,21 @@ public partial class DominoHand3DView : DominoHandView
 
 	private static bool TryOccupiedStockBounds(
 		IReadOnlyList<int> occupiedSlots,
-		BoneyardSpec spec,
+		SlotGridSpec spec,
 		out Rect2 bounds)
 	{
 		bounds = default;
 		if (occupiedSlots == null || occupiedSlots.Count == 0)
 			return false;
 
-		var half = DominoBoneyardLayout.HalfExtents(spec);
+		var half = SlotGrid.HalfExtents(spec);
 		var hasSlot = false;
 		foreach (var slot in occupiedSlots)
 		{
 			if (slot < 0)
 				continue;
 
-			var centre = DominoBoneyardLayout.SlotPosition(slot, spec);
+			var centre = SlotGrid.SlotPosition(slot, spec);
 			if (!hasSlot)
 			{
 				bounds = new Rect2(centre - half, half * 2.0f);
@@ -736,45 +711,18 @@ public partial class DominoHand3DView : DominoHandView
 		}
 	}
 
-	/// <summary>
-	/// A tile lies face-up with its long axis on +Z. Held in a hand it stands upright with the face
-	/// toward the player, so the long axis goes up and the face swings back — written as explicit
-	/// axis images because composing this out of Euler angles is how it ended up edge-on.
-	/// </summary>
-	private static readonly Basis Upright = new(
-		new Vector3(-1.0f, 0.0f, 0.0f),
-		new Vector3(0.0f, 0.0f, 1.0f),
-		new Vector3(0.0f, 1.0f, 0.0f));
+	/// <summary>The fan's shape, as the shared splay maths wants it.</summary>
+	private HandFanSpec FanSpec =>
+		new(FanStepDeg, FanRadius, SelectedLift, TileTiltDeg, HandFan.LongAxisUp);
 
 	/// <summary>
-	/// Splays the tiles like a hand of cards: all of them hang off one pivot below the hand at a
-	/// fixed radius, evenly spaced by angle, each rolled by its own angle.
-	///
-	/// The first version placed them around an arc and swung them about the vertical, which put
-	/// each tile at a different distance from the eye — under perspective they came out at mismatched
-	/// sizes and angles and looked spilled rather than held. Rolling about a shared pivot keeps every
-	/// tile the same distance away, so the overlap is even and the fan reads as one object.
+	/// Where a held tile sits. The splay itself is <see cref="HandFan"/>; what belongs to dominoes
+	/// is only which tile is selected and how far the carousel has slid.
 	/// </summary>
 	private Transform3D FanTransform(int index, int count)
 	{
-		var step = Mathf.DegToRad(FanStepDeg);
-		var centre = _fanCarouselInitialized ? _fanCarouselCenter : (count - 1) * 0.5f;
-		var angle = (index - centre) * step;
-
-		var selected = index == SelectedIndex;
-
-		// Hanging off a pivot below: at angle zero the tile sits at the hand's origin.
-		var position = new Vector3(
-			Mathf.Sin(angle) * FanRadius,
-			Mathf.Cos(angle) * FanRadius - FanRadius + (selected ? SelectedLift : 0.0f),
-			// Each tile a hair nearer than the one before, so they always layer the same way
-			// instead of fighting over which is in front.
-			index * 0.0015f + (selected ? 0.012f : 0.0f));
-
-		var lean = Basis.FromEuler(new Vector3(Mathf.DegToRad(TileTiltDeg), 0.0f, 0.0f));
-		var roll = Basis.FromEuler(new Vector3(0.0f, 0.0f, -angle));
-
-		return new Transform3D(lean * roll * Upright, position);
+		var centre = _fanCarouselInitialized ? _fanCarouselCenter : HandFan.NaturalCentre(count);
+		return HandFan.SlotTransform(index, centre, index == SelectedIndex, FanSpec);
 	}
 
 	/// <summary>

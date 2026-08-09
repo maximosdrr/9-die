@@ -69,10 +69,10 @@ public partial class DominoSeatPresenter : Node3D
 			new Callable(this, MethodName.Refresh));
 	}
 
-	private BoneyardSpec BuildStockSpec()
+	private SlotGridSpec BuildStockSpec()
 	{
 		var spec = ChainPresenter?.Spec ?? LayoutSpec.Default;
-		return new BoneyardSpec(spec.TileLength, spec.TileWidth, StockGap, StockColumns, StockOrigin);
+		return new SlotGridSpec(spec.TileLength, spec.TileWidth, StockGap, StockColumns, StockOrigin);
 	}
 
 	/// <summary>Redraws the table's furniture whenever the public state moves.</summary>
@@ -104,7 +104,7 @@ public partial class DominoSeatPresenter : Node3D
 			if (!tile.IsFaceDown)
 				tile.Configure(0, tileSpec, faceDown: true);
 
-			var position = DominoBoneyardLayout.SlotPosition(slots[i], spec);
+			var position = SlotGrid.SlotPosition(slots[i], spec);
 			tile.Position = new Vector3(position.X, tileSpec.TileThickness * 0.5f, position.Y);
 			tile.Rotation = Vector3.Zero;
 		}

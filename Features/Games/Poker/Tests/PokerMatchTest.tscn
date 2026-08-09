@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Features/Games/Poker/Tests/PokerMatchTest.cs" id="1_pkmat"]
+
+[node name="PokerMatchTest" type="Node"]
+script = ExtResource("1_pkmat")

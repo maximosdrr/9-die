@@ -9,7 +9,7 @@
 [ext_resource type="Script" uid="uid://cbbgxnphhve44" path="res://Core/Table/GameMode/GameMode.cs" id="6_gmode"]
 [ext_resource type="Script" uid="uid://c0hpaa0404j7a" path="res://Features/Games/Domino/GameModes/DominoTurnResolver.cs" id="7_dresol"]
 [ext_resource type="Script" uid="uid://7lj00ufafks3" path="res://Features/Games/Domino/Scripts/DominoSeatPresenter.cs" id="8_dseat"]
-[ext_resource type="Script" uid="uid://b34a4by8ha7ex" path="res://Features/Games/Domino/Scripts/DominoSeatAnchors.cs" id="9_danch"]
+[ext_resource type="Script" uid="uid://b34a4by8ha7ex" path="res://Core/Table/TableSeatAnchors.cs" id="9_danch"]
 [ext_resource type="Texture2D" uid="uid://f2fg6cq10jt8" path="res://Assets/BarAssets/BarBuildingKit1845_wooden_chair_basecolor_25.jpg" id="10_mmslq"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_table"]

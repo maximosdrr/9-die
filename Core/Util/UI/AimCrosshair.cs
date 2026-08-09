@@ -8,7 +8,7 @@ using Godot;
 /// ring behind the dot keeps it readable against a pale tabletop.
 /// </summary>
 [GlobalClass]
-public partial class DominoHandCrosshair : Control
+public partial class AimCrosshair : Control
 {
 	[Export] public float Radius = 3.5f;
 	[Export] public Color DotColor = new(1.0f, 1.0f, 1.0f);
