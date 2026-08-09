@@ -18,6 +18,13 @@ public partial class PokerGame : TableGame
 	[Export] public PackedScene GameControllerScene;
 	[Export] public Node3D Seats;
 
+	[ExportGroup("Replaceable presentation assets")]
+	/// <summary>
+	/// One resource owns every swappable poker visual. Motion and rules only depend on the stable
+	/// PokerCard/PokerChipVisual adapters, never on an imported mesh hierarchy.
+	/// </summary>
+	[Export] public PokerVisualAssets VisualAssets;
+
 	/// <summary>
 	/// The cloth: it draws the community cards and the pot, and it doubles as the surface the
 	/// overhead camera centres on and the crosshair aims at.
@@ -149,6 +156,15 @@ public partial class PokerGame : TableGame
 		return Seats.GetChild(index) as Marker3D;
 	}
 
+	/// <summary>Creates the configured card, retaining old scene overrides as a safe fallback.</summary>
+	public PokerCard CreateCard(PackedScene fallback = null)
+	{
+		var scene = VisualAssets?.CardScene ?? fallback;
+		return scene?.Instantiate() as PokerCard;
+	}
+
+	public PackedScene ChipScene => VisualAssets?.ChipScene;
+
 	// ---------------------------------------------------------------- derived reads
 
 	/// <summary>
@@ -264,6 +280,7 @@ public partial class PokerGame : TableGame
 		LastAction = "";
 		LastPlayer = "";
 		LastAmount = 0;
+		ActionSeq = 0;
 		LocalHoleCards = System.Array.Empty<int>();
 	}
 

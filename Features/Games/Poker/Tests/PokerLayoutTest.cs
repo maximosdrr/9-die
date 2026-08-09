@@ -29,7 +29,10 @@ public partial class PokerLayoutTest : Node
 		TestEverythingFitsTheTable();
 		TestSceneMatchesTheLayout();
 		TestChipsKeepTheirIdentity();
+		TestStableBankDoesNotFlick();
+		TestLoosePotOrganizesIntoATower();
 		TestChipsSettleLikeChips();
+		TestNaturalMotionCurves();
 
 		GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
 		if (_failed > 0)
@@ -97,6 +100,9 @@ public partial class PokerLayoutTest : Node
 		Check($"as coisas de um assento não invadem a linha comunitária "
 			  + $"({closest:F3} m contra {boardHalfLength:F3} m)",
 			closest > boardHalfLength + spec.CardGap);
+		Check($"o pote deixa as cartas comunitárias respirarem ({spec.PotRadius * 100.0f:F0} cm do centro)",
+			spec.PotRadius > boardHalfLength + spec.CardGap + 0.020f
+			&& spec.PotRadius < spec.SeatBetRadius - 0.020f);
 
 		// With four seats, one seat's things must not reach into the next seat's.
 		var worst = float.MaxValue;
@@ -280,6 +286,79 @@ public partial class PokerLayoutTest : Node
 	/// from the chip's own index rather than rolled, so it is the same on every peer and stable from
 	/// frame to frame — nothing about it is replicated, and nothing about it crawls.
 	/// </summary>
+	private void TestStableBankDoesNotFlick()
+	{
+		var pile = new PokerChipPile
+		{
+			StableRunColumns = true,
+			StackSpacing = 0.034f,
+		};
+		AddChild(pile);
+
+		var bank = PokerChipStack.CreatePlayableBank(490);
+		pile.SetRuns(bank);
+		var before = pile.GetChildren().OfType<Node3D>().Where(chip => chip.Visible)
+			.ToDictionary(chip => chip.GetInstanceId(), chip => chip.Transform);
+
+		var paid = PokerChipStack.TryTake(bank, 10, out var payment);
+		pile.SetRuns(bank);
+		var after = pile.GetChildren().OfType<Node3D>().Where(chip => chip.Visible)
+			.ToDictionary(chip => chip.GetInstanceId(), chip => chip.Transform);
+
+		var survivorsStayedStill = after.All(entry => before.TryGetValue(entry.Key, out var old)
+			&& old.IsEqualApprox(entry.Value));
+		Check("pagar remove fichas existentes sem criar novas na pilha",
+			paid && PokerChipStack.Total(payment) == 10 && after.Count < before.Count
+			&& after.Keys.All(before.ContainsKey));
+		Check("nenhuma ficha que ficou na pilha muda de lugar ou de instancia", survivorsStayedStill);
+
+		pile.QueueFree();
+	}
+
+	private void TestLoosePotOrganizesIntoATower()
+	{
+		var pile = new PokerChipPile
+		{
+			CombineRunsIntoColumns = true,
+			LooseWhenSpread = true,
+			Scatter = 0.020f,
+		};
+		AddChild(pile);
+		pile.SetRuns(new[] { new ChipRun(10, 6) });
+
+		pile.Spread = 1.0f;
+		var loose = ChipSpots(pile);
+		pile.Spread = 0.0f;
+		var tidy = ChipSpots(pile);
+
+		var looseRadius = loose.Max(spot => new Vector2(spot.X, spot.Z).Length());
+		var tidyRadius = tidy.Max(spot => new Vector2(spot.X, spot.Z).Length());
+		Check($"antes de organizar as fichas ficam soltas ({looseRadius * 1000.0f:F1} mm)",
+			looseRadius > 0.006f);
+		Check($"organizar fecha as mesmas fichas em uma torre ({tidyRadius * 1000.0f:F1} mm)",
+			tidyRadius < 0.0001f
+			&& loose.Count == tidy.Count
+			&& tidy.Select(spot => spot.Y).Distinct().Count() == tidy.Count);
+
+		var neighbour = new PokerChipPile
+		{
+			CombineRunsIntoColumns = true,
+			LooseWhenSpread = true,
+			LooseSlotOffset = pile.ChipCount,
+			Spread = 1.0f,
+		};
+		AddChild(neighbour);
+		neighbour.SetRuns(new[] { new ChipRun(5, 6) });
+		pile.Spread = 1.0f;
+		var shared = ChipSpots(pile).Concat(ChipSpots(neighbour)).ToList();
+		var sharedClosest = ClosestHorizontalGap(shared);
+		Check($"lotes diferentes compartilham o pote sem se atravessar ({sharedClosest * 1000.0f:F1} mm)",
+			sharedClosest >= pile.EffectiveDiameter * pile.LooseSpacingScale - 0.0001f);
+
+		pile.QueueFree();
+		neighbour.QueueFree();
+	}
+
 	private void TestChipsSettleLikeChips()
 	{
 		Check("o ruído de assentamento é determinístico",
@@ -294,7 +373,12 @@ public partial class PokerLayoutTest : Node
 
 		// Five chips of one value: a single column, which is exactly the shape the player described
 		// as falling on top of one another.
-		var pile = new PokerChipPile { Scatter = 0.011f, TiltDegrees = 8.0f };
+		var pile = new PokerChipPile
+		{
+			Scatter = 0.011f,
+			TiltDegrees = 8.0f,
+			LooseWhenSpread = true,
+		};
 		AddChild(pile);
 		pile.SetRuns(new[] { new ChipRun(10, 5) });
 
@@ -327,7 +411,8 @@ public partial class PokerLayoutTest : Node
 
 		Check($"ao aterrissar nenhuma cai exatamente sobre a outra ({apart} pares afastados, "
 			  + $"menor distância {closest * 1000.0f:F1} mm)",
-			apart == scattered.Count * (scattered.Count - 1) / 2);
+			apart == scattered.Count * (scattered.Count - 1) / 2
+			&& closest >= pile.EffectiveDiameter * pile.LooseSpacingScale - 0.0001f);
 
 		Check($"e todas continuam empilhadas em altura ({scattered.Count} fichas)",
 			scattered.Select(spot => spot.Y).Distinct().Count() == scattered.Count);
@@ -346,10 +431,52 @@ public partial class PokerLayoutTest : Node
 		pile.QueueFree();
 	}
 
+	private static float ClosestHorizontalGap(IReadOnlyList<Vector3> positions)
+	{
+		var closest = float.MaxValue;
+		for (var i = 0; i < positions.Count; i++)
+		{
+			for (var j = i + 1; j < positions.Count; j++)
+			{
+				var gap = new Vector2(
+					positions[i].X - positions[j].X,
+					positions[i].Z - positions[j].Z).Length();
+				closest = Mathf.Min(closest, gap);
+			}
+		}
+		return closest;
+	}
+
 	/// <summary>The first half of the fall covers less ground than the second.</summary>
 	private static bool PokerChipCurveAccelerates() =>
 		PokerChipPile.DropCurve(0.0f) - PokerChipPile.DropCurve(0.155f)
 		< PokerChipPile.DropCurve(0.465f) - PokerChipPile.DropCurve(0.62f);
+
+	private void TestNaturalMotionCurves()
+	{
+		var cardFrom = new Vector3(-0.3f, 0.0f, -0.1f);
+		var cardTo = new Vector3(0.2f, 0.0f, 0.25f);
+		var cardStart = PokerMotion.CardThrow(cardFrom, cardTo, 0.0f, 0.04f, 0.01f);
+		var cardMiddle = PokerMotion.CardThrow(cardFrom, cardTo, 0.5f, 0.04f, 0.01f);
+		var cardEnd = PokerMotion.CardThrow(cardFrom, cardTo, 1.0f, 0.04f, 0.01f);
+
+		Check("a carta começa e termina exatamente nos encaixes",
+			cardStart.IsEqualApprox(cardFrom) && cardEnd.IsEqualApprox(cardTo));
+		Check($"a carta percorre um arco baixo ({cardMiddle.Y * 100.0f:F1} cm)",
+			cardMiddle.Y > 0.0f && cardMiddle.Y <= 0.05f);
+
+		var chipFrom = new Vector2(-0.45f, 0.0f);
+		var chipTo = new Vector2(-0.22f, 0.0f);
+		var chipStart = PokerMotion.ChipThrow(chipFrom, chipTo, 0.0f, 0.042f, 0.005f);
+		var chipMiddle = PokerMotion.ChipThrow(chipFrom, chipTo, 0.5f, 0.042f, 0.005f);
+		var chipEnd = PokerMotion.ChipThrow(chipFrom, chipTo, 1.0f, 0.042f, 0.005f);
+
+		Check("as fichas não teleportam na saída nem na chegada",
+			new Vector2(chipStart.X, chipStart.Z).IsEqualApprox(chipFrom)
+			&& new Vector2(chipEnd.X, chipEnd.Z).IsEqualApprox(chipTo));
+		Check($"o lançamento de fichas não levanta uma pilha 15 cm ({chipMiddle.Y * 100.0f:F1} cm)",
+			chipMiddle.Y > 0.025f && chipMiddle.Y < 0.06f);
+	}
 
 	private static List<Vector3> ChipSpots(PokerChipPile pile) =>
 		pile.GetChildren()

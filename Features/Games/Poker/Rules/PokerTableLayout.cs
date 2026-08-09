@@ -61,7 +61,7 @@ public readonly struct PokerLayoutSpec
 	/// </summary>
 	public static PokerLayoutSpec Default =>
 		new(0.070f, 0.098f, 0.0006f, 0.012f,
-			boardOffset: 0.0f, potRadius: 0.20f,
+			boardOffset: 0.0f, potRadius: 0.16f,
 			seatCardRadius: 0.40f, seatBetRadius: 0.25f, seatStackRadius: 0.54f);
 
 	/// <summary>Width of the whole five-card row.</summary>

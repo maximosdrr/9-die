@@ -8,6 +8,8 @@ public partial class Player : CharacterBody3D
     [Export] public float Speed = 3f;
     public int Id = 1;
     [Export] public string Nickname = "";
+    [ExportGroup("Replaceable character")]
+    [Export] public AnimationPlayer SeatedGestureAnimator;
 
     public HeadPivot HeadPivot;
     public RemoteTransform3D RemoteFps;
@@ -135,7 +137,10 @@ public partial class Player : CharacterBody3D
         if (!IsInSeatedGameMode || string.IsNullOrWhiteSpace(animationName))
             return;
 
-        var animation = GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer");
+        // Exported first, so replacing the character only requires reconnecting one field. The
+        // fallback keeps every existing Player scene working until that asset arrives.
+        var animation = SeatedGestureAnimator
+                        ?? GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer");
         if (animation != null && animation.HasAnimation(animationName))
             animation.Play(animationName);
     }

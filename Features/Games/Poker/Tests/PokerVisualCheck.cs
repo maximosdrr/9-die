@@ -15,7 +15,7 @@ public partial class PokerVisualCheck : Node3D
 	[Export] public string OutputPath = "user://poker_visual.png";
 
 	/// <summary>Frames of settling before the shot, so the throws and the muck are where they end up.</summary>
-	[Export] public int WarmUpFrames = 150;
+	[Export] public int WarmUpFrames = 20;
 
 	private PokerGame _game;
 	private int _frames;
@@ -23,7 +23,7 @@ public partial class PokerVisualCheck : Node3D
 
 	public override void _Ready()
 	{
-		var players = BuildPlayers("1", "2", "3");
+		var players = BuildPlayers("1", "2");
 		var table = BuildTable();
 
 		_game = table.CurrentTableGame as PokerGame;
@@ -42,23 +42,50 @@ public partial class PokerVisualCheck : Node3D
 		_game.StartingStack = 500;
 		_game.SmallBlind = 5;
 		_game.BigBlind = 10;
+		// This harness submits an entire hand before its first rendered frame, unlike real play. Speed
+		// only the queued reveal so the final comparison is what the fixed-time screenshot captures.
+		_game.BoardPresenter.FlipStagger = 0.08f;
+		_game.BoardPresenter.FlipSeconds = 0.28f;
+		_game.SeatPresenter.ShowdownCardSeconds = 0.48f;
 
-		var order = new Array { "1", "2", "3" };
+		var order = new Array { "1", "2" };
 		_game.TurnOrder = order;
 		_game.TurnOwner = players["1"];
 		_game.Player = players["1"];
 
 		var resolver = _game.Resolver;
-		resolver.ShowdownSeconds = 0.0f;
+		resolver.AutoAdvanceHands = false;
 		resolver.FoldedHandSeconds = 0.0f;
 
 		_game.SetupMatch(order, "1");
 
-		// A raise, a call and a fold: one seat with chips in the middle, one that matched it, and one
-		// whose cards are on their way to the muck.
-		Act(PokerActionKind.Raise, 40);
-		Act(PokerActionKind.Call, 40);
-		Act(PokerActionKind.Fold, 0);
+		// Match the blind and let the big blind check its option, then check through the board. Keeping
+		// this harness heads-up makes the final two comparison rows easy to inspect in one screenshot.
+		Act(PokerActionKind.Call, 10);
+		Act(PokerActionKind.Check, 0);
+
+		// Check the remaining players through the board so the screenshot covers the ranked best-five
+		// comparison rather than only the betting layout.
+		var safety = 0;
+		while (!_game.HandSettled && safety++ < 20)
+		{
+			var actor = _game.TurnOwnerId;
+			var state = _game.BetStateOf(actor);
+			var options = PokerBetting.LegalActions(state, _game.CurrentBet, _game.MinRaiseIncrement);
+			var option = options.FirstOrDefault(candidate => candidate.Kind == PokerActionKind.Check);
+			if (option.Kind == PokerActionKind.None)
+				option = options.First(candidate => candidate.Kind == PokerActionKind.Call);
+
+			_game.Resolver.ApplyActionFor(actor, _game.TurnToken, (int)option.Kind, option.MinTotal);
+		}
+
+		// Advance the local presentation deterministically. The harness submits all actions in one
+		// method call, whereas a real table naturally gets many rendered frames between them.
+		for (var frame = 0; frame < 1200 && !_game.SeatPresenter.ShowdownPresentationSettled; frame++)
+		{
+			_game.SeatPresenter._Process(1.0 / 60.0);
+			_game.BoardPresenter._Process(1.0 / 60.0);
+		}
 
 		BuildCamera();
 	}
@@ -86,7 +113,7 @@ public partial class PokerVisualCheck : Node3D
 		var camera = new Camera3D { Fov = 48.0f, Current = true };
 		AddChild(camera);
 
-		camera.GlobalPosition = new Vector3(0.0f, 1.06f, 0.72f);
+		camera.GlobalPosition = new Vector3(0.0f, 1.62f, 0.78f);
 		camera.LookAt(new Vector3(0.0f, 0.718f, -0.06f), Vector3.Up);
 
 		var light = new DirectionalLight3D { LightEnergy = 1.4f, ShadowEnabled = true };
@@ -122,6 +149,11 @@ public partial class PokerVisualCheck : Node3D
 			return;
 
 		_shot = true;
+		GD.Print($"SHOWDOWN: settled={_game.SeatPresenter?.ShowdownPresentationSettled} "
+			+ $"cards={_game.SeatPresenter?.ShowdownDisplayedCardCount} "
+			+ $"order={string.Join(",", _game.SeatPresenter?.ShowdownDisplayOrder ?? System.Array.Empty<string>())} "
+			+ _game.SeatPresenter?.DebugShowdownState());
+		GD.Print("BOARD: " + _game.BoardPresenter?.DebugState());
 
 		var image = GetViewport().GetTexture().GetImage();
 		image.SavePng(OutputPath);
@@ -145,6 +177,9 @@ public partial class PokerVisualCheck : Node3D
 			player.Name = id;
 			player.Id = int.Parse(id);
 			container.AddChild(player);
+			// The visual harness inspects the cloth, not seated character art. Keeping the bodies visible
+			// puts the local torso directly between its fixed diagnostic camera and the showdown rows.
+			player.Visible = false;
 			players[id] = player;
 		}
 

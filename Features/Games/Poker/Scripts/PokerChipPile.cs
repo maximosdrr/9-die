@@ -28,6 +28,12 @@ public partial class PokerChipPile : Node3D
 	[Export] public float ChipDiameter = 0.040f;
 	[Export] public float ChipThickness = 0.0035f;
 
+	/// <summary>
+	/// Optional replaceable chip scene. Its root should be PokerChipVisual so denomination tinting is
+	/// retained; a plain Node3D is still accepted when the art has baked colours.
+	/// </summary>
+	[Export] public PackedScene ChipScene;
+
 	/// <summary>Space between neighbouring stacks of different denominations.</summary>
 	[Export] public float StackSpacing = 0.046f;
 
@@ -39,6 +45,54 @@ public partial class PokerChipPile : Node3D
 
 	/// <summary>How many denominations are drawn before the rest is folded into the last.</summary>
 	[Export] public int MaxDenominations = 4;
+
+	/// <summary>
+	/// Keeps one permanent column per run, including zero-count runs. Player banks use this so paying
+	/// from one denomination never recentres or repaints every denomination beside it.
+	/// </summary>
+	[Export] public bool StableRunColumns;
+
+	/// <summary>Combines all denominations into compact vertical columns.</summary>
+	[Export] public bool CombineRunsIntoColumns;
+
+	/// <summary>
+	/// Interpolates from a compact stack at Spread=0 to chips lying independently at Spread=1.
+	/// Action batches use it to land messy and later organize into a real tower.
+	/// </summary>
+	[Export] public bool LooseWhenSpread;
+
+	/// <summary>
+	/// First place occupied in the shared loose-chip layout. Several persistent batches may use the
+	/// same root; disjoint ranges keep their chips from being drawn through one another.
+	/// </summary>
+	public int LooseSlotOffset
+	{
+		get => _looseSlotOffset;
+		set
+		{
+			var clamped = Mathf.Max(0, value);
+			if (clamped == _looseSlotOffset && _looseLayoutProgress >= 1.0f)
+				return;
+			_looseSlotOffsetFrom = clamped;
+			_looseSlotOffset = clamped;
+			_looseLayoutProgress = 1.0f;
+			Apply();
+		}
+	}
+
+	/// <summary>Progress from the previous shared range to <see cref="LooseSlotOffset"/>.</summary>
+	public float LooseLayoutProgress
+	{
+		get => _looseLayoutProgress;
+		set
+		{
+			var clamped = Mathf.Clamp(value, 0.0f, 1.0f);
+			if (Mathf.IsEqualApprox(clamped, _looseLayoutProgress))
+				return;
+			_looseLayoutProgress = clamped;
+			Apply();
+		}
+	}
 
 	[ExportGroup("Settling")]
 	/// <summary>
@@ -57,30 +111,39 @@ public partial class PokerChipPile : Node3D
 	/// <summary>How far above its place a chip starts that fall.</summary>
 	[Export] public float SettleHeight = 0.022f;
 
+	/// <summary>Small breathing room between chips lying beside one another.</summary>
+	[Export] public float LooseSpacingScale = 1.08f;
+
 	/// <summary>Where a chip is between its column and its resting place.</summary>
 	private readonly struct Slot
 	{
 		public readonly int Column;
 		public readonly int Height;
 		public readonly int Denomination;
+		public readonly int VisualIndex;
 
-		public Slot(int column, int height, int denomination)
+		public Slot(int column, int height, int denomination, int visualIndex)
 		{
 			Column = column;
 			Height = height;
 			Denomination = denomination;
+			VisualIndex = visualIndex;
 		}
 	}
 
 	private readonly List<Node3D> _chips = new();
-	private readonly List<MeshInstance3D> _bodies = new();
+	private readonly List<PokerChipVisual> _visuals = new();
 	private readonly List<Slot> _slots = new();
 	private readonly List<ChipRun> _runs = new();
 	private readonly List<float> _settle = new();
-	private CylinderMesh _fallbackMesh;
+	private readonly List<List<int>> _stableLaneVisuals = new();
 	private int _columns;
 	private float _spread = 1.0f;
 	private bool _settling;
+	private float _flightProgress = 1.0f;
+	private int _looseSlotOffset;
+	private int _looseSlotOffsetFrom;
+	private float _looseLayoutProgress = 1.0f;
 
 	/// <summary>Standard casino colours, so a value can be read from across the table.</summary>
 	private static readonly Dictionary<int, Color> Colours = new()
@@ -115,6 +178,31 @@ public partial class PokerChipPile : Node3D
 	/// <summary>How many chip objects are on the cloth.</summary>
 	public int ChipCount => _slots.Count;
 
+	/// <summary>Height occupied by the compact form, used to place persistent batches in one tower.</summary>
+	public float TopHeight
+	{
+		get
+		{
+			var height = 0;
+			foreach (var slot in _slots)
+				height = Mathf.Max(height, slot.Height + 1);
+			return height * EffectiveThickness;
+		}
+	}
+
+	/// <summary>
+	/// Builds reusable visuals before play begins. SetRuns then only reveals and moves these nodes,
+	/// so an action does not allocate a replacement chip halfway through its trajectory.
+	/// </summary>
+	public void Prewarm(int count)
+	{
+		while (_chips.Count < Mathf.Max(0, count))
+			Build();
+
+		foreach (var chip in _chips)
+			chip.Visible = false;
+	}
+
 	/// <summary>
 	/// How far the pile is from a tidy column (0) to its settled scatter (1).
 	///
@@ -135,9 +223,45 @@ public partial class PokerChipPile : Node3D
 		}
 	}
 
+	/// <summary>
+	/// Local animation progress while the pile is in the air. It adds a small independent lift and
+	/// tumble per chip, so several chips no longer read as one rigid plastic cylinder.
+	/// </summary>
+	public float FlightProgress
+	{
+		get => _flightProgress;
+		set
+		{
+			var clamped = Mathf.Clamp(value, 0.0f, 1.0f);
+			if (Mathf.IsEqualApprox(clamped, _flightProgress))
+				return;
+
+			_flightProgress = clamped;
+			Apply();
+		}
+	}
+
 	/// <summary>How tall one chip actually is once drawn — what the stacking steps by.</summary>
 	public float EffectiveThickness =>
 		PokerChipMeshes.IsAvailable ? PokerChipMeshes.Thickness : ChipThickness;
+
+	/// <summary>Actual drawn diameter, including the scale of a replacement mesh.</summary>
+	public float EffectiveDiameter =>
+		PokerChipMeshes.IsAvailable ? PokerChipMeshes.Diameter : ChipDiameter;
+
+	/// <summary>
+	/// Reassigns this batch into a shared layout without moving it on the calling frame. The caller
+	/// advances <see cref="LooseLayoutProgress"/> together with the batch's physical travel.
+	/// </summary>
+	public void RetargetLooseSlots(int offset)
+	{
+		_looseSlotOffsetFrom = _looseLayoutProgress >= 1.0f
+			? _looseSlotOffset
+			: _looseSlotOffsetFrom;
+		_looseSlotOffset = Mathf.Max(0, offset);
+		_looseLayoutProgress = 0.0f;
+		Apply();
+	}
 
 	/// <summary>Lays out <paramref name="amount"/> as chips, from scratch. Zero leaves nothing.</summary>
 	public void Show(int amount)
@@ -238,6 +362,20 @@ public partial class PokerChipPile : Node3D
 		_slots.Clear();
 		_columns = 0;
 
+		if (StableRunColumns)
+		{
+			BuildStableRunSlots();
+			FinishRebuild(before);
+			return;
+		}
+
+		if (CombineRunsIntoColumns)
+		{
+			BuildCombinedSlots();
+			FinishRebuild(before);
+			return;
+		}
+
 		foreach (var run in _runs)
 		{
 			if (run.Count <= 0)
@@ -253,14 +391,62 @@ public partial class PokerChipPile : Node3D
 				var height = (run.Count - placed) / (columns - column);
 
 				for (var chip = 0; chip < height; chip++)
-					_slots.Add(new Slot(_columns, chip, run.Denomination));
+					_slots.Add(new Slot(_columns, chip, run.Denomination, _slots.Count));
 
 				placed += height;
 				_columns++;
 			}
 		}
 
-		while (_settle.Count < _slots.Count)
+		FinishRebuild(before);
+	}
+
+	private void BuildStableRunSlots()
+	{
+		_columns = Mathf.Max(1, _runs.Count);
+		while (_stableLaneVisuals.Count < _runs.Count)
+			_stableLaneVisuals.Add(new List<int>());
+
+		for (var lane = 0; lane < _runs.Count; lane++)
+		{
+			var run = _runs[lane];
+			var visuals = _stableLaneVisuals[lane];
+			while (visuals.Count < run.Count)
+			{
+				Build();
+				visuals.Add(_chips.Count - 1);
+			}
+
+			for (var chip = 0; chip < run.Count; chip++)
+				_slots.Add(new Slot(lane, chip, run.Denomination, visuals[chip]));
+		}
+	}
+
+	private void BuildCombinedSlots()
+	{
+		var index = 0;
+		foreach (var run in _runs)
+		{
+			for (var chip = 0; chip < run.Count; chip++)
+			{
+				var column = index / Mathf.Max(1, MaxChipsPerStack);
+				var height = index % Mathf.Max(1, MaxChipsPerStack);
+				_slots.Add(new Slot(column, height, run.Denomination, index));
+				index++;
+			}
+		}
+
+		_columns = Mathf.Max(1,
+			(index + Mathf.Max(1, MaxChipsPerStack) - 1) / Mathf.Max(1, MaxChipsPerStack));
+	}
+
+	private void FinishRebuild(int before)
+	{
+		var requiredSettleSlots = 0;
+		foreach (var slot in _slots)
+			requiredSettleSlots = Mathf.Max(requiredSettleSlots, slot.VisualIndex + 1);
+
+		while (_settle.Count < requiredSettleSlots)
 			_settle.Add(1.0f);
 
 		// Chips that were not there a moment ago arrive by falling. Everything that was already on
@@ -269,7 +455,7 @@ public partial class PokerChipPile : Node3D
 		{
 			for (var i = before; i < _slots.Count; i++)
 			{
-				_settle[i] = 0.0f;
+				_settle[_slots[i].VisualIndex] = 0.0f;
 				_settling = true;
 			}
 		}
@@ -282,32 +468,119 @@ public partial class PokerChipPile : Node3D
 		var step = EffectiveThickness;
 		var jitter = Scatter * _spread;
 		var tilt = Mathf.DegToRad(TiltDegrees) * _spread;
+		var used = new bool[_chips.Count];
 
 		for (var i = 0; i < _slots.Count; i++)
 		{
 			var slot = _slots[i];
-			var chip = ChipAt(i);
+			var chip = ChipAt(slot.VisualIndex);
+			if (slot.VisualIndex >= used.Length)
+				System.Array.Resize(ref used, _chips.Count);
+			used[slot.VisualIndex] = true;
 
-			var settled = i < _settle.Count ? _settle[i] : 1.0f;
+			var settled = slot.VisualIndex < _settle.Count ? _settle[slot.VisualIndex] : 1.0f;
 
-			var place = new Vector3(
-				(slot.Column - (_columns - 1) * 0.5f) * StackSpacing + Noise(i, 0) * jitter,
+			var stacked = new Vector3(
+				(slot.Column - (_columns - 1) * 0.5f) * StackSpacing,
 				(slot.Height + 0.5f) * step + DropCurve(settled) * SettleHeight,
-				Noise(i, 1) * jitter);
+				0.0f);
+			Vector3 place;
+			if (LooseWhenSpread)
+			{
+				// Random scatter used to place centres only a few millimetres apart even though a
+				// chip is about 40 mm wide. A shared hexagonal lattice guarantees clearance while
+				// the independent tilt/spin below preserves the hand-thrown appearance.
+				var spacing = EffectiveDiameter * Mathf.Max(1.0f, LooseSpacingScale);
+				var oldSlot = HexSlot(_looseSlotOffsetFrom + i, spacing);
+				var newSlot = HexSlot(_looseSlotOffset + i, spacing);
+				var slot2 = oldSlot.Lerp(newSlot, PokerMotion.Smooth(_looseLayoutProgress));
+				var loose = new Vector3(
+					slot2.X,
+					(0.5f + i * 0.035f) * step + DropCurve(settled) * SettleHeight,
+					slot2.Y);
+				place = stacked.Lerp(loose, PokerMotion.Smooth(_spread));
+			}
+			else
+			{
+				place = stacked + new Vector3(
+					Noise(slot.VisualIndex, 0) * jitter, 0.0f,
+					Noise(slot.VisualIndex, 1) * jitter);
+			}
+
+			// The flight root follows the average throw. Individual chips lag and lift by a few
+			// millimetres, returning to the exact stacked transform at both endpoints.
+			if (_flightProgress > 0.0f && _flightProgress < 1.0f)
+			{
+				var wave = Mathf.Sin(_flightProgress * Mathf.Pi);
+				place.X += Noise(slot.VisualIndex, 5) * 0.0035f * wave;
+				place.Y += (0.003f + Mathf.Abs(Noise(slot.VisualIndex, 6)) * 0.006f) * wave;
+				place.Z += Noise(slot.VisualIndex, 7) * 0.0035f * wave;
+			}
 
 			// A chip is round, so its own spin is free either way; the lean is what says it landed
 			// on the ones underneath instead of being placed on them.
-			var basis = new Basis(Vector3.Up, Noise(i, 2) * Mathf.Pi)
-						* new Basis(Vector3.Right, Noise(i, 3) * tilt)
-						* new Basis(Vector3.Forward, Noise(i, 4) * tilt);
+			var basis = new Basis(Vector3.Up, Noise(slot.VisualIndex, 2) * Mathf.Pi)
+						* new Basis(Vector3.Right, Noise(slot.VisualIndex, 3) * tilt)
+						* new Basis(Vector3.Forward, Noise(slot.VisualIndex, 4) * tilt);
 
-			Tint(i, slot.Denomination);
+			if (_flightProgress > 0.0f && _flightProgress < 1.0f)
+			{
+				var tumble = Mathf.Sin(_flightProgress * Mathf.Pi);
+				basis *= new Basis(Vector3.Right, Noise(slot.VisualIndex, 8) * 0.32f * tumble)
+						 * new Basis(Vector3.Forward, Noise(slot.VisualIndex, 9) * 0.24f * tumble);
+			}
+
+			Tint(slot.VisualIndex, slot.Denomination);
 			chip.Transform = new Transform3D(basis, place);
 			chip.Visible = true;
 		}
 
-		for (var spare = _slots.Count; spare < _chips.Count; spare++)
-			_chips[spare].Visible = false;
+		for (var spare = 0; spare < _chips.Count; spare++)
+		{
+			if (spare >= used.Length || !used[spare])
+				_chips[spare].Visible = false;
+		}
+	}
+
+	/// <summary>
+	/// Deterministic spiral over a hexagonal lattice. Consecutive or disjoint ranges can share one
+	/// origin without overlaps, which lets separate action batches still look like one loose bet.
+	/// </summary>
+	public static Vector2 HexSlot(int index, float spacing)
+	{
+		if (index <= 0 || spacing <= 0.0f)
+			return Vector2.Zero;
+
+		var remaining = index - 1;
+		var ring = 1;
+		while (remaining >= 6 * ring)
+		{
+			remaining -= 6 * ring;
+			ring++;
+		}
+
+		var q = ring;
+		var r = 0;
+		for (var side = 0; side < 6 && remaining > 0; side++)
+		{
+			var steps = Mathf.Min(ring, remaining);
+			var direction = side switch
+			{
+				0 => new Vector2I(0, -1),
+				1 => new Vector2I(-1, 0),
+				2 => new Vector2I(-1, 1),
+				3 => new Vector2I(0, 1),
+				4 => new Vector2I(1, 0),
+				_ => new Vector2I(1, -1),
+			};
+			q += direction.X * steps;
+			r += direction.Y * steps;
+			remaining -= steps;
+		}
+
+		return new Vector2(
+			spacing * (q + r * 0.5f),
+			spacing * 0.8660254f * r);
 	}
 
 	/// <summary>
@@ -405,63 +678,25 @@ public partial class PokerChipPile : Node3D
 	}
 
 	/// <summary>
-	/// One chip. With the pack it is a rim plus a body so the edge reads; without it, a single
-	/// cylinder that at least stacks to the right height.
+	/// One chip. Its scene owns appearance; this pile owns only physical arrangement.
 	/// </summary>
 	private void Build()
 	{
-		var chip = new Node3D();
+		var chip = ChipScene?.Instantiate() as Node3D ?? new PokerChipVisual();
 		AddChild(chip);
 		_chips.Add(chip);
-
-		if (PokerChipMeshes.IsAvailable)
-		{
-			var rim = new MeshInstance3D { Mesh = PokerChipMeshes.Rim, Scale = PokerChipMeshes.SourceScale };
-			var body = new MeshInstance3D { Mesh = PokerChipMeshes.Body, Scale = PokerChipMeshes.SourceScale };
-
-			chip.AddChild(rim);
-			chip.AddChild(body);
-			_bodies.Add(body);
-			return;
-		}
-
-		var flat = new MeshInstance3D { Mesh = FallbackMesh() };
-		chip.AddChild(flat);
-		_bodies.Add(flat);
-	}
-
-	private CylinderMesh FallbackMesh()
-	{
-		// One mesh for every chip: they are all the same size, and only the material differs.
-		_fallbackMesh ??= new CylinderMesh
-		{
-			TopRadius = ChipDiameter * 0.5f,
-			BottomRadius = ChipDiameter * 0.5f,
-			Height = ChipThickness,
-			RadialSegments = 16,
-			Rings = 1,
-		};
-
-		return _fallbackMesh;
+		_visuals.Add(chip as PokerChipVisual);
 	}
 
 	private void Tint(int index, int denomination)
 	{
-		if (index >= _bodies.Count)
+		if (index >= _visuals.Count)
 			return;
 
 		var colour = Colours.TryGetValue(denomination, out var known)
 			? known
 			: new Color(0.5f, 0.5f, 0.5f);
 
-		var body = _bodies[index];
-
-		if (body.MaterialOverride is StandardMaterial3D material)
-		{
-			material.AlbedoColor = colour;
-			return;
-		}
-
-		body.MaterialOverride = new StandardMaterial3D { AlbedoColor = colour, Roughness = 0.55f };
+		_visuals[index]?.Configure(colour);
 	}
 }

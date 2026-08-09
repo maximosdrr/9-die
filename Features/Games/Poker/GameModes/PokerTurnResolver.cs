@@ -20,10 +20,15 @@ using Poker.Rules;
 public partial class PokerTurnResolver : SecretHandTurnResolver
 {
 	/// <summary>How long the table sits on a finished hand before the next one is dealt.</summary>
-	[Export] public float ShowdownSeconds = 4.5f;
+	// Includes the exposed-hand reading beat and still leaves roughly eight seconds for the ranked
+	// best-five comparison before the next hand clears the cloth.
+	[Export] public float ShowdownSeconds = 12.0f;
 
 	/// <summary>Pause after a hand that ended with everyone folding — nothing to read, so shorter.</summary>
-	[Export] public float FoldedHandSeconds = 2.0f;
+	[Export] public float FoldedHandSeconds = 4.5f;
+
+	/// <summary>Production advances automatically; visual harnesses may hold a result indefinitely.</summary>
+	[Export] public bool AutoAdvanceHands = true;
 
 	public PokerGame Game => Table as PokerGame;
 
@@ -75,6 +80,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 		_lastAction = "";
 		_lastPlayer = "";
 		_lastAmount = 0;
+		_actionSeq = 0;
 	}
 
 	protected override void ClearSecretState() => _board.Clear();
@@ -109,6 +115,10 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 		_bigBlind = Mathf.Max(_smallBlind + 1, Game.BigBlind);
 		_buttonSeat = 0;
 		_handNumber = 0;
+		_actionSeq = 0;
+		_lastAction = "";
+		_lastPlayer = "";
+		_lastAmount = 0;
 		MatchRunning = true;
 
 		StartHand();
@@ -527,6 +537,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 		// Broadcast the settled hand without moving the turn, so every peer can see the board, the
 		// shown cards and the new stacks before anything is dealt over the top of them.
 		Game.CallExtendCurrentTurn(BuildContext(_lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
+
+		// Deterministic visual checks hold this exact result and advance their local presentation by
+		// hand. Avoid creating an orphaned SceneTreeTimer when such a harness restarts or exits.
+		if (!AutoAdvanceHands)
+			return;
 
 		// The LAST hand of a session gets the same pause as any other. Ending the match the instant
 		// the chips moved cut straight to the results screen, so nobody ever saw the hand that won

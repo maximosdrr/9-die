@@ -21,8 +21,13 @@ using Poker.Rules;
 public partial class PokerHand3DView : PokerHandView
 {
 	[Export] public Node3D HandRig;
+	[Export] public Node3D CardHandPose;
 	[Export] public Node3D CardSlots;
 	[Export] public PackedScene CardScene;
+	[Export] public Node3D CardHandVisualMount;
+	[Export] public Node3D ChipHandVisualMount;
+	[Export] public Node3D CardHandPlaceholder;
+	[Export] public Node3D ChipHandPlaceholder;
 
 	/// <summary>The corner panel. Everything the player reads in words lives there.</summary>
 	[Export] public PokerHud Hud;
@@ -75,6 +80,7 @@ public partial class PokerHand3DView : PokerHandView
 	[Export] public float PickUpSettleSeconds = 0.5f;
 
 	private readonly List<PokerCard> _fan = new();
+	private readonly List<Transform3D> _fanTransferFrom = new();
 	private int[] _holeCards = System.Array.Empty<int>();
 	private IReadOnlyList<ActionOption> _options = new List<ActionOption>();
 	private List<int> _presets = new();
@@ -85,6 +91,9 @@ public partial class PokerHand3DView : PokerHandView
 	private bool _pickedUp;
 	private bool _lookDone;
 	private float _pickUpElapsed;
+	private float _cardTransfer = 1.0f;
+	private PokerHandVisual _cardHandVisual;
+	private PokerHandVisual _chipHandVisual;
 
 	// ---------------------------------------------------------------- what the states drive
 
@@ -133,6 +142,8 @@ public partial class PokerHand3DView : PokerHandView
 		if (HandRig != null)
 			HandRig.TopLevel = true;
 
+		InstallVisualAssets(game?.VisualAssets);
+
 		Hud?.Setup(game, player);
 	}
 
@@ -170,10 +181,13 @@ public partial class PokerHand3DView : PokerHandView
 		var hand = Game?.HandNumber ?? 0;
 		if (hand != _lastHand)
 		{
+			_fan.Clear();
+			_fanTransferFrom.Clear();
 			_lastHand = hand;
 			_pickedUp = false;
 			_lookDone = false;
 			_pickUpElapsed = 0.0f;
+			_cardTransfer = 1.0f;
 			_peek = 0.0f;
 
 			if (Game != null)
@@ -205,7 +219,7 @@ public partial class PokerHand3DView : PokerHandView
 
 		// Only the players who actually had to show turn their cards up.
 		if (Game.RevealedHoleCards.ContainsKey((string)Player.Name))
-			PlayClip(PokerClips.RevealCards);
+			PlayGesture(PokerGesture.Reveal);
 	}
 
 	public override void SetInteractive(bool interactive)
@@ -239,8 +253,9 @@ public partial class PokerHand3DView : PokerHandView
 
 	public override void Clear()
 	{
-		foreach (var card in _fan)
-			card.Visible = false;
+		Game?.SeatPresenter?.ReleaseLocalCardsFromGrip();
+		_fan.Clear();
+		_fanTransferFrom.Clear();
 
 		Hud?.SetPanelVisible(false);
 	}
@@ -391,8 +406,13 @@ public partial class PokerHand3DView : PokerHandView
 			if (Game != null)
 				Game.LocalPickedUpCards = true;
 
-			PlayClip(PokerClips.PickUpCards);
+			AttachTransferredCards(Game?.SeatPresenter?.TakeLocalCards(CardSlots));
+			// The table owns face-down placeholders until this peer picks them up. Once the same nodes
+			// reach the private grip, configure their real faces before the fan starts turning toward the
+			// eye; otherwise the placeholder's blank front is what the player sees for one whole hand.
 			RebuildFan();
+			_cardTransfer = 0.0f;
+			PlayGesture(PokerGesture.PickUpCards);
 		}
 
 		var lift = Mathf.Max(PickUpLiftSeconds, 0.01f);
@@ -400,7 +420,12 @@ public partial class PokerHand3DView : PokerHandView
 		var settle = Mathf.Max(PickUpSettleSeconds, 0.01f);
 
 		if (_pickUpElapsed < lift)
-			SetPeek(Smooth(_pickUpElapsed / lift));
+		{
+			var lifting = Smooth(_pickUpElapsed / lift);
+			_cardTransfer = lifting;
+			SetPeek(lifting);
+			ApplyFan();
+		}
 		else if (_pickUpElapsed < lift + look)
 			SetPeek(1.0f);
 		else if (_pickUpElapsed < lift + look + settle)
@@ -411,6 +436,7 @@ public partial class PokerHand3DView : PokerHandView
 
 	private void FinishPickUp()
 	{
+		_cardTransfer = 1.0f;
 		SetPeek(0.0f);
 		_lookDone = true;
 
@@ -447,6 +473,13 @@ public partial class PokerHand3DView : PokerHandView
 			return;
 
 		_peek = value;
+		if (CardHandPose != null)
+		{
+			// The replaceable hand gets a small pose correction while the independently fanned cards
+			// turn toward the eye. No track needs to reference the imported skeleton.
+			CardHandPose.Position = new Vector3(0.0f, 0.004f * _peek, -0.012f * _peek);
+			CardHandPose.Rotation = new Vector3(-0.10f * _peek, 0.0f, 0.0f);
+		}
 		ApplyFan();
 	}
 
@@ -471,18 +504,19 @@ public partial class PokerHand3DView : PokerHandView
 
 	private void RebuildFan()
 	{
-		if (CardScene == null || CardSlots == null)
+		if (CardSlots == null)
 			return;
 
-		var spec = Game?.BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
-
-		while (_fan.Count < _holeCards.Length)
+		// Fold/showdown reparent the same nodes back to the table before this refresh reaches the
+		// hand. Drop only our references; never hide somebody else's representation.
+		for (var i = _fan.Count - 1; i >= 0; i--)
 		{
-			if (CardScene.Instantiate() is not PokerCard card)
-				break;
+			if (_fan[i] != null && _fan[i].GetParent() == CardSlots)
+				continue;
 
-			CardSlots.AddChild(card);
-			_fan.Add(card);
+			_fan.RemoveAt(i);
+			if (i < _fanTransferFrom.Count)
+				_fanTransferFrom.RemoveAt(i);
 		}
 
 		// The pair is on the cloth until it is picked up, in the muck once it is thrown away, and
@@ -500,9 +534,12 @@ public partial class PokerHand3DView : PokerHandView
 			var card = _fan[i];
 			if (i >= _holeCards.Length || laidDown)
 			{
-				card.Visible = false;
+				// SeatPresenter owns the transition out. It may happen later in this frame, so leave
+				// the current physical card alone rather than substituting visibility.
 				continue;
 			}
+
+			var spec = Game?.BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
 
 			if (card.CardId != _holeCards[i] || !card.Visible)
 				card.Configure(_holeCards[i], spec);
@@ -513,13 +550,36 @@ public partial class PokerHand3DView : PokerHandView
 		ApplyFan();
 	}
 
+	private void AttachTransferredCards(IReadOnlyList<PokerCard> cards)
+	{
+		_fan.Clear();
+		_fanTransferFrom.Clear();
+		if (cards == null)
+			return;
+
+		foreach (var card in cards)
+		{
+			if (card == null || card.GetParent() != CardSlots)
+				continue;
+
+			card.Visible = true;
+			_fan.Add(card);
+			_fanTransferFrom.Add(card.Transform);
+		}
+	}
+
 	private void ApplyFan()
 	{
 		var spec = FanSpec;
 		var centre = HandFan.NaturalCentre(_holeCards.Length);
 
 		for (var i = 0; i < _fan.Count && i < _holeCards.Length; i++)
-			_fan[i].Transform = HandFan.SlotTransform(i, centre, false, spec);
+		{
+			var target = HandFan.SlotTransform(i, centre, false, spec);
+			_fan[i].Transform = _cardTransfer < 1.0f && i < _fanTransferFrom.Count
+				? _fanTransferFrom[i].InterpolateWith(target, PokerMotion.Smooth(_cardTransfer))
+				: target;
+		}
 	}
 
 	private void SetHandVisible(bool visible)
@@ -531,13 +591,64 @@ public partial class PokerHand3DView : PokerHandView
 			HandRig.Visible = visible;
 	}
 
-	public void PlayClip(string clipName)
+	/// <summary>Plays a gross rig clip and returns its real duration.</summary>
+	public float PlayClip(string clipName)
 	{
 		if (AnimationPlayer == null || string.IsNullOrWhiteSpace(clipName))
-			return;
+			return 0.0f;
 
 		if (AnimationPlayer.HasAnimation(clipName))
+		{
 			AnimationPlayer.Play(clipName);
+			return (float)(AnimationPlayer.GetAnimation(clipName)?.Length ?? 0.0);
+		}
+
+		return 0.0f;
+	}
+
+	/// <summary>
+	/// Plays the stable whole-hand motion and, when present, the custom rig's finger animation.
+	/// The longest real clip controls the acting state, so no gesture is truncated by a magic timer.
+	/// </summary>
+	public float PlayGesture(PokerGesture gesture)
+	{
+		var duration = PlayClip(PokerClips.FirstPerson(gesture));
+		var visual = gesture is PokerGesture.ThrowChips or PokerGesture.Knock
+			? _chipHandVisual
+			: _cardHandVisual;
+
+		return Mathf.Max(duration, visual?.Play(gesture) ?? 0.0f);
+	}
+
+	private void InstallVisualAssets(PokerVisualAssets assets)
+	{
+		_cardHandVisual = InstallHandVisual(
+			assets?.CardHandScene, CardHandVisualMount, CardHandPlaceholder,
+			assets?.CardHandTransform ?? Transform3D.Identity);
+		_chipHandVisual = InstallHandVisual(
+			assets?.ChipHandScene, ChipHandVisualMount, ChipHandPlaceholder,
+			assets?.ChipHandTransform ?? Transform3D.Identity);
+
+		_cardHandVisual?.Play(PokerGesture.None);
+		_chipHandVisual?.Play(PokerGesture.None);
+	}
+
+	private static PokerHandVisual InstallHandVisual(
+		PackedScene scene, Node3D mount, Node3D placeholder, Transform3D localTransform)
+	{
+		if (scene == null || mount == null || scene.Instantiate() is not Node3D visual)
+		{
+			if (placeholder != null)
+				placeholder.Visible = true;
+			return null;
+		}
+
+		mount.AddChild(visual);
+		visual.Transform = localTransform;
+		if (placeholder != null)
+			placeholder.Visible = false;
+
+		return visual as PokerHandVisual;
 	}
 
 	/// <summary>Server reason codes, in words the player can act on.</summary>

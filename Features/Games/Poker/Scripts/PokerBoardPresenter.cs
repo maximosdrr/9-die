@@ -27,7 +27,7 @@ public partial class PokerBoardPresenter : Node3D
 	[Export] public float CardThickness = 0.0006f;
 	[Export] public float CardGap = 0.012f;
 	[Export] public float BoardOffset = 0.0f;
-	[Export] public float PotRadius = 0.20f;
+	[Export] public float PotRadius = 0.16f;
 	[Export] public float SeatCardRadius = 0.40f;
 	[Export] public float SeatBetRadius = 0.25f;
 	[Export] public float SeatStackRadius = 0.54f;
@@ -86,13 +86,25 @@ public partial class PokerBoardPresenter : Node3D
 	private readonly List<BoardCard> _cards = new();
 	private int _handNumber = -1;
 	private int _faceUpCount;
+	private int _allowedFaceUpCount = PokerDeal.BoardCount;
+	private bool _presentationGateEnabled;
 	private PokerGame _game;
 
 	private Node3D _deck;
 
+	/// <summary>How many community cards this peer is currently allowed to show.</summary>
+	public int VisibleFaceUpCount => _faceUpCount;
+
+	/// <summary>The persistent physical node for one community-card slot.</summary>
+	public PokerCard BoardCardNodeAt(int index) =>
+		index >= 0 && index < _cards.Count ? _cards[index].Node : null;
+
 	public override void _Ready()
 	{
 		_game = GetParent<PokerGame>();
+		if (PotPile != null && _game?.ChipScene != null)
+			PotPile.ChipScene = _game.ChipScene;
+
 		BuildDeck();
 	}
 
@@ -102,13 +114,46 @@ public partial class PokerBoardPresenter : Node3D
 	/// <summary>Where thrown-away hands lie, in this presenter's space.</summary>
 	public Vector3 MuckPosition => new Basis(Vector3.Up, ReaderYaw()) * MuckOffset;
 
+	/// <summary>Where visually collected bets gather, in this presenter's local space.</summary>
+	public Vector3 PotPosition
+	{
+		get
+		{
+			var spec = Spec;
+			var reader = new Basis(Vector3.Up, ReaderYaw());
+			// PotRadius is measured from the board centre and is deliberately independent of card
+			// length. The former hard-coded 7 cm margin left the chip faces visually under the board.
+			return reader * new Vector3(0.0f, 0.0f, spec.BoardOffset + spec.PotRadius);
+		}
+	}
+
+	/// <summary>
+	/// Keeps public board state immediate while letting the chip presentation decide when the next
+	/// card may visibly turn. This is local-only and never delays rules or networking.
+	/// </summary>
+	public void EnablePresentationGate(PokerStreet visibleStreet)
+	{
+		_presentationGateEnabled = true;
+		AllowBoardThrough(visibleStreet);
+		PotPile?.Clear();
+		if (PotPile != null)
+			PotPile.Visible = false;
+	}
+
+	public void AllowBoardThrough(PokerStreet street)
+	{
+		_allowedFaceUpCount = PokerDeal.BoardSize(street);
+		if (_game != null && _handNumber >= 0)
+			Sync(_game.Board, _game.PotInMiddle, _game.HandNumber, _game.Street);
+	}
+
 	/// <summary>
 	/// A short stack of backs. Cosmetic — the real deck is the server's and never leaves it — but it
 	/// gives every dealt card an origin the player can see.
 	/// </summary>
 	private void BuildDeck()
 	{
-		if (CardScene == null || _deck != null)
+		if ((CardScene == null && _game?.VisualAssets?.CardScene == null) || _deck != null)
 			return;
 
 		_deck = new Node3D { Name = "Deck" };
@@ -118,7 +163,8 @@ public partial class PokerBoardPresenter : Node3D
 
 		for (var i = 0; i < Mathf.Max(1, DeckDepth); i++)
 		{
-			if (CardScene.Instantiate() is not PokerCard card)
+			var card = _game?.CreateCard(CardScene);
+			if (card == null)
 				break;
 
 			_deck.AddChild(card);
@@ -204,6 +250,9 @@ public partial class PokerBoardPresenter : Node3D
 	public void Sync(IReadOnlyList<int> board, int potTotal, int handNumber, PokerStreet street)
 	{
 		var shown = board?.Count ?? 0;
+		var visibleShown = _presentationGateEnabled
+			? Mathf.Min(shown, _allowedFaceUpCount)
+			: shown;
 		var dealing = handNumber > 0;
 
 		// A new hand takes the whole row off the table and deals it again.
@@ -234,7 +283,7 @@ public partial class PokerBoardPresenter : Node3D
 					card.Node.Configure(id, Spec);
 			}
 
-			var wantsFaceUp = index < shown;
+			var wantsFaceUp = index < visibleShown;
 			if (wantsFaceUp && !card.WantsFaceUp)
 			{
 				// Staggered from the first card of THIS street, so a flop turns over one by one and
@@ -245,18 +294,25 @@ public partial class PokerBoardPresenter : Node3D
 			card.WantsFaceUp = wantsFaceUp;
 		}
 
-		_faceUpCount = shown;
+		_faceUpCount = visibleShown;
 		PlaceDeck();
 		PlaceAll();
 
 		if (PotPile == null)
 			return;
 
-		var spec = Spec;
+		if (_presentationGateEnabled)
+		{
+			PotPile.Clear();
+			PotPile.Visible = false;
+			return;
+		}
+
 		var reader = new Basis(Vector3.Up, ReaderYaw());
-		var potPlace = reader * new Vector3(0.0f, 0.0f, spec.BoardOffset + spec.CardLength * 0.5f + 0.07f);
+		var potPlace = PotPosition;
 
 		PotPile.Transform = new Transform3D(reader, potPlace);
+		PotPile.Visible = true;
 
 		// Grows by having the swept chips ADDED to it, so a pot that goes from 60 to 90 does not
 		// re-decompose and repaint the chips already in the middle.
@@ -326,17 +382,21 @@ public partial class PokerBoardPresenter : Node3D
 			// the distance instead of laid out across their view.
 			var seated = reader * new Vector3(place.X, spec.CardThickness * 0.5f, place.Y);
 
-			// Ease out on the way in, so a card decelerates into its place instead of stopping dead.
-			var arrival = 1.0f - Mathf.Pow(1.0f - card.Dealt, 3.0f);
 			var from = DealOrigin.IsZeroApprox() ? DeckPosition : reader * DealOrigin;
-			var position = from.Lerp(seated, arrival);
+			var sideways = PokerChipPile.Noise(index, 10) * 0.009f;
+			var position = PokerMotion.CardThrow(from, seated, card.Dealt, 0.032f, sideways);
 
 			// The turn is a half revolution about the card's own long axis — the sideways motion a
 			// dealer uses — lifted through the middle so it arcs rather than grinding on the cloth.
 			var turn = Mathf.Pi * (1.0f - Smooth(card.Flipped));
 			position.Y += Mathf.Sin(Smooth(card.Flipped) * Mathf.Pi) * FlipLift;
 
-			card.Node.Transform = new Transform3D(reader * new Basis(Vector3.Back, turn), position);
+			// A small launch wobble decays completely before contact. It keeps five cards from looking
+			// like copies following the same rail while preserving their exact final alignment.
+			var airborne = 1.0f - PokerMotion.Smooth(card.Dealt);
+			var dealBasis = new Basis(Vector3.Up, PokerChipPile.Noise(index, 11) * 0.18f * airborne)
+							* new Basis(Vector3.Forward, PokerChipPile.Noise(index, 12) * 0.09f * airborne);
+			card.Node.Transform = new Transform3D(reader * dealBasis * new Basis(Vector3.Back, turn), position);
 		}
 	}
 
@@ -374,7 +434,8 @@ public partial class PokerBoardPresenter : Node3D
 	{
 		while (_cards.Count <= index)
 		{
-			if (CardScene?.Instantiate() is not PokerCard node)
+			var node = _game?.CreateCard(CardScene);
+			if (node == null)
 				return null;
 
 			AddChild(node);

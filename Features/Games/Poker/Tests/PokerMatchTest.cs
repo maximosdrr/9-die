@@ -42,6 +42,7 @@ public partial class PokerMatchTest : Node
 
 	private PokerGame _game;
 	private int _lastSeqSeen = -1;
+	private readonly HashSet<ulong> _heldCardIds = new();
 
 	public override void _Ready()
 	{
@@ -101,6 +102,18 @@ public partial class PokerMatchTest : Node
 		TestFoldThrowsTheCards(game);
 		TestSecrecy(game);
 		TestRejections(game, resolver);
+		TestClosingCallPresentation(game, resolver);
+
+		// The focused animation scenario deliberately advanced the real first hand. Restart the same
+		// real session fixture so the long-running coverage keeps its original deterministic path.
+		_actionsPublished.Clear();
+		_lastSeqSeen = -1;
+		_winner = null;
+		_matchOver = false;
+		resolver.AutoAdvanceHands = true;
+		resolver.ShowdownSeconds = 0.0f;
+		game.SetupMatch(order, "1");
+
 		TestSessionRunsToTheEnd(game, resolver);
 		TestEveryActionIsPublished();
 		TestSecondSessionIsPlayable(game, resolver, order);
@@ -188,6 +201,19 @@ public partial class PokerMatchTest : Node
 		Check($"e voltam abaixadas ao terminar (espiada {view.PeekAmount:F2})",
 			view.PeekAmount < 0.05f);
 
+		var heldCards = view.GetNode<Node3D>("HandRig/Hand/CardSlots").GetChildren()
+			.OfType<PokerCard>().ToList();
+		_heldCardIds.Clear();
+		foreach (var card in heldCards)
+			_heldCardIds.Add(card.GetInstanceId());
+		Check("a mão segura as duas instâncias que vieram da mesa",
+			_heldCardIds.Count == PokerDeal.HoleCardCount);
+		Check($"as cartas já chegam à mão com suas faces configuradas "
+			+ $"({string.Join(",", heldCards.Select(card => card.CardId))} de "
+			+ $"{string.Join(",", game.LocalHoleCards)})",
+			heldCards.Select(card => card.CardId).OrderBy(id => id)
+				.SequenceEqual(game.LocalHoleCards.OrderBy(id => id)));
+
 		// The presenter has to stop drawing the pair once it is in hand, which needs no signal —
 		// this is the check that catches it silently leaving them on the cloth.
 		var stillOnCloth = 0;
@@ -238,6 +264,9 @@ public partial class PokerMatchTest : Node
 
 		Check($"desistir devolve as duas cartas para a mesa ({thrown.Count} visíveis)",
 			thrown.Count == PokerDeal.HoleCardCount);
+		Check("o descarte usa exatamente as mesmas cartas que estavam na mão",
+			_heldCardIds.Count == PokerDeal.HoleCardCount
+			&& _heldCardIds.SetEquals(thrown.Select(card => card.GetInstanceId())));
 
 		var muck = board.MuckPosition;
 		var worst = thrown.Count == 0
@@ -264,6 +293,222 @@ public partial class PokerMatchTest : Node
 		// this point should inherit a fold that never happened.
 		game.Folded.Remove(me);
 		game.EmitSignal(PokerGame.SignalName.HudStateUpdated);
+	}
+
+	/// <summary>
+	/// A call which closes the pre-flop arrives in two public snapshots: first as the action, then as
+	/// the newly opened flop. The visual event must survive the second snapshot, land, be swept using
+	/// the same chip nodes, and only then let the community cards turn.
+	/// </summary>
+	private void TestClosingCallPresentation(PokerGame game, PokerTurnResolver resolver)
+	{
+		var presenter = game.SeatPresenter;
+		var board = game.BoardPresenter;
+		if (presenter == null || board == null)
+		{
+			Check("a apresentação física da aposta está disponível", false);
+			return;
+		}
+		resolver.AutoAdvanceHands = false;
+		var warmedBatchSizes = presenter.GetChildren().OfType<PokerChipPile>()
+			.Where(pile => pile.Name.ToString().StartsWith("ChipBatch"))
+			.ToDictionary(pile => pile.Name.ToString(), pile => pile.GetChildCount());
+
+		var raiser = game.TurnOwnerId;
+		var raiseTotal = game.CurrentBet + game.MinRaiseIncrement;
+		resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal);
+		AdvancePresentation(presenter, board, 180, stopWhenReady: true);
+		Check("as fichas apostadas permanecem soltas antes da coleta",
+			presenter.BetsAreVisuallyLoose);
+
+		var caller = game.TurnOwnerId;
+		var displayedBeforeCall = presenter.DisplayedStackOf(caller);
+		var bankBeforeCall = presenter.StackChipTransforms(caller);
+		var bankPositionsBeforeCall = presenter.StackChipPositions(caller);
+		var activeBeforeCall = presenter.ActiveChipVisualPositions();
+		resolver.ApplyActionFor(caller, game.TurnToken, (int)PokerActionKind.Call, game.CurrentBet);
+		var authoritativeAfterCall = game.StackOf(caller);
+		Check("a pilha nao perde fichas um quadro antes do lancamento",
+			presenter.DisplayedStackOf(caller) == displayedBeforeCall
+			&& authoritativeAfterCall < displayedBeforeCall);
+		presenter._Process(1.0 / 60.0);
+		board._Process(1.0 / 60.0);
+		Check("a pilha e o lote lancado mudam no mesmo quadro",
+			presenter.DisplayedStackOf(caller) == authoritativeAfterCall);
+		Check("o primeiro quadro do pagamento fica na origem, nunca no destino",
+			presenter.NewlyStartedBatchesAreAtTheirOrigin);
+		var bankAfterCall = presenter.StackChipTransforms(caller);
+		var bankPositionsAfterCall = presenter.StackChipPositions(caller);
+		Check("o pagamento apenas remove fichas da pilha visual",
+			bankAfterCall.Count < bankBeforeCall.Count
+			&& bankAfterCall.Keys.All(bankBeforeCall.ContainsKey));
+		Check("as fichas que ficaram nao pulam nem trocam de instancia",
+			bankAfterCall.All(entry => bankBeforeCall.TryGetValue(entry.Key, out var before)
+				&& before.IsEqualApprox(entry.Value)));
+		var removedPositions = bankPositionsBeforeCall
+			.Where(entry => !bankPositionsAfterCall.ContainsKey(entry.Key))
+			.Select(entry => entry.Value).ToList();
+		var newMovingPositions = presenter.ActiveChipVisualPositions()
+			.Where(entry => !activeBeforeCall.ContainsKey(entry.Key))
+			.Select(entry => entry.Value).ToList();
+		var takeoffGap = removedPositions.Count == 0 || newMovingPositions.Count == 0
+			? float.MaxValue
+			: removedPositions.Min(removed => newMovingPositions.Min(moving => removed.DistanceTo(moving)));
+		var worstTakeoffGap = removedPositions.Count == 0 || newMovingPositions.Count == 0
+			? float.MaxValue
+			: newMovingPositions.Max(moving => removedPositions.Min(removed => removed.DistanceTo(moving)));
+		Check($"a ficha movel nasce na ficha retirada ({takeoffGap * 100.0f:F2} cm de diferenca)",
+			takeoffGap < 0.012f && worstTakeoffGap < 0.005f);
+
+		var inFlightIds = presenter.ActiveChipVisualIds().ToHashSet();
+		Check("nenhuma ficha e instanciada durante o pagamento",
+			presenter.GetChildren().OfType<PokerChipPile>()
+				.Where(pile => pile.Name.ToString().StartsWith("ChipBatch"))
+				.All(pile => warmedBatchSizes.GetValueOrDefault(pile.Name.ToString())
+					== pile.GetChildCount()));
+		Check("o call que fecha a rodada não é engolido",
+			inFlightIds.Count > 0 && !presenter.PresentationReadyForAction);
+		Check("o lançamento não disputa com uma segunda queda interna",
+			presenter.GetChildren().OfType<PokerChipPile>()
+				.Where(pile => pile.Name.ToString().StartsWith("ChipBatch"))
+				.All(pile => Mathf.IsZeroApprox(pile.SettleSeconds)));
+		Check("o flop espera as fichas pousarem e serem recolhidas",
+			game.Street == PokerStreet.Flop && board.VisibleFaceUpCount == 0);
+
+		var previousPositions = presenter.ActiveChipVisualPositions();
+		var maximumFrameStep = 0.0f;
+		var sawLooseOrganization = false;
+		for (var frame = 0; frame < 600; frame++)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+			var currentPositions = presenter.ActiveChipVisualPositions();
+			foreach (var entry in currentPositions)
+			{
+				if (previousPositions.TryGetValue(entry.Key, out var before))
+					maximumFrameStep = Mathf.Max(maximumFrameStep, before.DistanceTo(entry.Value));
+			}
+			previousPositions = currentPositions;
+			sawLooseOrganization |= presenter.PotIsLooseWhileOrganizing;
+			if (presenter.PresentationReadyForAction)
+				break;
+		}
+		var potIds = presenter.ActiveChipVisualIds().ToHashSet();
+		Check($"nenhuma ficha salta entre quadros ({maximumFrameStep * 100.0f:F2} cm no pior quadro)",
+			maximumFrameStep < 0.025f);
+		Check("o pote chega solto antes de ser organizado", sawLooseOrganization);
+		Check("a organização termina em colunas compactas", presenter.PotIsOrganizedTower);
+		Check("as mesmas fichas chegam ao pote sem troca de instância",
+			inFlightIds.Count > 0 && inFlightIds.SetEquals(potIds));
+		Check("o flop só aparece depois de o pote terminar a organização",
+			presenter.PresentationReadyForAction && board.VisibleFaceUpCount == PokerDeal.BoardSize(PokerStreet.Flop));
+
+		var safety = 0;
+		while (!game.HandSettled && safety++ < 20)
+		{
+			var actor = game.TurnOwnerId;
+			var options = PokerBetting.LegalActions(
+				game.BetStateOf(actor), game.CurrentBet, game.MinRaiseIncrement);
+			var action = options.FirstOrDefault(option => option.Kind == PokerActionKind.Check);
+			if (action.Kind == PokerActionKind.None)
+				action = options.First(option => option.Kind == PokerActionKind.Call);
+
+			resolver.ApplyActionFor(actor, game.TurnToken, (int)action.Kind, action.MinTotal);
+			AdvancePresentation(presenter, board, 600, stopWhenReady: true);
+		}
+
+		var revealSafety = 0;
+		while (presenter.ShowdownRevealHoldElapsed <= 0.0f && revealSafety++ < 300)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+		}
+		Check("as mãos reveladas permanecem na mesa antes do ranking",
+			presenter.ShowdownRevealHoldElapsed > 0.0f
+			&& presenter.ShowdownDisplayedCardCount == 0);
+
+		var holdFrames = Mathf.Max(0, Mathf.FloorToInt(
+			(presenter.ShowdownRevealHoldSeconds - presenter.ShowdownRevealHoldElapsed) * 60.0f) - 2);
+		for (var frame = 0; frame < holdFrames; frame++)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+		}
+		Check("o intervalo de leitura não é cortado antes do tempo configurado",
+			presenter.ShowdownDisplayedCardCount == 0);
+
+		for (var frame = 0; frame < 900 && !presenter.ShowdownPresentationSettled; frame++)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+		}
+
+		Check("o showdown monta cinco cartas para cada mão revelada",
+			presenter.ShowdownPresentationSettled
+			&& presenter.ShowdownDisplayedCardCount == game.RevealedHoleCards.Count * 5);
+
+		var ordered = presenter.ShowdownDisplayOrder.ToList();
+		var bestFirst = true;
+		for (var i = 1; i < ordered.Count; i++)
+		{
+			var before = PokerHandEvaluator.Evaluate(game.RevealedHoleCards[ordered[i - 1]], game.Board);
+			var after = PokerHandEvaluator.Evaluate(game.RevealedHoleCards[ordered[i]], game.Board);
+			if (after > before)
+				bestFirst = false;
+		}
+		Check("as mãos aparecem da melhor para a pior", ordered.Count > 0 && bestFirst);
+		Check("todo vencedor fica identificado pela melhor sequência mostrada",
+			game.Winners.Keys.All(winner => ordered.Contains(winner)));
+
+		var payoutIds = presenter.ActiveChipVisualIds().ToHashSet();
+		Check($"o pote organizado separa as denominações ({presenter.PotDenominationColumnCount} colunas)",
+			presenter.PotDenominationColumnCount >= 2);
+		var payoutPrevious = presenter.ActiveChipVisualPositions();
+		var payoutMaximumStep = 0.0f;
+		for (var frame = 0; frame < 900 && !presenter.PayoutCompleted; frame++)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+			var current = presenter.ActiveChipVisualPositions();
+			foreach (var entry in current)
+			{
+				if (payoutPrevious.TryGetValue(entry.Key, out var before))
+					payoutMaximumStep = Mathf.Max(
+						payoutMaximumStep, before.DistanceTo(entry.Value));
+			}
+			payoutPrevious = current;
+		}
+
+		Check("o pote é transferido fisicamente antes de encerrar a apresentação",
+			presenter.PayoutStarted && presenter.PayoutCompleted
+			&& presenter.ChipsDeliveredToWinners > 0);
+		Check("todo jogador premiado recebe fichas visíveis",
+			presenter.PayoutRecipientCount == game.Winners.Count);
+		var splitRecipients = PokerSeatPresenter.AssignPayoutRecipients(
+			new[] { 25, 25, 25 },
+			new System.Collections.Generic.Dictionary<string, int> { ["A"] = 38, ["B"] = 37 },
+			new[] { "A", "B" });
+		Check("um pote dividido envia fichas para todos os ganhadores",
+			splitRecipients.Distinct().Count() == 2
+			&& splitRecipients.Contains("A") && splitRecipients.Contains("B"));
+		Check("a transferência preserva as mesmas instâncias das fichas",
+			payoutIds.SetEquals(presenter.ActiveChipVisualIds()));
+		Check($"o pagamento também não pisca entre quadros ({payoutMaximumStep * 100.0f:F2} cm)",
+			payoutMaximumStep < 0.025f);
+		Check("o saldo visual só alcança o resultado depois que as fichas chegam",
+			game.Winners.Keys.All(winner => presenter.DisplayedStackOf(winner) == game.StackOf(winner)));
+	}
+
+	private static void AdvancePresentation(
+		PokerSeatPresenter presenter, PokerBoardPresenter board, int maximumFrames, bool stopWhenReady)
+	{
+		for (var frame = 0; frame < maximumFrames; frame++)
+		{
+			presenter._Process(1.0 / 60.0);
+			board._Process(1.0 / 60.0);
+			if (stopWhenReady && presenter.PresentationReadyForAction)
+				break;
+		}
 	}
 
 	/// <summary>

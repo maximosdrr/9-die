@@ -16,6 +16,101 @@ namespace Poker.Rules;
 /// </summary>
 public static class PokerHandEvaluator
 {
+	/// <summary>
+	/// The exact five cards that produce <see cref="Evaluate(IReadOnlyList{int})"/>, ordered in the
+	/// way a dealer presents them: made group first, then kickers from highest to lowest. This is a
+	/// presentation answer; the compact evaluator above remains the authority for comparing hands.
+	/// </summary>
+	public static int[] BestFive(IReadOnlyList<int> holeCards, IReadOnlyList<int> board)
+	{
+		var all = new List<int>(7);
+		if (holeCards != null)
+			all.AddRange(holeCards);
+		if (board != null)
+			all.AddRange(board);
+
+		return BestFive(all);
+	}
+
+	public static int[] BestFive(IReadOnlyList<int> cards)
+	{
+		var valid = new List<int>(7);
+		if (cards != null)
+		{
+			foreach (var card in cards)
+			{
+				if (CardId.IsValid(card))
+					valid.Add(card);
+			}
+		}
+
+		if (valid.Count < 5)
+			return System.Array.Empty<int>();
+
+		PokerHandRank bestRank = PokerHandRank.None;
+		int[] best = null;
+		for (var a = 0; a < valid.Count - 4; a++)
+		for (var b = a + 1; b < valid.Count - 3; b++)
+		for (var c = b + 1; c < valid.Count - 2; c++)
+		for (var d = c + 1; d < valid.Count - 1; d++)
+		for (var e = d + 1; e < valid.Count; e++)
+		{
+			var candidate = new[] { valid[a], valid[b], valid[c], valid[d], valid[e] };
+			var rank = Evaluate(candidate);
+			if (best != null && rank <= bestRank)
+				continue;
+
+			bestRank = rank;
+			best = candidate;
+		}
+
+		OrderForDisplay(best, bestRank.Category);
+		return best;
+	}
+
+	private static void OrderForDisplay(int[] cards, HandCategory category)
+	{
+		if (cards == null)
+			return;
+
+		var counts = new int[CardId.Ranks];
+		foreach (var card in cards)
+			counts[CardId.RankOf(card)]++;
+
+		System.Array.Sort(cards, (left, right) =>
+		{
+			var leftRank = CardId.RankOf(left);
+			var rightRank = CardId.RankOf(right);
+
+			if (category is HandCategory.Straight or HandCategory.StraightFlush)
+			{
+				// In A-2-3-4-5 the ace belongs after the two, not before the five.
+				var wheel = counts[CardId.Ace] > 0 && counts[CardId.Five] > 0
+					&& counts[CardId.Two] > 0;
+				var leftStraight = wheel && leftRank == CardId.Ace ? -1 : leftRank;
+				var rightStraight = wheel && rightRank == CardId.Ace ? -1 : rightRank;
+				var straightOrder = rightStraight.CompareTo(leftStraight);
+				return straightOrder != 0
+					? straightOrder
+					: CardId.SuitOf(right).CompareTo(CardId.SuitOf(left));
+			}
+
+			if (category is HandCategory.Pair or HandCategory.TwoPair
+				or HandCategory.ThreeOfAKind or HandCategory.FullHouse
+				or HandCategory.FourOfAKind)
+			{
+				var groupOrder = counts[rightRank].CompareTo(counts[leftRank]);
+				if (groupOrder != 0)
+					return groupOrder;
+			}
+
+			var rankOrder = rightRank.CompareTo(leftRank);
+			return rankOrder != 0
+				? rankOrder
+				: CardId.SuitOf(right).CompareTo(CardId.SuitOf(left));
+		});
+	}
+
 	public static PokerHandRank Evaluate(IReadOnlyList<int> holeCards, IReadOnlyList<int> board)
 	{
 		var all = new List<int>(7);

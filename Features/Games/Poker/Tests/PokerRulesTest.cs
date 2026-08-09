@@ -213,6 +213,21 @@ public partial class PokerRulesTest : Node
 		var sevenCardTie = PokerHandEvaluator.Evaluate(Cards("Kd 3c"), shared)
 						   == PokerHandEvaluator.Evaluate(Cards("Kc 3d"), shared);
 		Check("as mesmas cartas em naipes trocados continuam empatando com sete cartas", sevenCardTie);
+
+		var displayedFlush = PokerHandEvaluator.BestFive(Cards("Qh 4s"), board);
+		Check("a apresentação escolhe exatamente cinco cartas", displayedFlush.Length == 5);
+		Check("a apresentação do flush exclui a carta fora do naipe",
+			displayedFlush.All(card => CardId.SuitOf(card) == CardId.Hearts));
+
+		var displayedFullHouse = PokerHandEvaluator.BestFive(Cards("8h 8d 8c 5s 5h 5d Kc"));
+		Check("o full house apresentado começa pela trinca mais alta",
+			displayedFullHouse.Take(3).All(card => CardId.RankOf(card) == 6)
+			&& displayedFullHouse.Skip(3).All(card => CardId.RankOf(card) == CardId.Five));
+
+		var displayedWheel = PokerHandEvaluator.BestFive(Cards("Ah 2d 3c 4s 5h 9d Kc"));
+		Check("a sequência baixa é mostrada de cinco até ás",
+			CardId.RankOf(displayedWheel[0]) == CardId.Five
+			&& CardId.RankOf(displayedWheel[4]) == CardId.Ace);
 	}
 
 	// ---------------------------------------------------------------- dealing
@@ -296,6 +311,22 @@ public partial class PokerRulesTest : Node
 
 		Check($"a maior ficha que cabe em 60 é 50 ({PokerChipStack.LargestFitting(60)})",
 			PokerChipStack.LargestFitting(60) == 50);
+
+		var bankCoversEveryBet = true;
+		for (var balance = 5; balance <= 500; balance += 5)
+		{
+			for (var amount = 5; amount <= balance; amount += 5)
+			{
+				var bank = PokerChipStack.CreatePlayableBank(balance);
+				if (!PokerChipStack.TryTake(bank, amount, out var payment)
+					|| PokerChipStack.Total(payment) != amount
+					|| PokerChipStack.Total(bank) != balance - amount)
+					bankCoversEveryBet = false;
+			}
+		}
+
+		Check("todo saldo ate 500 paga qualquer valor em passos de 5 sem fabricar troco",
+			bankCoversEveryBet);
 	}
 
 	// ---------------------------------------------------------------- helpers

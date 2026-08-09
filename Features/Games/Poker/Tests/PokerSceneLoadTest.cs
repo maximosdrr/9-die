@@ -52,6 +52,9 @@ public partial class PokerSceneLoadTest : Node
 		LoadScene("res://Features/Games/Poker/GameController/PokerController.tscn");
 		LoadScene("res://Features/Games/Poker/GameController/Views/PokerHand3DView.tscn");
 		LoadScene("res://Features/Games/Poker/Components/Cards/PokerCard.tscn");
+		LoadScene("res://Features/Games/Poker/Components/Chips/PokerChip.tscn");
+		Check("carrega o pacote central de assets",
+			GD.Load<PokerVisualAssets>("res://Features/Games/Poker/PokerVisualAssets.tres") != null);
 	}
 
 	private PackedScene LoadScene(string path)
@@ -74,6 +77,12 @@ public partial class PokerSceneLoadTest : Node
 		Check("o jogo aponta para o controlador, a mesa e os assentos",
 			game.GameControllerScene != null && game.BoardPresenter != null && game.Seats != null);
 		Check("o jogo tem um resolvedor de poker ligado pelo GameModeHandler", game.Resolver != null);
+		Check("o showdown reserva leitura das mãos e cerca de oito segundos para o ranking",
+			game.Resolver != null && game.Resolver.ShowdownSeconds >= 11.0f);
+		Check("cartas e fichas podem ser trocadas em um único recurso",
+			game.VisualAssets is { CardScene: not null, ChipScene: not null });
+		Check("o pote usa a ficha selecionada nesse recurso",
+			game.BoardPresenter?.PotPile?.ChipScene == game.VisualAssets?.ChipScene);
 		Check("o apresentador da mesa sabe desenhar cartas",
 			game.BoardPresenter != null && game.BoardPresenter.CardScene != null);
 
@@ -333,6 +342,9 @@ public partial class PokerSceneLoadTest : Node
 
 		Check("a view tem HUD, aviso e rig de mão",
 			view.Hud != null && view.MessageLabel != null && view.HandRig != null);
+		Check("as duas malhas de mão têm encaixes independentes",
+			view.CardHandVisualMount != null && view.ChipHandVisualMount != null
+			&& view.CardHandPlaceholder != null && view.ChipHandPlaceholder != null);
 
 		// The rig is the swap point for the animated hand: when it arrives, the AnimationPlayer is
 		// assigned here and nothing else in the feature moves.
@@ -350,6 +362,10 @@ public partial class PokerSceneLoadTest : Node
 
 		Check($"a mão tem um clipe para cada gesto ({string.Join(", ", missingClips)})",
 			view.AnimationPlayer != null && missingClips.Count == 0);
+		Check("o gesto de fichas não é cortado pelo antigo limite de 0,35 s",
+			view.PlayGesture(PokerGesture.ThrowChips) > 0.35f);
+		Check("pegar as cartas acompanha o tempo completo de olhar e baixar",
+			view.PlayGesture(PokerGesture.PickUpCards) >= 2.3f);
 
 		// Chips and the table knock are left-handed, so the rig needs a second hand for them.
 		Check("o rig tem uma mão esquerda para as fichas e o toque na mesa",

@@ -113,7 +113,10 @@ public partial class PokerController : SeatedTableController
 
 		// A settled hand still names a turn owner — whoever acted last — so the settled check is
 		// what stops the panel offering a call on a pot that has already been paid out.
-		var isYourTurn = Game.IsMatchActive && !Game.HandSettled && Game.IsTurnOwner(playerId);
+		var isYourTurn = Game.IsMatchActive
+			&& !Game.HandSettled
+			&& Game.IsTurnOwner(playerId)
+			&& (Game.SeatPresenter?.PresentationReadyForAction ?? true);
 
 		// The same pure function the server re-runs on whatever comes back, so the interface can
 		// never offer an action the server would reject.
