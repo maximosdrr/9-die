@@ -48,7 +48,8 @@ Autoload não é depósito de conveniência. Um novo singleton precisa represent
 
 ## Mesas
 
-`Table` é a casca física/visual. `TableGame` define o contrato de uma modalidade sentada:
+`Table` é a casca de interação e lifecycle. `TableGame` define o contrato de uma modalidade sentada;
+o modelo, as colisões e os marcadores específicos pertencem à cena de cada jogo:
 
 - `MinimumPlayers` e `MaximumPlayers` são invariantes, não apenas texto de UI;
 - a máquina de estados controla espera, contagem, partida e resultado;
@@ -107,6 +108,28 @@ Classes de apresentação grandes são `partial` apenas quando os arquivos repre
 continuam formando um único componente Godot. Isso foi usado para preservar o contrato serializado
 de presenters antigos sem manter arquivos de mais de mil linhas. Para código novo, prefira
 colaboradores injetados e menores; `partial` é uma ponte de migração, não o padrão automático.
+
+## Composição de cenas
+
+Uma cena principal deve explicar o sistema pela árvore, sem exigir a leitura imediata do script:
+
+- roots representam comportamento (`Player`, `TvScreenShare`, `PoolGame`), não um mesh usado como
+  contêiner acidental;
+- galhos grandes de renderização ficam em cenas `*Visual.tscn`;
+- modelos de mesa, cadeiras e suas colisões ficam em `*TableFixture.tscn`;
+- miniárvores repetidas viram componentes, como `Shared/Table/Components/SeatAnchor.tscn`;
+- dependências fixas entre nós são campos tipados exportados no Inspector; busca por nome fica
+  reservada a filhos internos estáveis ou objetos localizados dinamicamente;
+- nós sem posição usam `Node`; `Node3D` existe apenas quando o transform faz parte do contrato;
+- UI e apresentação exclusivas do jogador local não são filhas do avatar replicado;
+- `_Process`, `_PhysicsProcess` e input ficam desligados enquanto o componente está ocioso.
+
+O nível principal segue quatro ramos legíveis: ambiente visual, colisão estática, gameplay e
+infraestrutura multiplayer. O avatar segue a mesma separação: corpo/estado replicado,
+`CharacterVisual` substituível e `LocalPlayerPresentation` criada somente para a autoridade local.
+
+Ao criar uma cena nova, o teste de carregamento deve instanciá-la e provar seus contratos exportados.
+Para uma cena de rede, preserve também os NodePaths dos nós que possuem RPC.
 
 ## Compatibilidade com cenas e RPCs
 

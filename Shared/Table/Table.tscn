@@ -8,13 +8,18 @@
 [ext_resource type="Script" path="res://Shared/Table/States/GameStarting.cs" id="7_hu1vg"]
 [ext_resource type="Script" path="res://Shared/Table/States/GameFinished.cs" id="9_gmfin"]
 [ext_resource type="Script" path="res://Shared/StateMachine/Network/AuthorityStateSynchronizer.cs" id="7_r1yk8"]
-[ext_resource type="Script" path="res://Shared/Table/GameMode/GameModeHandler.cs" id="8_hu1vg"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_i6bfp"]
 size = Vector3(5, 2, 5)
 
-[node name="Table" type="Node3D"]
+[node name="Table" type="Node3D" node_paths=PackedStringArray("TableGameHandler", "TableInfluence", "StateMachineNode", "StartGameTimer", "EndMatchTimer", "DebugLabel")]
 script = ExtResource("1_iqaas")
+TableGameHandler = NodePath("TableGameHandler")
+TableInfluence = NodePath("TableInfluence")
+StateMachineNode = NodePath("StateMachine")
+StartGameTimer = NodePath("Timers/StartGameTimer")
+EndMatchTimer = NodePath("Timers/EndMatchTimer")
+DebugLabel = NodePath("DebugLabel")
 metadata/_custom_type_script = "uid://dc6wx0dbfqcw0"
 
 [node name="TableGameHandler" type="Node3D" parent="."]
@@ -23,7 +28,7 @@ metadata/_custom_type_script = "uid://dc6wx0dbfqcw0"
 collision_layer = 16
 collision_mask = 2
 
-[node name="CollissionShape" type="CollisionShape3D" parent="TableInfluence"]
+[node name="CollisionShape" type="CollisionShape3D" parent="TableInfluence"]
 shape = SubResource("BoxShape3D_i6bfp")
 
 [node name="UI" type="Node3D" parent="."]
@@ -31,30 +36,30 @@ shape = SubResource("BoxShape3D_i6bfp")
 [node name="PoolStartGameUI" parent="UI" instance=ExtResource("4_jynrt")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1.3847563, 0)
 
-[node name="StateMachine" type="Node3D" parent="." node_paths=PackedStringArray("AuthorityStateSynchronizer")]
+[node name="StateMachine" type="Node" parent="." node_paths=PackedStringArray("AuthorityStateSynchronizer")]
 script = ExtResource("5_7vxer")
 InitialState = "GAME_WAITING_START"
 AuthorityStateSynchronizer = NodePath("AuthorityStateSynchronizer")
 metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
-[node name="Waiting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("TableInfluence", "StartGameUI")]
+[node name="Waiting" type="Node" parent="StateMachine" node_paths=PackedStringArray("TableInfluence", "StartGameUI")]
 script = ExtResource("6_njalx")
 TableInfluence = NodePath("../../TableInfluence")
 StartGameUI = NodePath("../../UI/PoolStartGameUI")
 metadata/_custom_type_script = "uid://dq0i14kh66qsi"
 
-[node name="Starting" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("StartGameTimer", "StartGameUI")]
+[node name="Starting" type="Node" parent="StateMachine" node_paths=PackedStringArray("StartGameTimer", "StartGameUI")]
 script = ExtResource("7_hu1vg")
 StartGameTimer = NodePath("../../Timers/StartGameTimer")
 StartGameUI = NodePath("../../UI/PoolStartGameUI")
 metadata/_custom_type_script = "uid://dlox0xg6s8lr7"
 
-[node name="Started" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("Table")]
+[node name="Started" type="Node" parent="StateMachine" node_paths=PackedStringArray("Table")]
 script = ExtResource("7_dge2g")
 Table = NodePath("../..")
 metadata/_custom_type_script = "uid://ci7kc3583eis2"
 
-[node name="Finished" type="Node3D" parent="StateMachine" node_paths=PackedStringArray("StartGameUI", "ReturnTimer")]
+[node name="Finished" type="Node" parent="StateMachine" node_paths=PackedStringArray("StartGameUI", "ReturnTimer")]
 script = ExtResource("9_gmfin")
 StartGameUI = NodePath("../../UI/PoolStartGameUI")
 ReturnTimer = NodePath("../../Timers/EndMatchTimer")
@@ -64,7 +69,7 @@ metadata/_custom_type_script = "uid://dvlfoopdta03f"
 script = ExtResource("7_r1yk8")
 metadata/_custom_type_script = "uid://b5ic2cn2b3ipw"
 
-[node name="Timers" type="Node3D" parent="."]
+[node name="Timers" type="Node" parent="."]
 
 [node name="StartGameTimer" type="Timer" parent="Timers"]
 wait_time = 3.0
@@ -78,7 +83,3 @@ visible = false
 text = "DEBUG LABEL
 XXXX
 "
-
-[node name="GameModeHandler" type="Node" parent="."]
-script = ExtResource("8_hu1vg")
-metadata/_custom_type_script = "uid://cm8rk3wxalspc"

@@ -1,0 +1,14 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://World/Player/Components/LocalPlayerPresentation.cs" id="1_local"]
+[ext_resource type="PackedScene" uid="uid://c9h2x3y4z5a6c" path="res://World/Player/Components/UI/PlayerHud.tscn" id="2_hud"]
+[ext_resource type="PackedScene" path="res://World/Player/Components/UI/TvShareButton.tscn" id="3_tv"]
+
+[node name="LocalPlayerPresentation" type="Node" node_paths=PackedStringArray("Hud", "TvShareButton")]
+script = ExtResource("1_local")
+Hud = NodePath("PlayerHud")
+TvShareButton = NodePath("TvShareButton")
+
+[node name="PlayerHud" parent="." instance=ExtResource("2_hud")]
+
+[node name="TvShareButton" parent="." instance=ExtResource("3_tv")]

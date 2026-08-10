@@ -4,20 +4,14 @@ using Godot.Collections;
 [GlobalClass]
 public partial class PoolController : GameController
 {
-    public RemoteTransform3D RemoteAim;
-    public AimCameraPivot AimPivot;
-    public Cue Cue;
+    [ExportGroup("Scene References")]
+    [Export] public RemoteTransform3D RemoteAim;
+    [Export] public AimCameraPivot AimPivot;
+    [Export] public Cue Cue;
 
     public PoolGame PoolGame;
     public Player Player;
     public GlobalCamera Camera;
-
-    public override void _Ready()
-    {
-        RemoteAim = GetNode<RemoteTransform3D>("AimPivot/Elevation/RemoteAim");
-        AimPivot = GetNode<AimCameraPivot>("AimPivot");
-        Cue = GetNode<Cue>("AimPivot/Cue");
-    }
 
     public override void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
     {

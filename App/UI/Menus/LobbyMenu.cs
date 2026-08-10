@@ -13,8 +13,8 @@ public partial class LobbyMenu : Control
         "Faixa-Verde", "Bicho-do-Feltro", "Tacada-Final", "Mestre-Cueiro",
     };
 
-    private Control _homeScreen;
-    private Control _browseScreen;
+    private HomeMenuView _homeScreen;
+    private LobbyBrowserView _browseScreen;
 
     private LineEdit _nicknameEdit;
     private Button _shuffleButton;
@@ -34,22 +34,22 @@ public partial class LobbyMenu : Control
 
     public override void _Ready()
     {
-        _homeScreen = GetNode<Control>("HomeScreen");
-        _browseScreen = GetNode<Control>("BrowseScreen");
+        _homeScreen = GetNode<HomeMenuView>("HomeScreen");
+        _browseScreen = GetNode<LobbyBrowserView>("BrowseScreen");
 
-        _nicknameEdit = GetNode<LineEdit>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IdentityRow/NicknameField/NicknameEdit");
-        _shuffleButton = GetNode<Button>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IdentityRow/ShuffleButton");
-        _ipField = GetNode<Control>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IpField");
-        _ipEdit = GetNode<LineEdit>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/IpField/IpEdit");
-        _hostButton = GetNode<Button>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/HostButton");
-        _joinButton = GetNode<Button>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/JoinButton");
-        _hintLabel = GetNode<Label>("HomeScreen/CenterContainer/ContentBox/MenuCard/CardMargin/CardBox/HintLabel");
+        _nicknameEdit = _homeScreen.NicknameEdit;
+        _shuffleButton = _homeScreen.ShuffleButton;
+        _ipField = _homeScreen.IpField;
+        _ipEdit = _homeScreen.IpEdit;
+        _hostButton = _homeScreen.HostButton;
+        _joinButton = _homeScreen.JoinButton;
+        _hintLabel = _homeScreen.HintLabel;
 
-        _backButton = GetNode<Button>("BrowseScreen/BrowseMargin/BrowseBox/HeaderRow/BackButton");
-        _refreshButton = GetNode<Button>("BrowseScreen/BrowseMargin/BrowseBox/HeaderRow/RefreshButton");
-        _searchEdit = GetNode<LineEdit>("BrowseScreen/BrowseMargin/BrowseBox/SearchEdit");
-        _lobbyListContainer = GetNode<Control>("BrowseScreen/BrowseMargin/BrowseBox/ScrollContainer/LobbyList");
-        _noMatchLabel = GetNode<Label>("BrowseScreen/BrowseMargin/BrowseBox/NoMatchLabel");
+        _backButton = _browseScreen.BackButton;
+        _refreshButton = _browseScreen.RefreshButton;
+        _searchEdit = _browseScreen.SearchEdit;
+        _lobbyListContainer = _browseScreen.LobbyListContainer;
+        _noMatchLabel = _browseScreen.NoMatchLabel;
 
         _nicknameEdit.Text = string.IsNullOrWhiteSpace(Global.Instance.LocalNickname)
             ? RandomNicknames[GD.Randi() % RandomNicknames.Length]

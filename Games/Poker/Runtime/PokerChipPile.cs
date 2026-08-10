@@ -140,6 +140,12 @@ public partial class PokerChipPile : Node3D
     private int _columns;
     private float _spread = 1.0f;
     private bool _settling;
+
+    public override void _Ready()
+    {
+        PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off;
+        SetProcess(false);
+    }
     private float _flightProgress = 1.0f;
     private int _looseSlotOffset;
     private int _looseSlotOffsetFrom;
@@ -331,7 +337,10 @@ public partial class PokerChipPile : Node3D
     public override void _Process(double delta)
     {
         if (!_settling)
+        {
+            SetProcess(false);
             return;
+        }
 
         var step = SettleSeconds <= 0.0f ? 1.0f : (float)delta / SettleSeconds;
         _settling = false;
@@ -347,6 +356,8 @@ public partial class PokerChipPile : Node3D
         }
 
         Apply();
+        if (!_settling)
+            SetProcess(false);
     }
 
     // ---------------------------------------------------------------- layout
@@ -459,6 +470,8 @@ public partial class PokerChipPile : Node3D
                 _settling = true;
             }
         }
+
+        SetProcess(_settling);
 
         Apply();
     }

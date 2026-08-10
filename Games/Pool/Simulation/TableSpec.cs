@@ -41,7 +41,7 @@ public readonly struct Pocket
 /// is defined here, so a mis-rotated mesh can no longer warp the physics.
 ///
 /// Pockets are given individually rather than mirrored from a half-width, because real tables
-/// aren't symmetric — the pockets on this project's Table2 vary by about 2 cm in position and
+/// aren't symmetric — the pockets on this project's PoolTable vary by about 2 cm in position and
 /// have different radii, and forcing symmetry put the physics pockets visibly off the ones the
 /// player sees. PoolTableGeometry builds this from each table scene's own nodes.
 ///

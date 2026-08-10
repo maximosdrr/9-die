@@ -2,7 +2,7 @@ using Godot;
 using Godot.Collections;
 
 [GlobalClass]
-public partial class StateMachine : Node3D
+public partial class StateMachine : Node
 {
     [Signal]
     public delegate void StateChangedEventHandler(string type, Dictionary metadata);
@@ -12,7 +12,18 @@ public partial class StateMachine : Node3D
     public Dictionary<string, State> States = new();
     public Dictionary CurrentMetadata = new();
 
-    [Export] public bool Enabled = true;
+    private bool _enabled = true;
+    [Export]
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            _enabled = value;
+            if (IsInsideTree())
+                ApplyProcessingMode();
+        }
+    }
     [Export] public string InitialState;
     [Export] public AuthorityStateSynchronizer AuthorityStateSynchronizer;
     [Export] public bool CheckForMultiplayerAuthorityOnStateHandleInput = false;
@@ -23,6 +34,7 @@ public partial class StateMachine : Node3D
         SetupInitialState();
 
         AuthorityStateSynchronizer?.Setup(this);
+        ApplyProcessingMode();
     }
 
     public void ChangeState(string type, Dictionary metadata)
@@ -57,20 +69,32 @@ public partial class StateMachine : Node3D
 
     public override void _Process(double delta)
     {
+        if (!Enabled)
+            return;
         Current?.Process(delta);
     }
 
     public override void _PhysicsProcess(double delta)
     {
+        if (!Enabled)
+            return;
         Current?.PhysicsProcess(delta);
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (CheckForMultiplayerAuthorityOnStateHandleInput && !IsMultiplayerAuthority())
+        if (!Enabled
+            || (CheckForMultiplayerAuthorityOnStateHandleInput && !IsMultiplayerAuthority()))
             return;
 
         Current?.HandleInput(@event);
+    }
+
+    private void ApplyProcessingMode()
+    {
+        SetProcess(Enabled);
+        SetPhysicsProcess(Enabled);
+        SetProcessUnhandledInput(Enabled);
     }
 
     private void SetupStates()

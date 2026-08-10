@@ -51,10 +51,21 @@ public partial class PoolTableGeometry : Node3D
     private MeshInstance3D _gizmo;
     private string _lastGizmoKey = "";
 
+    public override string[] _GetConfigurationWarnings()
+    {
+        var warnings = new List<string>();
+        if (ClothMarker?.Shape is not BoxShape3D)
+            warnings.Add("ClothMarker precisa usar um BoxShape3D.");
+        if (RailMarkers == null || RailMarkers.GetChildCount() == 0)
+            warnings.Add("RailMarkers precisa conter ao menos um marcador de tabela.");
+        if (PocketMarkers == null || PocketMarkers.GetChildCount() == 0)
+            warnings.Add("PocketMarkers precisa conter os marcadores de caçapa.");
+        return warnings.ToArray();
+    }
+
     public override void _Ready()
     {
-        if (Engine.IsEditorHint())
-            SetProcess(true);
+        SetProcess(Engine.IsEditorHint());
     }
 
     public override void _Process(double delta)

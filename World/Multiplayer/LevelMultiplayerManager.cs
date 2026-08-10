@@ -7,8 +7,9 @@ public partial class LevelMultiplayerManager : Node
     [Export] public PackedScene PlayerScene;
     [Export] public PlayersContainer PlayersContainer;
     [Export] public MultiplayerSpawner MultiplayerSpawner;
-    [Export] public Godot.Collections.Array<NodePath> SpawnPointPaths = new();
+    [Export] public Node3D SpawnPointsRoot;
     [Export] public TvScreenShare TvScreen;
+    [Export] public Node LocalPresentationRoot;
 
     public GlobalCamera Camera;
 
@@ -16,8 +17,15 @@ public partial class LevelMultiplayerManager : Node
 
     public override void _Ready()
     {
-        foreach (var path in SpawnPointPaths)
-            _spawnPoints.Add(GetNode<Marker3D>(path));
+        _spawnPoints.Clear();
+        if (SpawnPointsRoot != null)
+        {
+            foreach (var child in SpawnPointsRoot.GetChildren())
+            {
+                if (child is Marker3D marker)
+                    _spawnPoints.Add(marker);
+            }
+        }
 
         MultiplayerSpawner.SpawnFunction = new Callable(this, MethodName.InitializePlayerNode);
         MultiplayerSpawner.SpawnPath = PlayersContainer.GetPath();
@@ -70,6 +78,7 @@ public partial class LevelMultiplayerManager : Node
         playerInstance.ConfigureServerAuthoritativeReplication();
         playerInstance.Camera = Camera;
         playerInstance.TvScreen = TvScreen;
+        playerInstance.LocalPresentationRoot = LocalPresentationRoot;
 
         if (_spawnPoints.Count == 0)
         {

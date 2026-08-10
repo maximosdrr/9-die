@@ -36,4 +36,16 @@ public partial class GameController : Node3D
     /// the camera or the mouse.
     /// </summary>
     public virtual void ApplyControl(string turnOwnerId, Dictionary context) { }
+
+    /// <summary>
+    /// Remote players need the controller's replicated setup/signals, but never its per-frame
+    /// input, raycasts or local presentation. Disabling the branch also disables children whose
+    /// ProcessMode inherits from it.
+    /// </summary>
+    public virtual void SetLocalPresentationActive(bool active)
+    {
+        ProcessMode = active ? ProcessModeEnum.Inherit : ProcessModeEnum.Disabled;
+        if (!active)
+            Hide();
+    }
 }

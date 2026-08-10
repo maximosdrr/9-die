@@ -101,11 +101,13 @@ public partial class PokerBoardPresenter : Node3D
 
     public override void _Ready()
     {
+        PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off;
         _game = GetParent<PokerGame>();
         if (PotPile != null && _game?.ChipScene != null)
             PotPile.ChipScene = _game.ChipScene;
 
         BuildDeck();
+        SetProcess(false);
     }
 
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
@@ -297,6 +299,7 @@ public partial class PokerBoardPresenter : Node3D
         _faceUpCount = visibleShown;
         PlaceDeck();
         PlaceAll();
+        SetProcess(HasPendingCardMotion());
 
         if (PotPile == null)
             return;
@@ -345,6 +348,25 @@ public partial class PokerBoardPresenter : Node3D
 
         if (moved)
             PlaceAll();
+
+        if (!HasPendingCardMotion())
+            SetProcess(false);
+    }
+
+    private bool HasPendingCardMotion()
+    {
+        foreach (var card in _cards)
+        {
+            if (!card.Node.Visible)
+                continue;
+
+            if (card.Wait > 0.0f
+                || card.Dealt < 1.0f
+                || !Mathf.IsEqualApprox(card.Flipped, card.WantsFaceUp ? 1.0f : 0.0f))
+                return true;
+        }
+
+        return false;
     }
 
     private static bool Advance(ref float value, float target, float seconds, float delta)

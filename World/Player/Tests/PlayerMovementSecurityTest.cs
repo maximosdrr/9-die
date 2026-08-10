@@ -191,6 +191,18 @@ public partial class PlayerMovementSecurityTest : Node
         var config = synchronizer?.ReplicationConfig;
 
         Check("a cena do jogador carrega o sincronizador", config != null);
+        Check("dependências fixas do jogador são ligadas pelo Inspector",
+            player?.HeadPivot != null
+            && player.GameHandler != null
+            && player.PlayerModel != null
+            && player.StateMachine != null
+            && player.BodyCollision != null);
+        Check("o componente visual mantém o AnimationPlayer esperado",
+            player?.GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer") != null
+            && player.SeatedGestureAnimator != null);
+        Check("UI local não faz parte do avatar replicado",
+            player?.FindChild("PlayerHud", recursive: true, owned: false) == null
+            && player?.FindChild("TvShareButton", recursive: true, owned: false) == null);
         if (config != null)
         {
             var position = new NodePath(".:position");

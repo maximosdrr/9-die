@@ -71,17 +71,38 @@ public partial class PlayerHud : CanvasLayer
 
     public void Initialize(Player player)
     {
+        Detach();
         Player = player;
 
-        if (!Player.IsMultiplayerAuthority())
+        if (Player == null || !Player.IsMultiplayerAuthority())
         {
             SetProcess(false);
+            SetProcessUnhandledInput(false);
             return;
         }
 
         SignalUtil.ConnectGuarded(Player.GameHandler, PlayerGameHandler.SignalName.ControllerEquipped, new Callable(this, MethodName.OnControllerEquipped));
         SignalUtil.ConnectGuarded(Player.GameHandler, PlayerGameHandler.SignalName.ControllerUnequipped, new Callable(this, MethodName.OnControllerUnequipped));
+        SetProcess(false);
+        SetProcessUnhandledInput(true);
     }
+
+    public void Detach()
+    {
+        OnControllerUnequipped();
+
+        if (Player?.GameHandler != null)
+        {
+            SignalUtil.DisconnectGuarded(Player.GameHandler, PlayerGameHandler.SignalName.ControllerEquipped, new Callable(this, MethodName.OnControllerEquipped));
+            SignalUtil.DisconnectGuarded(Player.GameHandler, PlayerGameHandler.SignalName.ControllerUnequipped, new Callable(this, MethodName.OnControllerUnequipped));
+        }
+
+        Player = null;
+        SetProcess(false);
+        SetProcessUnhandledInput(false);
+    }
+
+    public override void _ExitTree() => Detach();
 
     public override void _Process(double delta)
     {
@@ -100,6 +121,7 @@ public partial class PlayerHud : CanvasLayer
         _poolGame = poolGame;
         Visible = true;
         _turnSeconds = 0;
+        SetProcess(true);
 
         SignalUtil.ConnectGuarded(_poolGame, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
         SignalUtil.ConnectGuarded(_poolGame, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
@@ -119,6 +141,7 @@ public partial class PlayerHud : CanvasLayer
 
         _poolGame = null;
         Visible = false;
+        SetProcess(false);
     }
 
     private void OnTurnChanged(string nextPlayerId, Dictionary context)

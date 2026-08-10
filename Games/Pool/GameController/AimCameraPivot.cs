@@ -3,7 +3,8 @@ using Godot;
 [GlobalClass]
 public partial class AimCameraPivot : Node3D
 {
-    public Node3D ElevationNode;
+    [ExportGroup("Scene References")]
+    [Export] public Node3D ElevationNode;
 
     [ExportGroup("Camera Behavior")]
     [Export] public float MouseSensitivity = 0.0015f;
@@ -36,7 +37,6 @@ public partial class AimCameraPivot : Node3D
 
     public override void _Ready()
     {
-        ElevationNode = GetNode<Node3D>("Elevation");
         TopLevel = true;
         InitializePositions();
     }

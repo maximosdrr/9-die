@@ -10,7 +10,11 @@ public partial class PoolStartGameUI : Node3D
     public override void _Ready()
     {
         _label = GetNode<Label3D>("Label3D");
+        VisibilityChanged += SyncProcessingWithVisibility;
+        SyncProcessingWithVisibility();
     }
+
+    public override void _ExitTree() => VisibilityChanged -= SyncProcessingWithVisibility;
 
     public override void _Process(double delta)
     {
@@ -21,4 +25,6 @@ public partial class PoolStartGameUI : Node3D
     {
         _label.Text = text;
     }
+
+    private void SyncProcessingWithVisibility() => SetProcess(Visible);
 }

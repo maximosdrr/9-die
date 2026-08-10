@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 [Tool]
 [GlobalClass]
@@ -6,10 +7,14 @@ public partial class Table : Node3D
 {
     public Godot.Collections.Array<string> PlayersOnMatch = new();
 
-    public Node3D TableGameHandler;
-    public Area3D TableInfluence;
+    [ExportGroup("Scene References")]
+    [Export] public Node3D TableGameHandler;
+    [Export] public Area3D TableInfluence;
+    [Export] public Node StateMachineNode;
+    [Export] public Timer StartGameTimer;
+    [Export] public Timer EndMatchTimer;
+    [Export] public Label3D DebugLabel;
     public StateMachine StateMachine;
-    public Label3D DebugLabel;
 
     [ExportCategory("NetworkConfiguration")]
     [Export] public bool EnableNetworkTurnSynchronization = true;
@@ -30,6 +35,20 @@ public partial class Table : Node3D
     private bool _editorBuilding = false;
     public TableGame CurrentTableGame;
 
+    public override string[] _GetConfigurationWarnings()
+    {
+        var warnings = new List<string>();
+        if (TableGameScene == null)
+            warnings.Add("TableGameScene precisa apontar para uma cena de jogo de mesa.");
+        if (TableInfluence == null)
+            warnings.Add("TableInfluence (Area3D) é obrigatório para detectar jogadores próximos.");
+        if (StateMachineNode == null)
+            warnings.Add("StateMachine é obrigatória para o ciclo de vida da mesa.");
+        if (StartGameTimer == null || EndMatchTimer == null)
+            warnings.Add("Os timers de início e encerramento da partida são obrigatórios.");
+        return warnings.ToArray();
+    }
+
     public void SetCamera(GlobalCamera camera)
     {
         CurrentTableGame?.SetCamera(camera);
@@ -37,17 +56,14 @@ public partial class Table : Node3D
 
     public override void _Ready()
     {
-        TableGameHandler = GetNode<Node3D>("TableGameHandler");
-
         if (Engine.IsEditorHint())
         {
             RebuildEditorPreview();
             return;
         }
 
-        TableInfluence = GetNode<Area3D>("TableInfluence");
-        StateMachine = GetNode<StateMachine>("StateMachine");
-        DebugLabel = GetNode<Label3D>("DebugLabel");
+        StateMachine = StateMachineNode as StateMachine;
+        SetProcess(DebugLabel?.Visible == true);
 
         SpawnRuntimeGame();
     }
@@ -85,7 +101,7 @@ public partial class Table : Node3D
 
     private void RebuildEditorPreview()
     {
-        if (TableGameHandler == null)
+        if (!IsInsideTree() || TableGameHandler == null)
             return;
 
         if (_editorBuilding)

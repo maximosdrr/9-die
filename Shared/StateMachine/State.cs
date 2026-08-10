@@ -2,7 +2,7 @@ using Godot;
 using Godot.Collections;
 
 [GlobalClass]
-public partial class State : Node3D
+public partial class State : Node
 {
     public StateMachine StateMachine;
     public string Type;

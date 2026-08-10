@@ -94,6 +94,7 @@ public partial class Player : CharacterBody3D
         GlobalPosition = position;
         GlobalRotation = new Vector3(0.0f, Mathf.Wrap(yaw, -Mathf.Pi, Mathf.Pi), 0.0f);
         Velocity = velocity;
+        ResetPhysicsInterpolation();
     }
 
 }

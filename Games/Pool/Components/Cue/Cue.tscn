@@ -80,26 +80,26 @@ script = ExtResource("6_hxwsn")
 [node name="sfx" type="AudioStreamPlayer3D" parent="." unique_id=430641580]
 stream = ExtResource("7_lm3ol")
 
-[node name="StateMachine" type="Node3D" parent="." unique_id=967140414]
+[node name="StateMachine" type="Node" parent="." unique_id=967140414]
 script = ExtResource("9_4hlb0")
 InitialState = "CUE_IDLE"
 CheckForMultiplayerAuthorityOnStateHandleInput = true
 
-[node name="Idle" type="Node3D" parent="StateMachine" unique_id=1738078010]
+[node name="Idle" type="Node" parent="StateMachine" unique_id=1738078010]
 script = ExtResource("10_bgumn")
 
-[node name="Recover" type="Node3D" parent="StateMachine" unique_id=591075219]
+[node name="Recover" type="Node" parent="StateMachine" unique_id=591075219]
 script = ExtResource("11_wdj6g")
 
-[node name="Charging" type="Node3D" parent="StateMachine" unique_id=372260448]
+[node name="Charging" type="Node" parent="StateMachine" unique_id=372260448]
 script = ExtResource("12_0pypa")
 FullDrawPixels = 700.0
 
-[node name="Locked" type="Node3D" parent="StateMachine" unique_id=529959312]
+[node name="Locked" type="Node" parent="StateMachine" unique_id=529959312]
 script = ExtResource("10_nmcgh")
 
-[node name="Spin" type="Node3D" parent="StateMachine" unique_id=1281228130]
+[node name="Spin" type="Node" parent="StateMachine" unique_id=1281228130]
 script = ExtResource("11_q2pvu")
 
-[node name="Jump" type="Node3D" parent="StateMachine" unique_id=1207434792]
+[node name="Jump" type="Node" parent="StateMachine" unique_id=1207434792]
 script = ExtResource("12_bgumn")

@@ -74,11 +74,12 @@ public partial class SeatedTableController : GameController
     private const string InputTopView = "toggle_top_view";
     private const string InputLeave = "leave_table";
 
-    private Node3D _lookRig;
-    private Node3D _lookPitch;
-    private RemoteTransform3D _remoteSeat;
-    private Node3D _topRig;
-    private RemoteTransform3D _remoteTop;
+    [ExportGroup("Scene References")]
+    [Export] public Node3D LookRig;
+    [Export] public Node3D LookPitch;
+    [Export] public RemoteTransform3D RemoteSeat;
+    [Export] public Node3D TopRig;
+    [Export] public RemoteTransform3D RemoteTop;
 
     private float _seatYaw;
     private float _lookYaw;
@@ -127,16 +128,10 @@ public partial class SeatedTableController : GameController
 
     public override void _Ready()
     {
-        _lookRig = GetNode<Node3D>("LookRig");
-        _lookPitch = GetNode<Node3D>("LookRig/LookPitch");
-        _remoteSeat = GetNode<RemoteTransform3D>("LookRig/LookPitch/RemoteSeat");
-        _topRig = GetNode<Node3D>("TopRig");
-        _remoteTop = GetNode<RemoteTransform3D>("TopRig/RemoteTop");
-
         // Both rigs are placed in world space from the seat, so they must not inherit the player's
         // transform — the same trick AimCameraPivot uses to ride the cue ball.
-        _lookRig.TopLevel = true;
-        _topRig.TopLevel = true;
+        LookRig.TopLevel = true;
+        TopRig.TopLevel = true;
 
         SetProcessUnhandledInput(false);
         SetProcess(false);
@@ -294,6 +289,7 @@ public partial class SeatedTableController : GameController
         _seatYaw = seat.GlobalRotation.Y;
         Player.GlobalRotation = new Vector3(0.0f, _seatYaw, 0.0f);
         Player.Velocity = Vector3.Zero;
+        Player.ResetPhysicsInterpolation();
         Player.RequestAuthoritativeMovementMode(walking: false);
 
         Player.GiveControl();
@@ -302,7 +298,7 @@ public partial class SeatedTableController : GameController
         // The eye point comes from the seat's own marker so an artist can raise or lower it per
         // chair without touching code.
         var eye = seat.GetNodeOrNull<Node3D>("SeatView");
-        _lookRig.GlobalPosition = eye?.GlobalPosition ?? seat.GlobalPosition;
+        LookRig.GlobalPosition = eye?.GlobalPosition ?? seat.GlobalPosition;
         CacheStandExit(seat);
 
         _lookYaw = 0.0f;
@@ -311,7 +307,7 @@ public partial class SeatedTableController : GameController
 
         _surfaceCentre = TableSurface != null
             ? TableSurface.GlobalPosition
-            : _lookRig.GlobalPosition;
+            : LookRig.GlobalPosition;
         _topPan = Vector2.Zero;
 
         PlaceTopRig();
@@ -340,27 +336,27 @@ public partial class SeatedTableController : GameController
         // the view right from where they are sitting, whichever side of the table that is.
         var offset = new Vector3(_topPan.X, TopHeight, _topPan.Y).Rotated(Vector3.Up, _seatYaw);
 
-        _topRig.GlobalPosition = _surfaceCentre + offset;
-        _topRig.GlobalRotation = new Vector3(-Mathf.Pi * 0.5f, _seatYaw, 0.0f);
+        TopRig.GlobalPosition = _surfaceCentre + offset;
+        TopRig.GlobalRotation = new Vector3(-Mathf.Pi * 0.5f, _seatYaw, 0.0f);
     }
 
     private void ApplyLookRotation()
     {
-        _lookRig.GlobalRotation = new Vector3(0.0f, _seatYaw + _lookYaw, 0.0f);
-        _lookPitch.Rotation = new Vector3(_lookPitch2, 0.0f, 0.0f);
+        LookRig.GlobalRotation = new Vector3(0.0f, _seatYaw + _lookYaw, 0.0f);
+        LookPitch.Rotation = new Vector3(_lookPitch2, 0.0f, 0.0f);
     }
 
     private void ShowSeatView()
     {
         Camera?.SetGlobalCameraFov(SeatFov);
-        Camera?.TransitionTo(_remoteSeat);
+        Camera?.TransitionTo(RemoteSeat);
     }
 
     private void ShowTopView()
     {
         PlaceTopRig();
         Camera?.SetGlobalCameraFov(TopFov);
-        Camera?.TransitionTo(_remoteTop);
+        Camera?.TransitionTo(RemoteTop);
     }
 
     public void ToggleTopView()
@@ -494,6 +490,7 @@ public partial class SeatedTableController : GameController
         Player.GlobalPosition = _cachedStandPosition;
         Player.GlobalRotation = new Vector3(0.0f, _cachedStandYaw, 0.0f);
         Player.Velocity = Vector3.Zero;
+        Player.ResetPhysicsInterpolation();
         Player.RequestAuthoritativeMovementMode(walking: true);
     }
 

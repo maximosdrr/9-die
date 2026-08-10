@@ -22,17 +22,24 @@ public partial class Player : CharacterBody3D
     [ExportGroup("Replaceable character")]
     [Export] public AnimationPlayer SeatedGestureAnimator;
 
-    public HeadPivot HeadPivot;
+    [ExportGroup("Scene References")]
+    [Export] public HeadPivot HeadPivot;
+    [Export] public PlayerGameHandler GameHandler;
+    [Export] public Node3D PlayerModel;
+    [Export] public StateMachine StateMachine;
+    [Export] public CollisionShape3D BodyCollision;
+
+    [ExportGroup("Local presentation")]
+    [Export] public PackedScene LocalPresentationScene;
+
     public RemoteTransform3D RemoteFps;
-    public PlayerGameHandler GameHandler;
-    public Node3D PlayerModel;
-    public StateMachine StateMachine;
     public PlayerHud Hud;
     public TvShareButton TvShareButton;
-    public CollisionShape3D BodyCollision;
+    public LocalPlayerPresentation LocalPresentation { get; private set; }
 
     public GlobalCamera Camera;
     public TvScreenShare TvScreen;
+    public Node LocalPresentationRoot;
 
     public enum ControllerStatesEnum { Player, Game }
 
@@ -41,27 +48,43 @@ public partial class Player : CharacterBody3D
 
     public override void _Ready()
     {
-        HeadPivot = GetNode<HeadPivot>("FirstPerson/HeadPivot");
         RemoteFps = HeadPivot.CameraMount;
-        GameHandler = GetNode<PlayerGameHandler>("Scripts/PlayerGameHandler");
-        PlayerModel = GetNode<Node3D>("FirstPerson/Model3D");
-        StateMachine = GetNode<StateMachine>("StateMachine");
-        Hud = GetNode<PlayerHud>("UI/PlayerHud");
-        TvShareButton = GetNode<TvShareButton>("UI/TvShareButton");
-        BodyCollision = GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
         InitializeNetworkMovement();
         InitializeNetworkProfile();
-
-        // Godot calls _Ready() bottom-up (children before parents), so PlayerHud._Ready()
-        // would run before this point and see GameHandler as null if it tried to wire
-        // itself. Player explicitly initializes it here, after GameHandler is assigned.
-        Hud.Initialize(this);
-        TvShareButton.Initialize(TvScreen);
 
         if (!IsMultiplayerAuthority())
             return;
 
+        AttachLocalPresentation();
         TakeControl();
+    }
+
+    public override void _ExitTree()
+    {
+        if (!IsInstanceValid(LocalPresentation))
+            return;
+
+        LocalPresentation.Detach();
+        LocalPresentation.QueueFree();
+        LocalPresentation = null;
+        Hud = null;
+        TvShareButton = null;
+    }
+
+    private void AttachLocalPresentation()
+    {
+        if (LocalPresentationScene == null || !IsInstanceValid(LocalPresentationRoot))
+            return;
+
+        LocalPresentation = LocalPresentationScene.Instantiate<LocalPlayerPresentation>();
+        LocalPresentation.Name = "LocalPlayerPresentation";
+        LocalPresentationRoot.AddChild(LocalPresentation);
+        LocalPresentation.Configure(this, TvScreen);
+
+        // Compatibility handles for systems that still access the local player's presentation
+        // through Player. They remain null for remote avatars by design.
+        Hud = LocalPresentation.Hud;
+        TvShareButton = LocalPresentation.TvShareButton;
     }
 
     public void TakeControl()

@@ -7,12 +7,12 @@ public partial class PoolGame : TableGame
     public override int MinimumPlayers => 1;
     public override int MaximumPlayers => 2;
 
-    public PoolBallRespawn PoolBallRespawn;
+    [ExportGroup("Scene References")]
+    [Export] public PoolBallRespawn PoolBallRespawn;
     [Export] public PoolGameTable PoolTable;
+    [Export] public BallPlacementManager BallPlacementManager;
+    [Export] public PoolSimulationRunner SimulationRunner;
     [Export] public PackedScene GameControllerScene;
-
-    public BallPlacementManager BallPlacementManager;
-    public PoolSimulationRunner SimulationRunner;
     private GameModeHandler _gameModeHandler;
     private bool _runtimeReady;
     private int _setupVersion;
@@ -39,13 +39,8 @@ public partial class PoolGame : TableGame
 
     public override void _Ready()
     {
-        PoolBallRespawn = GetNode<PoolBallRespawn>("Scripts/PoolBallRespawn");
-        BallPlacementManager = GetNode<BallPlacementManager>("Scripts/BallPlacementManager");
-        SimulationRunner = GetNode<PoolSimulationRunner>("Scripts/PoolSimulationRunner");
         BallPlacementManager.SimulationRunner = SimulationRunner;
-        _gameModeHandler = GetNode<GameModeHandler>("GameModeHandler");
-
-        GameModeHandler = _gameModeHandler;
+        _gameModeHandler = GameModeHandler;
         MatchOver += OnMatchIsOver;
         MatchStarted += OnMatchStarts;
         PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;

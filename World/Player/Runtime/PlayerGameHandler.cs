@@ -33,6 +33,7 @@ public partial class PlayerGameHandler : Node
 
         ContextSlot.AddChild(CurrentController);
         CurrentController.Setup(Player, tableGame, camera);
+        CurrentController.SetLocalPresentationActive(CurrentController.IsMultiplayerAuthority());
 
         EmitSignal(SignalName.ControllerEquipped, tableGame);
     }

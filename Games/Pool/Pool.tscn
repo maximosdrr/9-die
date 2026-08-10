@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://du67ww01g04ae"]
 
 [ext_resource type="Script" uid="uid://s4g38bcjv2yq" path="res://Games/Pool/Runtime/PoolGame.cs" id="1_jypsj"]
-[ext_resource type="PackedScene" uid="uid://d7avt6omfr3h" path="res://Games/Pool/Components/Tables/Table2.tscn" id="3_8ji62"]
+[ext_resource type="PackedScene" uid="uid://d7avt6omfr3h" path="res://Games/Pool/Components/Tables/PoolTable.tscn" id="3_8ji62"]
 [ext_resource type="Script" uid="uid://c0k1np0r4qbg3" path="res://Games/Pool/Runtime/PoolBallRespawn.cs" id="3_qmuqs"]
 [ext_resource type="Script" uid="uid://dia1p1hxycici" path="res://Games/Pool/GameModes/PoolTurnResolver.cs" id="5_5ugkb"]
 [ext_resource type="Script" uid="uid://cf4mbqi8yhg51" path="res://Shared/Table/GameMode/GameModeHandler.cs" id="8_bojb6"]
@@ -11,9 +11,13 @@
 [ext_resource type="PackedScene" uid="uid://vr3ram3d1ioc" path="res://Games/Pool/GameController/PoolController.tscn" id="15_ctrlr"]
 [ext_resource type="Script" path="res://Games/Pool/Runtime/PoolSimulationRunner.cs" id="16_simrn"]
 
-[node name="PoolGame" type="Node3D" unique_id=1306393408 node_paths=PackedStringArray("PoolTable")]
+[node name="PoolGame" type="Node3D" unique_id=1306393408 node_paths=PackedStringArray("GameModeHandler", "PoolBallRespawn", "PoolTable", "BallPlacementManager", "SimulationRunner")]
 script = ExtResource("1_jypsj")
-PoolTable = NodePath("Table2")
+GameModeHandler = NodePath("GameModeHandler")
+PoolBallRespawn = NodePath("Runtime/PoolBallRespawn")
+PoolTable = NodePath("PoolTable")
+BallPlacementManager = NodePath("Runtime/BallPlacementManager")
+SimulationRunner = NodePath("Runtime/PoolSimulationRunner")
 GameControllerScene = ExtResource("15_ctrlr")
 
 [node name="BallsHolderMultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=1510809229]
@@ -23,19 +27,19 @@ spawn_path = NodePath("../BallsHolder")
 [node name="BallsHolder" type="Node3D" parent="." unique_id=2038104239]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.77, 0)
 
-[node name="Scripts" type="Node" parent="." unique_id=173426004]
+[node name="Runtime" type="Node" parent="." unique_id=173426004]
 
-[node name="PoolBallRespawn" type="Node" parent="Scripts" unique_id=955084759 node_paths=PackedStringArray("BallsHolder")]
+[node name="PoolBallRespawn" type="Node" parent="Runtime" unique_id=955084759 node_paths=PackedStringArray("BallsHolder")]
 script = ExtResource("3_qmuqs")
 BallsHolder = NodePath("../../BallsHolder")
 
-[node name="PoolSimulationRunner" type="Node" parent="Scripts" unique_id=1884201553 node_paths=PackedStringArray("TableAnchor")]
+[node name="PoolSimulationRunner" type="Node" parent="Runtime" unique_id=1884201553 node_paths=PackedStringArray("TableAnchor")]
 script = ExtResource("16_simrn")
 TableAnchor = NodePath("../../BallsHolder")
 
-[node name="BallPlacementManager" type="Node" parent="Scripts" unique_id=1306025746 node_paths=PackedStringArray("OverheadViewRemote", "TableOrigin")]
+[node name="BallPlacementManager" type="Node" parent="Runtime" unique_id=1306025746 node_paths=PackedStringArray("OverheadViewRemote", "TableOrigin")]
 script = ExtResource("8_rm535")
-OverheadViewRemote = NodePath("../../Pivot/RemoteTop")
+OverheadViewRemote = NodePath("../../OverheadView/RemoteTop")
 TableOrigin = NodePath("../..")
 
 [node name="GameModeHandler" type="Node" parent="." unique_id=503445050 node_paths=PackedStringArray("CurrentGameMode")]
@@ -54,12 +58,10 @@ script = ExtResource("5_5ugkb")
 TurnRuler = NodePath("../Ruler")
 metadata/_custom_type_script = "uid://dia1p1hxycici"
 
-[node name="Pivot" type="Node3D" parent="." unique_id=682938255]
+[node name="OverheadView" type="Node3D" parent="." unique_id=682938255]
 transform = Transform3D(-4.371139e-08, -0.99999994, 0, -4.371139e-08, 1.9106853e-15, 0.99999994, -1, 4.3711385e-08, -4.3711385e-08, 0, 2.5, 0)
 
-[node name="RemoteTop" type="RemoteTransform3D" parent="Pivot" unique_id=1670131329]
+[node name="RemoteTop" type="RemoteTransform3D" parent="OverheadView" unique_id=1670131329]
 remote_path = NodePath("../..")
 
-[node name="Camera3D" type="Camera3D" parent="Pivot" unique_id=1421112144]
-
-[node name="Table2" parent="." unique_id=1705720398 instance=ExtResource("3_8ji62")]
+[node name="PoolTable" parent="." unique_id=1705720398 instance=ExtResource("3_8ji62")]

@@ -295,19 +295,19 @@ modulate = Color(1, 0.85, 0.55, 1)
 
 [node name="PokerHud" parent="." instance=ExtResource("3_phud")]
 
-[node name="StateMachine" type="Node3D" parent="."]
+[node name="StateMachine" type="Node" parent="."]
 script = ExtResource("4_psm")
 InitialState = "POKER_HAND_IDLE"
 CheckForMultiplayerAuthorityOnStateHandleInput = true
 
-[node name="Idle" type="Node3D" parent="StateMachine"]
+[node name="Idle" type="Node" parent="StateMachine"]
 script = ExtResource("5_pidle")
 ClipName = "HandIdle"
 
-[node name="Looking" type="Node3D" parent="StateMachine"]
+[node name="Looking" type="Node" parent="StateMachine"]
 script = ExtResource("6_plook")
 ClipName = "HandIdle"
 
-[node name="Acting" type="Node3D" parent="StateMachine"]
+[node name="Acting" type="Node" parent="StateMachine"]
 script = ExtResource("7_pact")
 Duration = 0.35

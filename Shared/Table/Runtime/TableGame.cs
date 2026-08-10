@@ -8,7 +8,8 @@ public partial class TableGame : Node3D
     internal const int MaximumTrackedSurrenderPeers = 16;
 
     public Table Table;
-    public GameModeHandler GameModeHandler;
+    [ExportGroup("Scene References")]
+    [Export] public GameModeHandler GameModeHandler;
     public Array TurnOrder = new();
     private Player _turnOwner;
     private string _turnOwnerId = "";

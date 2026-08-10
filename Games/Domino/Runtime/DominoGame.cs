@@ -83,8 +83,7 @@ public partial class DominoGame : TableGame
 
     public override void _Ready()
     {
-        _gameModeHandler = GetNode<GameModeHandler>("GameModeHandler");
-        GameModeHandler = _gameModeHandler;
+        _gameModeHandler = GameModeHandler;
 
         MatchStarted += OnMatchStarts;
         MatchOver += OnMatchIsOver;

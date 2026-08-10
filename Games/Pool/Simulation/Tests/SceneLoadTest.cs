@@ -19,7 +19,7 @@ public partial class SceneLoadTest : Node
         GD.Print("=== Teste de integração de cena ===");
 
         var ballScene = TestSceneLoads("res://Games/Pool/Components/Balls/Ball.tscn");
-        var tableScene = TestSceneLoads("res://Games/Pool/Components/Tables/Table2.tscn");
+        var tableScene = TestSceneLoads("res://Games/Pool/Components/Tables/PoolTable.tscn");
         if (tableScene != null)
             TestGeometryComesFromScene(tableScene);
         TestSceneLoads("res://Games/Pool/Pool.tscn");
@@ -516,7 +516,7 @@ public partial class SceneLoadTest : Node
 
     // The physics geometry has to track what the artist placed in the table scene, otherwise
     // dragging a pocket in the viewport silently does nothing. This also pins the asymmetry:
-    // Table2's pockets differ by ~2 cm in position and have different radii, which the old
+    // PoolTable's pockets differ by ~2 cm in position and have different radii, which the old
     // symmetric two-number spec could not represent.
     private void TestGeometryComesFromScene(PackedScene tableScene)
     {
@@ -545,7 +545,7 @@ public partial class SceneLoadTest : Node
         Check($"caçapas mantêm raios individuais ({distinctRadii.Count} raios distintos)",
             distinctRadii.Count > 1);
 
-        // The cloth marker remains a rectangle for easy editing, but each real Table2 pocket
+        // The cloth marker remains a rectangle for easy editing, but each real PoolTable pocket
         // must carve its overlapping mouth out of that rectangle. Some asymmetrical markers sit
         // just beyond the cloth edge and need no subtraction; immediately beyond every capture
         // circle the bed must still support a ball.

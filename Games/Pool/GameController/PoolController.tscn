@@ -5,13 +5,17 @@
 [ext_resource type="PackedScene" uid="uid://dr4okuny0mqw0" path="res://Games/Pool/Components/Cue/Cue.tscn" id="2_fuwyn"]
 [ext_resource type="Script" path="res://Games/Pool/Components/Cue/Scripts/CuePowerBar.cs" id="3_pwbar"]
 
-[node name="PoolController" type="Node3D"]
+[node name="PoolController" type="Node3D" node_paths=PackedStringArray("RemoteAim", "AimPivot", "Cue")]
 script = ExtResource("1_xnddr")
+RemoteAim = NodePath("AimPivot/Elevation/RemoteAim")
+AimPivot = NodePath("AimPivot")
+Cue = NodePath("AimPivot/Cue")
 metadata/_custom_type_script = "uid://b4ixi03kyeqyy"
 
-[node name="AimPivot" type="Node3D" parent="."]
+[node name="AimPivot" type="Node3D" parent="." node_paths=PackedStringArray("ElevationNode")]
 transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
 script = ExtResource("1_vuqwp")
+ElevationNode = NodePath("Elevation")
 metadata/_custom_type_script = "uid://ca7so7568ql4e"
 
 [node name="Elevation" type="Node3D" parent="AimPivot"]

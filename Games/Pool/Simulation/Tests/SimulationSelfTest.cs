@@ -137,7 +137,7 @@ public partial class SimulationSelfTest : Node
     //
     // A small upward component is correct, not a defect: with the nose above centre, the ball's
     // surface there is sliding downward against the cushion, so friction pushes it up — real
-    // balls do hop microscopically off a cushion. What the old Table2.tscn rails did was
+    // balls do hop microscopically off a cushion. What the old PoolTable.tscn rails did was
     // different in kind: their inverted tilt put the lift in the NORMAL impulse, adding ~27% of
     // the rebound speed as vertical velocity, so a 5 m/s rebound launched the ball ~9 cm.
     // The bound here is on the resulting hop height, which is what actually matters visually.

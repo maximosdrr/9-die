@@ -23,11 +23,15 @@ size = Vector2(0.88, 0.5)
 [sub_resource type="SphereShape3D" id="SphereShape3D_interact"]
 radius = 3.5
 
-[node name="TV" type="MeshInstance3D" unique_id=2102181627 node_paths=PackedStringArray("InteractionArea", "InteractionPrompt")]
-mesh = SubResource("BoxMesh_tvfrm")
+[node name="TV" type="Node3D" unique_id=2102181627 node_paths=PackedStringArray("ScreenMesh", "AudioPlayer", "InteractionArea", "InteractionPrompt")]
 script = ExtResource("1_tvscr")
+ScreenMesh = NodePath("Screen")
+AudioPlayer = NodePath("Audio")
 InteractionArea = NodePath("InteractionArea")
 InteractionPrompt = NodePath("UI/PoolStartGameUI")
+
+[node name="Frame" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_tvfrm")
 
 [node name="Screen" type="MeshInstance3D" parent="." unique_id=294769674]
 transform = Transform3D(6.841464, 0, 0, 0, 4.5844007, 0, 0, 0, 1, 0, 0, 0.031000137)

@@ -2,7 +2,7 @@ using Godot;
 using System;
 
 [GlobalClass]
-public partial class TvScreenShare : MeshInstance3D
+public partial class TvScreenShare : Node3D
 {
     private const int CaptureWidth = 1280;
     private const int CaptureHeight = 720;
@@ -58,6 +58,9 @@ public partial class TvScreenShare : MeshInstance3D
     [Signal]
     public delegate void SharerChangedEventHandler(int sharerId);
 
+    [ExportGroup("Scene References")]
+    [Export] public MeshInstance3D ScreenMesh;
+    [Export] public AudioStreamPlayer3D AudioPlayer;
     [Export] public Area3D InteractionArea;
     [Export] public PoolStartGameUI InteractionPrompt;
 
@@ -116,11 +119,11 @@ public partial class TvScreenShare : MeshInstance3D
 
     public override void _Ready()
     {
-        _screenMeshInstance = GetNode<MeshInstance3D>("Screen");
+        _screenMeshInstance = ScreenMesh;
         _screenMaterial = (StandardMaterial3D)_screenMeshInstance.MaterialOverride;
         _screenMaterial.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic;
 
-        _audioPlayer = GetNode<AudioStreamPlayer3D>("Audio");
+        _audioPlayer = AudioPlayer;
         var generator = new AudioStreamGenerator
         {
             MixRate = AudioMixRate,

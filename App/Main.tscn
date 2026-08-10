@@ -9,7 +9,7 @@
 [node name="Main" type="Node3D" unique_id=2100886553 node_paths=PackedStringArray("Camera", "LevelManager", "Level")]
 script = ExtResource("4_main")
 Camera = NodePath("GlobalCamera")
-LevelManager = NodePath("Prototype/Multiplayer/Scripts/LevelMultiplayerManager")
+LevelManager = NodePath("Prototype/Multiplayer/LevelMultiplayerManager")
 Level = NodePath("Prototype")
 RuntimeResources = ExtResource("5_runtime_resources")
 

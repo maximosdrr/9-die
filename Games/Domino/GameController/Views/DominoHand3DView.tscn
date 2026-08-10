@@ -60,28 +60,28 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("9_cross")
 
-[node name="StateMachine" type="Node3D" parent="."]
+[node name="StateMachine" type="Node" parent="."]
 script = ExtResource("3_smach")
 InitialState = "DOMINO_HAND_IDLE"
 CheckForMultiplayerAuthorityOnStateHandleInput = true
 
-[node name="Idle" type="Node3D" parent="StateMachine"]
+[node name="Idle" type="Node" parent="StateMachine"]
 script = ExtResource("4_sidle")
 ClipName = "HandIdle"
 
-[node name="Looking" type="Node3D" parent="StateMachine"]
+[node name="Looking" type="Node" parent="StateMachine"]
 script = ExtResource("5_slook")
 ClipName = "HandLook"
 
-[node name="Aiming" type="Node3D" parent="StateMachine"]
+[node name="Aiming" type="Node" parent="StateMachine"]
 script = ExtResource("6_saim")
 ClipName = "HandPrepare"
 
-[node name="Drawing" type="Node3D" parent="StateMachine"]
+[node name="Drawing" type="Node" parent="StateMachine"]
 script = ExtResource("7_sdraw")
 ClipName = "HandPrepare"
 
-[node name="Placing" type="Node3D" parent="StateMachine"]
+[node name="Placing" type="Node" parent="StateMachine"]
 script = ExtResource("8_splace")
 ClipName = "HandPlace"
 Duration = 0.35

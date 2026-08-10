@@ -84,6 +84,7 @@ public partial class PoolSimulationRunner : Node
     public override void _Ready()
     {
         UseGeometry(null);
+        SetProcess(false);
     }
 
     /// <summary>
@@ -123,6 +124,7 @@ public partial class PoolSimulationRunner : Node
 
     private void Register(Ball ball)
     {
+        ball.PhysicsInterpolationMode = PhysicsInterpolationModeEnum.Off;
         _balls.Add(ball);
         _ballsById[ball.Index] = ball;
     }
@@ -172,6 +174,7 @@ public partial class PoolSimulationRunner : Node
         _events = result.Events;
         _playbackTime = 0.0;
         _nextEventIndex = 0;
+        SetProcess(true);
     }
 
     public override void _Process(double delta)
@@ -189,6 +192,9 @@ public partial class PoolSimulationRunner : Node
 
         if (_playbackTime >= _playback.Duration)
             FinishPlayback();
+
+        if (_playback == null && _drops.Count == 0)
+            SetProcess(false);
     }
 
     private void FireDueEvents()
@@ -259,6 +265,7 @@ public partial class PoolSimulationRunner : Node
             VerticalSpeed = 0.0f,
             StartHeight = ball.Position.Y,
         });
+        SetProcess(true);
     }
 
     private void UpdateDrops(double delta)
@@ -346,6 +353,8 @@ public partial class PoolSimulationRunner : Node
         }
 
         EmitSignal(SignalName.ShotFinished);
+        if (_drops.Count == 0)
+            SetProcess(false);
     }
 
     /// <summary>Stops presentation without emitting ShotFinished when the match is already over.</summary>
@@ -362,6 +371,7 @@ public partial class PoolSimulationRunner : Node
             StopPresentationForBall(ball);
 
         _drops.Clear();
+        SetProcess(false);
     }
 
     /// <summary>
