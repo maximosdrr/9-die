@@ -90,6 +90,36 @@ public partial class PokerSeatPresenter : Node3D
     /// <summary>Elapsed portion of the face-up reading beat before ranking begins.</summary>
     public float ShowdownRevealHoldElapsed => _showdownPresenter?.RevealHoldElapsed ?? 0.0f;
 
+    /// <summary>Exposed pairs currently travelling from a local or estimated remote hand pose.</summary>
+    public int RevealedHandsInMotion
+    {
+        get
+        {
+            var count = 0;
+            foreach (var hand in _holeCards.Values)
+            {
+                if (hand.Revealed && hand.Returning)
+                    count++;
+            }
+            return count;
+        }
+    }
+
+    public int RemoteRevealedHandsInMotion
+    {
+        get
+        {
+            var localId = _game?.Player == null ? null : (string)_game.Player.Name;
+            var count = 0;
+            foreach (var entry in _holeCards)
+            {
+                if (entry.Key != localId && entry.Value.Revealed && entry.Value.Returning)
+                    count++;
+            }
+            return count;
+        }
+    }
+
     /// <summary>Players in the same best-to-worst order currently shown on the cloth.</summary>
     public IReadOnlyList<string> ShowdownDisplayOrder =>
         _showdownPresenter?.DisplayOrder ?? System.Array.Empty<string>();

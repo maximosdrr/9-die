@@ -22,11 +22,15 @@ public partial class PokerPresentationProfile : Resource
     [ExportGroup("Payout")]
     [Export] public float ChipPayoutSeconds { get; set; } = 0.82f;
     [Export] public float ChipPayoutStagger { get; set; } = 0.045f;
+    [Export] public float WinnerLooseHoldSeconds { get; set; } = 0.24f;
+    [Export] public float WinnerOrganizeSeconds { get; set; } = 0.58f;
+    [Export] public float WinnerOrganizeStagger { get; set; } = 0.025f;
     [Export] public float DealerChangeSeconds { get; set; } = 1.15f;
     [Export] public float DealerPayoutSeconds { get; set; } = 1.15f;
     [Export] public float DealerChangeStagger { get; set; } = 0.020f;
 
     [ExportGroup("Showdown")]
+    [Export] public float ShowdownRevealMotionSeconds { get; set; } = 0.68f;
     [Export] public float ShowdownRevealHoldSeconds { get; set; } = 2.5f;
     [Export] public float ShowdownCardSeconds { get; set; } = 0.72f;
     [Export] public float ShowdownRowStagger { get; set; } = 0.12f;
@@ -60,6 +64,9 @@ public partial class PokerPresentationProfile : Resource
               + ChipOrganizeSeconds;
         var payout = groups == 0 ? 0.0f
             : ChipPayoutSeconds + Mathf.Max(0, groups - 1) * ChipPayoutStagger
+              + WinnerOrganizeSeconds
+              + WinnerLooseHoldSeconds
+              + Mathf.Max(0, groups - 1) * WinnerOrganizeStagger
               + Mathf.Max(0, winnerCount - 1) * ShowdownRowStagger;
         if (winnerCount > 1 && groups > 0)
             payout += DealerChangeSeconds + Mathf.Max(0, groups - 1) * DealerChangeStagger
@@ -71,7 +78,8 @@ public partial class PokerPresentationProfile : Resource
         var ranking = ShowdownCardSeconds
             + Mathf.Max(0, revealedPlayers - 1) * ShowdownRowStagger
             + 4 * ShowdownCardStagger;
-        return finalBet + collection + ShowdownRevealHoldSeconds + ranking
+        return finalBet + collection + ShowdownRevealMotionSeconds
+            + ShowdownRevealHoldSeconds + ranking
             + RankedHandsReadingSeconds + payout + TransitionSafetySeconds;
     }
 }

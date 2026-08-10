@@ -21,6 +21,8 @@ public partial class PokerVisualCheck : Node3D
     private int _frames;
     private bool _shot;
     private bool _captureRevealHold;
+    private bool _captureRevealMotion;
+    private bool _capturePayoutLoose;
 
     public override void _Ready()
     {
@@ -49,8 +51,16 @@ public partial class PokerVisualCheck : Node3D
         _game.BoardPresenter.FlipSeconds = 0.28f;
         _game.SeatPresenter.ShowdownCardSeconds = 0.48f;
         _captureRevealHold = OS.GetEnvironment("POKER_CAPTURE_REVEAL") == "1";
+        _captureRevealMotion = OS.GetEnvironment("POKER_CAPTURE_REVEAL_MOTION") == "1";
+        _capturePayoutLoose = OS.GetEnvironment("POKER_CAPTURE_PAYOUT_LOOSE") == "1";
         if (_captureRevealHold)
             _game.SeatPresenter.ShowdownRevealHoldSeconds = 3600.0f;
+        if (_capturePayoutLoose)
+        {
+            _game.SeatPresenter.ShowdownRevealHoldSeconds = 0.01f;
+            _game.SeatPresenter.PresentationProfile.RankedHandsReadingSeconds = 0.01f;
+            _game.SeatPresenter.PresentationProfile.WinnerLooseHoldSeconds = 3600.0f;
+        }
 
         var order = new Array { "1", "2" };
         _game.TurnOrder = order;
@@ -85,13 +95,35 @@ public partial class PokerVisualCheck : Node3D
 
         // Advance the local presentation deterministically. The harness submits all actions in one
         // method call, whereas a real table naturally gets many rendered frames between them.
-        for (var frame = 0; frame < 1200
-             && (_captureRevealHold
-                 ? _game.SeatPresenter.ShowdownRevealHoldElapsed <= 0.0f
-                 : !_game.SeatPresenter.ShowdownPresentationSettled); frame++)
+        var revealMotionFrames = 0;
+        for (var frame = 0; frame < 2400; frame++)
         {
             _game.SeatPresenter._Process(1.0 / 60.0);
             _game.BoardPresenter._Process(1.0 / 60.0);
+
+            if (_captureRevealMotion)
+            {
+                if (_game.SeatPresenter.RemoteRevealedHandsInMotion > 0)
+                    revealMotionFrames++;
+                if (revealMotionFrames >= 12)
+                    break;
+                continue;
+            }
+            if (_capturePayoutLoose)
+            {
+                if (_game.SeatPresenter.PayoutHasLooseDelivery
+                    && !_game.SeatPresenter.WinnerOrganizationInProgress)
+                    break;
+                continue;
+            }
+            if (_captureRevealHold)
+            {
+                if (_game.SeatPresenter.ShowdownRevealHoldElapsed > 0.0f)
+                    break;
+                continue;
+            }
+            if (_game.SeatPresenter.ShowdownPresentationSettled)
+                break;
         }
 
         BuildCamera();

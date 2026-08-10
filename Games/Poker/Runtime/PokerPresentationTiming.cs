@@ -16,8 +16,12 @@ public static class PokerPresentationTiming
     public static float ChipCollectStagger => Defaults.ChipCollectStagger;
     public static float ChipPayoutSeconds => Defaults.ChipPayoutSeconds;
     public static float ChipPayoutStagger => Defaults.ChipPayoutStagger;
+    public static float WinnerLooseHoldSeconds => Defaults.WinnerLooseHoldSeconds;
+    public static float WinnerOrganizeSeconds => Defaults.WinnerOrganizeSeconds;
+    public static float WinnerOrganizeStagger => Defaults.WinnerOrganizeStagger;
     public static float DealerChangeSeconds => Defaults.DealerChangeSeconds;
     public static float DealerPayoutSeconds => Defaults.DealerPayoutSeconds;
+    public static float ShowdownRevealMotionSeconds => Defaults.ShowdownRevealMotionSeconds;
     public static float ShowdownRevealHoldSeconds => Defaults.ShowdownRevealHoldSeconds;
     public static float ShowdownCardSeconds => Defaults.ShowdownCardSeconds;
     public static float ShowdownRowStagger => Defaults.ShowdownRowStagger;

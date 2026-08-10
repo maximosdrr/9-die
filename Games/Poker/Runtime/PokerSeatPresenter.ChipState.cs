@@ -98,7 +98,8 @@ public partial class PokerSeatPresenter : Node3D
         LastRecoveryDiscardedAnimation = _presentationHand >= 0
             && (_pendingChipActions.Count > 0 || _collecting || _organizing || _collectionRequested
                 || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
-                    ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner)
+                    ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
+                    ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
                 || ((_showdownPresenter?.Active ?? false) && !(_showdownPresenter?.ReadyForPayout ?? true)));
         _showdownPresenter?.Reset();
         _presentationHand = _game.HandNumber;
@@ -157,7 +158,8 @@ public partial class PokerSeatPresenter : Node3D
         && !_organizing
         && !_collectionRequested
         && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
-            ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner)
+            ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
+            ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
         && _visibleStreet >= _requestedStreet
         && (BoardPresenter?.Settled ?? true);
 
@@ -240,6 +242,11 @@ public partial class PokerSeatPresenter : Node3D
     public bool PayoutCompleted => _payoutSequencer?.Completed ?? false;
     public bool DealerChangeInProgress => _payoutSequencer?.DealerChangeInProgress ?? false;
     public bool DealerChangeCompleted => _payoutSequencer?.DealerChangeCompleted ?? false;
+    public bool WinnerOrganizationInProgress =>
+        _payoutSequencer?.WinnerOrganizationInProgress ?? false;
+    public bool PayoutHasLooseDelivery => _chipAnimator.Batches.Any(batch =>
+        batch.Phase == ChipBatchPhase.AtWinnerLoose
+        || (batch.Phase == ChipBatchPhase.OrganizingWinner && batch.StartSpread > 0.95f));
     public int ChipsDeliveredToWinners => _chipAnimator.Batches.Count(batch =>
         batch.Phase == ChipBatchPhase.AtWinner);
     public int PayoutRecipientCount => _chipAnimator.Batches
@@ -308,7 +315,8 @@ public partial class PokerSeatPresenter : Node3D
             AddChild(_payoutSequencer);
         }
         _payoutSequencer.Configure(_chipAnimator, Profile, MaxAnimatedChipGroups,
-            AcquireBatch, NextChipSequence, TryPayoutSeatPlaces, WinnerStackOffset);
+            AcquireBatch, NextChipSequence, TryPayoutSeatPlaces, WinnerStackOffset,
+            WinnerLooseLandingInset);
         SignalUtil.ConnectGuarded(_payoutSequencer,
             PokerPayoutSequencer.SignalName.DealerChangeStarted,
             new Callable(this, MethodName.OnDealerChangeStarted));

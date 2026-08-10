@@ -228,7 +228,7 @@ public partial class PokerSeatPresenter : Node3D
         {
             var phaseBefore = batch.Phase;
             moved |= _chipAnimator.Advance(batch, delta);
-            if (phaseBefore == ChipBatchPhase.ToWinner
+            if (phaseBefore == ChipBatchPhase.OrganizingWinner
                 && batch.Phase == ChipBatchPhase.AtWinner)
             {
                 _displayStacks[batch.WinnerId] = Mathf.Min(_game.StackOf(batch.WinnerId),
@@ -237,7 +237,7 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         var payoutWasCompleted = _payoutSequencer?.Completed ?? false;
-        moved |= _payoutSequencer?.Advance() ?? false;
+        moved |= _payoutSequencer?.Advance(delta) ?? false;
 
         var visibleActionPending = _pendingChipActions.TryPeek(out var queued)
             && queued.Street <= _visibleStreet;
@@ -336,7 +336,9 @@ public partial class PokerSeatPresenter : Node3D
             || !_game.HandSettled || !_settlementCollected
             || _collecting || _organizing || _collectionRequested
             || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
-                ChipBatchPhase.ToPot, ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer))
+                ChipBatchPhase.ToPot, ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer,
+                ChipBatchPhase.ToWinner, ChipBatchPhase.AtWinnerLoose,
+                ChipBatchPhase.OrganizingWinner))
             return false;
 
         // In an uncontested hand there is no comparison to wait for. At a showdown, however, the

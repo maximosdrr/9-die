@@ -25,15 +25,18 @@ public partial class PokerPayoutSequencer : Node
     private PokerPayoutPlanner.Plan _plan;
     private int _maximumGroups;
     private Vector3 _dealerPoint;
+    private float _winnerLooseInset;
+    private float _winnerLooseElapsed;
 
     public bool Started { get; private set; }
     public bool Completed { get; private set; }
     public bool DealerChangeInProgress { get; private set; }
     public bool DealerChangeCompleted { get; private set; }
+    public bool WinnerOrganizationInProgress { get; private set; }
 
     public void Configure(PokerChipAnimator animator, PokerPresentationProfile profile,
         int maximumGroups, Func<ChipBatch> acquire, Func<int> nextSequence,
-        SeatPlaces seatPlaces, WinnerOffset winnerOffset)
+        SeatPlaces seatPlaces, WinnerOffset winnerOffset, float winnerLooseInset)
     {
         _animator = animator;
         _profile = profile ?? new PokerPresentationProfile();
@@ -42,6 +45,7 @@ public partial class PokerPayoutSequencer : Node
         _nextSequence = nextSequence;
         _seatPlaces = seatPlaces;
         _winnerOffset = winnerOffset;
+        _winnerLooseInset = Mathf.Max(0.0f, winnerLooseInset);
     }
 
     public void Reset(bool authoritativeSettled = false)
@@ -50,6 +54,8 @@ public partial class PokerPayoutSequencer : Node
         Completed = authoritativeSettled;
         DealerChangeInProgress = false;
         DealerChangeCompleted = false;
+        WinnerOrganizationInProgress = false;
+        _winnerLooseElapsed = 0.0f;
         _plan = null;
     }
 
@@ -73,7 +79,7 @@ public partial class PokerPayoutSequencer : Node
     }
 
     /// <summary>Called after the chip animator advanced all actors for this frame.</summary>
-    public bool Advance()
+    public bool Advance(float delta)
     {
         if (!Started || Completed)
             return false;
@@ -82,13 +88,28 @@ public partial class PokerPayoutSequencer : Node
             CompleteDealerChange();
             return true;
         }
-        if (!DealerChangeInProgress && !_animator.HasPhase(ChipPhase.ToWinner))
+        if (DealerChangeInProgress)
+            return false;
+        if (_animator.HasPhase(ChipPhase.ToWinner))
         {
-            Completed = true;
-            EmitSignal(SignalName.PayoutFinished);
+            _winnerLooseElapsed = 0.0f;
+            return false;
+        }
+        if (!WinnerOrganizationInProgress && _animator.HasPhase(ChipPhase.AtWinnerLoose))
+        {
+            _winnerLooseElapsed += Mathf.Max(0.0f, delta);
+            if (_winnerLooseElapsed < Mathf.Max(0.0f, _profile.WinnerLooseHoldSeconds))
+                return true;
+            BeginWinnerOrganization();
             return true;
         }
-        return false;
+        if (WinnerOrganizationInProgress && _animator.HasPhase(ChipPhase.OrganizingWinner))
+            return false;
+
+        WinnerOrganizationInProgress = false;
+        Completed = true;
+        EmitSignal(SignalName.PayoutFinished);
+        return true;
     }
 
     private void BeginDealerChange(IReadOnlyList<ChipBatch> pot)
@@ -104,6 +125,7 @@ public partial class PokerPayoutSequencer : Node
             batch.To = _dealerPoint + DealerOffset(i);
             batch.FromBasis = batch.Pile.Basis;
             batch.ToBasis = Basis.Identity;
+            batch.StartSpread = batch.Pile.Spread;
             batch.Progress = 0.0f;
             batch.Delay = i * _profile.DealerChangeStagger;
             batch.JustStarted = true;
@@ -162,6 +184,8 @@ public partial class PokerPayoutSequencer : Node
     private void StartPayout(IReadOnlyList<ChipBatch> batches, IReadOnlyList<string> recipients)
     {
         var arrivals = new Dictionary<(string Player, int Denomination), int>();
+        var looseArrivals = new Dictionary<string, int>();
+        _winnerLooseElapsed = 0.0f;
         var order = 0;
         for (var i = 0; i < batches.Count && i < recipients.Count; i++)
         {
@@ -173,18 +197,42 @@ public partial class PokerPayoutSequencer : Node
             var key = (winner, denomination);
             var arrival = arrivals.GetValueOrDefault(key);
             arrivals[key] = arrival + batch.Pile.ChipCount;
+            var looseArrival = looseArrivals.GetValueOrDefault(winner);
+            looseArrivals[winner] = looseArrival + batch.Pile.ChipCount;
             batch.WinnerId = winner;
             batch.From = batch.Pile.Position;
-            batch.To = stack + basis * (_winnerOffset?.Invoke(
+            batch.OrganizeTo = stack + basis * (_winnerOffset?.Invoke(
                 winner, denomination, arrival, batch.Pile) ?? Vector3.Zero);
+            batch.To = stack + basis * new Vector3(0.0f, 0.0f, -_winnerLooseInset);
             batch.FromBasis = batch.Pile.Basis;
             batch.ToBasis = basis;
+            batch.StartSpread = batch.Pile.Spread;
             batch.Progress = 0.0f;
             batch.Delay = order++ * _profile.ChipPayoutStagger;
             batch.JustStarted = true;
             batch.Phase = ChipPhase.ToWinner;
             batch.Pile.FlightProgress = 0.0f;
-            batch.Pile.Spread = 0.0f;
+            // At Spread=0 changing loose slots is invisible. When the throw opens the group, every
+            // batch occupies a disjoint portion of one shared lattice around the winning seat.
+            batch.Pile.LooseSlotOffset = looseArrival;
+        }
+    }
+
+    private void BeginWinnerOrganization()
+    {
+        WinnerOrganizationInProgress = true;
+        var order = 0;
+        foreach (var batch in _animator.Batches
+                     .Where(candidate => candidate.Phase == ChipPhase.AtWinnerLoose)
+                     .OrderBy(candidate => candidate.Sequence))
+        {
+            batch.OrganizeFrom = batch.Pile.Position;
+            batch.FromBasis = batch.Pile.Basis;
+            batch.StartSpread = batch.Pile.Spread;
+            batch.Progress = 0.0f;
+            batch.Duration = _profile.WinnerOrganizeSeconds;
+            batch.Delay = order++ * _profile.WinnerOrganizeStagger;
+            batch.Phase = ChipPhase.OrganizingWinner;
         }
     }
 

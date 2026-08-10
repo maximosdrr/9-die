@@ -27,6 +27,8 @@ public partial class PokerChipAnimator : Node3D
         ToDealer,
         AtDealer,
         ToWinner,
+        AtWinnerLoose,
+        OrganizingWinner,
         AtWinner,
     }
 
@@ -127,6 +129,9 @@ public partial class PokerChipAnimator : Node3D
         batch.Basis = Basis.Identity;
         batch.FromBasis = Basis.Identity;
         batch.ToBasis = Basis.Identity;
+        batch.StartSpread = 0.0f;
+        batch.OrganizeFrom = Vector3.Zero;
+        batch.OrganizeTo = Vector3.Zero;
         batch.Pile.FlightProgress = 1.0f;
         batch.Pile.Spread = 0.0f;
         batch.Pile.LooseSlotOffset = 0;
@@ -199,11 +204,16 @@ public partial class PokerChipAnimator : Node3D
                 AdvanceOrganization(batch, delta);
                 return true;
             case Phase.ToDealer:
-                AdvanceTransfer(batch, delta, Phase.AtDealer, 0.035f, _dealerChangeSeconds);
+                AdvanceTransfer(batch, delta, Phase.AtDealer, 0.035f,
+                    _dealerChangeSeconds, targetSpread: 0.0f);
                 return true;
             case Phase.ToWinner:
-                AdvanceTransfer(batch, delta, Phase.AtWinner, 0.055f,
-                    batch.Duration > 0.0f ? batch.Duration : _payoutSeconds);
+                AdvanceTransfer(batch, delta, Phase.AtWinnerLoose, 0.055f,
+                    batch.Duration > 0.0f ? batch.Duration : _payoutSeconds,
+                    targetSpread: 1.0f);
+                return true;
+            case Phase.OrganizingWinner:
+                AdvanceWinnerOrganization(batch, delta);
                 return true;
             default:
                 return false;
@@ -384,7 +394,8 @@ public partial class PokerChipAnimator : Node3D
     }
 
     private void AdvanceTransfer(
-        Batch batch, float delta, Phase completedPhase, float arc, float duration)
+        Batch batch, float delta, Phase completedPhase, float arc, float duration,
+        float targetSpread)
     {
         if (batch.JustStarted)
         {
@@ -407,13 +418,44 @@ public partial class PokerChipAnimator : Node3D
             new Transform3D(batch.ToBasis, Vector3.Zero), t).Basis;
         batch.Pile.Transform = new Transform3D(basis, position);
         batch.Pile.FlightProgress = batch.Progress;
+        batch.Pile.Spread = Mathf.Lerp(batch.StartSpread, targetSpread, t);
         if (batch.Progress < 1.0f)
             return;
 
         batch.Pile.Transform = new Transform3D(batch.ToBasis, batch.To);
         batch.Pile.FlightProgress = 1.0f;
+        batch.Pile.Spread = targetSpread;
         batch.Phase = completedPhase;
         EmitLanding(batch);
+    }
+
+    /// <summary>
+    /// Gathers a winner's loose delivery into denomination columns. This is a second physical phase,
+    /// not a redraw of the bank, so every chip that crossed the cloth remains the same node.
+    /// </summary>
+    private void AdvanceWinnerOrganization(Batch batch, float delta)
+    {
+        if (batch.Delay > 0.0f)
+        {
+            batch.Delay = Mathf.Max(0.0f, batch.Delay - delta);
+            return;
+        }
+
+        batch.Progress = Mathf.Min(1.0f,
+            batch.Progress + delta / Mathf.Max(batch.Duration, 0.01f));
+        var t = PokerMotion.Smooth(batch.Progress);
+        var basis = new Transform3D(batch.FromBasis, Vector3.Zero).InterpolateWith(
+            new Transform3D(batch.ToBasis, Vector3.Zero), t).Basis;
+        batch.Pile.Transform = new Transform3D(
+            basis, batch.OrganizeFrom.Lerp(batch.OrganizeTo, t));
+        batch.Pile.Spread = Mathf.Lerp(batch.StartSpread, 0.0f, t);
+        batch.Pile.FlightProgress = 1.0f;
+        if (batch.Progress < 1.0f)
+            return;
+
+        batch.Pile.Transform = new Transform3D(batch.ToBasis, batch.OrganizeTo);
+        batch.Pile.Spread = 0.0f;
+        batch.Phase = Phase.AtWinner;
     }
 
     private void EmitLanding(Batch batch)

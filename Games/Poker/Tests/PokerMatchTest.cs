@@ -442,11 +442,15 @@ public partial class PokerMatchTest : Node
         }
 
         var revealSafety = 0;
+        var sawRemoteRevealMotion = false;
         while (presenter.ShowdownRevealHoldElapsed <= 0.0f && revealSafety++ < 300)
         {
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
+            sawRemoteRevealMotion |= presenter.RemoteRevealedHandsInMotion > 0;
         }
+        Check("a mão remota viaja das mãos estimadas até a mesa no showdown",
+            sawRemoteRevealMotion);
         Check("as mãos reveladas permanecem na mesa antes do ranking",
             presenter.ShowdownRevealHoldElapsed > 0.0f
             && presenter.ShowdownDisplayedCardCount == 0);
@@ -525,10 +529,14 @@ public partial class PokerMatchTest : Node
             presenter.PotDenominationColumnCount >= 2);
         var payoutPrevious = presenter.ActiveChipVisualPositions();
         var payoutMaximumStep = 0.0f;
+        var sawLoosePayout = false;
+        var sawWinnerOrganization = false;
         for (var frame = 0; frame < 900 && !presenter.PayoutCompleted; frame++)
         {
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
+            sawLoosePayout |= presenter.PayoutHasLooseDelivery;
+            sawWinnerOrganization |= presenter.WinnerOrganizationInProgress;
             var current = presenter.ActiveChipVisualPositions();
             foreach (var entry in current)
             {
@@ -544,6 +552,9 @@ public partial class PokerMatchTest : Node
             && presenter.ChipsDeliveredToWinners > 0);
         Check("todo jogador premiado recebe fichas visíveis",
             presenter.PayoutRecipientCount == game.Winners.Count);
+        Check("as fichas chegam soltas antes de serem empilhadas", sawLoosePayout);
+        Check("a pilha dos vencedores só se forma depois da entrega",
+            sawWinnerOrganization);
         Check("o pote percorre o ponto do dealer quando precisa de troco",
             forcedAwards.Count != 2 || presenter.DealerChangeCompleted);
         var splitPlan = PokerPayoutPlanner.Create(

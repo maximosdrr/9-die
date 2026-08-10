@@ -62,10 +62,17 @@ public partial class PokerSeatPresenter : Node3D
         {
             var wasHeldLocally = hand.InFirstPerson;
             ReleaseCardsFromGrip(hand);
-            // A showdown puts them back on the cloth, face up and already in place.
+            // Both local and remote pairs travel back to the cloth. Until a third-person rig exposes
+            // a real card-release marker, remote cards start at a stable estimate in front of that
+            // player's hands. Snapping them straight to the table made every opponent reveal flick.
+            if (!wasHeldLocally)
+            {
+                for (var i = 0; i < hand.Cards.Length; i++)
+                    hand.ReleasedFrom[i] = EstimatedHeldCardTransform(facing, i, spec);
+            }
             hand.Revealed = true;
-            hand.Returning = wasHeldLocally;
-            hand.Returned = wasHeldLocally ? 0.0f : 1.0f;
+            hand.Returning = true;
+            hand.Returned = 0.0f;
             for (var i = 0; i < hand.Cards.Length; i++)
             {
                 hand.Dealt[i] = 1.0f;
@@ -288,6 +295,24 @@ public partial class PokerSeatPresenter : Node3D
         return new Transform3D(
             new Basis(Vector3.Up, yaw) * PokerCard.Orientation(false),
             new Vector3(place.X, height, place.Y));
+    }
+
+    /// <summary>
+    /// Temporary third-person release pose. It is deliberately isolated here so a future hand rig
+    /// only has to supply this transform; none of the reveal timing or networking has to change.
+    /// </summary>
+    private Transform3D EstimatedHeldCardTransform(
+        Vector2 facing, int index, PokerLayoutSpec spec)
+    {
+        var direction = facing.Normalized();
+        var across = new Vector2(-direction.Y, direction.X);
+        var held = direction * (spec.SeatCardRadius - 0.05f)
+            + across * (index == 0 ? -0.028f : 0.028f);
+        var yaw = PokerTableLayout.YawTowardCentre(direction)
+            + Mathf.DegToRad(index == 0 ? -5.0f : 5.0f);
+        return new Transform3D(
+            new Basis(Vector3.Up, yaw) * PokerCard.Orientation(true),
+            new Vector3(held.X, HandHeight + index * 0.004f, held.Y));
     }
 
     /// <summary>

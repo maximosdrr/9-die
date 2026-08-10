@@ -129,6 +129,8 @@ public partial class PokerSeatPresenter : Node3D
     public float ChipCollectStagger { get => Profile.ChipCollectStagger; set => Profile.ChipCollectStagger = value; }
     public float ChipPayoutSeconds { get => Profile.ChipPayoutSeconds; set => Profile.ChipPayoutSeconds = value; }
     public float ChipPayoutStagger { get => Profile.ChipPayoutStagger; set => Profile.ChipPayoutStagger = value; }
+    /// <summary>How far inward from the bank payout chips land loose before being stacked.</summary>
+    [Export] public float WinnerLooseLandingInset = 0.060f;
     [Export] public float PotColumnSpacing = 0.050f;
     /// <summary>
     /// Maximum ordinary number of independently moving chip groups. Above this, chips of the same
@@ -139,6 +141,8 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public int PrewarmedChipsPerBatch = 1;
 
     [ExportGroup("Showdown comparison")]
+    /// <summary>Time for an exposed pair to travel from the player's hands to the cloth.</summary>
+    public float ShowdownRevealMotionSeconds { get => Profile.ShowdownRevealMotionSeconds; set => Profile.ShowdownRevealMotionSeconds = value; }
     /// <summary>Time left for everyone to read the exposed hole cards before ranking rearranges them.</summary>
     public float ShowdownRevealHoldSeconds { get => Profile.ShowdownRevealHoldSeconds; set => Profile.ShowdownRevealHoldSeconds = value; }
     /// <summary>Centre-to-centre distance between the two cards exposed in front of their owner.</summary>
@@ -306,7 +310,7 @@ public partial class PokerSeatPresenter : Node3D
             if (hand.Returning && hand.Returned < 1.0f)
             {
                 hand.Returned = Mathf.Min(1.0f,
-                    hand.Returned + (float)delta / Mathf.Max(MuckSeconds, 0.01f));
+                    hand.Returned + (float)delta / Mathf.Max(ShowdownRevealMotionSeconds, 0.01f));
                 moved = true;
                 if (hand.Returned >= 1.0f)
                     hand.Returning = false;
