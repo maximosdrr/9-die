@@ -37,9 +37,18 @@ public partial class PokerPresentationProfile : Resource
     [Export] public float ShowdownCardStagger { get; set; } = 0.035f;
     [Export] public float RankedHandsReadingSeconds { get; set; } = 8.0f;
 
+    [ExportGroup("Next hand")]
+    [Export] public float CardReturnSeconds { get; set; } = 0.72f;
+    [Export] public float CardReturnStagger { get; set; } = 0.035f;
+    [Export] public float DeckShuffleSeconds { get; set; } = 0.70f;
+
     [ExportGroup("Limits")]
     [Export] public float TransitionSafetySeconds { get; set; } = 0.35f;
     [Export] public int MaxAnimatedChipGroups { get; set; } = 80;
+
+    public float CardCleanupDuration => Mathf.Max(0.0f, CardReturnSeconds)
+        + 12 * Mathf.Max(0.0f, CardReturnStagger)
+        + Mathf.Max(0.0f, DeckShuffleSeconds);
 
     public int EstimateChipGroups(IEnumerable<int> contributions, int maximum = -1)
     {
@@ -73,13 +82,13 @@ public partial class PokerPresentationProfile : Resource
                 + Mathf.Max(0.0f, DealerPayoutSeconds - ChipPayoutSeconds);
 
         if (!showdown)
-            return finalBet + collection + payout + TransitionSafetySeconds;
+            return finalBet + collection + payout + CardCleanupDuration + TransitionSafetySeconds;
 
         var ranking = ShowdownCardSeconds
             + Mathf.Max(0, revealedPlayers - 1) * ShowdownRowStagger
             + 4 * ShowdownCardStagger;
         return finalBet + collection + ShowdownRevealMotionSeconds
             + ShowdownRevealHoldSeconds + ranking
-            + RankedHandsReadingSeconds + payout + TransitionSafetySeconds;
+            + RankedHandsReadingSeconds + payout + CardCleanupDuration + TransitionSafetySeconds;
     }
 }

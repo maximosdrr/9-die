@@ -30,6 +30,7 @@ public partial class PokerHud : CanvasLayer
 
     /// <summary>Rows are built once and reused; rebuilding them per refresh would flicker.</summary>
     private readonly Dictionary<PokerActionKind, ActionRow> _rows = new();
+    private ActionRow _showdownRow;
 
     private PokerGame _game;
     private Player _player;
@@ -87,6 +88,7 @@ public partial class PokerHud : CanvasLayer
 
         var playerId = (string)_player.Name;
         var inMatch = _game.IsMatchActive;
+        var showdownWaiting = _game.ShowdownWaiting;
 
         SetPanelVisible(inMatch);
         if (!inMatch)
@@ -95,20 +97,23 @@ public partial class PokerHud : CanvasLayer
         // Nothing may be decided until the opening look has run. It plays itself, so the panel
         // reports what is happening rather than instructing — and it lists no action, because one
         // offered now would only be refused.
-        var waitingForPickUp = _game.HandNumber > 0 && !pickedUpCards && !_game.HandSettled;
+        var waitingForPickUp = !showdownWaiting && _game.HandNumber > 0
+            && !pickedUpCards && !_game.HandSettled;
 
         if (TurnLabel != null)
         {
-            TurnLabel.Text = waitingForPickUp
+            TurnLabel.Text = showdownWaiting
+                ? "SHOWDOWN"
+                : waitingForPickUp
                 ? "OLHANDO AS CARTAS…"
                 : isYourTurn ? "SUA VEZ" : "Aguardando…";
 
-            TurnLabel.ThemeTypeVariation = isYourTurn || waitingForPickUp
+            TurnLabel.ThemeTypeVariation = isYourTurn || waitingForPickUp || _game.LocalMustReveal
                 ? "YourTurnLabel"
                 : "HudLabelSmall";
         }
 
-        if (waitingForPickUp)
+        if (waitingForPickUp || showdownWaiting)
             isYourTurn = false;
 
         if (StakesLabel != null)
@@ -119,7 +124,7 @@ public partial class PokerHud : CanvasLayer
 
         // Between hands the actions are gone and what matters is what just happened, so the panel
         // says that instead of sitting empty.
-        var result = DescribeResult();
+        var result = showdownWaiting ? DescribeShowdownPrompt() : DescribeResult();
         if (ResultLabel != null)
         {
             ResultLabel.Visible = result.Length > 0;
@@ -156,6 +161,16 @@ public partial class PokerHud : CanvasLayer
                 allInRow.Key.Text = PokerInput.AllInKey;
             }
         }
+
+        if (_showdownRow != null)
+        {
+            _showdownRow.Box.Visible = _game.LocalMustReveal;
+            if (_showdownRow.Box.Visible)
+            {
+                _showdownRow.Text.Text = "Mostrar cartas";
+                _showdownRow.Key.Text = PokerInput.ShowdownRevealKey;
+            }
+        }
     }
 
     // ---------------------------------------------------------------- building
@@ -171,6 +186,7 @@ public partial class PokerHud : CanvasLayer
         // All-in has no PokerActionKind of its own — it is a raise for everything — so it is keyed
         // under None, which is the enum's "no decision" slot and cannot collide with a real action.
         _rows[PokerActionKind.None] = AddRow();
+        _showdownRow = AddRow();
     }
 
     private ActionRow AddRow()
@@ -245,6 +261,21 @@ public partial class PokerHud : CanvasLayer
         }
 
         return headline;
+    }
+
+    private string DescribeShowdownPrompt()
+    {
+        var countdown = _game.ShowdownCountdown;
+        if (_game.LocalMustReveal)
+        {
+            return countdown < 0
+                ? "Mostre suas cartas quando estiver pronto"
+                : $"Mostre suas cartas\nRevelação automática em {countdown}";
+        }
+
+        return countdown < 0
+            ? "Aguardando os jogadores mostrarem as cartas"
+            : $"Aguardando as cartas\nRevelação automática em {countdown}";
     }
 
     private static string NameOf(string playerId)

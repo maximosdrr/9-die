@@ -102,6 +102,10 @@ public partial class PokerSeatPresenter : Node3D
         public readonly Transform3D[] ReleasedFrom = new Transform3D[PokerDeal.HoleCardCount];
         public bool Returning;
         public float Returned = 1.0f;
+        public readonly Transform3D[] CleanupFrom = new Transform3D[PokerDeal.HoleCardCount];
+        public readonly bool[] CleanupActive = new bool[PokerDeal.HoleCardCount];
+        public readonly bool[] CleanupFaceDown = new bool[PokerDeal.HoleCardCount];
+        public readonly int[] CleanupSlot = new int[PokerDeal.HoleCardCount];
     }
 
     [ExportGroup("Betting chips")]
@@ -226,6 +230,26 @@ public partial class PokerSeatPresenter : Node3D
     private bool _settlementCollected;
     private bool _lastPresentationReady;
     private int _nextChipSequence;
+    private bool _cardCleanupActive;
+    private float _cardCleanupElapsed;
+    public bool CardsReturningToDeck => _cardCleanupActive;
+    public int ReturningCardCount
+    {
+        get
+        {
+            var count = BoardPresenter?.ReturningCardCount ?? 0;
+            count += _showdownPresenter?.CleanupCardCount ?? 0;
+            foreach (var hand in _holeCards.Values)
+            {
+                foreach (var active in hand.CleanupActive)
+                {
+                    if (active)
+                        count++;
+                }
+            }
+            return count;
+        }
+    }
     private MeshInstance3D _dealerButton;
     public bool LastRecoveryDiscardedAnimation { get; private set; }
     private PokerPresentationProfile Profile => PresentationProfile ??= new PokerPresentationProfile();
@@ -259,6 +283,10 @@ public partial class PokerSeatPresenter : Node3D
 
         var spec = BoardPresenter.Spec;
         CaptureChipPresentation(spec);
+        if (_game.CardsCleaningUp)
+            BeginCardCleanup();
+        else if (_cardCleanupActive)
+            EndCardCleanup();
         var seen = new HashSet<string>();
 
         for (var index = 0; index < _game.SeatOrder.Length; index++)
@@ -277,7 +305,8 @@ public partial class PokerSeatPresenter : Node3D
 
             facing = facing.Normalized();
 
-            RefreshHoleCards(playerId, facing, spec);
+            if (!_cardCleanupActive)
+                RefreshHoleCards(playerId, facing, spec);
             RefreshChips(playerId, facing, spec);
             RefreshName(playerId, facing);
         }
@@ -301,6 +330,15 @@ public partial class PokerSeatPresenter : Node3D
 
         var localId = _game.Player == null ? null : (string)_game.Player.Name;
         LocalHandLanded = false;
+
+        if (_cardCleanupActive)
+        {
+            moved |= AdvanceCardCleanup((float)delta);
+            moved |= _showdownPresenter?.Advance((float)delta, blocked: false) ?? false;
+            if (moved)
+                Refresh();
+            return;
+        }
 
         foreach (var entry in _holeCards)
         {

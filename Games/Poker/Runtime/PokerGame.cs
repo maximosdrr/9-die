@@ -79,6 +79,12 @@ public partial class PokerGame : TableGame
     /// <summary>What each shown hand was, so the table can say why it won.</summary>
     public readonly System.Collections.Generic.Dictionary<string, HandCategory> ShowdownCategories = new();
 
+    public bool ShowdownWaiting;
+    public readonly HashSet<string> PendingShowdownReveals = new();
+    /// <summary>-1 during the initial grace period; otherwise visible seconds remaining.</summary>
+    public int ShowdownCountdown = -1;
+    public bool CardsCleaningUp;
+
     /// <summary>Who collected what from the hand that just finished.</summary>
     public readonly System.Collections.Generic.Dictionary<string, int> Winners = new();
 
@@ -218,6 +224,15 @@ public partial class PokerGame : TableGame
     /// </summary>
     public bool HandSettled => Winners.Count > 0;
 
+    public bool LocalMustReveal
+    {
+        get
+        {
+            var playerId = Player == null ? null : (string)Player.Name;
+            return ShowdownWaiting && playerId != null && PendingShowdownReveals.Contains(playerId);
+        }
+    }
+
     public bool IsSessionOver => SeatOrder.Length > 0 && CountWithChips() <= 1;
 
     private int CountWithChips()
@@ -266,6 +281,10 @@ public partial class PokerGame : TableGame
         RevealedHoleCards.Clear();
         ShowdownCategories.Clear();
         Winners.Clear();
+        ShowdownWaiting = false;
+        PendingShowdownReveals.Clear();
+        ShowdownCountdown = -1;
+        CardsCleaningUp = false;
         CurrentBet = 0;
         MinRaiseIncrement = 0;
         ButtonSeat = 0;
@@ -315,6 +334,11 @@ public partial class PokerGame : TableGame
         LastPlayer = context.TryGetValue("last_player", out var player) ? (string)player : "";
         LastAmount = context.TryGetValue("last_amount", out var amount) ? (int)amount : 0;
         ActionSeq = context.TryGetValue("action_seq", out var seq) ? (int)seq : 0;
+        ShowdownWaiting = context.TryGetValue("showdown_waiting", out var waiting) && (bool)waiting;
+        ReadSet(context, "showdown_pending", PendingShowdownReveals);
+        ShowdownCountdown = context.TryGetValue("showdown_countdown", out var countdown)
+            ? (int)countdown : -1;
+        CardsCleaningUp = context.TryGetValue("card_cleanup", out var cleanup) && (bool)cleanup;
 
         ReadReveals(context);
         ReadResult(context);

@@ -95,6 +95,8 @@ public partial class PokerSeatPresenter : Node3D
 
     private void SnapToAuthoritativeState(PokerLayoutSpec spec)
     {
+        if (_cardCleanupActive)
+            EndCardCleanup();
         LastRecoveryDiscardedAnimation = _presentationHand >= 0
             && (_pendingChipActions.Count > 0 || _collecting || _organizing || _collectionRequested
                 || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,

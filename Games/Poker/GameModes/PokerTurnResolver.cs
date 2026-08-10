@@ -37,6 +37,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// <summary>Production advances automatically; visual harnesses may hold a result indefinitely.</summary>
     [Export] public bool AutoAdvanceHands = true;
 
+    [ExportGroup("Showdown decision")]
+    /// <summary>Time to reveal voluntarily before the visible countdown starts.</summary>
+    [Export] public float ShowdownRevealGraceSeconds = 10.0f;
+    /// <summary>Visible final window; pending hands are exposed automatically when it reaches zero.</summary>
+    [Export] public float ShowdownRevealCountdownSeconds = 10.0f;
+
     public PokerGame Game => Table as PokerGame;
     private readonly PeerRequestRateLimiter _actionRequestLimiter = new(
         ActionRequestsPerSecond, 1000, MaximumTrackedActionPeers);
@@ -54,6 +60,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
     /// <summary>What each shown hand actually was, so the table can say WHY it won.</summary>
     private readonly System.Collections.Generic.Dictionary<string, PokerHandRank> _showdownRanks = new();
+    private readonly HashSet<string> _pendingShowdownReveals = new();
 
     /// <summary>Who collected what from the last hand.</summary>
     private readonly System.Collections.Generic.Dictionary<string, int> _awards = new();
@@ -67,6 +74,10 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     private int _smallBlind;
     private int _bigBlind;
     private bool _handInProgress;
+    private bool _awaitingShowdownReveals;
+    private float _showdownRevealElapsed;
+    private int _publishedShowdownCountdown = int.MinValue;
+    private bool _cardCleanupActive;
 
     private int _actionSeq;
     private string _lastAction = "";
@@ -87,6 +98,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _minRaiseIncrement = 0;
         _handNumber = 0;
         _handInProgress = false;
+        _awaitingShowdownReveals = false;
+        _showdownRevealElapsed = 0.0f;
+        _publishedShowdownCountdown = int.MinValue;
+        _pendingShowdownReveals.Clear();
+        _cardCleanupActive = false;
         _lastAction = "";
         _lastPlayer = "";
         _lastAmount = 0;
@@ -94,6 +110,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     }
 
     protected override void ClearSecretState() => _board.Clear();
+
+    public override void _Process(double delta)
+    {
+        if (Multiplayer.IsServer() && _awaitingShowdownReveals)
+            AdvanceShowdownRevealClock((float)delta);
+    }
 
     protected override void ApplyLocalHand(int[] items) => Game?.ApplyLocalHoleCards(items);
 
@@ -171,6 +193,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _board.AddRange(PokerDeal.DealBoard(deal.Stub));
 
         ClearHandResult();
+        _cardCleanupActive = false;
         _street = PokerStreet.Preflop;
         _handInProgress = true;
 
@@ -269,6 +292,49 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             TryAction(Multiplayer.GetUniqueId(), turnToken, actionKind, total);
         else
             RpcId(1, MethodName.ActOnServer, turnToken, actionKind, total);
+    }
+
+    public void RequestShowdownReveal()
+    {
+        if (Multiplayer.IsServer())
+            TryShowdownReveal(Multiplayer.GetUniqueId());
+        else
+            RpcId(1, MethodName.ShowdownRevealOnServer);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowdownRevealOnServer()
+    {
+        if (!Multiplayer.IsServer())
+            return;
+        var requesterId = Multiplayer.GetRemoteSenderId();
+        if (TryConsumeActionRequest(requesterId))
+            TryShowdownReveal(requesterId);
+    }
+
+    /// <summary>Server/test seam with the same identity rules as the network request.</summary>
+    public void ApplyShowdownRevealFor(string playerId)
+    {
+        if (Multiplayer.IsServer() && int.TryParse(playerId, out var peerId))
+            TryShowdownReveal(peerId);
+    }
+
+    private void TryShowdownReveal(int requesterId)
+    {
+        var playerId = requesterId.ToString();
+        if (!_awaitingShowdownReveals || !_pendingShowdownReveals.Remove(playerId))
+            return;
+
+        RevealHand(playerId);
+        _lastAction = "show";
+        _lastPlayer = playerId;
+        _lastAmount = 0;
+        _actionSeq++;
+        Game.CallExtendCurrentTurn(BuildContext(_lastAction, _lastPlayer, 0, advanceTurn: false));
+
+        if (_pendingShowdownReveals.Count == 0)
+            CompleteShowdown();
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -500,6 +566,82 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     {
         CollectRound();
         _street = PokerStreet.Showdown;
+        BeginShowdownDecision();
+    }
+
+    private void BeginShowdownDecision()
+    {
+        _handInProgress = false;
+        _actingSeat = -1;
+        _awaitingShowdownReveals = true;
+        _showdownRevealElapsed = 0.0f;
+        _publishedShowdownCountdown = -1;
+        _reveals.Clear();
+        _showdownRanks.Clear();
+        _awards.Clear();
+        _pendingShowdownReveals.Clear();
+
+        foreach (var bet in _bets)
+        {
+            if (!bet.HasFolded)
+                _pendingShowdownReveals.Add(bet.PlayerId);
+        }
+
+        if (_pendingShowdownReveals.Count <= 1)
+        {
+            foreach (var playerId in _pendingShowdownReveals.ToArray())
+                RevealHand(playerId);
+            _pendingShowdownReveals.Clear();
+            CompleteShowdown();
+            return;
+        }
+
+        _lastAction = "showdown_prompt";
+        _lastPlayer = "";
+        _lastAmount = 0;
+        Game.CallExtendCurrentTurn(BuildContext(_lastAction, "", 0, advanceTurn: false));
+    }
+
+    private void RevealHand(string playerId)
+    {
+        var hole = Hands.GetValueOrDefault(playerId);
+        if (hole is { Count: >= PokerDeal.HoleCardCount })
+            _reveals[playerId] = new[] { hole[0], hole[1] };
+    }
+
+    internal void AdvanceShowdownRevealClock(float delta)
+    {
+        if (!_awaitingShowdownReveals)
+            return;
+
+        _showdownRevealElapsed += Mathf.Max(0.0f, delta);
+        var grace = Mathf.Max(0.0f, ShowdownRevealGraceSeconds);
+        var countdownLength = Mathf.Max(0.0f, ShowdownRevealCountdownSeconds);
+        var countdown = _showdownRevealElapsed < grace
+            ? -1
+            : Mathf.Max(0, Mathf.CeilToInt(grace + countdownLength - _showdownRevealElapsed));
+
+        if (countdown != _publishedShowdownCountdown)
+        {
+            _publishedShowdownCountdown = countdown;
+            Game.CallExtendCurrentTurn(BuildContext(
+                "showdown_wait", "", countdown, advanceTurn: false));
+        }
+
+        if (_showdownRevealElapsed < grace + countdownLength)
+            return;
+
+        foreach (var playerId in _pendingShowdownReveals.ToArray())
+            RevealHand(playerId);
+        _pendingShowdownReveals.Clear();
+        _lastAction = "showdown_auto";
+        CompleteShowdown();
+    }
+
+    private void CompleteShowdown()
+    {
+        _awaitingShowdownReveals = false;
+        _publishedShowdownCountdown = int.MinValue;
         FinishHand(showdown: true);
     }
 
@@ -514,7 +656,8 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         var contenders = _bets.Where(bet => !bet.HasFolded).Select(bet => bet.PlayerId).ToList();
 
         var ranks = new System.Collections.Generic.Dictionary<string, PokerHandRank>();
-        _reveals.Clear();
+        if (!showdown)
+            _reveals.Clear();
         _showdownRanks.Clear();
         _awards.Clear();
 
@@ -528,9 +671,6 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
                 ranks[playerId] = PokerHandEvaluator.Evaluate(hole, _board);
                 _showdownRanks[playerId] = ranks[playerId];
 
-                // The ONLY moment a hole card becomes public, and only for players who must show.
-                if (hole is { Count: >= PokerDeal.HoleCardCount })
-                    _reveals[playerId] = new[] { hole[0], hole[1] };
             }
         }
         else
@@ -589,8 +729,47 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             return;
         }
 
-        var timer = GetTree().CreateTimer(pause);
-        timer.Timeout += OnHandPauseOver;
+        if (CountWithChips() <= 1)
+        {
+            var finalTimer = GetTree().CreateTimer(pause);
+            finalTimer.Timeout += OnHandPauseOver;
+            return;
+        }
+
+        // Keep the result readable first. The authoritative next hand may only replace it after all
+        // peers have received the cleanup phase and finished returning the same card nodes to deck.
+        var cleanup = Mathf.Min(pause, Profile.CardCleanupDuration);
+        var reading = Mathf.Max(0.0f, pause - cleanup);
+        if (reading <= 0.0f)
+        {
+            BeginCardCleanup();
+            return;
+        }
+
+        var readingTimer = GetTree().CreateTimer(reading);
+        readingTimer.Timeout += BeginCardCleanup;
+    }
+
+    private void BeginCardCleanup()
+    {
+        if (!Multiplayer.IsServer() || !MatchRunning || Game == null)
+            return;
+
+        if (CountWithChips() <= 1 || Profile.CardCleanupDuration <= 0.0f)
+        {
+            OnHandPauseOver();
+            return;
+        }
+
+        _cardCleanupActive = true;
+        _lastAction = "card_cleanup";
+        _lastPlayer = "";
+        _lastAmount = 0;
+        Game.CallExtendCurrentTurn(BuildContext(
+            _lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
+
+        var cleanupTimer = GetTree().CreateTimer(Profile.CardCleanupDuration);
+        cleanupTimer.Timeout += OnHandPauseOver;
     }
 
     private void OnHandPauseOver()
@@ -607,6 +786,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         }
 
         _buttonSeat = PokerSeating.Next(_buttonSeat, Mathf.Max(1, _seatOrder.Count));
+        _cardCleanupActive = false;
         ClearHandResult();
         StartHand();
     }
@@ -624,6 +804,10 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _reveals.Clear();
         _showdownRanks.Clear();
         _awards.Clear();
+        _pendingShowdownReveals.Clear();
+        _awaitingShowdownReveals = false;
+        _showdownRevealElapsed = 0.0f;
+        _publishedShowdownCountdown = int.MinValue;
     }
 
     private int CountWithChips() => _bets.Count(bet => bet.Stack > 0);
@@ -632,6 +816,9 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     {
         _handInProgress = false;
         _actingSeat = -1;
+        _awaitingShowdownReveals = false;
+        _pendingShowdownReveals.Clear();
+        _cardCleanupActive = false;
 
         var winner = _bets.FirstOrDefault(bet => bet.Stack > 0)?.PlayerId
                      ?? (_seatOrder.Count > 0 ? _seatOrder[0] : null);
@@ -658,6 +845,17 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _bets[seat].HasFolded = true;
         _bets[seat].Stack = 0;
         Hands.Remove(playerId);
+
+        if (_awaitingShowdownReveals)
+        {
+            _pendingShowdownReveals.Remove(playerId);
+            if (_pendingShowdownReveals.Count == 0)
+                CompleteShowdown();
+            else
+                Game.CallExtendCurrentTurn(BuildContext(
+                    "showdown_left", playerId, 0, advanceTurn: false));
+            return;
+        }
 
         if (!_handInProgress)
             return;
@@ -686,6 +884,18 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
         if (_lastPlayer == oldPlayerId)
             _lastPlayer = newPlayerId;
+
+        if (_pendingShowdownReveals.Remove(oldPlayerId))
+            _pendingShowdownReveals.Add(newPlayerId);
+
+        if (_reveals.Remove(oldPlayerId, out var revealed))
+            _reveals[newPlayerId] = revealed;
+
+        if (_showdownRanks.Remove(oldPlayerId, out var rank))
+            _showdownRanks[newPlayerId] = rank;
+
+        if (_awards.Remove(oldPlayerId, out var award))
+            _awards[newPlayerId] = award;
 
         ReissueTo(newPlayerId);
     }
@@ -741,6 +951,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
             ["reveal_players"] = revealPlayers,
             ["reveal_cards"] = revealCards.ToArray(),
+            ["showdown_waiting"] = _awaitingShowdownReveals,
+            ["showdown_pending"] = _pendingShowdownReveals.ToArray(),
+            ["showdown_countdown"] = _publishedShowdownCountdown == int.MinValue
+                ? -1 : _publishedShowdownCountdown,
+            ["card_cleanup"] = _cardCleanupActive,
 
             // What each shown hand WAS, and who collected what. Categories rather than the packed
             // rank value: the table needs to say "full house", not compare anything.

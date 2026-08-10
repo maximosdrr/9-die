@@ -428,7 +428,7 @@ public partial class PokerMatchTest : Node
             && presenter.ActiveChipGroupCount <= presenter.MaxAnimatedChipGroups);
 
         var safety = 0;
-        while (!game.HandSettled && safety++ < 20)
+        while (!game.ShowdownWaiting && !game.HandSettled && safety++ < 20)
         {
             var actor = game.TurnOwnerId;
             var options = PokerBetting.LegalActions(
@@ -440,6 +440,28 @@ public partial class PokerMatchTest : Node
             resolver.ApplyActionFor(actor, game.TurnToken, (int)action.Kind, action.MinTotal);
             AdvancePresentation(presenter, board, 600, stopWhenReady: true);
         }
+
+        Check("o showdown abre uma decisão antes de revelar ou pagar",
+            game.ShowdownWaiting && game.Winners.Count == 0
+            && game.RevealedHoleCards.Count == 0 && game.PendingShowdownReveals.Count > 1);
+
+        var revealOrder = game.PendingShowdownReveals.ToArray();
+        resolver.ApplyShowdownRevealFor(revealOrder[0]);
+        Check("cada jogador revela somente a própria mão quando pressiona S",
+            game.ShowdownWaiting && game.RevealedHoleCards.Count == 1
+            && !game.PendingShowdownReveals.Contains(revealOrder[0]));
+
+        resolver.AdvanceShowdownRevealClock(9.9f);
+        Check("os primeiros dez segundos não poluem a interface com contagem",
+            game.ShowdownCountdown < 0);
+        resolver.AdvanceShowdownRevealClock(0.2f);
+        Check("depois da tolerância começa uma contagem regressiva de dez segundos",
+            game.ShowdownCountdown == 10);
+
+        resolver.AdvanceShowdownRevealClock(10.0f);
+        Check("quem não decide a tempo é revelado automaticamente e o showdown é pago",
+            game.HandSettled && game.PendingShowdownReveals.Count == 0
+            && game.RevealedHoleCards.Count == revealOrder.Length);
 
         var revealSafety = 0;
         var sawRemoteRevealMotion = false;
@@ -576,6 +598,25 @@ public partial class PokerMatchTest : Node
         Check("o saldo visual só alcança o resultado depois que as fichas chegam",
             game.Winners.Keys.All(winner => presenter.DisplayedStackOf(winner) == game.StackOf(winner)));
 
+        game.CardsCleaningUp = true;
+        presenter.Refresh();
+        Check("a troca de mão recolhe as cartas visíveis sem recriá-las",
+            presenter.CardsReturningToDeck && board.CardCleanupActive
+            && presenter.ReturningCardCount > 0);
+        var cleanupFrames = Mathf.CeilToInt(
+            presenter.PresentationProfile.CardCleanupDuration * 60.0f) + 2;
+        for (var frame = 0; frame < cleanupFrames; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+        }
+        Check("o embaralhamento termina dentro da janela reservada pelo servidor",
+            !board.CardCleanupActive && presenter.ReturningCardCount == 0);
+        game.CardsCleaningUp = false;
+        presenter.Refresh();
+        Check("a apresentação fica pronta para receber a próxima distribuição",
+            !presenter.CardsReturningToDeck);
+
         var interrupted = chipAnimator.Batches.FirstOrDefault(batch =>
             batch.Phase == PokerChipAnimator.Phase.AtWinner);
         if (interrupted != null)
@@ -586,6 +627,7 @@ public partial class PokerMatchTest : Node
                 && presenter.PayoutCompleted && presenter.ActiveChipGroupCount == 0));
         Check("depois da reconexao o saldo visual coincide com o servidor",
             game.SeatOrder.All(player => presenter.DisplayedStackOf(player) == game.StackOf(player)));
+
     }
 
     private static void AdvancePresentation(
@@ -700,6 +742,7 @@ public partial class PokerMatchTest : Node
 
             var tokenBefore = game.TurnToken;
             resolver.ApplyActionFor(actor, game.TurnToken, (int)chosen.Kind, chosen.MinTotal);
+            RevealAllAtShowdown(game, resolver);
             actions++;
 
             CheckConservation(game, $"após a ação {actions}");
@@ -868,6 +911,15 @@ public partial class PokerMatchTest : Node
 
     private static string Snapshot(PokerGame game) =>
         $"{game.PotTotal}|{game.CurrentBet}|{game.Street}|{game.Board.Length}|{game.HandNumber}";
+
+    private static void RevealAllAtShowdown(PokerGame game, PokerTurnResolver resolver)
+    {
+        if (!game.ShowdownWaiting)
+            return;
+
+        foreach (var playerId in game.PendingShowdownReveals.ToArray())
+            resolver.ApplyShowdownRevealFor(playerId);
+    }
 
     // ---------------------------------------------------------------- harness
 

@@ -83,6 +83,13 @@ public partial class PokerVisualCheck : Node3D
         var safety = 0;
         while (!_game.HandSettled && safety++ < 20)
         {
+            if (_game.ShowdownWaiting)
+            {
+                foreach (var playerId in _game.PendingShowdownReveals.ToArray())
+                    resolver.ApplyShowdownRevealFor(playerId);
+                continue;
+            }
+
             var actor = _game.TurnOwnerId;
             var state = _game.BetStateOf(actor);
             var options = PokerBetting.LegalActions(state, _game.CurrentBet, _game.MinRaiseIncrement);

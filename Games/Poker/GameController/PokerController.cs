@@ -115,6 +115,7 @@ public partial class PokerController : SeatedTableController
         // what stops the panel offering a call on a pot that has already been paid out.
         var isYourTurn = Game.IsMatchActive
             && !Game.HandSettled
+            && !Game.ShowdownWaiting
             && Game.IsTurnOwner(playerId)
             && (Game.SeatPresenter?.PresentationReadyForAction ?? true);
 
@@ -126,6 +127,19 @@ public partial class PokerController : SeatedTableController
             : NoOptions;
 
         _handView.Refresh(Game.LocalHoleCards, options, isYourTurn);
+    }
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (Seated && IsMultiplayerAuthority() && Game?.LocalMustReveal == true
+            && @event.IsActionPressed(PokerInput.ShowdownReveal))
+        {
+            Game.Resolver?.RequestShowdownReveal();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        base._UnhandledInput(@event);
     }
 
     private void OnActionRequested(int actionKind, int total) =>

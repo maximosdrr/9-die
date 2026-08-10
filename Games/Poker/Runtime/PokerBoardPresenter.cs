@@ -88,6 +88,10 @@ public partial class PokerBoardPresenter : Node3D
         public float Wait;
         public bool WantsFaceUp;
         public int ShownId = Poker.Rules.CardId.None;
+        public Transform3D CleanupFrom;
+        public float CleanupDelay;
+        public int CleanupSlot;
+        public bool CleanupFaceDown;
     }
 
     private readonly List<BoardCard> _cards = new();
@@ -98,6 +102,26 @@ public partial class PokerBoardPresenter : Node3D
     private PokerGame _game;
 
     private Node3D _deck;
+    private bool _cleaningUp;
+    private float _cleanupElapsed;
+    private float _returnSeconds;
+    private float _returnEnd;
+    private float _shuffleSeconds;
+    private Transform3D _deckRest;
+    public bool CardCleanupActive => _cleaningUp;
+    public int ReturningCardCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var card in _cards)
+            {
+                if (_cleaningUp && card.Node.Visible)
+                    count++;
+            }
+            return count;
+        }
+    }
 
     /// <summary>How many community cards this peer is currently allowed to show.</summary>
     public int VisibleFaceUpCount => _faceUpCount;
@@ -119,6 +143,7 @@ public partial class PokerBoardPresenter : Node3D
 
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
     public Vector3 DeckPosition => new Basis(Vector3.Up, ReaderYaw()) * DeckOffset;
+    public Basis DeckCardBasis => new Basis(Vector3.Up, ReaderYaw()) * PokerCard.Orientation(true);
 
     /// <summary>Where thrown-away hands lie, in this presenter's space.</summary>
     public Vector3 MuckPosition => new Basis(Vector3.Up, ReaderYaw()) * MuckOffset;
@@ -270,6 +295,12 @@ public partial class PokerBoardPresenter : Node3D
     /// </summary>
     public void Sync(IReadOnlyList<int> board, int potTotal, int handNumber, PokerStreet street)
     {
+        if (_game?.CardsCleaningUp == true)
+            return;
+
+        if (_cleaningUp)
+            EndCardCleanup();
+
         var shown = board?.Count ?? 0;
         var visibleShown = _presentationGateEnabled
             ? Mathf.Min(shown, _allowedFaceUpCount)
@@ -343,6 +374,12 @@ public partial class PokerBoardPresenter : Node3D
 
     public override void _Process(double delta)
     {
+        if (_cleaningUp)
+        {
+            AdvanceCardCleanup((float)delta);
+            return;
+        }
+
         var moved = false;
 
         foreach (var card in _cards)
@@ -370,6 +407,86 @@ public partial class PokerBoardPresenter : Node3D
 
         if (!HasPendingCardMotion())
             SetProcess(false);
+    }
+
+    public void BeginCardCleanup(
+        float returnSeconds, float stagger, float shuffleSeconds, int totalCardSlots = 13)
+    {
+        if (_cleaningUp)
+            return;
+
+        _cleaningUp = true;
+        _cleanupElapsed = 0.0f;
+        _returnSeconds = Mathf.Max(0.01f, returnSeconds);
+        _returnEnd = _returnSeconds
+            + Mathf.Max(0, totalCardSlots - 1) * Mathf.Max(0.0f, stagger);
+        _shuffleSeconds = Mathf.Max(0.0f, shuffleSeconds);
+        _deckRest = _deck?.Transform ?? Transform3D.Identity;
+
+        var visibleIndex = 0;
+        foreach (var card in _cards)
+        {
+            card.CleanupFrom = card.Node.Transform;
+            card.CleanupDelay = visibleIndex * Mathf.Max(0.0f, stagger);
+            card.CleanupSlot = visibleIndex;
+            card.CleanupFaceDown = false;
+            if (card.Node.Visible)
+                visibleIndex++;
+        }
+
+        SetProcess(true);
+    }
+
+    private void AdvanceCardCleanup(float delta)
+    {
+        _cleanupElapsed += Mathf.Max(0.0f, delta);
+        var targetBasis = DeckCardBasis;
+        foreach (var card in _cards)
+        {
+            if (!card.Node.Visible)
+                continue;
+
+            var raw = (_cleanupElapsed - card.CleanupDelay) / _returnSeconds;
+            var t = Mathf.Clamp(raw, 0.0f, 1.0f);
+            if (t >= 1.0f && !card.CleanupFaceDown)
+            {
+                card.Node.Configure(0, CommunityCardSpec, faceDown: true);
+                card.CleanupFaceDown = true;
+            }
+
+            var target = DeckPosition + Vector3.Up
+                * ((card.CleanupSlot + 1) * Spec.CardThickness * 1.7f);
+            var position = PokerMotion.CardThrow(card.CleanupFrom.Origin, target, t, 0.040f,
+                PokerChipPile.Noise(card.CleanupSlot, 61) * 0.010f);
+            var basis = card.CleanupFrom.InterpolateWith(
+                new Transform3D(targetBasis, target), PokerMotion.Smooth(t)).Basis;
+            card.Node.Transform = new Transform3D(basis, position);
+            if (t >= 1.0f)
+                card.Node.Visible = false;
+        }
+
+        if (_deck != null && _cleanupElapsed >= _returnEnd && _shuffleSeconds > 0.0f)
+        {
+            var shuffle = Mathf.Clamp((_cleanupElapsed - _returnEnd) / _shuffleSeconds, 0.0f, 1.0f);
+            var envelope = Mathf.Sin(shuffle * Mathf.Pi);
+            var lateral = Mathf.Sin(shuffle * Mathf.Pi * 6.0f) * 0.018f * envelope;
+            var yaw = Mathf.Sin(shuffle * Mathf.Pi * 8.0f) * 0.055f * envelope;
+            var across = new Basis(Vector3.Up, ReaderYaw()) * Vector3.Right;
+            _deck.Transform = new Transform3D(
+                _deckRest.Basis * new Basis(Vector3.Up, yaw),
+                _deckRest.Origin + across * lateral);
+        }
+
+        if (_cleanupElapsed >= _returnEnd + _shuffleSeconds)
+            EndCardCleanup();
+    }
+
+    private void EndCardCleanup()
+    {
+        _cleaningUp = false;
+        if (_deck != null)
+            _deck.Transform = _deckRest;
+        SetProcess(false);
     }
 
     private bool HasPendingCardMotion()
@@ -463,6 +580,8 @@ public partial class PokerBoardPresenter : Node3D
 
     public void Clear()
     {
+        if (_cleaningUp)
+            EndCardCleanup();
         foreach (var card in _cards)
             card.Node.Visible = false;
 

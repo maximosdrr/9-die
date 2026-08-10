@@ -102,6 +102,9 @@ public partial class PokerSceneLoadTest : Node
         Check("o servidor e a apresentacao usam o mesmo perfil temporal",
             seatPresenter?.PresentationProfile != null
             && ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));
+        Check("a troca de mão reserva recolhimento e embaralhamento antes da próxima distribuição",
+            seatPresenter?.PresentationProfile is { CardReturnSeconds: > 0.0f,
+                DeckShuffleSeconds: > 0.0f, CardCleanupDuration: > 1.0f });
         Check("showdown e pagamento vivem em componentes independentes",
             seatPresenter?.GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter") != null
             && seatPresenter.GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer") != null
@@ -203,6 +206,7 @@ public partial class PokerSceneLoadTest : Node
         // hand. The three receivers are inherited from SecretHandTurnResolver — reflection walks the
         // derived type, so this pins what poker actually dispatches.
         CheckRpc<PokerTurnResolver>("ActOnServer", MultiplayerApi.RpcMode.AnyPeer, false);
+        CheckRpc<PokerTurnResolver>("ShowdownRevealOnServer", MultiplayerApi.RpcMode.AnyPeer, false);
         CheckRpc<PokerTurnResolver>("ReceiveHand", MultiplayerApi.RpcMode.Authority, false);
         CheckRpc<PokerTurnResolver>("ReceiveActionRejected", MultiplayerApi.RpcMode.Authority, false);
         CheckRpc<PokerTurnResolver>("ReceiveFullState", MultiplayerApi.RpcMode.Authority, false);
@@ -606,6 +610,7 @@ public partial class PokerSceneLoadTest : Node
             (PokerInput.Raise, PokerInput.RaiseKey, Key.R),
             (PokerInput.Fold, PokerInput.FoldKey, Key.X),
             (PokerInput.AllIn, PokerInput.AllInKey, Key.Z),
+            (PokerInput.ShowdownReveal, PokerInput.ShowdownRevealKey, Key.S),
         };
 
         foreach (var (action, printed, key) in actions)
@@ -642,7 +647,7 @@ public partial class PokerSceneLoadTest : Node
         // One row per action the layout knows about, plus all-in. Built once in _Ready rather than
         // rebuilt per refresh, which would flicker.
         Check($"a HUD monta uma linha por ação ({hud.ActionList.GetChildCount()})",
-            hud.ActionList.GetChildCount() == 5);
+            hud.ActionList.GetChildCount() == 6);
 
         Check("a HUD começa escondida", !hud.Root.Visible);
 
