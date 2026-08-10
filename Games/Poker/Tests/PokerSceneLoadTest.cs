@@ -565,8 +565,8 @@ public partial class PokerSceneLoadTest : Node
         AddChild(poker);
         AddChild(domino);
 
-        Check($"o poker usa menos grande-angular que o dominó ({poker.SeatFov}° e {domino.SeatFov}°)",
-            poker.SeatFov < domino.SeatFov);
+        Check($"o FOV sentado preserva uma perspectiva natural ({poker.SeatFov}°)",
+            poker.SeatFov >= 45.0f && poker.SeatFov < 75.0f);
 
         // Toggling to the overhead view has to LOOK like something happened. Equal FOVs made it
         // read as if nothing had changed but the angle.

@@ -25,7 +25,7 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public float CardWidth = 0.076f;
     [Export] public float CardLength = 0.106f;
     [Export] public float CardThickness = 0.0006f;
-    [Export] public float CardGap = 0.012f;
+    [Export] public float CardGap = 0.020f;
     [Export] public float BoardOffset = 0.0f;
     [Export] public float PotRadius = 0.16f;
     [Export] public float SeatCardRadius = 0.40f;
@@ -37,7 +37,7 @@ public partial class PokerBoardPresenter : Node3D
     /// hand keep their natural size, so improving the board cannot crowd the bottom of the screen.
     /// Positions still come from <see cref="Spec"/> and therefore remain deterministic on every peer.
     /// </summary>
-    [Export(PropertyHint.Range, "1.0,1.15,0.01")] public float CommunityCardVisualScale = 1.10f;
+    [Export(PropertyHint.Range, "1.0,1.25,0.01")] public float CommunityCardVisualScale = 1.20f;
 
     [ExportGroup("Deck")]
     /// <summary>
@@ -229,7 +229,7 @@ public partial class PokerBoardPresenter : Node3D
     {
         get
         {
-            var scale = Mathf.Clamp(CommunityCardVisualScale, 1.0f, 1.15f);
+            var scale = Mathf.Clamp(CommunityCardVisualScale, 1.0f, 1.25f);
             return new PokerLayoutSpec(
                 CardWidth * scale, CardLength * scale, CardThickness, CardGap,
                 BoardOffset, PotRadius, SeatCardRadius, SeatBetRadius, SeatStackRadius);

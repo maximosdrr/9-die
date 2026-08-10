@@ -60,7 +60,7 @@ public readonly struct PokerLayoutSpec
     /// cards at 0.44, close enough that the chips landed on top of the cards.
     /// </summary>
     public static PokerLayoutSpec Default =>
-        new(0.076f, 0.106f, 0.0006f, 0.012f,
+        new(0.076f, 0.106f, 0.0006f, 0.020f,
             boardOffset: 0.0f, potRadius: 0.16f,
             seatCardRadius: 0.40f, seatBetRadius: 0.25f, seatStackRadius: 0.54f);
 

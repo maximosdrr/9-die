@@ -1,35 +1,31 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://duwkas5qd58ln"]
 
-[ext_resource type="Script" path="res://Games/Poker/GameController/PokerController.cs" id="1_pctrl"]
+[ext_resource type="Script" uid="uid://vlu7tc356evj" path="res://Games/Poker/GameController/PokerController.cs" id="1_pctrl"]
 [ext_resource type="PackedScene" path="res://Games/Poker/GameController/Views/PokerHand3DView.tscn" id="2_phview"]
 
-[node name="PokerController" type="Node3D" node_paths=PackedStringArray("LookRig", "LookPitch", "RemoteSeat", "TopRig", "RemoteTop")]
+[node name="PokerController" type="Node3D" unique_id=2147368170 node_paths=PackedStringArray("LookRig", "LookPitch", "RemoteSeat", "TopRig", "RemoteTop")]
 script = ExtResource("1_pctrl")
+HandViewScene = ExtResource("2_phview")
+SeatFov = 65.0
+SeatViewOffset = Vector3(0, 0.15, 0.18)
+MinPitchDeg = -55.0
+RestPitchDeg = -35.0
+TopFov = 52.0
+TopHeight = 0.88
 LookRig = NodePath("LookRig")
 LookPitch = NodePath("LookRig/LookPitch")
 RemoteSeat = NodePath("LookRig/LookPitch/RemoteSeat")
 TopRig = NodePath("TopRig")
 RemoteTop = NodePath("TopRig/RemoteTop")
-HandViewScene = ExtResource("2_phview")
-SeatFov = 42.0
-SeatViewOffset = Vector3(0, 0.15, 0.18)
-MouseSensitivity = 0.004
-MaxYawDeg = 100.0
-MinPitchDeg = -55.0
-MaxPitchDeg = 25.0
-RestPitchDeg = -35.0
-SeatedAnimationName = "SitForAGame"
-TopFov = 52.0
-TopHeight = 0.88
 
-[node name="LookRig" type="Node3D" parent="."]
+[node name="LookRig" type="Node3D" parent="." unique_id=453629337]
 
-[node name="LookPitch" type="Node3D" parent="LookRig"]
+[node name="LookPitch" type="Node3D" parent="LookRig" unique_id=656893499]
 
-[node name="RemoteSeat" type="RemoteTransform3D" parent="LookRig/LookPitch"]
+[node name="RemoteSeat" type="RemoteTransform3D" parent="LookRig/LookPitch" unique_id=1448616883]
 update_scale = false
 
-[node name="TopRig" type="Node3D" parent="."]
+[node name="TopRig" type="Node3D" parent="." unique_id=1034915673]
 
-[node name="RemoteTop" type="RemoteTransform3D" parent="TopRig"]
+[node name="RemoteTop" type="RemoteTransform3D" parent="TopRig" unique_id=140164643]
 update_scale = false

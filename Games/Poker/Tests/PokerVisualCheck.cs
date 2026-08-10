@@ -107,14 +107,29 @@ public partial class PokerVisualCheck : Node3D
         _game.Resolver.ApplyActionFor(actor, _game.TurnToken, (int)option.Kind, amount);
     }
 
-    /// <summary>Low and close, roughly where a seated player's eye is, so chip edges read.</summary>
+    /// <summary>Uses the real seat pose and FOV, so this diagnostic matches normal play.</summary>
     private void BuildCamera()
     {
-        var camera = new Camera3D { Fov = 48.0f, Current = true };
-        AddChild(camera);
+        var controllerScene = GD.Load<PackedScene>(
+            "res://Games/Poker/GameController/PokerController.tscn");
+        var controller = controllerScene?.Instantiate<PokerController>();
+        var seat = _game.SeatFor("1");
+        var eye = seat?.GetNodeOrNull<Node3D>("SeatView") ?? seat;
+        var eyeTransform = eye?.GlobalTransform ?? Transform3D.Identity;
+        var eyeBasis = eyeTransform.Basis.Orthonormalized();
+        var offset = controller?.SeatViewOffset ?? new Vector3(0.0f, 0.15f, 0.18f);
+        var pitch = controller?.RestPitchDeg ?? -35.0f;
 
-        camera.GlobalPosition = new Vector3(0.0f, 1.62f, 0.78f);
-        camera.LookAt(new Vector3(0.0f, 0.718f, -0.06f), Vector3.Up);
+        var camera = new Camera3D
+        {
+            Fov = controller?.SeatFov ?? 48.0f,
+            Current = true,
+            GlobalTransform = new Transform3D(
+                eyeBasis * new Basis(Vector3.Right, Mathf.DegToRad(pitch)),
+                eyeTransform.Origin + eyeBasis * offset),
+        };
+        AddChild(camera);
+        controller?.Free();
 
         var light = new DirectionalLight3D { LightEnergy = 1.4f, ShadowEnabled = true };
         AddChild(light);
