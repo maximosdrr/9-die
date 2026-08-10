@@ -450,6 +450,12 @@ public partial class PokerSceneLoadTest : Node
             controller.MinPitchDeg < controller.MaxPitchDeg
             && controller.RestPitchDeg >= controller.MinPitchDeg
             && controller.RestPitchDeg <= controller.MaxPitchDeg);
+        Check($"a câmera sentada recua e sobe a partir da cadeira ({controller.SeatViewOffset})",
+            controller.SeatViewOffset.Z >= 0.15f && controller.SeatViewOffset.Y >= 0.10f);
+        Check($"a câmera sentada olha a mesa de um ângulo mais alto ({controller.RestPitchDeg}°)",
+            controller.RestPitchDeg <= -34.0f);
+        Check($"a vista superior se aproxima da área de jogo ({controller.TopHeight:F2} m)",
+            controller.TopHeight is >= 0.75f and <= 0.95f);
         Check($"sair da mesa exige segurar ({controller.LeaveHoldSeconds:F1}s)",
             controller.LeaveHoldSeconds >= 0.5f);
 
@@ -485,7 +491,11 @@ public partial class PokerSceneLoadTest : Node
 
         // The real numbers from the real scenes: the eye off the seat, the cloth off the presenter.
         var seat = game.Seats.GetChild(0) as Marker3D;
-        var eyeY = seat?.GetNodeOrNull<Node3D>("SeatView")?.GlobalPosition.Y ?? 1.13f;
+        var eye = seat?.GetNodeOrNull<Node3D>("SeatView");
+        var eyeY = eye == null
+            ? 1.13f + controller.SeatViewOffset.Y
+            : (eye.GlobalTransform.Origin
+               + eye.GlobalTransform.Basis.Orthonormalized() * controller.SeatViewOffset).Y;
         var clothY = game.BoardPresenter.GlobalPosition.Y;
         var spec = game.BoardPresenter.Spec;
 
@@ -555,8 +565,8 @@ public partial class PokerSceneLoadTest : Node
         AddChild(poker);
         AddChild(domino);
 
-        Check($"o poker senta no mesmo enquadramento do dominó ({poker.SeatFov}° e {domino.SeatFov}°)",
-            Mathf.IsEqualApprox(poker.SeatFov, domino.SeatFov));
+        Check($"o poker usa menos grande-angular que o dominó ({poker.SeatFov}° e {domino.SeatFov}°)",
+            poker.SeatFov < domino.SeatFov);
 
         // Toggling to the overhead view has to LOOK like something happened. Equal FOVs made it
         // read as if nothing had changed but the angle.
@@ -565,6 +575,9 @@ public partial class PokerSceneLoadTest : Node
 
         Check($"o assento é mais fechado que a câmera de caminhar ({poker.SeatFov}° de 75°)",
             poker.SeatFov < 75.0f);
+
+        Check($"a vista superior usa enquadramento próximo ({poker.TopFov}° a {poker.TopHeight:F2} m)",
+            poker.TopFov <= 52.0f && poker.TopHeight <= 0.90f);
 
         poker.QueueFree();
         domino.QueueFree();
@@ -796,30 +809,36 @@ public partial class PokerSceneLoadTest : Node
         game.QueueFree();
     }
 
-    /// <summary>The chips are the one thing the art pack could actually supply.</summary>
+    /// <summary>Every logical denomination resolves to one optimized, correctly sized mesh.</summary>
     private void TestChipPack()
     {
-        Check("o pacote de fichas carrega", PokerChipMeshes.IsAvailable);
+        Check("o pacote otimizado de fichas carrega", PokerChipAssetMeshes.IsAvailable);
 
-        if (!PokerChipMeshes.IsAvailable)
+        if (!PokerChipAssetMeshes.IsAvailable)
             return;
 
-        Check($"a ficha fica com o tamanho de uma ficha ({PokerChipMeshes.Diameter * 1000.0f:F0} x "
-              + $"{PokerChipMeshes.Thickness * 1000.0f:F1} mm)",
-            PokerChipMeshes.Diameter is > 0.030f and < 0.050f
-            && PokerChipMeshes.Thickness is > 0.002f and < 0.006f);
+        PokerChipAssetMeshes.TryGet(25, out var measuredChip, out _);
+        var measuredSize = measuredChip?.GetAabb().Size ?? Vector3.Zero;
+        var measuredDiameter = Mathf.Max(measuredSize.X, measuredSize.Z);
+        var measuredThickness = measuredSize.Y;
+        Check($"a ficha fica com o tamanho de uma ficha ({measuredDiameter * 1000.0f:F0} x "
+              + $"{measuredThickness * 1000.0f:F1} mm)",
+            measuredDiameter is > 0.030f and < 0.050f
+            && measuredThickness is > 0.002f and < 0.006f);
 
-        // The rim is the wider of the two surfaces; if they ever swap, the chip renders inside out.
-        Check($"o aro é mais largo que o corpo "
-              + $"({PokerChipMeshes.Rim.GetAabb().Size.X:F1} contra {PokerChipMeshes.Body.GetAabb().Size.X:F1})",
-            PokerChipMeshes.Rim.GetAabb().Size.X > PokerChipMeshes.Body.GetAabb().Size.X);
+        var denominations = new[] { 1, 5, 10, 25, 50, 100, 500, 1000, 5000, 10000 };
+        var allValuesExist = denominations.All(value =>
+            PokerChipAssetMeshes.TryGet(value, out var mesh, out var bodySurface)
+            && mesh != null
+            && bodySurface >= 0);
+        Check("cada denominação tem malha e superfície colorível próprias", allValuesExist);
 
         var pile = new PokerChipPile();
         AddChild(pile);
         pile.Show(225);
 
         Check($"a pilha empilha pela espessura real da ficha ({pile.EffectiveThickness * 1000.0f:F1} mm)",
-            Mathf.IsEqualApprox(pile.EffectiveThickness, PokerChipMeshes.Thickness));
+            Mathf.IsEqualApprox(pile.EffectiveThickness, PokerChipAssetMeshes.Thickness));
         Check($"a pilha desenha as fichas de 225 ({pile.GetChildCount()} fichas)",
             pile.GetChildCount() == 3);
 
@@ -833,6 +852,33 @@ public partial class PokerSceneLoadTest : Node
     /// </summary>
     private void TestCardAtlas()
     {
+        var importedMeshes = new HashSet<ulong>();
+        var importedSurfacesAreComplete = true;
+        var importedMaterialsAreSharpAtAnAngle = true;
+        for (var card = 0; card < CardId.Count; card++)
+        {
+            if (!PokerCardAssetMeshes.TryGet(card, out var mesh, out _))
+                continue;
+
+            importedMeshes.Add(mesh.GetInstanceId());
+            importedSurfacesAreComplete &= mesh.GetSurfaceCount() == 2;
+            for (var surface = 0; surface < mesh.GetSurfaceCount(); surface++)
+            {
+                importedMaterialsAreSharpAtAnAngle &= mesh.SurfaceGetMaterial(surface)
+                    is BaseMaterial3D
+                    {
+                        TextureFilter: BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+                    };
+            }
+        }
+
+        Check($"o GLB fornece uma malha distinta para cada uma das 52 cartas ({importedMeshes.Count})",
+            PokerCardAssetMeshes.IsAvailable && importedMeshes.Count == CardId.Count);
+        Check("cada carta importada preserva as superfícies de frente e verso",
+            PokerCardAssetMeshes.IsAvailable && importedSurfacesAreComplete);
+        Check("as cartas usam filtragem anisotrópica para permanecerem legíveis em perspectiva",
+            PokerCardAssetMeshes.IsAvailable && importedMaterialsAreSharpAtAnAngle);
+
         var patches = new HashSet<Vector3>();
         for (var card = 0; card < CardId.Count; card++)
             patches.Add(PokerCardFaces.UvOffset(card));
@@ -877,8 +923,10 @@ public partial class PokerSceneLoadTest : Node
             AddChild(sample);
             sample.Configure(CardId.From(CardId.Ace, CardId.Spades), PokerLayoutSpec.Default);
 
-            Check($"sem arte a carta ainda se identifica ({sample.FaceLabel?.Text})",
-                PokerCardFaces.IsAvailable || sample.FaceLabel is { Visible: true, Text: "A♠" });
+            Check("a carta configurável usa a malha importada sem alterar a cena de gameplay",
+                sample.AssetVisual is { Visible: true, Mesh: not null }
+                && sample.Face is { Visible: false }
+                && sample.Back is { Visible: false });
 
             sample.QueueFree();
         }

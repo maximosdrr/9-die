@@ -177,6 +177,12 @@ public partial class PokerLayoutTest : Node
                 Mathf.IsEqualApprox(spec.CardWidth, reference.CardWidth)
                 && Mathf.IsEqualApprox(spec.CardLength, reference.CardLength));
 
+            var boardStep = spec.CardWidth + spec.CardGap;
+            var boardCardWidth = game.BoardPresenter.CommunityCardSpec.CardWidth;
+            Check($"as comunitárias aumentadas continuam separadas "
+                  + $"({boardCardWidth * 1000.0f:F0} mm em centros de {boardStep * 1000.0f:F0} mm)",
+                boardCardWidth < boardStep);
+
             Check($"o que a cena desenha cabe na mesa dela ({PokerTableLayout.SeatReach(spec):F3} m)",
                 PokerTableLayout.SeatReach(spec) < TableRadius
                 && PokerTableLayout.BoardReach(spec) < TableRadius);

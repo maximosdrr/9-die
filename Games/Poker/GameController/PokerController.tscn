@@ -11,15 +11,16 @@ RemoteSeat = NodePath("LookRig/LookPitch/RemoteSeat")
 TopRig = NodePath("TopRig")
 RemoteTop = NodePath("TopRig/RemoteTop")
 HandViewScene = ExtResource("2_phview")
-SeatFov = 48.0
+SeatFov = 42.0
+SeatViewOffset = Vector3(0, 0.15, 0.18)
 MouseSensitivity = 0.004
 MaxYawDeg = 100.0
 MinPitchDeg = -55.0
 MaxPitchDeg = 25.0
-RestPitchDeg = -32.0
+RestPitchDeg = -35.0
 SeatedAnimationName = "SitForAGame"
-TopFov = 55.0
-TopHeight = 1.08
+TopFov = 52.0
+TopHeight = 0.88
 
 [node name="LookRig" type="Node3D" parent="."]
 

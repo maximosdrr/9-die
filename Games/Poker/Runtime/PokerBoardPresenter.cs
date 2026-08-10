@@ -22,8 +22,8 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public PokerChipPile PotPile;
 
     [ExportGroup("Layout")]
-    [Export] public float CardWidth = 0.070f;
-    [Export] public float CardLength = 0.098f;
+    [Export] public float CardWidth = 0.076f;
+    [Export] public float CardLength = 0.106f;
     [Export] public float CardThickness = 0.0006f;
     [Export] public float CardGap = 0.012f;
     [Export] public float BoardOffset = 0.0f;
@@ -31,6 +31,13 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public float SeatCardRadius = 0.40f;
     [Export] public float SeatBetRadius = 0.25f;
     [Export] public float SeatStackRadius = 0.54f;
+
+    /// <summary>
+    /// Only the five shared cards receive this readability scale. Hole cards and the camera-held
+    /// hand keep their natural size, so improving the board cannot crowd the bottom of the screen.
+    /// Positions still come from <see cref="Spec"/> and therefore remain deterministic on every peer.
+    /// </summary>
+    [Export(PropertyHint.Range, "1.0,1.15,0.01")] public float CommunityCardVisualScale = 1.10f;
 
     [ExportGroup("Deck")]
     /// <summary>
@@ -217,6 +224,18 @@ public partial class PokerBoardPresenter : Node3D
         CardWidth, CardLength, CardThickness, CardGap,
         BoardOffset, PotRadius, SeatCardRadius, SeatBetRadius, SeatStackRadius);
 
+    /// <summary>The board-only visual size; it never participates in rules or network state.</summary>
+    public PokerLayoutSpec CommunityCardSpec
+    {
+        get
+        {
+            var scale = Mathf.Clamp(CommunityCardVisualScale, 1.0f, 1.15f);
+            return new PokerLayoutSpec(
+                CardWidth * scale, CardLength * scale, CardThickness, CardGap,
+                BoardOffset, PotRadius, SeatCardRadius, SeatBetRadius, SeatStackRadius);
+        }
+    }
+
     /// <summary>True once every card has finished arriving and turning — what a test can wait on.</summary>
     public bool Settled
     {
@@ -282,7 +301,7 @@ public partial class PokerBoardPresenter : Node3D
             {
                 card.ShownId = id;
                 if (Poker.Rules.CardId.IsValid(id))
-                    card.Node.Configure(id, Spec);
+                    card.Node.Configure(id, CommunityCardSpec);
             }
 
             var wantsFaceUp = index < visibleShown;
@@ -438,7 +457,7 @@ public partial class PokerBoardPresenter : Node3D
             card.WantsFaceUp = false;
             card.ShownId = Poker.Rules.CardId.None;
             card.Wait = dealing ? index * DealStagger : 0.0f;
-            card.Node.Configure(0, Spec, faceDown: true);
+            card.Node.Configure(0, CommunityCardSpec, faceDown: true);
         }
     }
 

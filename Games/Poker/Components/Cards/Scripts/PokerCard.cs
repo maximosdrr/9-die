@@ -4,12 +4,9 @@ using Poker.Rules;
 /// <summary>
 /// One playing card in the world.
 ///
-/// Two quads back to back rather than a box: a card is drawn from a single sheet whose front and
-/// back come from different images, and a box's one surface cannot carry both. The face quad picks
-/// its card out of the atlas by UV, so all 52 share one texture and one mesh.
-///
-/// With no art present the face falls back to a labelled white card, so the table is playable and
-/// every test still means something before the pack arrives.
+/// The preferred visual is one of the 52 meshes in poker_cards_assets.glb. The two generated quads
+/// remain as a safe fallback, so changing or temporarily removing the art pack cannot break poker
+/// rules, dealing or animation.
 /// </summary>
 [GlobalClass]
 public partial class PokerCard : Node3D
@@ -17,6 +14,7 @@ public partial class PokerCard : Node3D
     [Export] public MeshInstance3D Face;
     [Export] public MeshInstance3D Back;
     [Export] public Label3D FaceLabel;
+    [Export] public MeshInstance3D AssetVisual;
 
     /// <summary>Forces the labelled placeholder even when the atlas is present.</summary>
     [Export] public bool ForcePlaceholder;
@@ -41,19 +39,37 @@ public partial class PokerCard : Node3D
         CardId = cardId;
         IsFaceDown = faceDown;
 
-        Resize(spec);
+        var hasImportedMesh = !ForcePlaceholder
+                              && Poker.Rules.CardId.IsValid(cardId)
+                              && ConfigureImportedMesh(cardId, spec);
+
+        ResizeFallback(spec);
 
         if (Back != null)
+        {
+            Back.Visible = !hasImportedMesh;
             Back.MaterialOverride = PokerCardFaces.BackMaterial();
+        }
 
-        var hasArt = !ForcePlaceholder && PokerCardFaces.IsAvailable && Poker.Rules.CardId.IsValid(cardId);
+        var hasAtlasArt = !hasImportedMesh
+                          && !ForcePlaceholder
+                          && PokerCardFaces.IsAvailable
+                          && Poker.Rules.CardId.IsValid(cardId);
 
         if (Face != null)
-            Face.MaterialOverride = hasArt ? PokerCardFaces.FaceMaterial(cardId) : PlaceholderMaterial();
+        {
+            Face.Visible = !hasImportedMesh;
+            Face.MaterialOverride = hasAtlasArt
+                ? PokerCardFaces.FaceMaterial(cardId)
+                : PlaceholderMaterial();
+        }
 
         if (FaceLabel != null)
         {
-            FaceLabel.Visible = !hasArt && Poker.Rules.CardId.IsValid(cardId) && !faceDown;
+            FaceLabel.Visible = !hasImportedMesh
+                                && !hasAtlasArt
+                                && Poker.Rules.CardId.IsValid(cardId)
+                                && !faceDown;
             FaceLabel.Text = Poker.Rules.CardId.IsValid(cardId) ? Poker.Rules.CardId.Label(cardId) : "";
             FaceLabel.Modulate = SuitColor(cardId);
         }
@@ -85,9 +101,52 @@ public partial class PokerCard : Node3D
             Face.Transparency = transparency;
         if (Back != null)
             Back.Transparency = transparency;
+        if (AssetVisual != null)
+            AssetVisual.Transparency = transparency;
     }
 
-    private void Resize(PokerLayoutSpec spec)
+    private bool ConfigureImportedMesh(int cardId, PokerLayoutSpec spec)
+    {
+        if (AssetVisual == null
+            || !PokerCardAssetMeshes.TryGet(cardId, out var mesh, out var bounds))
+        {
+            if (AssetVisual != null)
+                AssetVisual.Visible = false;
+
+            return false;
+        }
+
+        var sourceSize = bounds.Size;
+        if (sourceSize.X <= Mathf.Epsilon
+            || sourceSize.Y <= Mathf.Epsilon
+            || sourceSize.Z <= Mathf.Epsilon)
+        {
+            AssetVisual.Visible = false;
+            return false;
+        }
+
+        var scale = new Vector3(
+            spec.CardWidth / sourceSize.X,
+            Mathf.Max(spec.CardThickness, 0.0002f) / sourceSize.Y,
+            spec.CardLength / sourceSize.Z);
+
+        var basis = new Basis(
+            new Vector3(scale.X, 0.0f, 0.0f),
+            new Vector3(0.0f, scale.Y, 0.0f),
+            new Vector3(0.0f, 0.0f, scale.Z));
+        var centre = bounds.GetCenter();
+        var origin = new Vector3(
+            -centre.X * scale.X,
+            -centre.Y * scale.Y,
+            -centre.Z * scale.Z);
+
+        AssetVisual.Mesh = mesh;
+        AssetVisual.Transform = new Transform3D(basis, origin);
+        AssetVisual.Visible = true;
+        return true;
+    }
+
+    private void ResizeFallback(PokerLayoutSpec spec)
     {
         var size = new Vector2(spec.CardWidth, spec.CardLength);
         var lift = Mathf.Max(spec.CardThickness, 0.0002f) * 0.5f;

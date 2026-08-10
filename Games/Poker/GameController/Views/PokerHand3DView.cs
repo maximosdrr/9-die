@@ -47,7 +47,10 @@ public partial class PokerHand3DView : PokerHandView
     /// 0.412 m below the eye. PokerSceneLoadTest sweeps the whole pitch range and fails if the cards
     /// can reach the cloth.
     /// </summary>
-    [Export] public Vector3 HandOffset = new(0.05f, -0.09f, -0.34f);
+    // The poker camera uses a tighter 42° lens. Moving the camera-attached hand back by the same
+    // optical ratio keeps it from growing over the table while the world view loses wide-angle
+    // distortion.
+    [Export] public Vector3 HandOffset = new(0.05f, -0.09f, -0.39f);
 
     [Export] public float FanStepDeg = 11.0f;
     [Export] public float FanRadius = 0.40f;
