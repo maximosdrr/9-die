@@ -1,0 +1,124 @@
+[gd_scene format=3 uid="uid://dvyejk17aixhq"]
+
+[ext_resource type="Texture2D" path="res://Assets/Textures/PrototypeTextures/texture_08.svg" id="1_wwpfk"]
+[ext_resource type="PackedScene" path="res://Shared/Table/Table.tscn" id="3_4e5w7"]
+[ext_resource type="Script" path="res://Shared/Table/Runtime/Table.cs" id="4_tkqbk"]
+[ext_resource type="PackedScene" path="res://World/Player/Player.tscn" id="5_plyrsc"]
+[ext_resource type="PackedScene" path="res://Games/Pool/Pool.tscn" id="5_rxpk7"]
+[ext_resource type="Script" path="res://World/Multiplayer/LevelMultiplayerManager.cs" id="5_s6lm4"]
+[ext_resource type="Script" path="res://World/Player/Registry/PlayersContainer.cs" id="5_wwpfk"]
+[ext_resource type="PackedScene" path="res://World/ScreenShare/TV/Tv.tscn" id="9_tvscr"]
+[ext_resource type="PackedScene" path="res://World/Ranking/Board/RankingBoard.tscn" id="10_rankb"]
+[ext_resource type="Script" path="res://World/Ranking/Board/RankingBoard.cs" id="14_jul7r"]
+[ext_resource type="PackedScene" path="res://World/Levels/Bar/BarVisual.tscn" id="15_lmt02"]
+[ext_resource type="PackedScene" path="res://Games/Domino/Domino.tscn" id="35_dmnsc"]
+[ext_resource type="PackedScene" path="res://Games/Poker/Poker.tscn" id="36_pkrsc"]
+[ext_resource type="PackedScene" path="res://World/Levels/Bar/BarCollision.tscn" id="37_barcol"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_b7m75"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_5rn6i"]
+sky_material = SubResource("ProceduralSkyMaterial_b7m75")
+
+[sub_resource type="Environment" id="Environment_4e5w7"]
+background_mode = 2
+sky = SubResource("Sky_5rn6i")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rxpk7"]
+albedo_texture = ExtResource("1_wwpfk")
+uv2_triplanar = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_fnkl4"]
+material = SubResource("StandardMaterial3D_rxpk7")
+size = Vector2(50, 50)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_b7m75"]
+size = Vector3(49.328125, 0.01953125, 50.00792)
+
+[node name="Prototype" type="Node3D" unique_id=124612571]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=881540219]
+environment = SubResource("Environment_4e5w7")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=239950014]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1926946533]
+mesh = SubResource("PlaneMesh_fnkl4")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D" unique_id=2055625058]
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D" unique_id=937634531]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.036132813, 0.0048828125, 0.10045624)
+shape = SubResource("BoxShape3D_b7m75")
+
+[node name="BarCollision" type="Node3D" parent="." unique_id=803185696 instance=ExtResource("37_barcol")]
+
+[node name="Table" type="Node3D" parent="." unique_id=542657396 instance=ExtResource("3_4e5w7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25662804, 0, 7.3438463)
+script = ExtResource("4_tkqbk")
+TableGameScene = ExtResource("5_rxpk7")
+metadata/_custom_type_script = "uid://dc6wx0dbfqcw0"
+
+[node name="DominoTable" type="Node3D" parent="." unique_id=292687083 instance=ExtResource("3_4e5w7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.43837, 0, 11.251063)
+script = ExtResource("4_tkqbk")
+TableGameScene = ExtResource("35_dmnsc")
+metadata/_custom_type_script = "uid://dc6wx0dbfqcw0"
+
+[node name="PokerTable" type="Node3D" parent="." unique_id=1981250023 instance=ExtResource("3_4e5w7")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.6, 0, 11.251063)
+script = ExtResource("4_tkqbk")
+TableGameScene = ExtResource("36_pkrsc")
+metadata/_custom_type_script = "uid://dc6wx0dbfqcw0"
+
+[node name="Multiplayer" type="Node3D" parent="." unique_id=1197676481]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35158157, 0, 2.1860094)
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="Multiplayer" unique_id=1780705806]
+spawn_path = NodePath("../PlayersContainer")
+
+[node name="SpawnPoints" type="Node3D" parent="Multiplayer" unique_id=516166924]
+
+[node name="SpawnPoint01" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=304752431]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, -1)
+
+[node name="SpawnPoint02" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=2119021465]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, 1)
+
+[node name="SpawnPoint03" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=1627808005]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.9, 1)
+
+[node name="SpawnPoint04" type="Marker3D" parent="Multiplayer/SpawnPoints" unique_id=1019544287]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.9, -1)
+
+[node name="PlayersContainer" type="Node3D" parent="Multiplayer" unique_id=546046805]
+script = ExtResource("5_wwpfk")
+
+[node name="LocalPresentation" type="Node" parent="Multiplayer" unique_id=1085703195]
+
+[node name="LevelMultiplayerManager" type="Node" parent="Multiplayer" unique_id=1519149147 node_paths=PackedStringArray("PlayersContainer", "MultiplayerSpawner", "SpawnPointsRoot", "TvScreen", "LocalPresentationRoot")]
+script = ExtResource("5_s6lm4")
+PlayerScene = ExtResource("5_plyrsc")
+PlayersContainer = NodePath("../PlayersContainer")
+MultiplayerSpawner = NodePath("../MultiplayerSpawner")
+SpawnPointsRoot = NodePath("../SpawnPoints")
+TvScreen = NodePath("../../TV")
+LocalPresentationRoot = NodePath("../LocalPresentation")
+
+[node name="TV" parent="." unique_id=2102181627 instance=ExtResource("9_tvscr")]
+transform = Transform3D(-0.020447021, 0, -0.9995932, 0, 0.7776396, 0, 0.71663016, 0, -0.028520575, 18.267782, 2.2914407, 13.257188)
+
+[node name="RankingBoard" type="Node3D" parent="." unique_id=1843246361 node_paths=PackedStringArray("RankingLabel") instance=ExtResource("10_rankb")]
+transform = Transform3D(-4.0002737, 0, 8.7422755e-08, 0, 2.9735708, 0, -3.4971504e-07, 0, -0.99999976, 7.638659, 2.575356, 19.2007)
+script = ExtResource("14_jul7r")
+RankingLabel = NodePath("RankingLabel")
+
+[node name="Bar" type="Node3D" parent="." unique_id=1960921981 instance=ExtResource("15_lmt02")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)

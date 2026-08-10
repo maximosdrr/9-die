@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://Features/Games/Domino/Tests/DominoMatchTest.cs" id="1_dmnmt"]
-
-[node name="DominoMatchTest" type="Node"]
-script = ExtResource("1_dmnmt")

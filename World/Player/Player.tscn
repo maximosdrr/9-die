@@ -1,0 +1,93 @@
+[gd_scene format=3 uid="uid://dq4mwkkjaq18o"]
+
+[ext_resource type="Script" path="res://World/Player/Runtime/Player.cs" id="1_wlwl2"]
+[ext_resource type="Script" path="res://World/Player/Runtime/HeadPivot.cs" id="2_bd6kk"]
+[ext_resource type="PackedScene" path="res://World/Player/Components/CharacterVisual.tscn" id="4_ejmv4"]
+[ext_resource type="Script" path="res://World/Player/Runtime/PlayerGameHandler.cs" id="5_llsyq"]
+[ext_resource type="Script" path="res://World/Player/Runtime/ControlSwitch.cs" id="6_4uqpi"]
+[ext_resource type="PackedScene" path="res://World/Player/Components/LocalPlayerPresentation.tscn" id="7_local"]
+[ext_resource type="Script" path="res://World/Player/States/PlayerStrike.cs" id="12_1luhw"]
+[ext_resource type="Script" path="res://Shared/StateMachine/StateMachine.cs" id="23_cwv8h"]
+[ext_resource type="Script" path="res://World/Player/States/PlayerIdle.cs" id="24_4ndi6"]
+[ext_resource type="Script" path="res://World/Player/States/PlayerWalking.cs" id="25_4ndi6"]
+[ext_resource type="Script" path="res://Shared/StateMachine/Network/AuthorityStateSynchronizer.cs" id="26_5rlu4"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qhdlv"]
+radius = 0.23291016
+height = 1.5608286
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_wlwl2"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 0
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 0
+properties/2/path = NodePath(".:Nickname")
+properties/2/spawn = true
+properties/2/replication_mode = 0
+
+[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("SeatedGestureAnimator", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision") groups=["player"]]
+collision_layer = 2
+collision_mask = 15
+script = ExtResource("1_wlwl2")
+SeatedGestureAnimator = NodePath("FirstPerson/Model3D/AnimationPlayer")
+HeadPivot = NodePath("FirstPerson/HeadPivot")
+GameHandler = NodePath("Runtime/PlayerGameHandler")
+PlayerModel = NodePath("FirstPerson/Model3D")
+StateMachine = NodePath("StateMachine")
+BodyCollision = NodePath("CollisionShape3D")
+LocalPresentationScene = ExtResource("7_local")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=367739299]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.752433, 0)
+shape = SubResource("CapsuleShape3D_qhdlv")
+
+[node name="FirstPerson" type="Node3D" parent="." unique_id=779977182]
+
+[node name="HeadPivot" type="Node3D" parent="FirstPerson" unique_id=928062161 node_paths=PackedStringArray("CameraMount")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4081178, -0.343)
+script = ExtResource("2_bd6kk")
+CameraMount = NodePath("RemoteFPS")
+
+[node name="RemoteFPS" type="RemoteTransform3D" parent="FirstPerson/HeadPivot" unique_id=576306591]
+remote_path = NodePath("../../..")
+
+[node name="Model3D" type="Node3D" parent="FirstPerson" unique_id=2051382016 instance=ExtResource("4_ejmv4")]
+transform = Transform3D(-1.5842189, 0, -2.1901567e-07, 0, 1.6967292, 0, 2.392104e-07, 0, -1.4504752, 0, 0, 0)
+
+[node name="GameContextSlot" type="Node3D" parent="." unique_id=448513269]
+
+[node name="Runtime" type="Node" parent="." unique_id=1024639676]
+
+[node name="PlayerGameHandler" type="Node" parent="Runtime" unique_id=1368373490 node_paths=PackedStringArray("ContextSlot", "Player")]
+script = ExtResource("5_llsyq")
+ContextSlot = NodePath("../../GameContextSlot")
+Player = NodePath("../..")
+
+[node name="ControlSwitch" type="Node" parent="Runtime" unique_id=982311184 node_paths=PackedStringArray("Player")]
+script = ExtResource("6_4uqpi")
+Player = NodePath("../..")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1395696104]
+replication_config = SubResource("SceneReplicationConfig_wlwl2")
+
+[node name="StateMachine" type="Node" parent="." unique_id=893532239 node_paths=PackedStringArray("AuthorityStateSynchronizer")]
+script = ExtResource("23_cwv8h")
+InitialState = "PLAYER_IDLE"
+AuthorityStateSynchronizer = NodePath("AuthorityStateSynchronizer")
+
+[node name="PlayerWalking" type="Node" parent="StateMachine" unique_id=263482104 node_paths=PackedStringArray("AnimationPlayer")]
+script = ExtResource("25_4ndi6")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+
+[node name="PlayerIdle" type="Node" parent="StateMachine" unique_id=1236598483 node_paths=PackedStringArray("AnimationPlayer")]
+script = ExtResource("24_4ndi6")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+
+[node name="PlayerStrike" type="Node" parent="StateMachine" unique_id=178732828 node_paths=PackedStringArray("AnimationPlayer")]
+script = ExtResource("12_1luhw")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+
+[node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine" unique_id=442105977]
+script = ExtResource("26_5rlu4")

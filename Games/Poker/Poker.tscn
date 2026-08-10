@@ -1,0 +1,78 @@
+[gd_scene format=3 uid="uid://b7jrgdqobxylj"]
+
+[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerGame.cs" id="1_pgame"]
+[ext_resource type="Script" path="res://Shared/Table/GameMode/GameModeHandler.cs" id="2_gmhand"]
+[ext_resource type="Script" path="res://Shared/Table/GameMode/GameMode.cs" id="3_gmode"]
+[ext_resource type="PackedScene" path="res://Games/Poker/Components/Table/PokerTableFixture.tscn" id="4_o27t8"]
+[ext_resource type="Script" path="res://Games/Poker/GameModes/PokerTurnResolver.cs" id="4_presol"]
+[ext_resource type="Script" path="res://Shared/Table/TableSeatAnchors.cs" id="5_panch"]
+[ext_resource type="PackedScene" path="res://Games/Poker/Components/Cards/PokerCard.tscn" id="6_pcard"]
+[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerBoardPresenter.cs" id="7_pboard"]
+[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerSeatPresenter.cs" id="8_pseat"]
+[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerChipPile.cs" id="9_ppile"]
+[ext_resource type="PackedScene" path="res://Games/Poker/GameController/PokerController.tscn" id="10_pctrl"]
+[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Strike.ogg" id="11_pknock"]
+[ext_resource type="Resource" path="res://Games/Poker/PokerVisualAssets.tres" id="12_visuals"]
+[ext_resource type="Resource" path="res://Games/Poker/PokerPresentationProfile.tres" id="13_timing"]
+[ext_resource type="PackedScene" path="res://Shared/Table/Components/SeatAnchor.tscn" id="14_seat"]
+
+[node name="Poker" type="Node3D" unique_id=1876712086 node_paths=PackedStringArray("GameModeHandler", "Seats", "BoardPresenter", "SeatPresenter")]
+script = ExtResource("1_pgame")
+GameModeHandler = NodePath("GameModeHandler")
+GameControllerScene = ExtResource("10_pctrl")
+Seats = NodePath("Seats")
+VisualAssets = ExtResource("12_visuals")
+BoardPresenter = NodePath("BoardHolder")
+SeatPresenter = NodePath("SeatPresenter")
+AllowSoloDebug = true
+
+[node name="TableFixture" type="Node3D" parent="." unique_id=386107593 instance=ExtResource("4_o27t8")]
+
+[node name="BoardHolder" type="Node3D" parent="." unique_id=1078020313 node_paths=PackedStringArray("PotPile")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
+script = ExtResource("7_pboard")
+CardScene = ExtResource("6_pcard")
+PotPile = NodePath("PotPile")
+
+[node name="PotPile" type="Node3D" parent="BoardHolder" unique_id=302199022]
+script = ExtResource("9_ppile")
+Scatter = 0.016
+TiltDegrees = 9.0
+SettleSeconds = 0.26
+SettleHeight = 0.02
+
+[node name="SeatPresenter" type="Node3D" parent="." unique_id=637816955 node_paths=PackedStringArray("BoardPresenter", "Seats")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
+script = ExtResource("8_pseat")
+CardScene = ExtResource("6_pcard")
+BoardPresenter = NodePath("../BoardHolder")
+Seats = NodePath("../Seats")
+PresentationProfile = ExtResource("13_timing")
+KnockSound = ExtResource("11_pknock")
+
+[node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
+script = ExtResource("5_panch")
+Chairs = [NodePath("../TableFixture/WoodenChair_006"), NodePath("../TableFixture/WoodenChair_007"), NodePath("../TableFixture/WoodenChair_008"), NodePath("../TableFixture/WoodenChair_009")]
+
+[node name="Seat0" type="Marker3D" parent="Seats" unique_id=1088163110 instance=ExtResource("14_seat")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -1.03)
+
+[node name="Seat1" type="Marker3D" parent="Seats" unique_id=932488307 instance=ExtResource("14_seat")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.03, 0, 0)
+
+[node name="Seat2" type="Marker3D" parent="Seats" unique_id=1206343072 instance=ExtResource("14_seat")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.03)
+
+[node name="Seat3" type="Marker3D" parent="Seats" unique_id=1647890397 instance=ExtResource("14_seat")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.03, 0, 0)
+
+[node name="GameModeHandler" type="Node" parent="." unique_id=1733713250 node_paths=PackedStringArray("CurrentGameMode")]
+script = ExtResource("2_gmhand")
+CurrentGameMode = NodePath("TexasHoldem")
+
+[node name="TexasHoldem" type="Node" parent="GameModeHandler" unique_id=1080197325]
+script = ExtResource("3_gmode")
+
+[node name="Resolver" type="Node" parent="GameModeHandler/TexasHoldem" unique_id=1752055218]
+script = ExtResource("4_presol")
+PresentationProfile = ExtResource("13_timing")

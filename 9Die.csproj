@@ -6,4 +6,8 @@
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Test scenes are not exported and their harness code must not ship in the game assembly. -->
+    <Compile Remove="**/Tests/**/*.cs" />
+  </ItemGroup>
 </Project>

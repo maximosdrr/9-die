@@ -1,0 +1,34 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Games/Poker/GameController/PokerController.cs" id="1_pctrl"]
+[ext_resource type="PackedScene" path="res://Games/Poker/GameController/Views/PokerHand3DView.tscn" id="2_phview"]
+
+[node name="PokerController" type="Node3D" node_paths=PackedStringArray("LookRig", "LookPitch", "RemoteSeat", "TopRig", "RemoteTop")]
+script = ExtResource("1_pctrl")
+LookRig = NodePath("LookRig")
+LookPitch = NodePath("LookRig/LookPitch")
+RemoteSeat = NodePath("LookRig/LookPitch/RemoteSeat")
+TopRig = NodePath("TopRig")
+RemoteTop = NodePath("TopRig/RemoteTop")
+HandViewScene = ExtResource("2_phview")
+SeatFov = 48.0
+MouseSensitivity = 0.004
+MaxYawDeg = 100.0
+MinPitchDeg = -55.0
+MaxPitchDeg = 25.0
+RestPitchDeg = -32.0
+SeatedAnimationName = "SitForAGame"
+TopFov = 55.0
+TopHeight = 1.08
+
+[node name="LookRig" type="Node3D" parent="."]
+
+[node name="LookPitch" type="Node3D" parent="LookRig"]
+
+[node name="RemoteSeat" type="RemoteTransform3D" parent="LookRig/LookPitch"]
+update_scale = false
+
+[node name="TopRig" type="Node3D" parent="."]
+
+[node name="RemoteTop" type="RemoteTransform3D" parent="TopRig"]
+update_scale = false
