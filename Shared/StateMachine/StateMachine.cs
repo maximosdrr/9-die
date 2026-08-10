@@ -9,8 +9,11 @@ public partial class StateMachine : Node
 
     public State Current;
     public State Previous;
-    public Dictionary<string, State> States = new();
-    public Dictionary CurrentMetadata = new();
+    // This is an entirely local lookup. Keeping it as Godot.Collections.Dictionary left a native
+    // dictionary finalizer pending for every short-lived state machine and could crash the Mono
+    // runner after Godot had already started shutting down.
+    public System.Collections.Generic.Dictionary<string, State> States = new();
+    public Dictionary CurrentMetadata;
 
     private bool _enabled = true;
     [Export]
@@ -57,14 +60,27 @@ public partial class StateMachine : Node
             return;
         }
 
-        CurrentMetadata = metadata;
-        Current?.Exit(metadata);
+        var nextMetadata = metadata ?? new Dictionary();
+        Current?.Exit(nextMetadata);
 
         Previous = Current;
         Current = newState;
 
-        EmitSignal(SignalName.StateChanged, type, metadata);
-        Current.Enter(metadata);
+        if (!object.ReferenceEquals(CurrentMetadata, nextMetadata))
+            CurrentMetadata?.Dispose();
+        CurrentMetadata = nextMetadata;
+
+        EmitSignal(SignalName.StateChanged, type, nextMetadata);
+        Current.Enter(nextMetadata);
+    }
+
+    public override void _ExitTree()
+    {
+        CurrentMetadata?.Dispose();
+        CurrentMetadata = null;
+        Current = null;
+        Previous = null;
+        States.Clear();
     }
 
     public override void _Process(double delta)
@@ -121,7 +137,8 @@ public partial class StateMachine : Node
             return;
         }
 
+        CurrentMetadata = new Dictionary();
         Current = state;
-        state.Enter(new Dictionary());
+        state.Enter(CurrentMetadata);
     }
 }
