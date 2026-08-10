@@ -176,10 +176,11 @@ public partial class PokerSeatPresenter : Node3D
     private void PlaceHoleCards(
         string playerId, SeatHand hand, Vector2 facing, PokerLayoutSpec spec, bool shown)
     {
-        // Turned toward whoever is LOOKING, not toward whose cards they are. A showdown exists to be
-        // read, and a hand laid out for its owner is upside down to everyone it was shown to.
-        var yaw = ReaderYaw(facing);
-        var turned = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
+        // Hidden/dealt cards may face this peer for legibility. Once exposed, however, each pair
+        // belongs to a physical seat and faces its OWNER, just as cards laid down by that player
+        // would. This is the one table visual that intentionally is not reoriented per viewer.
+        var readerYaw = ReaderYaw(facing);
+        var readerTurned = Basis.FromEuler(new Vector3(0.0f, readerYaw, 0.0f));
         var deck = BoardPresenter.DeckPosition;
 
         if ((_showdownPresenter?.Active ?? false) && shown)
@@ -191,7 +192,7 @@ public partial class PokerSeatPresenter : Node3D
 
         if (_game.HandNumber > 0 && hand.Folded && !shown)
         {
-            PlaceMuck(playerId, hand, facing, spec, yaw);
+            PlaceMuck(playerId, hand, facing, spec, readerYaw);
             return;
         }
 
@@ -202,6 +203,11 @@ public partial class PokerSeatPresenter : Node3D
         for (var i = 0; i < hand.Cards.Length; i++)
         {
             var card = hand.Cards[i];
+            var seat = Mathf.Max(System.Array.IndexOf(_game.SeatOrder, playerId), 0);
+            var motionSeed = seat * PokerDeal.HoleCardCount + i;
+            var target = shown
+                ? RevealedCardTransform(facing, seat, i, spec)
+                : DealtCardTransform(facing, i, spec, readerTurned);
 
             if (_game.HandNumber <= 0 || taken)
             {
@@ -211,8 +217,7 @@ public partial class PokerSeatPresenter : Node3D
 
             card.Visible = true;
 
-            var place = PokerTableLayout.SeatCardPosition(facing, i, spec);
-            var seated = new Vector3(place.X, spec.CardThickness * 0.5f, place.Y);
+            var seated = target.Origin;
 
             if (shown && hand.Returning)
             {
@@ -222,16 +227,14 @@ public partial class PokerSeatPresenter : Node3D
                 var from = hand.ReleasedFrom[i].Origin;
                 var returnPosition = PokerMotion.CardThrow(from, seated, returned, 0.035f,
                     PokerChipPile.Noise(i, 18) * 0.010f);
-                var target = turned * PokerCard.Orientation(false);
+                var targetBasis = target.Basis;
                 var basis = hand.ReleasedFrom[i]
-                    .InterpolateWith(new Transform3D(target, seated), returned)
+                    .InterpolateWith(new Transform3D(targetBasis, seated), returned)
                     .Basis;
                 card.Transform = new Transform3D(basis, returnPosition);
                 continue;
             }
 
-            var seat = Mathf.Max(System.Array.IndexOf(_game.SeatOrder, playerId), 0);
-            var motionSeed = seat * PokerDeal.HoleCardCount + i;
             var position = PokerMotion.CardThrow(
                 deck, seated, hand.Dealt[i], DealArc,
                 PokerChipPile.Noise(motionSeed, 10) * 0.012f);
@@ -243,8 +246,48 @@ public partial class PokerSeatPresenter : Node3D
 
             // Configure only RECORDS that a card is face down; turning it over is the caller's job.
             // Without this the pair lay face up showing a blank white placeholder.
-            card.Transform = new Transform3D(turned * dealWobble * PokerCard.Orientation(!shown), position);
+            card.Transform = shown
+                ? target
+                : new Transform3D(readerTurned * dealWobble * PokerCard.Orientation(true), position);
         }
+    }
+
+    private static Transform3D DealtCardTransform(
+        Vector2 facing, int index, PokerLayoutSpec spec, Basis turned)
+    {
+        var place = PokerTableLayout.SeatCardPosition(facing, index, spec);
+        return new Transform3D(turned * PokerCard.Orientation(true),
+            new Vector3(place.X, spec.CardThickness * 0.5f, place.Y));
+    }
+
+    /// <summary>
+    /// A face-up pair in front of its owner. Variation is derived from hand/seat/card rather than a
+    /// runtime RNG, so host and clients see the same natural placement without networking transforms.
+    /// The second card rests a fraction higher: overlapping paper has an unambiguous draw order and
+    /// cannot z-fight even when the imported mesh face is slightly thicker than the logical card.
+    /// </summary>
+    private Transform3D RevealedCardTransform(
+        Vector2 facing, int seat, int index, PokerLayoutSpec spec)
+    {
+        var direction = facing.Normalized();
+        var across = new Vector2(-direction.Y, direction.X);
+        var seed = (_game.HandNumber * Mathf.Max(1, _game.SeatOrder.Length) + seat)
+            * PokerDeal.HoleCardCount + index;
+        var lateral = (index - (PokerDeal.HoleCardCount - 1) * 0.5f)
+            * Mathf.Max(0.0f, ShowdownPairSpacing);
+        lateral += PokerChipPile.Noise(seed, 31) * Mathf.Max(0.0f, ShowdownPairPositionJitter);
+        var radial = spec.SeatCardRadius
+            + PokerChipPile.Noise(seed, 32) * Mathf.Max(0.0f, ShowdownPairPositionJitter);
+        var place = direction * radial + across * lateral;
+        var height = spec.CardThickness * 0.5f
+            + index * Mathf.Max(spec.CardThickness, ShowdownPairLayerSeparation);
+        var yaw = PokerTableLayout.YawTowardCentre(direction)
+            + Mathf.DegToRad(PokerChipPile.Noise(seed, 33)
+                * Mathf.Max(0.0f, ShowdownPairAngleJitterDegrees));
+
+        return new Transform3D(
+            new Basis(Vector3.Up, yaw) * PokerCard.Orientation(false),
+            new Vector3(place.X, height, place.Y));
     }
 
     /// <summary>

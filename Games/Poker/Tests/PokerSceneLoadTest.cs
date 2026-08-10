@@ -106,6 +106,14 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter?.GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter") != null
             && seatPresenter.GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer") != null
             && seatPresenter.GetNodeOrNull<PokerChipAnimator>("ChipAnimator") != null);
+        Check("o par revelado se sobrepõe de forma controlada, sem ficar coplanar",
+            seatPresenter != null
+            && seatPresenter.ShowdownPairSpacing > game.BoardPresenter.Spec.CardWidth * 0.5f
+            && seatPresenter.ShowdownPairSpacing < game.BoardPresenter.Spec.CardWidth
+            && seatPresenter.ShowdownPairLayerSeparation > game.BoardPresenter.Spec.CardThickness);
+        Check("o par revelado recebe variação visual moderada",
+            seatPresenter is { ShowdownPairPositionJitter: > 0.0f,
+                ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
         Check("o futuro dealer tem pontos de extensao para animacao e som",
             typeof(PokerPayoutSequencer).GetEvent("DealerChangeStarted") != null
             && typeof(PokerSeatPresenter).GetField("DealerAnimator") != null

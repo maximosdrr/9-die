@@ -20,6 +20,7 @@ public partial class PokerVisualCheck : Node3D
     private PokerGame _game;
     private int _frames;
     private bool _shot;
+    private bool _captureRevealHold;
 
     public override void _Ready()
     {
@@ -47,6 +48,9 @@ public partial class PokerVisualCheck : Node3D
         _game.BoardPresenter.FlipStagger = 0.08f;
         _game.BoardPresenter.FlipSeconds = 0.28f;
         _game.SeatPresenter.ShowdownCardSeconds = 0.48f;
+        _captureRevealHold = OS.GetEnvironment("POKER_CAPTURE_REVEAL") == "1";
+        if (_captureRevealHold)
+            _game.SeatPresenter.ShowdownRevealHoldSeconds = 3600.0f;
 
         var order = new Array { "1", "2" };
         _game.TurnOrder = order;
@@ -81,7 +85,10 @@ public partial class PokerVisualCheck : Node3D
 
         // Advance the local presentation deterministically. The harness submits all actions in one
         // method call, whereas a real table naturally gets many rendered frames between them.
-        for (var frame = 0; frame < 1200 && !_game.SeatPresenter.ShowdownPresentationSettled; frame++)
+        for (var frame = 0; frame < 1200
+             && (_captureRevealHold
+                 ? _game.SeatPresenter.ShowdownRevealHoldElapsed <= 0.0f
+                 : !_game.SeatPresenter.ShowdownPresentationSettled); frame++)
         {
             _game.SeatPresenter._Process(1.0 / 60.0);
             _game.BoardPresenter._Process(1.0 / 60.0);

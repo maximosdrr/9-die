@@ -141,6 +141,14 @@ public partial class PokerSeatPresenter : Node3D
     [ExportGroup("Showdown comparison")]
     /// <summary>Time left for everyone to read the exposed hole cards before ranking rearranges them.</summary>
     public float ShowdownRevealHoldSeconds { get => Profile.ShowdownRevealHoldSeconds; set => Profile.ShowdownRevealHoldSeconds = value; }
+    /// <summary>Centre-to-centre distance between the two cards exposed in front of their owner.</summary>
+    [Export] public float ShowdownPairSpacing = 0.054f;
+    /// <summary>Small table-plane variation that keeps exposed pairs from looking mechanically placed.</summary>
+    [Export] public float ShowdownPairPositionJitter = 0.006f;
+    /// <summary>Maximum clockwise/counter-clockwise variation of each exposed card.</summary>
+    [Export(PropertyHint.Range, "0,8,0.25")] public float ShowdownPairAngleJitterDegrees = 4.0f;
+    /// <summary>Physical layer separation for overlapping cards, preventing coplanar depth flicker.</summary>
+    [Export] public float ShowdownPairLayerSeparation = 0.0012f;
     public float ShowdownCardSeconds { get => Profile.ShowdownCardSeconds; set => Profile.ShowdownCardSeconds = value; }
     public float ShowdownRowStagger { get => Profile.ShowdownRowStagger; set => Profile.ShowdownRowStagger = value; }
     public float ShowdownCardStagger { get => Profile.ShowdownCardStagger; set => Profile.ShowdownCardStagger = value; }
