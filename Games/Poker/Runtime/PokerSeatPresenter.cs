@@ -123,7 +123,12 @@ public partial class PokerSeatPresenter : Node3D
 
     /// <summary>Moves the bank inward and sideways so it is visible beside, not behind, the cards.</summary>
     [Export] public float StackInset = 0.055f;
-    [Export] public float StackSideOffset = 0.105f;
+    [Export] public float StackSideOffset = 0.150f;
+    /// <summary>
+    /// Keeps a pushed bet out of the projected silhouette of its owner's cards from every chair.
+    /// It remains seat-relative, so every peer still agrees on one physical table position.
+    /// </summary>
+    [Export] public float BetSideOffset = 0.140f;
     [Export] public float BankColumnSpacing = 0.034f;
 
     [ExportGroup("Presentation sequence")]

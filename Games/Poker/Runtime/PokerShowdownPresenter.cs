@@ -49,6 +49,19 @@ public partial class PokerShowdownPresenter : Node3D
     public IReadOnlyList<string> DisplayOrder => _displayOrder;
     public int DisplayedCardCount => _moves.Count;
     public int CleanupCardCount => _cleanupMoves.Count;
+    public int VisibleCardCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var card in _cardPool)
+            {
+                if (card.Visible)
+                    count++;
+            }
+            return count;
+        }
+    }
 
     public void Configure(
         PokerGame game, PokerBoardPresenter board, PackedScene cardScene,
@@ -139,7 +152,8 @@ public partial class PokerShowdownPresenter : Node3D
         return true;
     }
 
-    public void BeginCardCleanup(float returnSeconds, float stagger, float shuffleSeconds)
+    public void BeginCardCleanup(
+        float returnSeconds, float stagger, float shuffleSeconds, int startSlot = 0)
     {
         if (_cleaningUp)
             return;
@@ -147,11 +161,12 @@ public partial class PokerShowdownPresenter : Node3D
         _cleaningUp = true;
         _cleanupElapsed = 0.0f;
         _cleanupReturnSeconds = Mathf.Max(0.01f, returnSeconds);
-        _cleanupReturnEnd = _cleanupReturnSeconds + 12 * Mathf.Max(0.0f, stagger);
+        var visibleCount = VisibleCardCount;
+        _cleanupReturnEnd = _cleanupReturnSeconds
+            + Mathf.Max(0, startSlot + visibleCount - 1) * Mathf.Max(0.0f, stagger);
         _cleanupShuffleSeconds = Mathf.Max(0.0f, shuffleSeconds);
         _cleanupMoves.Clear();
 
-        var deck = ToLocal(_board.ToGlobal(_board.DeckPosition));
         var deckBasis = GlobalTransform.Basis.Inverse()
             * _board.GlobalTransform.Basis * _board.DeckCardBasis;
         var visibleIndex = 0;
@@ -160,9 +175,9 @@ public partial class PokerShowdownPresenter : Node3D
             if (!card.Visible)
                 continue;
 
-            var slot = Mathf.Min(12, visibleIndex);
+            var slot = startSlot + visibleIndex;
             var target = new Transform3D(deckBasis,
-                deck + Vector3.Up * ((slot + 1) * _board.Spec.CardThickness * 1.7f));
+                ToLocal(_board.ToGlobal(_board.CollectionTarget(slot))));
             _cleanupMoves.Add(new CardMove
             {
                 Card = card,
@@ -195,11 +210,11 @@ public partial class PokerShowdownPresenter : Node3D
                 PokerChipPile.Noise(index, 63) * 0.010f);
             var transform = move.From.InterpolateWith(move.To, PokerMotion.Smooth(t));
             move.Card.Transform = new Transform3D(transform.Basis, position);
-            if (t >= 1.0f)
+            if (t >= 1.0f && _board.CardCollectionComplete)
                 move.Card.Visible = false;
         }
 
-        if (_cleanupElapsed < _cleanupReturnEnd + _cleanupShuffleSeconds)
+        if (_board.CardCleanupActive)
             return true;
 
         _cleaningUp = false;

@@ -49,6 +49,9 @@ public partial class PokerBoardPresenter : Node3D
 
     /// <summary>How many cards are drawn in the stack. Enough to read as a deck, not 52.</summary>
     [Export] public int DeckDepth = 8;
+    [Export] public float ShuffleSplitDistance = 0.034f;
+    [Export] public float ShuffleLift = 0.014f;
+    [Export(PropertyHint.Range, "0,12,0.25")] public float ShuffleHalfYawDegrees = 5.0f;
 
     /// <summary>
     /// Where thrown-away hands land, in the reader's own frame: the dealer's other side, opposite the
@@ -102,13 +105,38 @@ public partial class PokerBoardPresenter : Node3D
     private PokerGame _game;
 
     private Node3D _deck;
+    private readonly List<PokerCard> _deckCards = new();
+    private readonly List<Transform3D> _deckCardRest = new();
     private bool _cleaningUp;
     private float _cleanupElapsed;
     private float _returnSeconds;
     private float _returnEnd;
+    private float _gatherHoldSeconds;
     private float _shuffleSeconds;
     private Transform3D _deckRest;
+    private bool _collectionFinished;
     public bool CardCleanupActive => _cleaningUp;
+    public bool CardCollectionComplete => _collectionFinished;
+    private float ShuffleStart => _returnEnd + _gatherHoldSeconds;
+    public bool DeckGatherHoldInProgress => _cleaningUp
+        && _cleanupElapsed >= _returnEnd && _cleanupElapsed < ShuffleStart;
+    public bool DeckShuffleInProgress => _cleaningUp && _cleanupElapsed >= ShuffleStart;
+    public float DeckCardSpread
+    {
+        get
+        {
+            if (_deckCards.Count == 0)
+                return 0.0f;
+            var minimum = float.MaxValue;
+            var maximum = float.MinValue;
+            foreach (var card in _deckCards)
+            {
+                minimum = Mathf.Min(minimum, card.Position.X);
+                maximum = Mathf.Max(maximum, card.Position.X);
+            }
+            return maximum - minimum;
+        }
+    }
     public int ReturningCardCount
     {
         get
@@ -117,6 +145,19 @@ public partial class PokerBoardPresenter : Node3D
             foreach (var card in _cards)
             {
                 if (_cleaningUp && card.Node.Visible)
+                    count++;
+            }
+            return count;
+        }
+    }
+    public int VisibleCardCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var card in _cards)
+            {
+                if (card.Node.Visible)
                     count++;
             }
             return count;
@@ -144,6 +185,11 @@ public partial class PokerBoardPresenter : Node3D
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
     public Vector3 DeckPosition => new Basis(Vector3.Up, ReaderYaw()) * DeckOffset;
     public Basis DeckCardBasis => new Basis(Vector3.Up, ReaderYaw()) * PokerCard.Orientation(true);
+    public float DeckTopHeight => Mathf.Max(1, DeckDepth) * Spec.CardThickness * 1.6f;
+
+    /// <summary>Successive collected cards land above, never through, the visible deck proxy.</summary>
+    public Vector3 CollectionTarget(int slot) => DeckPosition + Vector3.Up
+        * (DeckTopHeight + (Mathf.Max(0, slot) + 0.5f) * Spec.CardThickness * 1.7f);
 
     /// <summary>Where thrown-away hands lie, in this presenter's space.</summary>
     public Vector3 MuckPosition => new Basis(Vector3.Up, ReaderYaw()) * MuckOffset;
@@ -211,6 +257,8 @@ public partial class PokerBoardPresenter : Node3D
             card.Transform = new Transform3D(
                 new Basis(Vector3.Up, (i % 2 == 0 ? 1.0f : -1.0f) * 0.012f) * PokerCard.Orientation(true),
                 new Vector3(0.0f, (i + 0.5f) * spec.CardThickness * 1.6f, 0.0f));
+            _deckCards.Add(card);
+            _deckCardRest.Add(card.Transform);
         }
     }
 
@@ -410,25 +458,33 @@ public partial class PokerBoardPresenter : Node3D
     }
 
     public void BeginCardCleanup(
-        float returnSeconds, float stagger, float shuffleSeconds, int totalCardSlots = 13)
+        float returnSeconds, float stagger, float gatherHoldSeconds, float shuffleSeconds,
+        int totalCardSlots = 20, int startSlot = 0)
     {
         if (_cleaningUp)
             return;
 
         _cleaningUp = true;
+        _collectionFinished = false;
         _cleanupElapsed = 0.0f;
         _returnSeconds = Mathf.Max(0.01f, returnSeconds);
         _returnEnd = _returnSeconds
             + Mathf.Max(0, totalCardSlots - 1) * Mathf.Max(0.0f, stagger);
+        _gatherHoldSeconds = Mathf.Max(0.0f, gatherHoldSeconds);
         _shuffleSeconds = Mathf.Max(0.0f, shuffleSeconds);
         _deckRest = _deck?.Transform ?? Transform3D.Identity;
+        for (var index = 0; index < _deckCards.Count; index++)
+        {
+            if (index < _deckCardRest.Count)
+                _deckCardRest[index] = _deckCards[index].Transform;
+        }
 
         var visibleIndex = 0;
         foreach (var card in _cards)
         {
             card.CleanupFrom = card.Node.Transform;
-            card.CleanupDelay = visibleIndex * Mathf.Max(0.0f, stagger);
-            card.CleanupSlot = visibleIndex;
+            card.CleanupDelay = (startSlot + visibleIndex) * Mathf.Max(0.0f, stagger);
+            card.CleanupSlot = startSlot + visibleIndex;
             card.CleanupFaceDown = false;
             if (card.Node.Visible)
                 visibleIndex++;
@@ -454,31 +510,72 @@ public partial class PokerBoardPresenter : Node3D
                 card.CleanupFaceDown = true;
             }
 
-            var target = DeckPosition + Vector3.Up
-                * ((card.CleanupSlot + 1) * Spec.CardThickness * 1.7f);
+            var target = CollectionTarget(card.CleanupSlot);
             var position = PokerMotion.CardThrow(card.CleanupFrom.Origin, target, t, 0.040f,
                 PokerChipPile.Noise(card.CleanupSlot, 61) * 0.010f);
             var basis = card.CleanupFrom.InterpolateWith(
                 new Transform3D(targetBasis, target), PokerMotion.Smooth(t)).Basis;
             card.Node.Transform = new Transform3D(basis, position);
-            if (t >= 1.0f)
+        }
+
+        // Keep the complete pile visible for a short beat. This separates collecting from
+        // shuffling instead of making the last card vanish as the deck starts moving.
+        if (_cleanupElapsed >= ShuffleStart)
+        {
+            _collectionFinished = true;
+            foreach (var card in _cards)
                 card.Node.Visible = false;
         }
 
-        if (_deck != null && _cleanupElapsed >= _returnEnd && _shuffleSeconds > 0.0f)
+        if (_deck != null && _cleanupElapsed >= ShuffleStart && _shuffleSeconds > 0.0f)
         {
-            var shuffle = Mathf.Clamp((_cleanupElapsed - _returnEnd) / _shuffleSeconds, 0.0f, 1.0f);
-            var envelope = Mathf.Sin(shuffle * Mathf.Pi);
-            var lateral = Mathf.Sin(shuffle * Mathf.Pi * 6.0f) * 0.018f * envelope;
-            var yaw = Mathf.Sin(shuffle * Mathf.Pi * 8.0f) * 0.055f * envelope;
-            var across = new Basis(Vector3.Up, ReaderYaw()) * Vector3.Right;
-            _deck.Transform = new Transform3D(
-                _deckRest.Basis * new Basis(Vector3.Up, yaw),
-                _deckRest.Origin + across * lateral);
+            var shuffle = Mathf.Clamp((_cleanupElapsed - ShuffleStart) / _shuffleSeconds, 0.0f, 1.0f);
+            AnimateDetailedShuffle(shuffle);
         }
 
-        if (_cleanupElapsed >= _returnEnd + _shuffleSeconds)
+        if (_cleanupElapsed >= ShuffleStart + _shuffleSeconds)
             EndCardCleanup();
+    }
+
+    private void AnimateDetailedShuffle(float shuffle)
+    {
+        if (_deck == null || _deckCards.Count == 0)
+            return;
+
+        var halfCount = Mathf.Max(1, (_deckCards.Count + 1) / 2);
+        // Separate, briefly hold, interleave, then square the deck in distinct readable phases.
+        var split = Smooth(Mathf.Clamp(shuffle / 0.27f, 0.0f, 1.0f));
+        for (var index = 0; index < _deckCards.Count; index++)
+        {
+            var source = _deckCardRest[index];
+            var rightHalf = index >= halfCount;
+            var within = rightHalf ? index - halfCount : index;
+            var side = rightHalf ? 1.0f : -1.0f;
+            var merge = Smooth(Mathf.Clamp(
+                (shuffle - 0.35f - within * 0.040f) / 0.34f, 0.0f, 1.0f));
+            var layer = Mathf.Min(_deckCards.Count - 1, within * 2 + (rightHalf ? 1 : 0));
+            var target = new Transform3D(
+                new Basis(Vector3.Up, (layer % 2 == 0 ? 1.0f : -1.0f) * 0.012f)
+                * PokerCard.Orientation(true),
+                new Vector3(0.0f, (layer + 0.5f) * Spec.CardThickness * 1.6f, 0.0f));
+
+            var separated = source.Origin
+                + Vector3.Right * (side * ShuffleSplitDistance * split)
+                + Vector3.Back * ((within - (halfCount - 1) * 0.5f) * 0.0025f * split);
+            var position = separated.Lerp(target.Origin, merge);
+            position.Y += Mathf.Sin(merge * Mathf.Pi) * ShuffleLift;
+            var splitBasis = source.Basis * new Basis(Vector3.Up,
+                side * Mathf.DegToRad(ShuffleHalfYawDegrees) * split);
+            var basis = new Transform3D(splitBasis, separated)
+                .InterpolateWith(target, merge).Basis;
+            _deckCards[index].Transform = new Transform3D(basis, position);
+        }
+
+        // One soft lateral press replaces the former double-frequency tap, which read as a twitch.
+        var square = Mathf.Clamp((shuffle - 0.82f) / 0.18f, 0.0f, 1.0f);
+        var tap = Mathf.Sin(square * Mathf.Pi * 2.0f) * (1.0f - square) * 0.003f;
+        var across = new Basis(Vector3.Up, ReaderYaw()) * Vector3.Right;
+        _deck.Transform = new Transform3D(_deckRest.Basis, _deckRest.Origin + across * tap);
     }
 
     private void EndCardCleanup()
@@ -486,6 +583,20 @@ public partial class PokerBoardPresenter : Node3D
         _cleaningUp = false;
         if (_deck != null)
             _deck.Transform = _deckRest;
+        for (var index = 0; index < _deckCards.Count; index++)
+        {
+            var halfCount = Mathf.Max(1, (_deckCards.Count + 1) / 2);
+            var rightHalf = index >= halfCount;
+            var within = rightHalf ? index - halfCount : index;
+            var layer = Mathf.Min(_deckCards.Count - 1, within * 2 + (rightHalf ? 1 : 0));
+            var target = new Transform3D(
+                new Basis(Vector3.Up, (layer % 2 == 0 ? 1.0f : -1.0f) * 0.012f)
+                * PokerCard.Orientation(true),
+                new Vector3(0.0f, (layer + 0.5f) * Spec.CardThickness * 1.6f, 0.0f));
+            _deckCards[index].Transform = target;
+            if (index < _deckCardRest.Count)
+                _deckCardRest[index] = target;
+        }
         SetProcess(false);
     }
 
@@ -587,6 +698,7 @@ public partial class PokerBoardPresenter : Node3D
 
         _handNumber = -1;
         _faceUpCount = 0;
+        _collectionFinished = false;
         PotPile?.Clear();
     }
 

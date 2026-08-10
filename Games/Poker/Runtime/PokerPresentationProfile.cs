@@ -38,16 +38,21 @@ public partial class PokerPresentationProfile : Resource
     [Export] public float RankedHandsReadingSeconds { get; set; } = 8.0f;
 
     [ExportGroup("Next hand")]
-    [Export] public float CardReturnSeconds { get; set; } = 0.72f;
-    [Export] public float CardReturnStagger { get; set; } = 0.035f;
-    [Export] public float DeckShuffleSeconds { get; set; } = 0.70f;
+    [Export] public float CardReturnSeconds { get; set; } = 1.15f;
+    [Export] public float CardReturnStagger { get; set; } = 0.075f;
+    [Export] public float DeckGatherHoldSeconds { get; set; } = 0.32f;
+    [Export] public float DeckShuffleSeconds { get; set; } = 1.90f;
+    [Export(PropertyHint.Range, "13,24,1")] public int MaximumCollectionCardSlots { get; set; } = 20;
 
     [ExportGroup("Limits")]
     [Export] public float TransitionSafetySeconds { get; set; } = 0.35f;
     [Export] public int MaxAnimatedChipGroups { get; set; } = 80;
 
-    public float CardCleanupDuration => Mathf.Max(0.0f, CardReturnSeconds)
-        + 12 * Mathf.Max(0.0f, CardReturnStagger)
+    public float CardCleanupDuration => CardCleanupDurationFor(MaximumCollectionCardSlots);
+
+    public float CardCleanupDurationFor(int cardSlots) => Mathf.Max(0.0f, CardReturnSeconds)
+        + Mathf.Max(0, cardSlots - 1) * Mathf.Max(0.0f, CardReturnStagger)
+        + Mathf.Max(0.0f, DeckGatherHoldSeconds)
         + Mathf.Max(0.0f, DeckShuffleSeconds);
 
     public int EstimateChipGroups(IEnumerable<int> contributions, int maximum = -1)
@@ -62,7 +67,9 @@ public partial class PokerPresentationProfile : Resource
     }
 
     /// <summary>Minimum safe time before a completed hand may be replaced by the next deal.</summary>
-    public float MinimumHandPause(bool showdown, int chipGroups, int revealedPlayers, int winnerCount)
+    public float MinimumHandPause(
+        bool showdown, int chipGroups, int revealedPlayers, int winnerCount,
+        int cleanupCardSlots = -1)
     {
         var groups = Mathf.Max(0, chipGroups);
         var finalBet = groups == 0 ? 0.0f
@@ -82,13 +89,19 @@ public partial class PokerPresentationProfile : Resource
                 + Mathf.Max(0.0f, DealerPayoutSeconds - ChipPayoutSeconds);
 
         if (!showdown)
-            return finalBet + collection + payout + CardCleanupDuration + TransitionSafetySeconds;
+            return finalBet + collection + payout
+                + CardCleanupDurationFor(cleanupCardSlots > 0
+                    ? cleanupCardSlots : MaximumCollectionCardSlots)
+                + TransitionSafetySeconds;
 
         var ranking = ShowdownCardSeconds
             + Mathf.Max(0, revealedPlayers - 1) * ShowdownRowStagger
             + 4 * ShowdownCardStagger;
         return finalBet + collection + ShowdownRevealMotionSeconds
             + ShowdownRevealHoldSeconds + ranking
-            + RankedHandsReadingSeconds + payout + CardCleanupDuration + TransitionSafetySeconds;
+            + RankedHandsReadingSeconds + payout
+            + CardCleanupDurationFor(cleanupCardSlots > 0
+                ? cleanupCardSlots : MaximumCollectionCardSlots)
+            + TransitionSafetySeconds;
     }
 }

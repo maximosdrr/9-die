@@ -12,7 +12,9 @@ public partial class PokerSeatPresenter : Node3D
         _cardCleanupActive = true;
         _cardCleanupElapsed = 0.0f;
         var spec = BoardPresenter.Spec;
-        var slot = PokerDeal.BoardCount;
+        var boardCards = BoardPresenter.VisibleCardCount;
+        var showdownCards = _showdownPresenter?.VisibleCardCount ?? 0;
+        var slot = boardCards + showdownCards;
         var rankingOwnsSources = _showdownPresenter?.Active ?? false;
 
         foreach (var entry in _holeCards)
@@ -51,9 +53,12 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         BoardPresenter.BeginCardCleanup(Profile.CardReturnSeconds,
-            Profile.CardReturnStagger, Profile.DeckShuffleSeconds);
+            Profile.CardReturnStagger, Profile.DeckGatherHoldSeconds,
+            Profile.DeckShuffleSeconds,
+            totalCardSlots: Mathf.Max(1, slot), startSlot: 0);
         _showdownPresenter?.BeginCardCleanup(Profile.CardReturnSeconds,
-            Profile.CardReturnStagger, Profile.DeckShuffleSeconds);
+            Profile.CardReturnStagger, Profile.DeckShuffleSeconds,
+            startSlot: boardCards);
     }
 
     private bool AdvanceCardCleanup(float delta)
@@ -79,8 +84,7 @@ public partial class PokerSeatPresenter : Node3D
                     hand.CleanupFaceDown[index] = true;
                 }
 
-                var target = BoardPresenter.DeckPosition + Vector3.Up
-                    * ((hand.CleanupSlot[index] + 1) * BoardPresenter.Spec.CardThickness * 1.7f);
+                var target = BoardPresenter.CollectionTarget(hand.CleanupSlot[index]);
                 var position = PokerMotion.CardThrow(hand.CleanupFrom[index].Origin, target, t,
                     0.040f, PokerChipPile.Noise(hand.CleanupSlot[index], 62) * 0.010f);
                 var basis = hand.CleanupFrom[index].InterpolateWith(
@@ -88,7 +92,7 @@ public partial class PokerSeatPresenter : Node3D
                 card.Transform = new Transform3D(basis, position);
                 moved = true;
 
-                if (t >= 1.0f)
+                if (t >= 1.0f && BoardPresenter.CardCollectionComplete)
                 {
                     card.Visible = false;
                     hand.CleanupActive[index] = false;
@@ -107,6 +111,8 @@ public partial class PokerSeatPresenter : Node3D
         {
             for (var index = 0; index < hand.Cards.Length; index++)
             {
+                if (hand.CleanupActive[index])
+                    hand.Cards[index].Visible = false;
                 hand.CleanupActive[index] = false;
                 hand.CleanupFaceDown[index] = false;
             }

@@ -605,11 +605,19 @@ public partial class PokerMatchTest : Node
             && presenter.ReturningCardCount > 0);
         var cleanupFrames = Mathf.CeilToInt(
             presenter.PresentationProfile.CardCleanupDuration * 60.0f) + 2;
+        var sawGatherHold = false;
+        var sawDetailedShuffle = false;
         for (var frame = 0; frame < cleanupFrames; frame++)
         {
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
+            sawGatherHold |= board.DeckGatherHoldInProgress
+                && presenter.ReturningCardCount > 0;
+            sawDetailedShuffle |= board.DeckShuffleInProgress
+                && board.DeckCardSpread >= board.ShuffleSplitDistance;
         }
+        Check("as cartas repousam juntas sobre o maço antes do embaralhamento", sawGatherHold);
+        Check("o maço se divide fisicamente antes de ser intercalado", sawDetailedShuffle);
         Check("o embaralhamento termina dentro da janela reservada pelo servidor",
             !board.CardCleanupActive && presenter.ReturningCardCount == 0);
         game.CardsCleaningUp = false;

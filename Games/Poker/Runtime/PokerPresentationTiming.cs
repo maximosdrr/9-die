@@ -25,6 +25,7 @@ public static class PokerPresentationTiming
     public static float ShowdownRevealHoldSeconds => Defaults.ShowdownRevealHoldSeconds;
     public static float CardReturnSeconds => Defaults.CardReturnSeconds;
     public static float CardReturnStagger => Defaults.CardReturnStagger;
+    public static float DeckGatherHoldSeconds => Defaults.DeckGatherHoldSeconds;
     public static float DeckShuffleSeconds => Defaults.DeckShuffleSeconds;
     public static float CardCleanupDuration => Defaults.CardCleanupDuration;
     public static float ShowdownCardSeconds => Defaults.ShowdownCardSeconds;

@@ -78,6 +78,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     private float _showdownRevealElapsed;
     private int _publishedShowdownCountdown = int.MinValue;
     private bool _cardCleanupActive;
+    private float _scheduledCardCleanupSeconds;
 
     private int _actionSeq;
     private string _lastAction = "";
@@ -103,6 +104,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _publishedShowdownCountdown = int.MinValue;
         _pendingShowdownReveals.Clear();
         _cardCleanupActive = false;
+        _scheduledCardCleanupSeconds = 0.0f;
         _lastAction = "";
         _lastPlayer = "";
         _lastAmount = 0;
@@ -715,8 +717,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         var hasShowdown = showdown && contenders.Count > 1;
         var configuredFloor = hasShowdown ? ShowdownSeconds : FoldedHandSeconds;
         var chipGroups = Profile.EstimateChipGroups(contributions.Values);
+        var cleanupCardSlots = hasShowdown
+            ? contenders.Count * 5 + Mathf.Max(0, _seatOrder.Count - contenders.Count) * 2
+            : PokerDeal.BoardCount + _seatOrder.Count * PokerDeal.HoleCardCount;
+        _scheduledCardCleanupSeconds = Profile.CardCleanupDurationFor(cleanupCardSlots);
         var calculated = Profile.MinimumHandPause(
-            hasShowdown, chipGroups, contenders.Count, _awards.Count);
+            hasShowdown, chipGroups, contenders.Count, _awards.Count, cleanupCardSlots);
         // Zero remains an intentional instant/headless mode. Positive values are floors rather than
         // brittle exact delays: the physical presentation may extend them for a large or split pot.
         var pause = configuredFloor <= 0.0f ? 0.0f : Mathf.Max(configuredFloor, calculated);
@@ -738,7 +744,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
         // Keep the result readable first. The authoritative next hand may only replace it after all
         // peers have received the cleanup phase and finished returning the same card nodes to deck.
-        var cleanup = Mathf.Min(pause, Profile.CardCleanupDuration);
+        var cleanup = Mathf.Min(pause, _scheduledCardCleanupSeconds);
         var reading = Mathf.Max(0.0f, pause - cleanup);
         if (reading <= 0.0f)
         {
@@ -755,7 +761,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         if (!Multiplayer.IsServer() || !MatchRunning || Game == null)
             return;
 
-        if (CountWithChips() <= 1 || Profile.CardCleanupDuration <= 0.0f)
+        if (CountWithChips() <= 1 || _scheduledCardCleanupSeconds <= 0.0f)
         {
             OnHandPauseOver();
             return;
@@ -768,7 +774,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         Game.CallExtendCurrentTurn(BuildContext(
             _lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
 
-        var cleanupTimer = GetTree().CreateTimer(Profile.CardCleanupDuration);
+        var cleanupTimer = GetTree().CreateTimer(_scheduledCardCleanupSeconds);
         cleanupTimer.Timeout += OnHandPauseOver;
     }
 

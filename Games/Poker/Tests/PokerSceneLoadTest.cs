@@ -103,8 +103,10 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter?.PresentationProfile != null
             && ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));
         Check("a troca de mão reserva recolhimento e embaralhamento antes da próxima distribuição",
-            seatPresenter?.PresentationProfile is { CardReturnSeconds: > 0.0f,
-                DeckShuffleSeconds: > 0.0f, CardCleanupDuration: > 1.0f });
+            seatPresenter?.PresentationProfile is { CardReturnSeconds: >= 1.0f,
+                CardReturnStagger: >= 0.06f, DeckGatherHoldSeconds: >= 0.2f,
+                DeckShuffleSeconds: >= 1.5f, MaximumCollectionCardSlots: >= 20,
+                CardCleanupDuration: > 3.0f });
         Check("showdown e pagamento vivem em componentes independentes",
             seatPresenter?.GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter") != null
             && seatPresenter.GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer") != null
@@ -117,6 +119,22 @@ public partial class PokerSceneLoadTest : Node
         Check("o par revelado recebe variação visual moderada",
             seatPresenter is { ShowdownPairPositionJitter: > 0.0f,
                 ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
+        Check("fichas apostadas e saldo ficam em corredores laterais opostos às cartas",
+            seatPresenter is { BetSideOffset: >= 0.12f, StackSideOffset: >= 0.14f });
+        if (seatPresenter != null && game.BoardPresenter != null)
+        {
+            var spec = game.BoardPresenter.CommunityCardSpec;
+            var edgeCard = PokerTableLayout.BoardPosition(PokerDeal.BoardCount - 1, spec);
+            var sideSeatBet = new Vector2(spec.SeatBetRadius, -seatPresenter.BetSideOffset);
+            var gap = new Vector2(
+                Mathf.Max(0.0f, Mathf.Abs(sideSeatBet.X - edgeCard.X) - spec.CardWidth * 0.5f),
+                Mathf.Max(0.0f, Mathf.Abs(sideSeatBet.Y - edgeCard.Y) - spec.CardLength * 0.5f));
+            Check($"até a aposta mais crítica deixa as comunitárias livres ({gap.Length() * 100.0f:F1} cm)",
+                gap.Length() > 0.05f);
+        }
+        Check("o embaralhamento divide, intercala e esquadra o maço",
+            game.BoardPresenter is { ShuffleSplitDistance: >= 0.025f,
+                ShuffleLift: >= 0.008f, ShuffleHalfYawDegrees: >= 3.0f });
         Check("o futuro dealer tem pontos de extensao para animacao e som",
             typeof(PokerPayoutSequencer).GetEvent("DealerChangeStarted") != null
             && typeof(PokerSeatPresenter).GetField("DealerAnimator") != null
