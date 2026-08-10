@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://cvirrteahj8jj"]
+
+[ext_resource type="Script" uid="uid://b4e3ksh2drivj" path="res://World/ScreenShare/TV/TvScreenShare.cs" id="1_tvscr"]
+[ext_resource type="PackedScene" uid="uid://bkybca8fo4uls" path="res://Shared/Utilities/UI/StartGameUI.tscn" id="2_prompt"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tvfrm"]
+albedo_color = Color(0.03, 0.03, 0.03, 1)
+metallic = 0.6
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_tvfrm"]
+material = SubResource("StandardMaterial3D_tvfrm")
+size = Vector3(6.2778015, 2.5781007, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tvscr"]
+shading_mode = 0
+albedo_color = Color(0.05, 0.05, 0.05, 1)
+
+[sub_resource type="QuadMesh" id="QuadMesh_tvscr"]
+material = SubResource("StandardMaterial3D_tvscr")
+size = Vector2(0.88, 0.5)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_interact"]
+radius = 3.5
+
+[node name="TV" type="MeshInstance3D" unique_id=2102181627 node_paths=PackedStringArray("InteractionArea", "InteractionPrompt")]
+mesh = SubResource("BoxMesh_tvfrm")
+script = ExtResource("1_tvscr")
+InteractionArea = NodePath("InteractionArea")
+InteractionPrompt = NodePath("UI/PoolStartGameUI")
+
+[node name="Screen" type="MeshInstance3D" parent="." unique_id=294769674]
+transform = Transform3D(6.841464, 0, 0, 0, 4.5844007, 0, 0, 0, 1, 0, 0, 0.031000137)
+material_override = SubResource("StandardMaterial3D_tvscr")
+mesh = SubResource("QuadMesh_tvscr")
+
+[node name="Audio" type="AudioStreamPlayer3D" parent="." unique_id=1477172007]
+unit_size = 3.0
+
+[node name="InteractionArea" type="Area3D" parent="." unique_id=1945691891]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionArea" unique_id=1579800507]
+shape = SubResource("SphereShape3D_interact")
+
+[node name="UI" type="Node3D" parent="." unique_id=1432938329]
+
+[node name="PoolStartGameUI" parent="UI" unique_id=224118270 instance=ExtResource("2_prompt")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.5)
+RotationSpeed = 0.0

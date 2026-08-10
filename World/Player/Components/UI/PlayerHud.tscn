@@ -1,0 +1,94 @@
+[gd_scene load_steps=6 format=3 uid="uid://c9h2x3y4z5a6c"]
+
+[ext_resource type="Script" path="res://World/Player/Components/UI/PlayerHud.cs" id="1_hud"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/panel_wood.tres" id="2_panel"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_danger_normal.tres" id="3_dnorm"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_danger_hover.tres" id="4_dhover"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_danger_pressed.tres" id="5_dpress"]
+
+[node name="PlayerHud" type="CanvasLayer" node_paths=PackedStringArray("TurnLabel", "TargetBallLabel", "TimerLabel", "ScoreList", "PushOutButton", "AcceptPushOutButton", "PassBackButton", "SurrenderButton")]
+script = ExtResource("1_hud")
+TurnLabel = NodePath("Root/Panel/Margin/Box/TurnLabel")
+TargetBallLabel = NodePath("Root/Panel/Margin/Box/TargetBallLabel")
+TimerLabel = NodePath("Root/Panel/Margin/Box/TimerLabel")
+ScoreList = NodePath("Root/Panel/Margin/Box/ScoreList")
+PushOutButton = NodePath("Root/Panel/Margin/Box/PushOutButton")
+AcceptPushOutButton = NodePath("Root/Panel/Margin/Box/PushOutChoice/AcceptPushOutButton")
+PassBackButton = NodePath("Root/Panel/Margin/Box/PushOutChoice/PassBackButton")
+SurrenderButton = NodePath("Root/Panel/Margin/Box/SurrenderButton")
+
+[node name="Root" type="Control" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -260.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 20.0
+grow_horizontal = 0
+
+[node name="Panel" type="PanelContainer" parent="Root"]
+layout_mode = 2
+theme_override_styles/panel = ExtResource("2_panel")
+
+[node name="Margin" type="MarginContainer" parent="Root/Panel"]
+layout_mode = 2
+
+[node name="Box" type="VBoxContainer" parent="Root/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TurnLabel" type="Label" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 20
+text = "Sua vez!"
+
+[node name="TargetBallLabel" type="Label" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.678431, 0.752941, 0.839216, 1)
+theme_override_font_sizes/font_size = 16
+text = "Bola-alvo: 1"
+
+[node name="TimerLabel" type="Label" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.678431, 0.752941, 0.839216, 1)
+theme_override_font_sizes/font_size = 16
+text = "00:00"
+
+[node name="HSeparator" type="HSeparator" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+
+[node name="ScoreList" type="VBoxContainer" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PushOutButton" type="Button" parent="Root/Panel/Margin/Box"]
+visible = false
+layout_mode = 2
+text = "Declarar push-out (P)"
+
+[node name="PushOutChoice" type="HBoxContainer" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+
+[node name="AcceptPushOutButton" type="Button" parent="Root/Panel/Margin/Box/PushOutChoice"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Aceitar (1)"
+
+[node name="PassBackButton" type="Button" parent="Root/Panel/Margin/Box/PushOutChoice"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Devolver (2)"
+
+[node name="SurrenderButton" type="Button" parent="Root/Panel/Margin/Box"]
+layout_mode = 2
+theme_override_styles/normal = ExtResource("3_dnorm")
+theme_override_styles/hover = ExtResource("4_dhover")
+theme_override_styles/pressed = ExtResource("5_dpress")
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_colors/font_hover_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 15
+text = "Desistir da Partida"

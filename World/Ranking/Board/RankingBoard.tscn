@@ -1,0 +1,50 @@
+[gd_scene load_steps=6 format=3 uid="uid://d5k8m1n2o3p4q"]
+
+[ext_resource type="Script" path="res://World/Ranking/Board/RankingBoard.cs" id="1_rb"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_frame"]
+size = Vector3(0.95, 0.75, 0.04)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
+albedo_color = Color(0.164706, 0.109804, 0.070588, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_slate"]
+size = Vector3(0.82, 0.62, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_slate"]
+albedo_color = Color(0.090196, 0.137255, 0.113725, 1)
+roughness = 0.95
+shading_mode = 0
+
+[node name="RankingBoard" type="Node3D" node_paths=PackedStringArray("RankingLabel")]
+script = ExtResource("1_rb")
+RankingLabel = NodePath("RankingLabel")
+
+[node name="Frame" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_frame")
+surface_material_override/0 = SubResource("StandardMaterial3D_wood")
+
+[node name="Slate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.03)
+mesh = SubResource("BoxMesh_slate")
+surface_material_override/0 = SubResource("StandardMaterial3D_slate")
+
+[node name="TitleLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.24, 0.045)
+modulate = Color(0.933333, 0.956863, 0.984314, 1)
+pixel_size = 0.0012
+text = "RANKING DO SALÃO"
+font_size = 30
+horizontal_alignment = 1
+outline_size = 0
+
+[node name="RankingLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, 0.045)
+modulate = Color(0.933333, 0.956863, 0.984314, 1)
+pixel_size = 0.0011
+text = "Ninguém venceu ainda..."
+font_size = 24
+horizontal_alignment = 1
+line_spacing = 6.0
+outline_size = 0

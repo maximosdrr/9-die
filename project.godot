@@ -21,12 +21,12 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Global="*res://Autoload/Global.cs"
-NetworkManager="*res://Autoload/Network/NetworkManager.cs"
-ReconnectionManager="*res://Autoload/ReconnectionManager.cs"
-MatchRanking="*res://Autoload/MatchRanking.cs"
-SteamGlobals="*res://Autoload/Network/Steam/SteamGlobals.cs"
-PlayerRegistry="*res://Autoload/PlayersContainer/PlayerRegistry.cs"
+Global="*res://App/Global.cs"
+NetworkManager="*res://Infrastructure/Networking/NetworkManager.cs"
+ReconnectionManager="*res://Infrastructure/Networking/ReconnectionManager.cs"
+MatchRanking="*res://World/Ranking/MatchRanking.cs"
+SteamGlobals="*res://Infrastructure/Networking/Steam/SteamGlobals.cs"
+PlayerRegistry="*res://World/Player/Registry/PlayerRegistry.cs"
 
 [dotnet]
 
@@ -34,7 +34,7 @@ project/assembly_name="9Die"
 
 [gui]
 
-theme/custom="res://Features/Ui/Theme/GameTheme.tres"
+theme/custom="res://App/UI/Theme/GameTheme.tres"
 
 [input]
 
@@ -165,8 +165,13 @@ peek_cards={
 [network]
 
 transport="enet"
-max_players=12
-max_channels=4
+max_players=4
+max_channels=5
+port=7777
+default_host_address="127.0.0.1"
+game_id="9die"
+protocol_version="1"
+session_attempt_timeout_seconds=15.0
 
 [physics]
 
@@ -180,7 +185,7 @@ anti_aliasing/quality/msaa_3d=2
 
 [steam]
 
-initialization/app_id=0
+initialization/app_id=480
 initialization/embed_callbacks=false
 initialization/initialize_on_startup=false
-multiplayer_peer/max_channels=4
+multiplayer_peer/max_channels=5

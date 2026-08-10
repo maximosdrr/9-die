@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="RuntimeResourceManifest" load_steps=23 format=3]
+
+[ext_resource type="Script" path="res://Shared/Resources/RuntimeResourceManifest.cs" id="1_script"]
+[ext_resource type="PackedScene" path="res://App/UI/Menus/LobbyListItem.tscn" id="2_lobby_item"]
+[ext_resource type="PackedScene" path="res://Games/Pool/Components/Balls/Ball.tscn" id="3_pool_ball"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/CueBall.tscn" id="4_cue_ball"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball1.tscn" id="5_ball_1"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball2.tscn" id="6_ball_2"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball3.tscn" id="7_ball_3"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball4.tscn" id="8_ball_4"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball5.tscn" id="9_ball_5"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball6.tscn" id="10_ball_6"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball7.tscn" id="11_ball_7"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball8.tscn" id="12_ball_8"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball9.tscn" id="13_ball_9"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball10.tscn" id="14_ball_10"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball11.tscn" id="15_ball_11"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball12.tscn" id="16_ball_12"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball13.tscn" id="17_ball_13"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball14.tscn" id="18_ball_14"]
+[ext_resource type="PackedScene" path="res://Assets/PoolGame/Scenes/Ball15.tscn" id="19_ball_15"]
+[ext_resource type="PackedScene" path="res://Assets/Dominoes/dominoes.glb" id="20_domino_meshes"]
+[ext_resource type="PackedScene" path="res://Assets/Poker/poker_assets.glb" id="21_poker_chips"]
+[ext_resource type="Texture2D" path="res://Assets/Poker/poker_assets_2.png" id="24_card_back_fallback"]
+
+[resource]
+script = ExtResource("1_script")
+Resources = Array[Resource]([ExtResource("2_lobby_item"), ExtResource("3_pool_ball"), ExtResource("4_cue_ball"), ExtResource("5_ball_1"), ExtResource("6_ball_2"), ExtResource("7_ball_3"), ExtResource("8_ball_4"), ExtResource("9_ball_5"), ExtResource("10_ball_6"), ExtResource("11_ball_7"), ExtResource("12_ball_8"), ExtResource("13_ball_9"), ExtResource("14_ball_10"), ExtResource("15_ball_11"), ExtResource("16_ball_12"), ExtResource("17_ball_13"), ExtResource("18_ball_14"), ExtResource("19_ball_15"), ExtResource("20_domino_meshes"), ExtResource("21_poker_chips"), ExtResource("24_card_back_fallback")])
