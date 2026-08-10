@@ -311,6 +311,13 @@ public partial class PokerMatchTest : Node
         }
         resolver.AutoAdvanceHands = false;
         var chipAnimator = presenter.GetNodeOrNull<PokerChipAnimator>("ChipAnimator");
+        var landingEvents = 0;
+        var landedChips = 0;
+        chipAnimator.ChipsLanded += (_, count) =>
+        {
+            landingEvents++;
+            landedChips += count;
+        };
         var warmedBatchSizes = chipAnimator.Batches.Select(batch => batch.Pile)
             .ToDictionary(pile => pile.Name.ToString(), pile => pile.GetChildCount());
 
@@ -398,6 +405,8 @@ public partial class PokerMatchTest : Node
         Check("a organização termina em colunas compactas", presenter.PotIsOrganizedTower);
         Check("as mesmas fichas chegam ao pote sem troca de instância",
             inFlightIds.Count > 0 && inFlightIds.SetEquals(potIds));
+        Check($"o áudio acompanha impactos físicos reais ({landingEvents} eventos, {landedChips} fichas)",
+            landingEvents > 0 && landedChips >= inFlightIds.Count);
         Check("o flop só aparece depois de o pote terminar a organização",
             presenter.PresentationReadyForAction && board.VisibleFaceUpCount == PokerDeal.BoardSize(PokerStreet.Flop));
 

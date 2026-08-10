@@ -276,6 +276,16 @@ public partial class PokerSeatPresenter : Node3D
             ChipFlightSeconds, ChipFlightArc, ChipLandingSeconds,
             ChipCollectSeconds, ChipOrganizeSeconds, ChipPayoutSeconds,
             Profile.DealerChangeSeconds);
+
+        _chipSoundscape = GetNodeOrNull<PokerChipSoundscape>("ChipSoundscape");
+        if (_chipSoundscape == null)
+        {
+            _chipSoundscape = new PokerChipSoundscape { Name = "ChipSoundscape" };
+            AddChild(_chipSoundscape);
+        }
+        _chipSoundscape.Configure(_chipAnimator, ChipLandingSound,
+            ChipImpactVoiceLimit, singleImpactDb: ChipSingleImpactDb,
+            maximumImpactDb: ChipMaximumImpactDb);
     }
 
     private void BuildPresentationComponents()

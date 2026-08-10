@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -64,6 +65,7 @@ public partial class PokerChipAnimator : Node3D
     private float _dealerChangeSeconds;
 
     public IReadOnlyList<Batch> Batches => _batches;
+    public event Action<Vector3, int> ChipsLanded;
 
     public void Configure(
         PackedScene chipScene, float scatter, int poolSize, int chipsPerBatch,
@@ -327,6 +329,7 @@ public partial class PokerChipAnimator : Node3D
         batch.Progress = 0.0f;
         batch.Phase = Phase.Landing;
         batch.Pile.FlightProgress = 1.0f;
+        EmitLanding(batch);
     }
 
     private void AdvanceLanding(Batch batch, float delta)
@@ -362,6 +365,7 @@ public partial class PokerChipAnimator : Node3D
         {
             batch.Phase = Phase.AtPotLoose;
             batch.Pile.FlightProgress = 1.0f;
+            EmitLanding(batch);
         }
     }
 
@@ -379,7 +383,7 @@ public partial class PokerChipAnimator : Node3D
             batch.Phase = Phase.InPot;
     }
 
-    private static void AdvanceTransfer(
+    private void AdvanceTransfer(
         Batch batch, float delta, Phase completedPhase, float arc, float duration)
     {
         if (batch.JustStarted)
@@ -409,6 +413,14 @@ public partial class PokerChipAnimator : Node3D
         batch.Pile.Transform = new Transform3D(batch.ToBasis, batch.To);
         batch.Pile.FlightProgress = 1.0f;
         batch.Phase = completedPhase;
+        EmitLanding(batch);
+    }
+
+    private void EmitLanding(Batch batch)
+    {
+        var chipCount = batch?.Pile?.ChipCount ?? 0;
+        if (chipCount > 0)
+            ChipsLanded?.Invoke(batch.Pile.GlobalPosition, chipCount);
     }
 
     private Batch BuildBatch(int index)

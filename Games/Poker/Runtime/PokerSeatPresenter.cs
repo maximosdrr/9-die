@@ -150,8 +150,16 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public Color ShowdownWinnerColor = new(0.35f, 1.0f, 0.48f);
     [Export] public Color ShowdownOtherColor = new(0.88f, 0.91f, 0.96f);
 
-    /// <summary>Placeholder knuckle on wood. Any short, dry hit reads correctly.</summary>
+    [ExportGroup("Table sounds")]
+    /// <summary>Short, dry knuckle impact used by the check/pass action.</summary>
     [Export] public AudioStream KnockSound;
+    [Export(PropertyHint.Range, "-24,0,0.5")] public float KnockVolumeDb = -4.0f;
+
+    /// <summary>Chip-on-felt recording. Nearby arrivals are merged before this sample is played.</summary>
+    [Export] public AudioStream ChipLandingSound;
+    [Export(PropertyHint.Range, "1,3,1")] public int ChipImpactVoiceLimit = 3;
+    [Export(PropertyHint.Range, "-30,-3,0.5")] public float ChipSingleImpactDb = -17.0f;
+    [Export(PropertyHint.Range, "-24,-3,0.5")] public float ChipMaximumImpactDb = -11.0f;
 
     [ExportGroup("Dealer change")]
     [Export] public AudioStream DealerChangeSound;
@@ -188,6 +196,7 @@ public partial class PokerSeatPresenter : Node3D
     private readonly Dictionary<string, PokerChipPile> _stacks = new();
     private readonly Dictionary<string, Label3D> _names = new();
     private PokerChipAnimator _chipAnimator;
+    private PokerChipSoundscape _chipSoundscape;
     private readonly Queue<PendingChipAction> _pendingChipActions = new();
     private readonly Dictionary<string, int> _observedStacks = new();
     private readonly Dictionary<string, int> _observedCommitted = new();

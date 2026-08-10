@@ -806,6 +806,21 @@ public partial class PokerSceneLoadTest : Node
 
         AddChild(game);
         Check("o toque na mesa tem som", game.SeatPresenter?.KnockSound != null);
+        Check("as fichas têm som próprio de impacto",
+            game.SeatPresenter?.ChipLandingSound != null);
+
+        var chipSoundscape = game.SeatPresenter?
+            .GetNodeOrNull<PokerChipSoundscape>("ChipSoundscape");
+        Check("impactos próximos usam um mixer limitado",
+            chipSoundscape is { VoiceLimit: <= 3 });
+        if (chipSoundscape != null)
+        {
+            var oneChip = chipSoundscape.VolumeForImpact(1, 1);
+            var largeDrop = chipSoundscape.VolumeForImpact(40, 12);
+            Check($"muitas fichas ficam mais presentes sem estourar ({oneChip:F1} a {largeDrop:F1} dB)",
+                largeDrop > oneChip
+                && largeDrop <= game.SeatPresenter.ChipMaximumImpactDb);
+        }
         game.QueueFree();
     }
 

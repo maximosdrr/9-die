@@ -57,8 +57,10 @@ public partial class PokerSeatPresenter : Node3D
         var player = new AudioStreamPlayer3D
         {
             Stream = KnockSound,
+            VolumeDb = KnockVolumeDb,
             UnitSize = 3.0f,
             MaxDistance = 12.0f,
+            MaxPolyphony = 1,
         };
 
         AddChild(player);
