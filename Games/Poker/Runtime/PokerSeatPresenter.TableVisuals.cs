@@ -9,6 +9,13 @@ using ChipBatchPhase = PokerChipAnimator.Phase;
 /// </summary>
 public partial class PokerSeatPresenter : Node3D
 {
+    public Label3D PotValueLabel => _potValueLabel;
+
+    public Label3D StackValueLabelOf(string playerId) =>
+        !string.IsNullOrEmpty(playerId) && _stackValueLabels.TryGetValue(playerId, out var label)
+            ? label
+            : null;
+
     /// <summary>
     /// Replays what somebody just did, on their own seated body.
     ///
@@ -209,14 +216,102 @@ public partial class PokerSeatPresenter : Node3D
         var folded = _game.HasFolded(playerId);
         var place = PokerTableLayout.SeatSpot(facing, BoardPresenter.Spec.SeatStackRadius + 0.06f);
 
-        // Name and count together: with no panel anywhere, this is the only place a stack is
-        // written down, and it has to be legible from the chair opposite.
         var suffix = _game.IsAllIn(playerId) ? " · all-in" : folded ? " · fora" : "";
-        // Rules credit the award immediately, but the table count follows the physical chips so the
-        // number does not jump before the pot has visibly reached its owner.
-        label.Text = $"{NameOf(playerId)}\n{DisplayedStackOf(playerId)}{suffix}";
+        label.Text = $"{NameOf(playerId)}{suffix}";
         label.Modulate = folded ? FoldedColor : isTurn ? TurnColor : IdleColor;
         label.Position = new Vector3(place.X, NameHeight, place.Y);
+    }
+
+    /// <summary>
+    /// Writes the pot into the felt below its physical chips. Like the board and pot themselves, the
+    /// mark uses the local reader frame, so every chair gets the same readable composition without
+    /// moving the authoritative objects or adding network state.
+    /// </summary>
+    private void RefreshPotValue()
+    {
+        if (BoardPresenter == null)
+            return;
+
+        _potValueLabel ??= BuildTableChalkLabel("PotValue");
+        _potValueLabel.Visible = _game?.IsMatchActive == true;
+        if (!_potValueLabel.Visible)
+            return;
+
+        var facing = BoardPresenter.ReaderFacing.Normalized();
+        var across = new Vector2(-facing.Y, facing.X);
+        var boardPlace = BoardPresenter.PotPosition
+                         + new Vector3(facing.X, 0.0f, facing.Y) * PotValueLabelOffset;
+        var place = ToLocal(BoardPresenter.ToGlobal(boardPlace));
+        _potValueLabel.Text = $"POTE {_game.PotTotal}";
+        _potValueLabel.Transform = TableLabelTransform(
+            new Vector2(place.X, place.Z), across, -facing);
+    }
+
+    /// <summary>
+    /// Puts a physical count beside every denomination bank. The baseline follows the same diagonal
+    /// as the chips, while the offset uses the side opposite CALL so neither label becomes a button.
+    /// </summary>
+    private void RefreshStackValue(string playerId, Vector2 facing, PokerLayoutSpec spec)
+    {
+        if (!_stackValueLabels.TryGetValue(playerId, out var label))
+        {
+            label = BuildTableChalkLabel($"StackValue{playerId}");
+            _stackValueLabels[playerId] = label;
+        }
+
+        label.Visible = _game?.IsMatchActive == true;
+        if (!label.Visible)
+            return;
+
+        var centre = StackPlace(facing, spec);
+        BankAxes(facing, out var laneAxis, out var sideAxis);
+        var place = centre - sideAxis * StackValueLabelSideOffset;
+        label.Text = $"FICHAS {VisibleStackValue(playerId)}";
+        label.Transform = TableLabelTransform(place, laneAxis, -sideAxis);
+    }
+
+    private int VisibleStackValue(string playerId)
+    {
+        var prepared = playerId == _preparedPlayerId ? PreparedWagerAmount : 0;
+        foreach (var wager in _replicatedPrepared.Values)
+        {
+            if (wager.PlayerId == playerId)
+                prepared += wager.Amount;
+        }
+
+        // The authoritative stack already excludes a confirmed action. Tentative actors are the
+        // only chips that still need subtracting so the writing agrees with the physical bank.
+        return Mathf.Max(0, DisplayedStackOf(playerId) - prepared);
+    }
+
+    private Label3D BuildTableChalkLabel(string name)
+    {
+        var label = new Label3D
+        {
+            Name = name,
+            Font = ChalkFont,
+            PixelSize = ChalkValuePixelSize,
+            FontSize = ChalkValueFontSize,
+            OutlineSize = 2,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Modulate = ChalkValueColor,
+            OutlineModulate = new Color(0.23f, 0.12f, 0.07f, 0.22f),
+            TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+            NoDepthTest = false,
+        };
+        AddChild(label);
+        return label;
+    }
+
+    private static Transform3D TableLabelTransform(
+        Vector2 position, Vector2 right, Vector2 up)
+    {
+        var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
+        var up3 = new Vector3(up.X, 0.0f, up.Y).Normalized();
+        return new Transform3D(
+            new Basis(right3, up3, right3.Cross(up3).Normalized()),
+            new Vector3(position.X, 0.0042f, position.Y));
     }
 
     private void RefreshDealerLabel()
@@ -322,6 +417,7 @@ public partial class PokerSeatPresenter : Node3D
 
         Drop(_stacks, seen, pile => pile.QueueFree());
         Drop(_names, seen, label => label.QueueFree());
+        Drop(_stackValueLabels, seen, label => label.QueueFree());
     }
 
     private static void Drop<T>(Dictionary<string, T> from, HashSet<string> seen, System.Action<T> free)

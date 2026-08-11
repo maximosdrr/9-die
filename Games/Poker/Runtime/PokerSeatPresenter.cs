@@ -38,6 +38,16 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public Color FoldedColor = new(0.45f, 0.47f, 0.52f);
     [Export] public float DealerLabelHeightAboveHead = 0.24f;
 
+    [ExportGroup("Chalk values")]
+    [Export] public Font ChalkFont;
+    [Export] public Color ChalkValueColor = new(0.95f, 0.93f, 0.86f, 0.86f);
+    [Export(PropertyHint.Range, "36,72,2")] public int ChalkValueFontSize = 52;
+    [Export] public float ChalkValuePixelSize = 0.00018f;
+    /// <summary>Moves POTE from the physical pile toward this peer's chair.</summary>
+    [Export] public float PotValueLabelOffset = 0.068f;
+    /// <summary>Places FICHAS opposite the CALL plate, parallel to the denomination lane.</summary>
+    [Export] public float StackValueLabelSideOffset = 0.052f;
+
     [ExportGroup("Turn ring")]
     [Export] public float TurnRingRadius = 0.615f;
     [Export] public float TurnRingWidth = 0.0045f;
@@ -242,6 +252,8 @@ public partial class PokerSeatPresenter : Node3D
     public bool LocalHandLanded { get; private set; }
     private readonly Dictionary<string, PokerChipPile> _stacks = new();
     private readonly Dictionary<string, Label3D> _names = new();
+    private readonly Dictionary<string, Label3D> _stackValueLabels = new();
+    private Label3D _potValueLabel;
     private PokerChipAnimator _chipAnimator;
     private PokerChipSoundscape _chipSoundscape;
     private readonly Queue<PendingChipAction> _pendingChipActions = new();
@@ -343,10 +355,12 @@ public partial class PokerSeatPresenter : Node3D
             if (!_cardCleanupActive)
                 RefreshHoleCards(playerId, facing, spec);
             RefreshChips(playerId, facing, spec);
+            RefreshStackValue(playerId, facing, spec);
             RefreshName(playerId, facing);
         }
 
         DropStale(seen);
+        RefreshPotValue();
         RefreshTurnRing();
         RefreshDealerLabel();
         PlayActionGesture();

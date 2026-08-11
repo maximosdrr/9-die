@@ -99,6 +99,12 @@ public partial class PokerSceneLoadTest : Node
         Check("a mesa tem o apresentador de assentos", seatPresenter != null);
         Check("o apresentador de assentos conhece a mesa e os assentos",
             seatPresenter is { BoardPresenter: not null, Seats: not null, CardScene: not null });
+        Check("pote e bancos recebem valores físicos com a mesma tipografia de giz",
+            seatPresenter is { ChalkFont: not null,
+                ChalkValueFontSize: >= 46 and <= 60,
+                ChalkValuePixelSize: >= 0.00015f and <= 0.00022f,
+                PotValueLabelOffset: >= 0.055f and <= 0.080f,
+                StackValueLabelSideOffset: >= 0.045f and <= 0.065f });
         Check("o servidor e a apresentacao usam o mesmo perfil temporal",
             seatPresenter?.PresentationProfile != null
             && ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));
@@ -753,10 +759,8 @@ public partial class PokerSceneLoadTest : Node
         var hud = scene.Instantiate<PokerHud>();
         AddChild(hud);
 
-        Check("a HUD encontra todos os nós que o script usa",
-            hud.Root != null && hud.TurnLabel != null && hud.StakesLabel != null
-            && hud.PreparedWagerLabel != null
-            && hud.ActionList != null && hud.ResultLabel != null && hud.HintsLabel != null
+        Check("a HUD encontra os avisos e dicas que ainda vivem na tela",
+            hud.Root != null && hud.HintsLabel != null
             && hud.ShowdownAnnouncement != null && hud.ShowdownTitle != null
             && hud.ShowdownPrompt != null && hud.ShowdownBell?.Stream != null);
         Check("o aviso de showdown usa a tipografia de giz",
@@ -765,9 +769,13 @@ public partial class PokerSceneLoadTest : Node
 
         Check($"a HUD fica acima das outras camadas ({hud.Layer})", hud.Layer > 1);
 
-        // Betting stays on the table; the only contextual screen-space row is showdown.
-        Check($"a HUD remove o antigo botão Z e mantém apenas showdown ({hud.ActionList.GetChildCount()})",
-            hud.ActionList.GetChildCount() == 1);
+        Check("a HUD de status do canto foi removida por completo",
+            hud.Root.GetNodeOrNull("Panel") == null
+            && typeof(PokerHud).GetField("TurnLabel") == null
+            && typeof(PokerHud).GetField("StakesLabel") == null
+            && typeof(PokerHud).GetField("PreparedWagerLabel") == null
+            && typeof(PokerHud).GetField("ActionList") == null
+            && typeof(PokerHud).GetField("ResultLabel") == null);
 
         Check("a HUD começa escondida", !hud.Root.Visible);
 

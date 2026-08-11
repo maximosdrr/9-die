@@ -265,6 +265,18 @@ public partial class PokerMatchTest : Node
               + $"(pote {game.PotTotal}, no meio {game.PotInMiddle})",
             game.PotInMiddle == 0);
 
+        var presenter = game.SeatPresenter;
+        var localId = game.Player == null ? "" : (string)game.Player.Name;
+        Check("o valor do pote está escrito no feltro, não no canto da tela",
+            presenter?.PotValueLabel is { Visible: true } potLabel
+            && potLabel.Text == $"POTE {game.PotTotal}"
+            && potLabel.Font == presenter.ChalkFont);
+        Check("o saldo acompanha o banco físico e sua orientação",
+            presenter?.StackValueLabelOf(localId) is { Visible: true } stackLabel
+            && stackLabel.Text == $"FICHAS {game.StackOf(localId)}"
+            && stackLabel.Font == presenter.ChalkFont
+            && Mathf.Abs(stackLabel.Basis.Y.Dot(Vector3.Up)) < 0.01f);
+
         CheckConservation(game, "logo após a distribuição");
     }
 

@@ -16,6 +16,7 @@
 [ext_resource type="Resource" path="res://Games/Poker/PokerPresentationProfile.tres" id="13_timing"]
 [ext_resource type="PackedScene" path="res://Shared/Table/Components/SeatAnchor.tscn" id="14_seat"]
 [ext_resource type="AudioStream" path="res://Assets/SoundEffects/Poker/pokerchip-dropping.wav" id="15_pchips"]
+[ext_resource type="FontFile" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="16_chalk"]
 
 [node name="Poker" type="Node3D" unique_id=1876712086 node_paths=PackedStringArray("GameModeHandler", "Seats", "BoardPresenter", "SeatPresenter")]
 script = ExtResource("1_pgame")
@@ -49,6 +50,7 @@ CardScene = ExtResource("6_pcard")
 BoardPresenter = NodePath("../BoardHolder")
 Seats = NodePath("../Seats")
 PresentationProfile = ExtResource("13_timing")
+ChalkFont = ExtResource("16_chalk")
 KnockSound = ExtResource("11_pknock")
 ChipLandingSound = ExtResource("15_pchips")
 
