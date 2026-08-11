@@ -1,8 +1,14 @@
+using System;
 using Godot;
 
 [GlobalClass]
 public partial class ENetNetworkProvider : NetworkProvider
 {
+    // ENet's max_clients counts remote clients, while the shared session capacity includes the
+    // listen server. Passing MaxPlayers directly silently allowed a fifth player into a 4-seat
+    // world and could make two peers share the same spawn.
+    internal static int MaxRemoteClients => Math.Max(1, MaxPlayers - 1);
+
     public override void CreateHost(int port = -1)
     {
         if (!BeginHostingAttempt())
@@ -15,7 +21,7 @@ public partial class ENetNetworkProvider : NetworkProvider
         }
 
         var enet = new ENetMultiplayerPeer();
-        var result = enet.CreateServer(port, MaxPlayers, GetMaxChannels());
+        var result = enet.CreateServer(port, MaxRemoteClients, GetMaxChannels());
         if (result != Error.Ok)
         {
             enet.Close();

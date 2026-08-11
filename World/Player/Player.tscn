@@ -53,7 +53,9 @@ script = ExtResource("2_bd6kk")
 CameraMount = NodePath("RemoteFPS")
 
 [node name="RemoteFPS" type="RemoteTransform3D" parent="FirstPerson/HeadPivot" unique_id=576306591]
-remote_path = NodePath("../../..")
+update_position = false
+update_rotation = false
+update_scale = false
 
 [node name="Model3D" type="Node3D" parent="FirstPerson" unique_id=2051382016 instance=ExtResource("4_ejmv4")]
 transform = Transform3D(-1.5842189, 0, -2.1901567e-07, 0, 1.6967292, 0, 2.392104e-07, 0, -1.4504752, 0, 0, 0)

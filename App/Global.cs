@@ -24,13 +24,26 @@ public partial class Global : Node
         if (FileAccess.FileExists(ReconnectTokenPath))
         {
             using var existing = FileAccess.Open(ReconnectTokenPath, FileAccess.ModeFlags.Read);
-            var token = existing.GetAsText().Trim();
-            if (System.Guid.TryParseExact(token, "N", out var parsed) && parsed != System.Guid.Empty)
-                return parsed.ToString("N");
+            if (existing != null)
+            {
+                var token = existing.GetAsText().Trim();
+                if (System.Guid.TryParseExact(token, "N", out var parsed)
+                    && parsed != System.Guid.Empty)
+                {
+                    return parsed.ToString("N");
+                }
+            }
         }
 
         var newToken = System.Guid.NewGuid().ToString("N");
         using var file = FileAccess.Open(ReconnectTokenPath, FileAccess.ModeFlags.Write);
+        if (file == null)
+        {
+            GD.PushWarning(
+                "Reconnect token could not be persisted; this session will use an ephemeral token.");
+            return newToken;
+        }
+
         file.StoreString(newToken);
         return newToken;
     }

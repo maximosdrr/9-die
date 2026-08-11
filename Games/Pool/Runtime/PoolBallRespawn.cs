@@ -1,6 +1,7 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Godot;
 using Godot.Collections;
-using System.Threading.Tasks;
 
 [GlobalClass]
 public partial class PoolBallRespawn : Node
@@ -30,6 +31,7 @@ public partial class PoolBallRespawn : Node
     public Ball CueBall = null;
 
     private bool _readyEmitted = false;
+    private bool _rebuildingTable;
 
     public override void _Ready()
     {
@@ -39,15 +41,32 @@ public partial class PoolBallRespawn : Node
         BallsHolder.ChildExitingTree += OnHolderChanged;
     }
 
+    public override void _ExitTree()
+    {
+        if (!IsInstanceValid(BallsHolder))
+            return;
+
+        BallsHolder.ChildEnteredTree -= OnHolderChanged;
+        BallsHolder.ChildExitingTree -= OnHolderChanged;
+    }
+
     public void StartGame()
     {
         ResetReadyState();
 
         if (Multiplayer.IsServer())
         {
-            ClearTable();
-            SpawnCueBall();
-            SpawnNineBallDiamond();
+            _rebuildingTable = true;
+            try
+            {
+                ClearTable();
+                SpawnCueBall();
+                SpawnNineBallDiamond();
+            }
+            finally
+            {
+                _rebuildingTable = false;
+            }
         }
 
         RefreshAndMaybeEmit();
@@ -58,7 +77,12 @@ public partial class PoolBallRespawn : Node
         if (BallsHolder == null)
             return;
         foreach (var child in BallsHolder.GetChildren())
+        {
+            // QueueFree alone leaves the old rack in GetChildren until the end of the frame. A
+            // restart in that window used to publish a mixed old/new rack to the simulation.
+            BallsHolder.RemoveChild(child);
             child.QueueFree();
+        }
     }
 
     private void ResetReadyState()
@@ -70,6 +94,9 @@ public partial class PoolBallRespawn : Node
 
     private void OnHolderChanged(Node child = null)
     {
+        if (_rebuildingTable)
+            return;
+
         RefreshAndMaybeEmit();
     }
 
@@ -79,7 +106,7 @@ public partial class PoolBallRespawn : Node
             return;
 
         Ball foundCue = null;
-        var foundBalls = new Array<Ball>();
+        var foundBalls = new List<Ball>();
 
         foreach (var child in BallsHolder.GetChildren())
         {
@@ -92,11 +119,13 @@ public partial class PoolBallRespawn : Node
                 foundBalls.Add(b);
         }
 
-        if (foundCue == null || foundBalls.Count < BallsQuantity)
+        if (!IsInstanceValid(foundCue) || foundBalls.Count < BallsQuantity)
             return;
 
         CueBall = foundCue;
-        Balls = foundBalls;
+        Balls.Clear();
+        foreach (var ball in foundBalls)
+            Balls.Add(ball);
 
         _readyEmitted = true;
         EmitSignal(SignalName.TableReady, CueBall, Balls);

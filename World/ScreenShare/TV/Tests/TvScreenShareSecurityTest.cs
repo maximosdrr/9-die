@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Godot;
 using NAudio.Wave;
 
@@ -18,6 +19,9 @@ public partial class TvScreenShareSecurityTest : Node
         GD.Print("=== Teste de segurança do compartilhamento de tela ===");
 
         TestPayloadLimits();
+        TestWebpHeaderPreflight();
+        TestNativeImportPolicy();
+        TestCaptureBufferBounds();
         TestMediaRpcDeliveryMode();
         TestPlayoutQueueIsBounded();
         TestCaptureProducerQueuesAreBounded();
@@ -70,6 +74,83 @@ public partial class TvScreenShareSecurityTest : Node
             !TvScreenShare.IsValidMediaPayload(new byte[3], isAudio: true));
         Check("áudio acima de um segundo é rejeitado",
             !TvScreenShare.IsValidMediaPayload(new byte[48_000 * sizeof(short) + 2], isAudio: true));
+    }
+
+    private void TestWebpHeaderPreflight()
+    {
+        using var image = Image.CreateEmpty(1280, 720, false, Image.Format.Rgba8);
+        var godotEncodedFrame = image.SaveWebpToBuffer(lossy: true, quality: 0.9f);
+        Check("preflight aceita um frame produzido pelo encoder do Godot",
+            TvScreenShare.IsSafeEncodedFrame(godotEncodedFrame));
+
+        var expectedFrame = BuildVp8Header(1280, 720);
+        Check("preflight aceita WebP VP8 com o canvas esperado",
+            TvScreenShare.IsSafeEncodedFrame(expectedFrame));
+
+        var oversizedCanvas = BuildVp8Header(16_383, 16_383);
+        Check("preflight rejeita bomba de descompressao WebP antes do codec",
+            !TvScreenShare.IsSafeEncodedFrame(oversizedCanvas));
+
+        var truncated = expectedFrame[..^1];
+        Check("preflight rejeita WebP truncado ou com tamanho RIFF inconsistente",
+            !TvScreenShare.IsSafeEncodedFrame(truncated));
+
+        var malformed = (byte[])expectedFrame.Clone();
+        malformed[23] = 0;
+        Check("preflight rejeita assinatura VP8 invalida",
+            !TvScreenShare.IsSafeEncodedFrame(malformed));
+    }
+
+    private void TestNativeImportPolicy()
+    {
+        var policy = typeof(WindowsScreenCapture).Assembly
+            .GetCustomAttribute<DefaultDllImportSearchPathsAttribute>();
+        Check("imports nativos de captura sao restritos ao System32",
+            policy?.Paths == DllImportSearchPath.System32);
+    }
+
+    private void TestCaptureBufferBounds()
+    {
+        Check("captura aceita buffer com tamanho exato",
+            WindowsScreenCapture.HasValidDestination(1, 1, new byte[4]));
+        Check("captura rejeita dimensoes cujo calculo excederia Int64",
+            !WindowsScreenCapture.HasValidDestination(
+                int.MaxValue, int.MaxValue, new byte[4]));
+    }
+
+    private static byte[] BuildVp8Header(int width, int height)
+    {
+        var frame = new byte[30];
+        WriteFourCc(frame, 0, "RIFF");
+        WriteUInt32(frame, 4, (uint)(frame.Length - 8));
+        WriteFourCc(frame, 8, "WEBP");
+        WriteFourCc(frame, 12, "VP8 ");
+        WriteUInt32(frame, 16, 10);
+
+        // Minimal key-frame header. The preflight deliberately does not attempt full decoding.
+        frame[20] = 0;
+        frame[23] = 0x9d;
+        frame[24] = 0x01;
+        frame[25] = 0x2a;
+        frame[26] = (byte)width;
+        frame[27] = (byte)(width >> 8);
+        frame[28] = (byte)height;
+        frame[29] = (byte)(height >> 8);
+        return frame;
+    }
+
+    private static void WriteFourCc(byte[] target, int offset, string value)
+    {
+        for (var index = 0; index < 4; index++)
+            target[offset + index] = (byte)value[index];
+    }
+
+    private static void WriteUInt32(byte[] target, int offset, uint value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+        target[offset + 2] = (byte)(value >> 16);
+        target[offset + 3] = (byte)(value >> 24);
     }
 
     private void TestMediaRpcDeliveryMode()

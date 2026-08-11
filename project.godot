@@ -28,17 +28,15 @@ MatchRanking="*res://World/Ranking/MatchRanking.cs"
 SteamGlobals="*res://Infrastructure/Networking/Steam/SteamGlobals.cs"
 PlayerRegistry="*res://World/Player/Registry/PlayerRegistry.cs"
 
-[dotnet]
-
-project/assembly_name="9Die"
-
 [display]
 
-window/size/viewport_width=1152
-window/size/viewport_height=648
 window/size/window_width_override=1152
 window/size/window_height_override=648
 window/stretch/mode="canvas_items"
+
+[dotnet]
+
+project/assembly_name="9Die"
 
 [gui]
 
@@ -183,7 +181,7 @@ max_channels=5
 port=7777
 default_host_address="127.0.0.1"
 game_id="9die"
-protocol_version="1"
+protocol_version="2"
 session_attempt_timeout_seconds=15.0
 
 [physics]

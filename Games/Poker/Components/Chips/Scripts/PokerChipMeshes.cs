@@ -13,7 +13,7 @@ using Godot;
 /// </summary>
 public static class PokerChipMeshes
 {
-    private const string PackPath = "res://Assets/Poker/poker_assets.glb";
+    public const string AssetPath = "res://Assets/Poker/poker_assets.glb";
 
     /// <summary>
     /// Pack units to metres, and NOT uniform.
@@ -73,10 +73,10 @@ public static class PokerChipMeshes
 
         _loaded = true;
 
-        var pack = GD.Load<PackedScene>(PackPath);
+        var pack = GD.Load<PackedScene>(AssetPath);
         if (pack == null)
         {
-            GD.PushWarning($"Pacote de fichas não encontrado em {PackPath}; usando cilindros.");
+            GD.PushWarning($"Pacote de fichas não encontrado em {AssetPath}; usando cilindros.");
             return;
         }
 

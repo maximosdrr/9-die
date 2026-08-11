@@ -12,6 +12,7 @@ public partial class PoolController : GameController
     public PoolGame PoolGame;
     public Player Player;
     public GlobalCamera Camera;
+    private ulong _applyControlRevision;
 
     public override void Setup(Player parent, TableGame tableGame, GlobalCamera camera)
     {
@@ -28,6 +29,7 @@ public partial class PoolController : GameController
 
     public override void _ExitTree()
     {
+        _applyControlRevision++;
         if (PoolGame == null)
             return;
 
@@ -37,6 +39,10 @@ public partial class PoolController : GameController
 
     public override void TakeControl()
     {
+        // Any explicit handoff supersedes an older ball-placement continuation that may still be
+        // waiting for PlacementFinished (for example a push-out decision resolved meanwhile).
+        _applyControlRevision++;
+
         if (!IsMultiplayerAuthority())
             return;
 
@@ -72,6 +78,12 @@ public partial class PoolController : GameController
         if (!IsMultiplayerAuthority())
             return;
 
+        _applyControlRevision++;
+        ReleaseControl();
+    }
+
+    private void ReleaseControl()
+    {
         Hide();
         Camera?.SetGlobalCameraFov(75);
         SetProcessUnhandledInput(false);
@@ -86,6 +98,7 @@ public partial class PoolController : GameController
 
     public override async void ApplyControl(string turnOwnerId, Dictionary context)
     {
+        var controlRevision = BeginControlRequest();
         if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !IsInstanceValid(Player))
             return;
 
@@ -96,7 +109,7 @@ public partial class PoolController : GameController
             if (context.TryGetValue("push_out_choice_pending", out var pendingChoice)
                 && pendingChoice.AsBool())
             {
-                GiveControl();
+                ReleaseControl();
             }
             else if (!context.ContainsKey("ball_replacement"))
             {
@@ -106,9 +119,10 @@ public partial class PoolController : GameController
             {
                 // A newly equipped controller starts visible. Hide the cue and disable aiming while
                 // ball placement owns the camera and input, including before the opening break.
-                GiveControl();
+                ReleaseControl();
                 await ToSignal(PoolGame.BallPlacementManager, BallPlacementManager.SignalName.PlacementFinished);
-                if (!IsInsideTree() || !IsInstanceValid(PoolGame) || !PoolGame.IsMatchActive
+                if (!IsCurrentControlRequest(controlRevision)
+                    || !IsInsideTree() || !IsInstanceValid(PoolGame) || !PoolGame.IsMatchActive
                     || !IsInstanceValid(Player)
                     || !PoolGame.IsTurnOwner((string)Player.Name))
                     return;
@@ -119,10 +133,15 @@ public partial class PoolController : GameController
         else
         {
             CanTakeControl = false;
-            GiveControl();
+            ReleaseControl();
             Player.TakeControl();
         }
     }
+
+    internal ulong BeginControlRequest() => ++_applyControlRevision;
+
+    internal bool IsCurrentControlRequest(ulong revision) =>
+        revision == _applyControlRevision;
 
     private void OnTurnChange(string nextPlayerName, Dictionary context)
     {

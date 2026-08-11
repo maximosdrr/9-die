@@ -1,7 +1,7 @@
+using System.Reflection;
 using Godot;
 using Godot.Collections;
 using Pool.Simulation;
-using System.Reflection;
 
 /// <summary>
 /// Loads the scenes touched by the physics rewrite and drives a real shot through
@@ -22,8 +22,12 @@ public partial class SceneLoadTest : Node
         var tableScene = TestSceneLoads("res://Games/Pool/Components/Tables/PoolTable.tscn");
         if (tableScene != null)
             TestGeometryComesFromScene(tableScene);
-        TestSceneLoads("res://Games/Pool/Pool.tscn");
-        TestSceneLoads("res://Games/Pool/GameController/PoolController.tscn");
+        var poolGameScene = TestSceneLoads("res://Games/Pool/Pool.tscn");
+        var poolControllerScene = TestSceneLoads("res://Games/Pool/GameController/PoolController.tscn");
+        if (poolGameScene != null && poolControllerScene != null)
+            TestCameraRemotesStartDisconnected(poolGameScene, poolControllerScene);
+        if (poolGameScene != null)
+            TestReclaimedControllerLifecycle(poolGameScene);
         var hudScene = TestSceneLoads("res://World/Player/Components/UI/PlayerHud.tscn");
         if (hudScene != null)
             TestPushOutControlsLoad(hudScene);
@@ -70,6 +74,56 @@ public partial class SceneLoadTest : Node
         Check($"carrega {path.GetFile()}", ok);
         return ok ? scene : null;
     }
+
+    private void TestCameraRemotesStartDisconnected(
+        PackedScene poolGameScene,
+        PackedScene poolControllerScene)
+    {
+        var poolGame = poolGameScene.Instantiate<PoolGame>();
+        var controller = poolControllerScene.Instantiate<PoolController>();
+        var overheadRemote = poolGame.GetNodeOrNull<RemoteTransform3D>("OverheadView/RemoteTop");
+        var aimRemote = controller.GetNodeOrNull<RemoteTransform3D>("AimPivot/Elevation/RemoteAim");
+
+        Check("remotes de cÃ¢mera da sinuca nascem sem alvo prÃ³prio",
+            RemoteStartsDisconnected(overheadRemote)
+            && RemoteStartsDisconnected(aimRemote));
+
+        controller.Free();
+        poolGame.Free();
+    }
+
+    private void TestReclaimedControllerLifecycle(PackedScene poolGameScene)
+    {
+        var game = poolGameScene.Instantiate<PoolGame>();
+        AddChild(game);
+        var table = new Table();
+        table.PlayersOnMatch.Add("old-peer");
+        game.Table = table;
+        game.PrepareMatch(new Array { "old-peer" }, "old-peer");
+
+        game.ApplyPlayerReclaimed(
+            "old-peer", "new-peer", new Array { "new-peer" }, new Dictionary());
+
+        Check("reconexao da sinuca espera o Player substituto nascer",
+            game.HasPendingReclaimedController);
+
+        var matchOver = typeof(PoolGame).GetMethod(
+            "OnMatchIsOver", BindingFlags.Instance | BindingFlags.NonPublic);
+        matchOver?.Invoke(game, ["", new Dictionary()]);
+        Check("fim da partida cancela controller de reconexao pendente",
+            matchOver != null && !game.HasPendingReclaimedController);
+
+        RemoveChild(game);
+        game.Free();
+        table.Free();
+    }
+
+    private static bool RemoteStartsDisconnected(RemoteTransform3D remote) =>
+        remote != null
+        && remote.RemotePath.ToString() == string.Empty
+        && !remote.UpdatePosition
+        && !remote.UpdateRotation
+        && !remote.UpdateScale;
 
     private void TestBallReplicationIsSpawnOnly(PackedScene ballScene)
     {
@@ -378,6 +432,15 @@ public partial class SceneLoadTest : Node
         var breakBallsAtRail = runner.LastShot?.CountDistinctBallsAtCushion(0) ?? 0;
         Check($"quebra máxima pode cumprir a regra (encaçapadas={breakObjectBallsPocketed}, tabelas={breakBallsAtRail})",
             breakObjectBallsPocketed > 0 || breakBallsAtRail >= 4);
+
+        respawn.StartGame();
+        var rebuiltRackIsClean = holder.GetChildCount() == respawn.BallsQuantity + 1
+                                 && respawn.Balls.Count == respawn.BallsQuantity
+                                 && IsInstanceValid(respawn.CueBall);
+        foreach (var ball in respawn.Balls)
+            rebuiltRackIsClean &= IsInstanceValid(ball) && ball.IsInsideTree();
+        Check("reiniciar a mesa no mesmo frame nÃ£o mistura bolas antigas e novas",
+            rebuiltRackIsClean);
 
         runner.QueueFree();
         respawn.QueueFree();

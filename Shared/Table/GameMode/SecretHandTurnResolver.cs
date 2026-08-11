@@ -177,8 +177,7 @@ public partial class SecretHandTurnResolver : TurnResolver
         // A seat with nobody actually connected to it cannot be sent to. Without this the server
         // logs an error per deal for every such seat — which is every seat but one in a headless
         // run, and a genuinely dropped player in a live one.
-        if (Multiplayer.MultiplayerPeer == null
-            || System.Array.IndexOf(Multiplayer.GetPeers(), peerId) < 0)
+        if (!IsConnectedRemotePeer(peerId))
             return;
 
         RpcId(peerId, MethodName.ReceiveHand, items);
@@ -201,7 +200,7 @@ public partial class SecretHandTurnResolver : TurnResolver
             EmitSignal(SignalName.ActionRejected, reason);
             EmitSignal(SignalName.StampedActionRejected, turnToken, reason);
         }
-        else
+        else if (IsConnectedRemotePeer(requesterId))
             RpcId(requesterId, MethodName.ReceiveActionRejected, turnToken, reason);
     }
 
@@ -210,6 +209,25 @@ public partial class SecretHandTurnResolver : TurnResolver
     {
         EmitSignal(SignalName.ActionRejected, reason);
         EmitSignal(SignalName.StampedActionRejected, turnToken, reason);
+    }
+
+    private bool IsConnectedRemotePeer(int peerId)
+    {
+        if (Multiplayer.MultiplayerPeer == null)
+            return false;
+
+        return ShouldSendRemoteReply(
+            peerId, Multiplayer.GetUniqueId(), Multiplayer.GetPeers(), hasMultiplayerPeer: true);
+    }
+
+    internal static bool ShouldSendRemoteReply(
+        int peerId, int localPeerId, int[] connectedPeers, bool hasMultiplayerPeer)
+    {
+        return hasMultiplayerPeer
+            && peerId > 0
+            && peerId != localPeerId
+            && connectedPeers != null
+            && System.Array.IndexOf(connectedPeers, peerId) >= 0;
     }
 
     // ---------------------------------------------------------------- late joiners and reconnects

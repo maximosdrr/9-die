@@ -42,7 +42,10 @@ public static class CardId
 
     public static bool IsValid(int cardId) => cardId >= 0 && cardId < Count;
 
-    public static int From(int rank, int suit) => suit * Ranks + rank;
+    public static int From(int rank, int suit) =>
+        rank >= 0 && rank < Ranks && suit >= 0 && suit < Suits
+            ? suit * Ranks + rank
+            : None;
 
     public static int RankOf(int cardId) => cardId % Ranks;
 

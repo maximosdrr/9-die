@@ -1,6 +1,6 @@
+using System.Linq;
 using Godot;
 using Godot.Collections;
-using System.Linq;
 
 [GlobalClass]
 public partial class WaitingGameStart : State

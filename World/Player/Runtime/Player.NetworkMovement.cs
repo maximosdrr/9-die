@@ -14,13 +14,11 @@ public partial class Player : CharacterBody3D
     {
         public readonly int Sequence;
         public readonly Vector3 Position;
-        public readonly float Yaw;
 
-        public PredictionSample(int sequence, Vector3 position, float yaw)
+        public PredictionSample(int sequence, Vector3 position)
         {
             Sequence = sequence;
             Position = position;
-            Yaw = yaw;
         }
     }
 
@@ -33,8 +31,7 @@ public partial class Player : CharacterBody3D
     private Vector3 _snapshotVelocity;
     private float _snapshotYaw;
     private bool _hasSnapshot;
-    private Vector3 _predictionCorrection;
-    private float _predictionYawCorrection;
+    private readonly PlayerPredictionCorrection _predictionCorrection = new();
     private readonly PeerRequestRateLimiter _movementModeRequestLimiter = new(
         MovementModeRequestsPerSecond,
         windowMilliseconds: 1_000,

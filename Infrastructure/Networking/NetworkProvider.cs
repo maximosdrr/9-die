@@ -23,7 +23,7 @@ public partial class NetworkProvider : Node
 
     public static int MaxPlayers => (int)ProjectSettings.GetSetting("network/max_players", 4);
     public static string GameId => ReadNonEmptySetting("network/game_id", "9die");
-    public static string ProtocolVersion => ReadNonEmptySetting("network/protocol_version", "1");
+    public static string ProtocolVersion => ReadNonEmptySetting("network/protocol_version", "2");
     public static double SessionAttemptTimeoutSeconds => Math.Clamp(
         ProjectSettings.GetSetting(
             "network/session_attempt_timeout_seconds",

@@ -26,6 +26,12 @@ validar argumentos e frequência de RPCs.
 4. O servidor valida e aplica a ação.
 5. Snapshots públicos vão para todos; a mão privada vai somente ao dono.
 
+Ordem de turno e assento físico são estados diferentes. A ordem é compactada quando alguém sai;
+o slot da cadeira permanece estável até a próxima partida. O setup de um peer tardio replica esse
+mapa, inclusive lacunas e identidades históricas ainda usadas por fichas/cartas da mão corrente.
+Uma reconexão troca apenas a identidade que ocupa o mesmo slot. Assim, remover o jogador do meio
+não desloca avatares, marcadores, controles ou a saída das cadeiras seguintes.
+
 O host de uma partida listen-server ainda executa o processo autoritativo e, tecnicamente, pode
 inspecionar a memória de todas as mãos. Isso é aceitável para protótipo/social casual, mas não para
 ranking com valor econômico. Esse cenário exige servidor dedicado, autenticação e log de auditoria.
@@ -43,8 +49,20 @@ frame. Tráfego descartável não bloqueia eventos confiáveis de gameplay.
 ### Movimento do jogador
 
 O jogador local prevê movimento para manter resposta imediata. A intenção é enviada ao servidor,
-que valida, simula colisões e publica snapshots. Correções reconciliam a cópia local. A posição que
-entra nos overlaps das mesas é, portanto, a cópia do servidor.
+que valida, limita velocidade e rotação, simula colisões e publica snapshots. A posição local é
+reconciliada com o erro do snapshot mais novo; erros antigos nunca são somados e um snapshot já
+alinhado cancela a correção pendente.
+
+A rotação visual da câmera do dono não é reescrita por snapshots. Ela responde diretamente ao mouse,
+enquanto o servidor continua autoritativo sobre o corpo e observadores interpolam a rotação recebida.
+Isso é seguro enquanto a intenção de movimento for enviada em coordenadas de mundo e o collider for
+simétrico. Se orientação passar a decidir tiro, hitbox ou outra regra, separe explicitamente yaw do
+corpo autoritativo e yaw visual da câmera.
+
+`RemoteTransform3D` de câmera nasce sem alvo e com posição, rotação e escala desligadas. A transição
+local de câmera é a única operação que pode ativá-lo. O mouse capturado usa deslocamento físico de
+tela (`ScreenRelative`, com fallback validado) para manter a mesma sensibilidade entre resoluções. A
+posição que entra nos overlaps das mesas é sempre a cópia simulada pelo servidor.
 
 ### Perfil do jogador
 
@@ -88,6 +106,10 @@ ilimitado.
 - perda da sessão interrompe captura imediatamente; captura, playback, textura e sinais também são
   liberados em `_ExitTree`;
 - falha do dispositivo de áudio degrada para compartilhamento somente de vídeo.
+- imagens WebP são inspecionadas antes da descompressão; dimensões, variante, animação e tamanho
+  precisam respeitar o contrato de frame antes de o codec alocar a imagem;
+- chamadas nativas de captura usam apenas DLLs de sistema, validam resultados e liberam handles e
+  imagens também nos caminhos de falha.
 
 O transporte P2P bruto usado pelo plugin deve migrar da API Steam legada para
 `ISteamNetworkingMessages` ou `ISteamNetworkingSockets` antes de uma distribuição pública.
@@ -103,6 +125,9 @@ qualquer início -> Failed
 Connected -> Offline (servidor caiu/encerramento)
 ```
 
+Mudanças incompatíveis de RPC incrementam `network/protocol_version`; lobbies filtram a versão antes
+do handshake. O payload de assentos estáveis introduzido nesta auditoria usa a versão 2.
+
 O menu só anuncia sucesso depois de `ConnectedToServer`. ENet e Steam verificam o retorno de criação
 do peer. Lobbies Steam publicam e filtram `game_id` e `protocol_version`, evitando misturar builds
 incompatíveis. Tentativas de host/conexão possuem timeout com revisão de tentativa: callbacks
@@ -113,6 +138,11 @@ turnos, players, TV e apresentações da sessão anterior não sobrevivem ao rej
 O token local de reconexão é aleatório e evita colisões acidentais, mas não substitui uma conta
 autenticada. Para produção, use a autenticação do provedor/plataforma, rotacione credenciais e associe
 um jogador a no máximo uma partida ativa.
+
+O registro de token tem orçamento e capacidade rígidos. Durante uma reconexão rápida, o servidor
+reserva a identidade enquanto remove o peer antigo; cada mesa só equipa o novo controller quando o
+novo `Player` já existe, a partida segue ativa e o jogador continua na ordem da mesa. O pedido
+pendente é cancelado em reset, fim de partida e saída da árvore.
 
 ## Entrega e canais
 

@@ -18,6 +18,49 @@ public static class PokerSeating
     public static int Next(int seat, int seatCount) =>
         seatCount <= 0 ? 0 : (seat + 1) % seatCount;
 
+    /// <summary>
+    /// Advances the button for the next hand while preserving blind fairness at the three-to-two
+    /// transition. The next big blind is the first surviving seat left of the previous big blind;
+    /// heads-up, the other survivor is therefore the button/small blind.
+    /// </summary>
+    public static int NextButtonSeat(
+        IReadOnlyList<PlayerBetState> players, int currentButtonSeat)
+    {
+        if (players == null || players.Count == 0)
+            return 0;
+
+        var button = ((currentButtonSeat % players.Count) + players.Count) % players.Count;
+        var survivors = 0;
+        foreach (var player in players)
+        {
+            if (player.Stack > 0)
+                survivors++;
+        }
+
+        if (players.Count <= 2 || survivors != 2)
+            return Next(button, players.Count);
+
+        var previousBigBlind = BigBlindSeat(button, players.Count);
+        var nextBigBlind = NextSeatWithChips(players, previousBigBlind);
+        return NextSeatWithChips(players, nextBigBlind);
+    }
+
+    /// <summary>Players receive cards one at a time starting left of the dealer button.</summary>
+    public static List<string> DealOrder(
+        IReadOnlyList<string> seatedPlayers, int buttonSeat)
+    {
+        var order = new List<string>();
+        if (seatedPlayers == null || seatedPlayers.Count == 0)
+            return order;
+
+        var button = ((buttonSeat % seatedPlayers.Count) + seatedPlayers.Count)
+                     % seatedPlayers.Count;
+        for (var step = 1; step <= seatedPlayers.Count; step++)
+            order.Add(seatedPlayers[(button + step) % seatedPlayers.Count]);
+
+        return order;
+    }
+
     /// <summary>Heads-up, the button IS the small blind.</summary>
     public static int SmallBlindSeat(int buttonSeat, int seatCount) =>
         seatCount == 2 ? buttonSeat : Next(buttonSeat, seatCount);
@@ -89,5 +132,18 @@ public static class PokerSeating
             order.Add(seatedPlayers[(buttonSeat + step) % seatedPlayers.Count]);
 
         return order;
+    }
+
+    private static int NextSeatWithChips(
+        IReadOnlyList<PlayerBetState> players, int fromSeat)
+    {
+        for (var step = 1; step <= players.Count; step++)
+        {
+            var seat = (fromSeat + step) % players.Count;
+            if (players[seat].Stack > 0)
+                return seat;
+        }
+
+        return fromSeat;
     }
 }

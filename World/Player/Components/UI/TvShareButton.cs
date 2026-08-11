@@ -1,5 +1,5 @@
-using Godot;
 using System;
+using Godot;
 
 [GlobalClass]
 public partial class TvShareButton : CanvasLayer
@@ -142,9 +142,36 @@ public partial class TvShareButton : CanvasLayer
 
         AddSourceCard("Tela inteira", CaptureThumbnail(default), default);
 
-        var ownHwnd = (IntPtr)DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle, (int)DisplayServer.MainWindowId);
+        var nativeHandle = DisplayServer.WindowGetNativeHandle(
+            DisplayServer.HandleType.WindowHandle,
+            (int)DisplayServer.MainWindowId);
+        TryConvertNativeWindowHandle(nativeHandle, out var ownHwnd);
         foreach (var window in WindowsScreenCapture.EnumerateCapturableWindows(ownHwnd))
             AddSourceCard(window.Title, CaptureThumbnail(window.Handle), window.Handle);
+    }
+
+    /// <summary>
+    /// Converts Godot's fixed-width native handle without relying on the checked Int64-to-IntPtr
+    /// conversion whose overflow behavior changed in .NET 7. The Windows export is 64-bit today,
+    /// while the explicit 32-bit branch keeps this boundary safe if another preset is added.
+    /// </summary>
+    internal static bool TryConvertNativeWindowHandle(long nativeHandle, out IntPtr windowHandle)
+    {
+        windowHandle = IntPtr.Zero;
+        if (nativeHandle == 0)
+            return false;
+
+        if (IntPtr.Size == sizeof(long))
+        {
+            windowHandle = new IntPtr(nativeHandle);
+            return true;
+        }
+
+        if (nativeHandle < int.MinValue || nativeHandle > uint.MaxValue)
+            return false;
+
+        windowHandle = new IntPtr(unchecked((int)nativeHandle));
+        return windowHandle != IntPtr.Zero;
     }
 
     // Reuses the exact same capture functions the live share uses, just at a small resolution —

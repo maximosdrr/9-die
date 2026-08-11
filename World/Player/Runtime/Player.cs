@@ -14,7 +14,6 @@ public partial class Player : CharacterBody3D
     [Export] public float MaximumServerYawSpeed = 12.0f;
     [Export] public float RemoteInterpolationSpeed = 14.0f;
     [Export] public float PredictionCorrectionSpeed = 4.0f;
-    [Export] public float PredictionYawCorrectionSpeed = 5.0f;
     [Export] public float HardCorrectionDistance = 1.5f;
 
     public int Id = 1;

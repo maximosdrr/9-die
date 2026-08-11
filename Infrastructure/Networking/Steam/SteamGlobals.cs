@@ -25,9 +25,10 @@ public partial class SteamGlobals : Node
     private void InitializeSteam()
     {
         var appId = (ulong)(long)ProjectSettings.GetSetting(AppIdSetting, 0);
-        if (appId == 0)
+        var configurationError = ValidateConfiguration(appId, Engine.HasSingleton("Steam"));
+        if (configurationError != null)
         {
-            GD.PushError($"Steam transport requires a non-zero '{AppIdSetting}' project setting.");
+            GD.PushError(configurationError);
             return;
         }
 
@@ -46,5 +47,16 @@ public partial class SteamGlobals : Node
 
         steam.Call("initRelayNetworkAccess");
         GD.Print("Steam Initialized. User ID: ", steam.Call("getSteamID"));
+    }
+
+    internal static string ValidateConfiguration(ulong appId, bool hasSteamSingleton)
+    {
+        if (appId == 0)
+            return $"Steam transport requires a non-zero '{AppIdSetting}' project setting.";
+
+        if (!hasSteamSingleton)
+            return "Steam transport is configured, but the Steam singleton is unavailable.";
+
+        return null;
     }
 }

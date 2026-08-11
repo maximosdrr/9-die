@@ -78,11 +78,11 @@ public partial class PokerSeatPresenter : Node3D
     {
         var visuals = new Dictionary<ulong, Vector3>();
         foreach (var chip in _preparedChips.Where(chip => chip.Included))
-        foreach (var child in chip.Pile.GetChildren())
-        {
-            if (child is Node3D { Visible: true } visual)
-                visuals[visual.GetInstanceId()] = chip.Pile.Transform * visual.Position;
-        }
+            foreach (var child in chip.Pile.GetChildren())
+            {
+                if (child is Node3D { Visible: true } visual)
+                    visuals[visual.GetInstanceId()] = chip.Pile.Transform * visual.Position;
+            }
         return visuals;
     }
 

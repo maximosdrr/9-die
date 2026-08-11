@@ -88,7 +88,9 @@ public partial class CueChargingState : State
         if (@event is not InputEventMouseMotion motion)
             return;
 
-        ApplyStroke(ReadVerticalMotion(motion), ReadVerticalVelocity(motion));
+        var screenDelta = PointerMotion.ReadScreenDelta(motion);
+        var screenVelocity = PointerMotion.ReadScreenVelocity(motion);
+        ApplyStroke(screenDelta.Y, screenVelocity.Y);
         UpdateCueTransform();
         Cue.GetViewport().SetInputAsHandled();
 
@@ -101,18 +103,6 @@ public partial class CueChargingState : State
     /// stretch mode the way Relative does. It reads zero on some captured-mouse configurations,
     /// hence the fallback — the two are identical whenever content scale is 1:1.
     /// </summary>
-    private static float ReadVerticalMotion(InputEventMouseMotion motion)
-    {
-        var screen = motion.ScreenRelative.Y;
-        return screen != 0.0f ? screen : motion.Relative.Y;
-    }
-
-    private static float ReadVerticalVelocity(InputEventMouseMotion motion)
-    {
-        var screen = motion.ScreenVelocity.Y;
-        return screen != 0.0f ? screen : motion.Velocity.Y;
-    }
-
     private void ApplyStroke(float verticalPixels, float verticalPixelsPerSecond)
     {
         if (FullDrawPixels <= 0.0f)

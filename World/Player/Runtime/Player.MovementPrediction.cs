@@ -1,6 +1,44 @@
 using Godot;
 
 /// <summary>
+/// Positional correction that remains to be presented from the latest authoritative snapshot.
+///
+/// A snapshot is a newer estimate of the same player pose, not another movement impulse. Its
+/// error therefore replaces any correction left by an older snapshot. Adding both errors makes
+/// stale network state keep moving the player after its input has stopped.
+///
+/// Yaw deliberately does not live here. The owning peer's camera is direct local input; applying
+/// server yaw back onto that same transform both moves the camera without mouse input and sends
+/// the corrected value back as the next input. The server still validates and rate-limits yaw for
+/// its authoritative body and for every observer. This is safe while movement is submitted in
+/// world space and the walking collider is rotationally symmetric; gameplay-facing state should
+/// use a separate authoritative body transform if either invariant changes.
+/// </summary>
+internal sealed class PlayerPredictionCorrection
+{
+    public Vector3 PositionError { get; private set; }
+
+    public void Retarget(Vector3 positionError)
+    {
+        PositionError = positionError;
+    }
+
+    public Vector3 ConsumePositionStep(float maximumDistance)
+    {
+        var step = PositionError.LimitLength(Mathf.Max(0.0f, maximumDistance));
+        PositionError -= step;
+        if (PositionError.IsZeroApprox())
+            PositionError = Vector3.Zero;
+        return step;
+    }
+
+    public void Clear()
+    {
+        PositionError = Vector3.Zero;
+    }
+}
+
+/// <summary>
 /// Reconciles the owning client's predicted samples and interpolates server snapshots for
 /// observers. This layer changes presentation only; collision authority stays on the server.
 /// </summary>
@@ -8,7 +46,7 @@ public partial class Player : CharacterBody3D
 {
     private void RememberPrediction(int sequence)
     {
-        _predictionSamples.Add(new PredictionSample(sequence, GlobalPosition, GlobalRotation.Y));
+        _predictionSamples.Add(new PredictionSample(sequence, GlobalPosition));
         if (_predictionSamples.Count > MaximumPredictionSamples)
             _predictionSamples.RemoveRange(0, _predictionSamples.Count - MaximumPredictionSamples);
     }
@@ -17,7 +55,6 @@ public partial class Player : CharacterBody3D
         float serverYaw, Vector3 serverVelocity)
     {
         var comparedPosition = GlobalPosition;
-        var comparedYaw = GlobalRotation.Y;
         var removeCount = 0;
 
         for (var index = 0; index < _predictionSamples.Count; index++)
@@ -28,10 +65,7 @@ public partial class Player : CharacterBody3D
 
             removeCount = index + 1;
             if (sample.Sequence == acknowledgedSequence)
-            {
                 comparedPosition = sample.Position;
-                comparedYaw = sample.Yaw;
-            }
         }
 
         if (removeCount > 0)
@@ -40,35 +74,35 @@ public partial class Player : CharacterBody3D
         var alignedError = serverPosition - comparedPosition;
         if (alignedError.Length() > HardCorrectionDistance)
         {
-            SetVisualPose(serverPosition, serverYaw, serverVelocity);
-            _predictionCorrection = Vector3.Zero;
-            _predictionYawCorrection = 0.0f;
+            SetOwningClientPose(serverPosition, serverYaw, serverVelocity);
+            _predictionCorrection.Clear();
             _predictionSamples.Clear();
             return;
         }
 
-        _predictionCorrection += alignedError;
-        _predictionYawCorrection += Mathf.Wrap(serverYaw - comparedYaw, -Mathf.Pi, Mathf.Pi);
+        _predictionCorrection.Retarget(alignedError);
     }
 
     private void ApplyPredictionCorrection(float delta)
     {
-        if (!_predictionCorrection.IsZeroApprox())
+        if (!_predictionCorrection.PositionError.IsZeroApprox())
         {
-            var step = _predictionCorrection.LimitLength(
-                Mathf.Max(0.0f, PredictionCorrectionSpeed) * delta);
+            var step = _predictionCorrection.ConsumePositionStep(
+                PredictionCorrectionSpeed * delta);
             MoveAndCollide(step);
-            _predictionCorrection -= step;
         }
+    }
 
-        if (Mathf.IsZeroApprox(_predictionYawCorrection))
-            return;
-
-        var yawStep = Mathf.Clamp(_predictionYawCorrection,
-            -Mathf.Max(0.0f, PredictionYawCorrectionSpeed) * delta,
-            Mathf.Max(0.0f, PredictionYawCorrectionSpeed) * delta);
-        RotateY(yawStep);
-        _predictionYawCorrection -= yawStep;
+    /// <summary>
+    /// A hard position correction must not overwrite the owner's mouselook. Server yaw is used
+    /// only as a fail-closed fallback if the local transform somehow became non-finite.
+    /// </summary>
+    private void SetOwningClientPose(Vector3 position, float serverYaw, Vector3 velocity)
+    {
+        var localYaw = PlayerMovementProtocol.ResolveOwningClientYaw(
+            GlobalRotation.Y,
+            serverYaw);
+        SetVisualPose(position, localYaw, velocity);
     }
 
     private void InterpolateRemoteSnapshot(float delta)
@@ -96,5 +130,4 @@ public partial class Player : CharacterBody3D
         Velocity = velocity;
         ResetPhysicsInterpolation();
     }
-
 }

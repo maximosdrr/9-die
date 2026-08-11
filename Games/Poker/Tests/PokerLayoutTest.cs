@@ -35,6 +35,7 @@ public partial class PokerLayoutTest : Node
         TestContactStackOpensBeforeCollection();
         TestChipsSettleLikeChips();
         TestNaturalMotionCurves();
+        TestDealAnimationOrder();
         TestBoundedChipGroups();
         TestCalculatedPresentationTiming();
         TestDealerChangePlanningAndMotion();
@@ -45,6 +46,17 @@ public partial class PokerLayoutTest : Node
             GD.PushWarning($"{_failed} verificação(ões) de layout do poker falharam.");
 
         GetTree().Quit(_failed > 0 ? 1 : 0);
+    }
+
+    private void TestDealAnimationOrder()
+    {
+        var headsUp = new[] { "A", "B" };
+        Check("animação com botão em A entrega primeiro ao BB B e por último a A",
+            PokerSeatPresenter.DealPosition(headsUp, buttonSeat: 0, "B") == 0
+            && PokerSeatPresenter.DealPosition(headsUp, buttonSeat: 0, "A") == 1);
+        Check("animação acompanha o botão quando ele gira para B",
+            PokerSeatPresenter.DealPosition(headsUp, buttonSeat: 1, "A") == 0
+            && PokerSeatPresenter.DealPosition(headsUp, buttonSeat: 1, "B") == 1);
     }
 
     private void TestBoardRow()
@@ -466,22 +478,22 @@ public partial class PokerLayoutTest : Node
         var projectedOverlaps = 0;
         var intersectingVolumes = 0;
         for (var left = 0; left < first.Count; left++)
-        for (var right = left + 1; right < first.Count; right++)
-        {
-            var horizontal = new Vector2(
-                first[left].X - first[right].X,
-                first[left].Z - first[right].Z).Length();
-            if (horizontal >= diameter)
-                continue;
+            for (var right = left + 1; right < first.Count; right++)
+            {
+                var horizontal = new Vector2(
+                    first[left].X - first[right].X,
+                    first[left].Z - first[right].Z).Length();
+                if (horizontal >= diameter)
+                    continue;
 
-            projectedOverlaps++;
-            var leftTop = first[left].Y + thickness;
-            var rightTop = first[right].Y + thickness;
-            var verticallySeparate = leftTop <= first[right].Y + 0.00001f
-                                     || rightTop <= first[left].Y + 0.00001f;
-            if (!verticallySeparate)
-                intersectingVolumes++;
-        }
+                projectedOverlaps++;
+                var leftTop = first[left].Y + thickness;
+                var rightTop = first[right].Y + thickness;
+                var verticallySeparate = leftTop <= first[right].Y + 0.00001f
+                                         || rightTop <= first[left].Y + 0.00001f;
+                if (!verticallySeparate)
+                    intersectingVolumes++;
+            }
 
         Check($"as fichas preparadas se sobrepoem como pilhas ({projectedOverlaps} pares)",
             projectedOverlaps > first.Count);
@@ -519,8 +531,8 @@ public partial class PokerLayoutTest : Node
         }
 
         for (var frame = 0; frame < 40; frame++)
-        foreach (var batch in animator.Batches)
-            animator.Advance(batch, 1.0f / 60.0f);
+            foreach (var batch in animator.Batches)
+                animator.Advance(batch, 1.0f / 60.0f);
 
         var arrived = animator.ActiveVisualPositions().Values.ToList();
         var clearance = arrived.Count == 2

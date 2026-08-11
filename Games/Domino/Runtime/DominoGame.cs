@@ -66,6 +66,8 @@ public partial class DominoGame : TableGame
     public int[] LocalHand = System.Array.Empty<int>();
 
     private GameModeHandler _gameModeHandler;
+    private readonly HashSet<string> _pendingReclaimedControllerPlayerIds =
+        new(System.StringComparer.Ordinal);
 
     public override int MinimumPlayers => AllowSoloDebug ? 1 : 2;
     public override int MaximumPlayers => 4;
@@ -83,12 +85,51 @@ public partial class DominoGame : TableGame
 
     public override void _Ready()
     {
+        SetProcess(false);
         _gameModeHandler = GameModeHandler;
 
         MatchStarted += OnMatchStarts;
         MatchOver += OnMatchIsOver;
         PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
         PlayerReclaimed += OnPlayerReclaimed;
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_pendingReclaimedControllerPlayerIds.Count == 0)
+        {
+            SetProcess(false);
+            return;
+        }
+
+        if (!IsMatchActive)
+        {
+            ClearPendingReclaimedControllers();
+            return;
+        }
+
+        // Several remote peers can reconnect during the same spawn window. Keep every request and
+        // consume each id independently; a single string here used to let the last packet silently
+        // overwrite all earlier reconnects.
+        foreach (var playerId in new List<string>(_pendingReclaimedControllerPlayerIds))
+        {
+            if (!TurnOrder.Contains(playerId))
+            {
+                _pendingReclaimedControllerPlayerIds.Remove(playerId);
+                continue;
+            }
+
+            if (TryEquipReclaimedController(playerId))
+                _pendingReclaimedControllerPlayerIds.Remove(playerId);
+        }
+
+        SetProcess(_pendingReclaimedControllerPlayerIds.Count > 0);
+    }
+
+    public override void _ExitTree()
+    {
+        ClearPendingReclaimedControllers();
+        base._ExitTree();
     }
 
     public override void SetCamera(GlobalCamera camera)
@@ -98,7 +139,7 @@ public partial class DominoGame : TableGame
 
     public Marker3D SeatFor(string playerId)
     {
-        var index = TurnOrder.IndexOf(playerId);
+        var index = SeatIndexFor(playerId);
         if (index < 0 || Seats == null || index >= Seats.GetChildCount())
             return null;
 
@@ -107,6 +148,7 @@ public partial class DominoGame : TableGame
 
     public override void SetupMatch(Array players, string firstTurnOwner)
     {
+        ClearPendingReclaimedControllers();
         PrepareMatch(players, firstTurnOwner);
         IsSoloMatch = players.Count == 1;
 
@@ -198,6 +240,8 @@ public partial class DominoGame : TableGame
 
     private void OnMatchIsOver(string winner, Dictionary context)
     {
+        ClearPendingReclaimedControllers();
+
         // The winning tile reaches the table through this context rather than a turn change,
         // because a match-ending play never hands the turn on.
         ApplyPublicSnapshot(context);
@@ -213,20 +257,19 @@ public partial class DominoGame : TableGame
     private void OnPlayerRemovedFromMatch(string playerId, Array turnOrder)
     {
         HandCounts.Remove(playerId);
-
-        // Their tiles go back onto the table, but only the server knows which places they land in,
-        // so the stock is left alone here and corrected by the next turn context. A peer can be one
-        // turn behind on the stock's size; it cannot be wrong about where a tile is.
+        _pendingReclaimedControllerPlayerIds.Remove(playerId);
+        SetProcess(_pendingReclaimedControllerPlayerIds.Count > 0);
 
         // TableGame fires this signal before it builds the handoff context, so moving the real
-        // tiles now is what keeps that context's counts honest.
+        // tiles now is what keeps the immediately published snapshot's counts honest.
         if (Multiplayer.IsServer())
             Resolver?.ReturnTilesToBoneyard(playerId);
 
         EmitSignal(SignalName.HudStateUpdated);
 
-        var leavingPlayer = PlayerRegistry.Instance.GetPlayerById(playerId);
-        if (leavingPlayer?.GameHandler.CurrentController == null)
+        var registry = PlayerRegistry.Instance;
+        if (registry == null || !registry.TryGetPlayerById(playerId, out var leavingPlayer)
+            || leavingPlayer?.GameHandler.CurrentController == null)
             return;
 
         leavingPlayer.GameHandler.CurrentController.GiveControl();
@@ -236,21 +279,123 @@ public partial class DominoGame : TableGame
 
     private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder, Dictionary context)
     {
-        var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
-        if (newPlayer == null)
+        MigrateReclaimedPlayerState(oldPlayerId, newPlayerId);
+
+        // The snapshot was captured immediately before TableGame replaced the peer id. Apply a
+        // re-keyed copy on every peer so a current-player reconnect publishes its new turn stamp,
+        // while reconnecting another seat leaves the actor's existing token untouched.
+        var reclaimedContext = RemapReclaimedContext(context, oldPlayerId, newPlayerId);
+        if (reclaimedContext.ContainsKey("play_tiles")
+            && reclaimedContext.ContainsKey("turn_token"))
+        {
+            ApplyPublicSnapshot(reclaimedContext);
+        }
+        else
+        {
+            EmitSignal(SignalName.HudStateUpdated);
+        }
+
+        // The reliable reclaim packet can arrive just before the replacement Player node is
+        // spawned. Public and secret match identity migrate immediately; presentation waits for
+        // the registry to observe that node instead of being lost permanently.
+        if (TryEquipReclaimedController(newPlayerId))
+        {
+            _pendingReclaimedControllerPlayerIds.Remove(newPlayerId);
+            SetProcess(_pendingReclaimedControllerPlayerIds.Count > 0);
             return;
+        }
 
-        newPlayer.GameHandler.EquipGameController(GameControllerScene, this, Camera);
+        if (GameControllerScene != null && IsMatchActive && turnOrder.Contains(newPlayerId))
+        {
+            _pendingReclaimedControllerPlayerIds.Add(newPlayerId);
+            SetProcess(true);
+        }
+    }
 
+    private bool TryEquipReclaimedController(string playerId)
+    {
+        var registry = PlayerRegistry.Instance;
+        if (registry == null || !registry.TryGetPlayerById(playerId, out var player)
+            || !IsInstanceValid(player))
+            return false;
+
+        AttachLocalReclaimedPlayer(playerId, player);
+        if (GameControllerScene == null || player.GameHandler == null)
+            return false;
+
+        if (player.GameHandler.CurrentTableGame != this
+            || !IsInstanceValid(player.GameHandler.CurrentController))
+        {
+            player.GameHandler.EquipGameController(GameControllerScene, this, Camera);
+        }
+        return true;
+    }
+
+    internal void MigrateReclaimedPlayerState(string oldPlayerId, string newPlayerId)
+    {
         if (HandCounts.TryGetValue(oldPlayerId, out var heldTiles))
         {
             HandCounts.Remove(oldPlayerId);
             HandCounts[newPlayerId] = heldTiles;
         }
 
-        EmitSignal(SignalName.HudStateUpdated);
-
         if (Multiplayer.IsServer())
             Resolver?.ReissueStateTo(oldPlayerId, newPlayerId);
+    }
+
+    internal static Dictionary RemapReclaimedContext(
+        Dictionary context, string oldPlayerId, string newPlayerId)
+    {
+        var remapped = context?.Duplicate() ?? new Dictionary();
+        if (string.IsNullOrEmpty(oldPlayerId) || string.IsNullOrEmpty(newPlayerId)
+            || oldPlayerId == newPlayerId)
+        {
+            return remapped;
+        }
+
+        foreach (Variant key in remapped.Keys)
+        {
+            var value = remapped[key];
+            if (value.VariantType == Variant.Type.String)
+            {
+                if (value.AsString() == oldPlayerId)
+                    remapped[key] = newPlayerId;
+                continue;
+            }
+
+            if (value.VariantType != Variant.Type.PackedStringArray)
+                continue;
+
+            var playerIds = value.AsStringArray();
+            var changed = false;
+            for (var index = 0; index < playerIds.Length; index++)
+            {
+                if (playerIds[index] != oldPlayerId)
+                    continue;
+
+                playerIds[index] = newPlayerId;
+                changed = true;
+            }
+
+            if (changed)
+                remapped[key] = playerIds;
+        }
+
+        return remapped;
+    }
+
+    internal bool HasPendingReclaimedController =>
+        _pendingReclaimedControllerPlayerIds.Count > 0;
+
+    internal int PendingReclaimedControllerCount =>
+        _pendingReclaimedControllerPlayerIds.Count;
+
+    internal bool IsReclaimedControllerPending(string playerId) =>
+        _pendingReclaimedControllerPlayerIds.Contains(playerId);
+
+    private void ClearPendingReclaimedControllers()
+    {
+        _pendingReclaimedControllerPlayerIds.Clear();
+        SetProcess(false);
     }
 }

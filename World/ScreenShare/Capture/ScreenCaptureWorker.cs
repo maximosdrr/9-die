@@ -1,8 +1,8 @@
-using Godot;
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
+using Godot;
 
 /// <summary>
 /// Captures and WebP-encodes the primary screen (or one window) off the main thread. Capture
@@ -190,7 +190,8 @@ public sealed class ScreenCaptureWorker : IDisposable
             try
             {
                 var start = Stopwatch.GetTimestamp();
-                var image = Image.CreateFromData(_width, _height, false, Image.Format.Rgba8, pixels);
+                using var image = Image.CreateFromData(
+                    _width, _height, false, Image.Format.Rgba8, pixels);
                 var encoded = image.SaveWebpToBuffer(true, WebpQuality);
 
                 Interlocked.Add(ref _encodeTicksAccum, Stopwatch.GetTimestamp() - start);
@@ -235,13 +236,32 @@ public sealed class ScreenCaptureWorker : IDisposable
         // Order matters: the capture thread is the only producer into _encodeQueue, so it must
         // be fully stopped before CompleteAdding — Add after CompleteAdding throws.
         _running = false;
-        _captureThread.Join(500);
+        var captureStopped = _captureThread.Join(500);
 
         _encodeQueue.CompleteAdding();
+        var encodersStopped = true;
         foreach (var encoder in _encoderThreads)
-            encoder.Join(500);
+            encodersStopped &= encoder.Join(1_000);
+
+        // A hung PrintWindow can outlive the first wait. Once CompleteAdding is visible, its Add
+        // exits through the guarded shutdown path as soon as Win32 returns.
+        if (!captureStopped)
+            captureStopped = _captureThread.Join(500);
 
         _readyFrame.CompleteAndClear();
+
+        // Never dispose a collection while one of its worker threads may still be inside it. The
+        // threads are background threads, so in the exceptional hung-window case it is safer to
+        // leave these small synchronization objects for process teardown than cause use-after-free.
+        if (captureStopped && encodersStopped)
+        {
+            _encodeQueue.Dispose();
+            _freeBuffers.Dispose();
+        }
+        else
+        {
+            GD.PushWarning("[TvScreenCapture] Uma thread de captura nao encerrou dentro do prazo.");
+        }
     }
 
     /// <summary>

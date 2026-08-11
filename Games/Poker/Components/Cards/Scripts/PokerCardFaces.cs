@@ -16,7 +16,9 @@ using Poker.Rules;
 /// </summary>
 public static class PokerCardFaces
 {
-    private const string AtlasPath = "res://Assets/Poker/cards.png";
+    public const string AtlasPath = "res://Assets/Poker/cards.png";
+    public const string PreferredBackPath = "res://Assets/Poker/card_back.png";
+    public const string FallbackBackPath = "res://Assets/Poker/poker_assets_2.png";
 
     /// <summary>
     /// The back, in order of preference. The art pack ships one — it is the third texture the glb
@@ -25,8 +27,8 @@ public static class PokerCardFaces
     /// </summary>
     private static readonly string[] BackPaths =
     {
-        "res://Assets/Poker/card_back.png",
-        "res://Assets/Poker/poker_assets_2.png",
+        PreferredBackPath,
+        FallbackBackPath,
     };
 
     public const int Columns = 13;

@@ -37,6 +37,15 @@ internal static class PlayerMovementProtocol
 
     public static bool IsValidSnapshot(Vector3 position, float yaw, Vector3 velocity) =>
         IsFinite(position) && IsFinite(yaw) && IsFinite(velocity);
+
+    /// <summary>
+    /// Server snapshots correct the owning client's position, never its local camera yaw. That
+    /// yaw remains an untrusted target on the server, where it is validated and rate-limited for
+    /// the authoritative body seen by observers. Falling back prevents a non-finite local
+    /// transform from poisoning the scene.
+    /// </summary>
+    public static float ResolveOwningClientYaw(float localYaw, float serverYaw) =>
+        Mathf.Wrap(IsFinite(localYaw) ? localYaw : serverYaw, -Mathf.Pi, Mathf.Pi);
 }
 
 /// <summary>

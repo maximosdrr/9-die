@@ -50,9 +50,9 @@ public static class PokerDeal
     /// <summary>
     /// Two cards each, then the rest kept as the stub.
     ///
-    /// Cards go round one at a time rather than two at a time, exactly as at a real table. It makes
-    /// no difference to a shuffled deck, but it means a hand dealt here and a hand dealt at a table
-    /// from the same deck order agree — which is the sort of thing that makes a bug report legible.
+    /// Cards go round one at a time rather than two at a time, in the supplied dealing order. The
+    /// session passes seats rotated to start left of the button, so a hand dealt here and a hand dealt
+    /// at a table from the same deck order agree — including the heads-up button receiving last.
     /// </summary>
     public static HoldemDeal Deal(IReadOnlyList<string> playerIds, ulong seed)
     {

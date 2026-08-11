@@ -6,12 +6,6 @@
 [node name="PokerController" type="Node3D" unique_id=2147368170 node_paths=PackedStringArray("LookRig", "LookPitch", "RemoteSeat", "TopRig", "RemoteTop")]
 script = ExtResource("1_pctrl")
 HandViewScene = ExtResource("2_phview")
-SeatFov = 65.0
-SeatViewOffset = Vector3(0, 0.15, 0.18)
-MinPitchDeg = -55.0
-RestPitchDeg = -35.0
-TopFov = 52.0
-TopHeight = 0.88
 LookRig = NodePath("LookRig")
 LookPitch = NodePath("LookRig/LookPitch")
 RemoteSeat = NodePath("LookRig/LookPitch/RemoteSeat")
@@ -23,9 +17,13 @@ RemoteTop = NodePath("TopRig/RemoteTop")
 [node name="LookPitch" type="Node3D" parent="LookRig" unique_id=656893499]
 
 [node name="RemoteSeat" type="RemoteTransform3D" parent="LookRig/LookPitch" unique_id=1448616883]
+update_position = false
+update_rotation = false
 update_scale = false
 
 [node name="TopRig" type="Node3D" parent="." unique_id=1034915673]
 
 [node name="RemoteTop" type="RemoteTransform3D" parent="TopRig" unique_id=140164643]
+update_position = false
+update_rotation = false
 update_scale = false

@@ -241,6 +241,14 @@ public partial class DominoRulesTest : Node
         Check("carroça mantém o valor da ponta",
             board.TryPlay("1", DominoTileId.From(6, 6), ChainEnd.Left) && board.LeftEnd == 6);
 
+        var oldEnds = (board.LeftEnd, board.RightEnd);
+        Check("reconexao troca autoria sem reconstruir geometria da corrente",
+            board.RekeyPlayer("1", "77") == 2
+            && board.Plays[0].PlayerId == "77"
+            && board.Plays[3].PlayerId == "77"
+            && board.LeftEnd == oldEnds.LeftEnd
+            && board.RightEnd == oldEnds.RightEnd);
+
         var rebuilt = DominoBoardState.FromPlays(board.Plays);
         Check("mesa reconstruída das jogadas reproduz as pontas",
             rebuilt.Count == board.Count

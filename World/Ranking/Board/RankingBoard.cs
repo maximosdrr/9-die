@@ -1,6 +1,6 @@
-using Godot;
 using System.Linq;
 using System.Text;
+using Godot;
 
 [GlobalClass]
 public partial class RankingBoard : Node3D

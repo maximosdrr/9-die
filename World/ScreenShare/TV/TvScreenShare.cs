@@ -1,5 +1,5 @@
-using Godot;
 using System;
+using Godot;
 
 [GlobalClass]
 public partial class TvScreenShare : Node3D
@@ -147,12 +147,16 @@ public partial class TvScreenShare : Node3D
         NetworkManager.Instance.NetworkProvider.ServerDisconnected += OnServerSessionDisconnected;
 
         _steamProvider = NetworkManager.Instance.NetworkProvider as SteamNetworkProvider;
-        if (_steamProvider != null)
+        if (_steamProvider != null && Engine.HasSingleton("Steam"))
         {
             _steam = Engine.GetSingleton("Steam");
             _p2pSendReliableWithBuffering = _steam.Get("P2P_SEND_RELIABLE_WITH_BUFFERING").AsInt64();
             SignalUtil.ConnectGuarded(_steam, "p2p_session_request", new Callable(this, MethodName.OnP2PSessionRequest));
             _steam.Call("allowP2PPacketRelay", true);
+        }
+        else
+        {
+            _steamProvider = null;
         }
     }
 

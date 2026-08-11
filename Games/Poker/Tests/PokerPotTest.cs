@@ -26,6 +26,7 @@ public partial class PokerPotTest : Node
         TestSidePot();
         TestChainedAllIns();
         TestFoldedContributions();
+        TestDeterministicConservationSweep();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
@@ -211,6 +212,64 @@ public partial class PokerPotTest : Node
         Check($"o dinheiro morto vai para quem ganhou a mão ({awards.GetValueOrDefault("1")})",
             awards.GetValueOrDefault("1") == 300);
         CheckPaidOut("dinheiro morto", overpots, awards);
+    }
+
+    /// <summary>
+    /// Exercises many small side-pot topologies in addition to the named examples above. The seed
+    /// is fixed so a failure is repeatable, while the generated folded/all-in combinations protect
+    /// conservation against cases a human example did not happen to enumerate.
+    /// </summary>
+    private void TestDeterministicConservationSweep()
+    {
+        const int cases = 300;
+        var random = new System.Random(0x5EED_2024);
+        var failures = 0;
+
+        for (var sample = 0; sample < cases; sample++)
+        {
+            var playerCount = random.Next(2, 5);
+            var contributions = new Dictionary<string, int>();
+            var contenders = new List<string>();
+            var ranks = new Dictionary<string, PokerHandRank>();
+            var order = new List<string>();
+
+            for (var seat = 0; seat < playerCount; seat++)
+            {
+                var playerId = (seat + 1).ToString();
+                order.Add(playerId);
+                contributions[playerId] = random.Next(0, 201);
+
+                if (seat == 0 || random.Next(0, 3) != 0)
+                {
+                    contenders.Add(playerId);
+                    ranks[playerId] = new PokerHandRank(
+                        HandCategory.HighCard,
+                        random.Next(CardId.Two, CardId.Ace + 1));
+                }
+            }
+
+            // Every real hand has at least one live player with money in the pot (a blind at
+            // minimum). This keeps the generated states inside the rule's valid domain.
+            contributions[contenders[0]] = System.Math.Max(1, contributions[contenders[0]]);
+
+            var pots = PokerPot.Build(contributions, contenders);
+            var awards = PokerPot.Award(pots, ranks, order);
+            var contributed = contributions.Values.Sum();
+            var paid = awards.Values.Sum();
+
+            var valid = PokerPot.Total(pots) == contributed
+                        && paid == contributed
+                        && pots.All(pot => pot.Amount > 0
+                            && pot.EligiblePlayers.All(contenders.Contains))
+                        && awards.All(award => award.Value > 0
+                            && contenders.Contains(award.Key)
+                            && pots.Any(pot => pot.EligiblePlayers.Contains(award.Key)));
+            if (!valid)
+                failures++;
+        }
+
+        Check($"{cases} topologias determinísticas conservam e pagam só elegíveis ({failures} falhas)",
+            failures == 0);
     }
 
     // ---------------------------------------------------------------- helpers

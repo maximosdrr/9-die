@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Godot.Collections;
 using Poker.Rules;
@@ -125,6 +126,13 @@ public partial class PokerGame : TableGame
     public readonly System.Collections.Generic.Dictionary<string, int> Stacks = new();
     public readonly System.Collections.Generic.Dictionary<string, int> BetThisRound = new();
     public readonly System.Collections.Generic.Dictionary<string, int> BetThisHand = new();
+
+    /// <summary>
+    /// Bet level immediately after each player last acted. Missing means they have not acted since
+    /// the street opened or the last full raise. It is public betting history, not private data.
+    /// </summary>
+    public readonly System.Collections.Generic.Dictionary<string, int> BetLevelAfterLastAction = new();
+
     public readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> ChipBanks = new();
     public readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> RoundChipRuns = new();
     public readonly List<ChipRun> PotChipRuns = new();
@@ -188,6 +196,7 @@ public partial class PokerGame : TableGame
     public bool LocalPickedUpCards;
 
     private GameModeHandler _gameModeHandler;
+    private readonly HashSet<string> _pendingReclaimedControllerPlayerIds = new();
 
     public override int MinimumPlayers => AllowSoloDebug ? 1 : 2;
     public override int MaximumPlayers => 4;
@@ -208,6 +217,7 @@ public partial class PokerGame : TableGame
 
     public override void _Ready()
     {
+        SetProcess(false);
         _gameModeHandler = GameModeHandler;
 
         MatchStarted += OnMatchStarts;
@@ -216,11 +226,40 @@ public partial class PokerGame : TableGame
         PlayerReclaimed += OnPlayerReclaimed;
     }
 
+    public override void _Process(double delta)
+    {
+        if (_pendingReclaimedControllerPlayerIds.Count == 0)
+        {
+            SetProcess(false);
+            return;
+        }
+
+        foreach (var playerId in _pendingReclaimedControllerPlayerIds.ToArray())
+        {
+            if (!IsMatchActive || !TurnOrder.Contains(playerId))
+            {
+                _pendingReclaimedControllerPlayerIds.Remove(playerId);
+                continue;
+            }
+
+            if (TryEquipReclaimedController(playerId))
+                _pendingReclaimedControllerPlayerIds.Remove(playerId);
+        }
+
+        SetProcess(_pendingReclaimedControllerPlayerIds.Count > 0);
+    }
+
+    public override void _ExitTree()
+    {
+        ClearPendingReclaimedControllers();
+        base._ExitTree();
+    }
+
     public override void SetCamera(GlobalCamera camera) => Camera = camera;
 
     public Marker3D SeatFor(string playerId)
     {
-        var index = TurnOrder.IndexOf(playerId);
+        var index = SeatIndexFor(playerId);
         if (index < 0 || Seats == null || index >= Seats.GetChildCount())
             return null;
 
@@ -258,15 +297,21 @@ public partial class PokerGame : TableGame
         }
     }
 
-    public int StackOf(string playerId) => Stacks.GetValueOrDefault(playerId);
+    public int StackOf(string playerId) =>
+        !string.IsNullOrEmpty(playerId) && Stacks.TryGetValue(playerId, out var stack)
+            ? stack : 0;
 
-    public int BetOf(string playerId) => BetThisRound.GetValueOrDefault(playerId);
+    public int BetOf(string playerId) =>
+        !string.IsNullOrEmpty(playerId) && BetThisRound.TryGetValue(playerId, out var bet)
+            ? bet : 0;
 
     public IReadOnlyList<ChipRun> ChipBankOf(string playerId) =>
-        ChipBanks.TryGetValue(playerId, out var runs) ? runs : System.Array.Empty<ChipRun>();
+        !string.IsNullOrEmpty(playerId) && ChipBanks.TryGetValue(playerId, out var runs)
+            ? runs : System.Array.Empty<ChipRun>();
 
     public IReadOnlyList<ChipRun> RoundChipsOf(string playerId) =>
-        RoundChipRuns.TryGetValue(playerId, out var runs) ? runs : System.Array.Empty<ChipRun>();
+        !string.IsNullOrEmpty(playerId) && RoundChipRuns.TryGetValue(playerId, out var runs)
+            ? runs : System.Array.Empty<ChipRun>();
 
     public PokerPreparedWagerSnapshot PreparedWagerOf(string playerId) =>
         playerId != null && PreparedWagers.TryGetValue(playerId, out var wager) ? wager : null;
@@ -289,10 +334,35 @@ public partial class PokerGame : TableGame
             PlayerId = playerId,
             Stack = StackOf(playerId),
             CommittedThisRound = BetOf(playerId),
-            CommittedThisHand = BetThisHand.GetValueOrDefault(playerId),
+            CommittedThisHand = !string.IsNullOrEmpty(playerId)
+                                && BetThisHand.TryGetValue(playerId, out var committed)
+                ? committed : 0,
             HasFolded = HasFolded(playerId),
-            HasActedThisRound = true,
+            HasActedThisRound = !string.IsNullOrEmpty(playerId)
+                                && BetLevelAfterLastAction.ContainsKey(playerId),
+            BetLevelWhenLastActed = !string.IsNullOrEmpty(playerId)
+                                    && BetLevelAfterLastAction.TryGetValue(playerId, out var level)
+                ? level : 0,
         };
+
+    /// <summary>
+    /// A raise needs somebody with chips left to answer it. Once every opponent is folded or all-in,
+    /// the remaining decision is only whether to call or fold an outstanding amount.
+    /// </summary>
+    public bool HasOpponentWhoCanAct(string playerId)
+    {
+        foreach (var otherPlayerId in SeatOrder)
+        {
+            if (otherPlayerId != playerId
+                && !HasFolded(otherPlayerId)
+                && StackOf(otherPlayerId) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// The hand is over and the table is showing the result. Nobody may act — the turn owner is
@@ -328,6 +398,7 @@ public partial class PokerGame : TableGame
 
     public override void SetupMatch(Array players, string firstTurnOwner)
     {
+        ClearPendingReclaimedControllers();
         PrepareMatch(players, firstTurnOwner);
         IsSoloMatch = players.Count == 1;
 
@@ -353,6 +424,7 @@ public partial class PokerGame : TableGame
         Stacks.Clear();
         BetThisRound.Clear();
         BetThisHand.Clear();
+        BetLevelAfterLastAction.Clear();
         ChipBanks.Clear();
         RoundChipRuns.Clear();
         PotChipRuns.Clear();
@@ -399,6 +471,7 @@ public partial class PokerGame : TableGame
         ReadTable(context, "stack_players", "stacks", Stacks);
         ReadTable(context, "round_players", "round_bets", BetThisRound);
         ReadTable(context, "hand_players", "hand_bets", BetThisHand);
+        ReadTable(context, "acted_players", "acted_bet_levels", BetLevelAfterLastAction);
         ReadRunTable(context, "chip_bank_players", "chip_bank_denominations", "chip_bank_counts",
             ChipBanks);
         ReadRunTable(context, "round_chip_players", "round_chip_denominations", "round_chip_counts",
@@ -615,6 +688,8 @@ public partial class PokerGame : TableGame
 
     private void OnMatchIsOver(string winner, Dictionary context)
     {
+        ClearPendingReclaimedControllers();
+
         // The final board and the showdown reach the table through this context rather than a turn
         // change, because a session-ending hand never hands the turn on.
         ApplyPublicSnapshot(context);
@@ -629,6 +704,12 @@ public partial class PokerGame : TableGame
 
     private void OnPlayerRemovedFromMatch(string playerId, Array turnOrder)
     {
+        if (_pendingReclaimedControllerPlayerIds.Remove(playerId)
+            && _pendingReclaimedControllerPlayerIds.Count == 0)
+        {
+            SetProcess(false);
+        }
+
         // Their chips stay on the table until the server folds them out of the hand and rebuilds the
         // seating, which arrives with the next context. A peer can be one action behind on a stack;
         // it cannot be wrong about whose money it is.
@@ -659,8 +740,7 @@ public partial class PokerGame : TableGame
         if (appliedPublicContext)
             ApplyPublicSnapshot(reclaimedContext);
 
-        var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
-        newPlayer?.GameHandler.EquipGameController(GameControllerScene, this, Camera);
+        EquipOrDeferReclaimedController(newPlayerId, turnOrder);
 
         if (!appliedPublicContext)
             EmitSignal(SignalName.HudStateUpdated);
@@ -671,6 +751,68 @@ public partial class PokerGame : TableGame
 
         if (Multiplayer.IsServer())
             Resolver?.ReissueStateTo(oldPlayerId, newPlayerId);
+    }
+
+    /// <summary>
+    /// Reclaim replication and Player spawning use independent network paths. Public/secret state is
+    /// migrated immediately; if the replacement node is not registered yet, presentation retries on
+    /// subsequent frames while the match and seat remain valid.
+    /// </summary>
+    internal void EquipOrDeferReclaimedController(string playerId, Array turnOrder)
+    {
+        if (TryEquipReclaimedController(playerId))
+        {
+            _pendingReclaimedControllerPlayerIds.Remove(playerId);
+            if (_pendingReclaimedControllerPlayerIds.Count == 0)
+                SetProcess(false);
+            return;
+        }
+
+        if (GameControllerScene == null
+            || !IsMatchActive
+            || turnOrder == null
+            || !turnOrder.Contains(playerId))
+        {
+            return;
+        }
+
+        _pendingReclaimedControllerPlayerIds.Add(playerId);
+        SetProcess(true);
+    }
+
+    internal int PendingReclaimedControllerCount =>
+        _pendingReclaimedControllerPlayerIds.Count;
+
+    private bool TryEquipReclaimedController(string playerId)
+    {
+        var registry = PlayerRegistry.Instance;
+        if (registry == null
+            || !registry.TryGetPlayerById(playerId, out var player))
+        {
+            return false;
+        }
+
+        AttachLocalReclaimedPlayer(playerId, player);
+
+        if (GameControllerScene == null || player.GameHandler == null)
+            return false;
+
+        // Reliable reclaim state can be replayed, and the spawn retry can observe a controller
+        // equipped by another ordered packet. Replacing that live controller would discard its
+        // local hand/input state and could duplicate placement continuations.
+        if (player.GameHandler.CurrentTableGame != this
+            || !IsInstanceValid(player.GameHandler.CurrentController))
+        {
+            player.GameHandler.EquipGameController(GameControllerScene, this, Camera);
+        }
+
+        return true;
+    }
+
+    private void ClearPendingReclaimedControllers()
+    {
+        _pendingReclaimedControllerPlayerIds.Clear();
+        SetProcess(false);
     }
 
     /// <summary>

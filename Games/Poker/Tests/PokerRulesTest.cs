@@ -66,6 +66,12 @@ public partial class PokerRulesTest : Node
         Check($"id inválido é rejeitado ({CardId.Label(52)})",
             !CardId.IsValid(-1) && !CardId.IsValid(52) && CardId.IsValid(0) && CardId.IsValid(51));
 
+        Check("valor ou naipe fora do baralho não vira outra carta por acidente",
+            CardId.From(-1, CardId.Clubs) == CardId.None
+            && CardId.From(CardId.Ranks, CardId.Clubs) == CardId.None
+            && CardId.From(CardId.Ace, -1) == CardId.None
+            && CardId.From(CardId.Ace, CardId.Suits) == CardId.None);
+
         Check($"rótulo legível ({CardId.Label(CardId.From(CardId.Ace, CardId.Spades))})",
             CardId.Label(CardId.From(CardId.Ace, CardId.Spades)) == "A♠");
     }
@@ -179,6 +185,21 @@ public partial class PokerRulesTest : Node
 
         Check("mão vazia não vale nada",
             PokerHandEvaluator.Evaluate(new List<int>()) == PokerHandRank.None);
+
+        var fourRealCardsAndOneInvalid = Cards("Ah Kd Qc Js").Append(CardId.None).ToArray();
+        Check("cinco ids com menos de cinco cartas válidas não formam uma mão",
+            PokerHandEvaluator.Evaluate(fourRealCardsAndOneInvalid) == PokerHandRank.None
+            && PokerHandEvaluator.BestFive(fourRealCardsAndOneInvalid).Length == 0);
+
+        var duplicatedAce = Cards("Ah Ah Ah Ah Kd Qc Js");
+        Check("uma carta física repetida não fabrica par, trinca ou quadra",
+            PokerHandEvaluator.Evaluate(duplicatedAce) == PokerHandRank.None
+            && PokerHandEvaluator.BestFive(duplicatedAce).Length == 0);
+
+        var eightCards = Cards("Ah Kd Qc Js 9h 8d 7c 6s");
+        Check("o avaliador de Hold'em rejeita mais de sete cartas",
+            PokerHandEvaluator.Evaluate(eightCards) == PokerHandRank.None
+            && PokerHandEvaluator.BestFive(eightCards).Length == 0);
     }
 
     // ---------------------------------------------------------------- best five of seven
@@ -257,6 +278,18 @@ public partial class PokerRulesTest : Node
         var different = PokerDeal.Deal(players, 999UL);
         Check("sementes diferentes dão distribuições diferentes",
             !players.All(id => deal.HoleCards[id].SequenceEqual(different.HoleCards[id])));
+
+        var dealOrder = PokerSeating.DealOrder(players, buttonSeat: 0);
+        var fromButton = PokerDeal.Deal(dealOrder, 12345UL);
+        var expectedDeck = CardId.FullDeck();
+        SeededShuffle.Shuffle(expectedDeck, 12345UL);
+        Check("a semente confirma cartas dadas uma a uma a partir da esquerda do botão",
+            fromButton.HoleCards["2"][0] == expectedDeck[0]
+            && fromButton.HoleCards["3"][0] == expectedDeck[1]
+            && fromButton.HoleCards["1"][0] == expectedDeck[2]
+            && fromButton.HoleCards["2"][1] == expectedDeck[3]
+            && fromButton.HoleCards["3"][1] == expectedDeck[4]
+            && fromButton.HoleCards["1"][1] == expectedDeck[5]);
 
         var board = PokerDeal.DealBoard(deal.Stub);
         Check($"a mesa tem cinco cartas comunitárias ({board.Count})", board.Count == PokerDeal.BoardCount);

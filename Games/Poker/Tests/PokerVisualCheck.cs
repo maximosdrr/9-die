@@ -92,7 +92,11 @@ public partial class PokerVisualCheck : Node3D
 
             var actor = _game.TurnOwnerId;
             var state = _game.BetStateOf(actor);
-            var options = PokerBetting.LegalActions(state, _game.CurrentBet, _game.MinRaiseIncrement);
+            var options = PokerBetting.LegalActions(
+                state,
+                _game.CurrentBet,
+                _game.MinRaiseIncrement,
+                _game.HasOpponentWhoCanAct(actor));
             var option = options.FirstOrDefault(candidate => candidate.Kind == PokerActionKind.Check);
             if (option.Kind == PokerActionKind.None)
                 option = options.First(candidate => candidate.Kind == PokerActionKind.Call);
@@ -143,7 +147,11 @@ public partial class PokerVisualCheck : Node3D
             return;
 
         var state = _game.BetStateOf(actor);
-        var options = PokerBetting.LegalActions(state, _game.CurrentBet, _game.MinRaiseIncrement);
+        var options = PokerBetting.LegalActions(
+            state,
+            _game.CurrentBet,
+            _game.MinRaiseIncrement,
+            _game.HasOpponentWhoCanAct(actor));
         var option = options.FirstOrDefault(o => o.Kind == kind);
 
         if (option.Kind == PokerActionKind.None)

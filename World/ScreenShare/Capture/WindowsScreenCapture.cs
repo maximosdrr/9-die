@@ -145,6 +145,20 @@ public static class WindowsScreenCapture
         }
     }
 
+    internal static bool HasValidDestination(int width, int height, byte[] destination)
+    {
+        if (width <= 0 || height <= 0 || destination == null)
+            return false;
+
+        // The destination is a managed array, so any valid capture must fit in Int32 length.
+        // Check by division before multiplying; int.MaxValue squared would overflow even Int64.
+        if (width > int.MaxValue / 4 / height)
+            return false;
+
+        var requiredBytes = width * height * 4;
+        return destination.Length >= requiredBytes;
+    }
+
     /// <summary>
     /// Captures the primary monitor, downscaled to targetWidth x targetHeight, as top-down RGBA8 bytes
     /// ready for Godot's Image.CreateFromData(..., Image.Format.Rgba8, ...). Windows-only.
@@ -163,7 +177,7 @@ public static class WindowsScreenCapture
     /// </summary>
     public static bool TryCapturePrimaryScreen(int targetWidth, int targetHeight, byte[] destination)
     {
-        if (destination == null || destination.Length < targetWidth * targetHeight * 4)
+        if (!HasValidDestination(targetWidth, targetHeight, destination))
             return false;
 
         var screenWidth = GetSystemMetrics(SmCxscreen);
@@ -206,13 +220,17 @@ public static class WindowsScreenCapture
             // detail (especially text) before the frame ever reaches the video encoder. HALFTONE
             // produces a proper area-averaged downscale; per MSDN, SetBrushOrgEx must be called
             // right after selecting HALFTONE or the output can shift.
-            SetStretchBltMode(hdcMem, Halftone);
-            SetBrushOrgEx(hdcMem, 0, 0, out _);
+            if (SetStretchBltMode(hdcMem, Halftone) == 0
+                || !SetBrushOrgEx(hdcMem, 0, 0, out _))
+            {
+                return false;
+            }
 
             if (!StretchBlt(hdcMem, 0, 0, targetWidth, targetHeight, hdcScreen, 0, 0, screenWidth, screenHeight, SrcCopy))
                 return false;
 
-            GdiFlush();
+            if (!GdiFlush())
+                return false;
 
             var bufferSize = targetWidth * 4 * targetHeight;
             Marshal.Copy(bitsPtr, destination, 0, bufferSize);
@@ -223,12 +241,12 @@ public static class WindowsScreenCapture
         finally
         {
             if (oldBitmap != IntPtr.Zero)
-                SelectObject(hdcMem, oldBitmap);
+                _ = SelectObject(hdcMem, oldBitmap);
             if (hBitmap != IntPtr.Zero)
-                DeleteObject(hBitmap);
+                _ = DeleteObject(hBitmap);
             if (hdcMem != IntPtr.Zero)
-                DeleteDC(hdcMem);
-            ReleaseDC(IntPtr.Zero, hdcScreen);
+                _ = DeleteDC(hdcMem);
+            _ = ReleaseDC(IntPtr.Zero, hdcScreen);
         }
     }
 
@@ -256,7 +274,7 @@ public static class WindowsScreenCapture
     {
         var windows = new List<WindowInfo>();
 
-        EnumWindows((hwnd, _) =>
+        _ = EnumWindows((hwnd, _) =>
         {
             if (hwnd == excludeHwnd || !IsWindowVisible(hwnd))
                 return true;
@@ -284,7 +302,8 @@ public static class WindowsScreenCapture
             }
 
             var builder = new StringBuilder(length + 1);
-            GetWindowText(hwnd, builder, builder.Capacity);
+            if (GetWindowText(hwnd, builder, builder.Capacity) <= 0)
+                return true;
             var title = builder.ToString();
             if (!string.IsNullOrWhiteSpace(title))
                 windows.Add(new WindowInfo(hwnd, title));
@@ -306,7 +325,7 @@ public static class WindowsScreenCapture
     /// </summary>
     public static bool TryCaptureWindow(IntPtr hwnd, int targetWidth, int targetHeight, byte[] destination)
     {
-        if (destination == null || destination.Length < targetWidth * targetHeight * 4)
+        if (!HasValidDestination(targetWidth, targetHeight, destination))
             return false;
 
         if (!IsWindow(hwnd))
@@ -370,7 +389,8 @@ public static class WindowsScreenCapture
 
             // Fill the whole canvas black first so the letterbox bars (outside the scaled
             // window rect below) aren't left with whatever garbage was in the DIB's memory.
-            PatBlt(hdcMem, 0, 0, targetWidth, targetHeight, Blackness);
+            if (!PatBlt(hdcMem, 0, 0, targetWidth, targetHeight, Blackness))
+                return false;
 
             var scale = Math.Min((float)targetWidth / sourceWidth, (float)targetHeight / sourceHeight);
             var destWidth = Math.Max(1, (int)(sourceWidth * scale));
@@ -378,13 +398,17 @@ public static class WindowsScreenCapture
             var destX = (targetWidth - destWidth) / 2;
             var destY = (targetHeight - destHeight) / 2;
 
-            SetStretchBltMode(hdcMem, Halftone);
-            SetBrushOrgEx(hdcMem, 0, 0, out _);
+            if (SetStretchBltMode(hdcMem, Halftone) == 0
+                || !SetBrushOrgEx(hdcMem, 0, 0, out _))
+            {
+                return false;
+            }
 
             if (!StretchBlt(hdcMem, destX, destY, destWidth, destHeight, hdcWindow, 0, 0, sourceWidth, sourceHeight, SrcCopy))
                 return false;
 
-            GdiFlush();
+            if (!GdiFlush())
+                return false;
 
             var bufferSize = targetWidth * 4 * targetHeight;
             Marshal.Copy(bitsPtr, destination, 0, bufferSize);
@@ -395,18 +419,18 @@ public static class WindowsScreenCapture
         finally
         {
             if (oldBitmap != IntPtr.Zero)
-                SelectObject(hdcMem, oldBitmap);
+                _ = SelectObject(hdcMem, oldBitmap);
             if (hBitmap != IntPtr.Zero)
-                DeleteObject(hBitmap);
+                _ = DeleteObject(hBitmap);
             if (hdcMem != IntPtr.Zero)
-                DeleteDC(hdcMem);
+                _ = DeleteDC(hdcMem);
             if (oldWindowBitmap != IntPtr.Zero)
-                SelectObject(hdcWindow, oldWindowBitmap);
+                _ = SelectObject(hdcWindow, oldWindowBitmap);
             if (hWindowBitmap != IntPtr.Zero)
-                DeleteObject(hWindowBitmap);
+                _ = DeleteObject(hWindowBitmap);
             if (hdcWindow != IntPtr.Zero)
-                DeleteDC(hdcWindow);
-            ReleaseDC(IntPtr.Zero, hdcScreen);
+                _ = DeleteDC(hdcWindow);
+            _ = ReleaseDC(IntPtr.Zero, hdcScreen);
         }
     }
 }

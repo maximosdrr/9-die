@@ -455,7 +455,7 @@ public partial class PokerSeatPresenter : Node3D
 
     private Node3D SeatNodeFor(string playerId)
     {
-        var index = _game.TurnOrder.IndexOf(playerId);
+        var index = _game.SeatIndexFor(playerId);
         if (index < 0 || index >= Seats.GetChildCount())
             return null;
 

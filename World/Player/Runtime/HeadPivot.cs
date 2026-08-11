@@ -51,16 +51,23 @@ public partial class HeadPivot : Node3D
         if (!InputFocus.IsCaptured)
             return;
 
-        if (@event is InputEventMouseMotion motion)
-            HandleCameraRotation(motion);
+        if (@event is not InputEventMouseMotion motion)
+            return;
+
+        var screenDelta = PointerMotion.ReadScreenDelta(motion);
+        if (screenDelta.IsZeroApprox())
+            return;
+
+        HandleCameraRotation(screenDelta);
+        GetViewport().SetInputAsHandled();
     }
 
-    private void HandleCameraRotation(InputEventMouseMotion @event)
+    private void HandleCameraRotation(Vector2 screenDelta)
     {
         if (PlayerBody != null)
-            PlayerBody.RotateY(-@event.Relative.X * MouseSensitivity);
+            PlayerBody.RotateY(-screenDelta.X * MouseSensitivity);
 
-        RotateX(-@event.Relative.Y * MouseSensitivity);
+        RotateX(-screenDelta.Y * MouseSensitivity);
 
         var rot = Rotation;
         rot.X = Mathf.Clamp(rot.X, Mathf.DegToRad(MinPitch), Mathf.DegToRad(MaxPitch));

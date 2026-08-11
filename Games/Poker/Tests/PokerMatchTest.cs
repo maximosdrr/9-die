@@ -48,7 +48,7 @@ public partial class PokerMatchTest : Node
     {
         GD.Print("=== Teste de sessão de poker ===");
 
-        var players = BuildPlayers("1", "2");
+        var players = BuildPlayers("1", "2", "3");
         var table = BuildTable();
         var game = table.CurrentTableGame as PokerGame;
 
@@ -119,6 +119,11 @@ public partial class PokerMatchTest : Node
         TestSessionRunsToTheEnd(game, resolver);
         TestEveryActionIsPublished();
         TestSecondSessionIsPlayable(game, resolver, order);
+        TestStaleHandPauseCannotAdvanceANewSession(game, resolver, order);
+        TestShortStackStillGetsARealDecision(game, resolver, order);
+        TestRemovingMiddlePlayerPreservesPhysicalSeats(game, resolver);
+        TestRemovingCurrentPlayerPublishesOneTurn(game, resolver);
+        TestReclaimedControllerWaitsForPlayerSpawn(game);
 
         Finish();
     }
@@ -184,7 +189,7 @@ public partial class PokerMatchTest : Node
                 playerId, token, 5, new[] { denomination });
         var reclaimContext = string.IsNullOrEmpty(otherPlayer)
             ? null
-            : resolver.BuildHandoffContext(otherPlayer);
+            : resolver.BuildReclaimContext(otherPlayer);
         var previewSurvivedOtherReclaim = game.PreparedWagerOf(playerId);
         var sameStampedTurnStillAccepts = preparedBeforeOtherReclaim
             && resolver.ApplyPreparedWagerFor(
@@ -193,6 +198,9 @@ public partial class PokerMatchTest : Node
             reclaimContext != null
             && reclaimContext.TryGetValue("turn_token", out var reclaimedToken)
             && (int)reclaimedToken == token
+            && (string)reclaimContext["last_action"] == "reclaimed"
+            && PokerClips.ForAction((string)reclaimContext["last_action"])
+               == PokerGesture.None
             && previewSurvivedOtherReclaim?.Revision == 5
             && sameStampedTurnStillAccepts);
 
@@ -606,6 +614,23 @@ public partial class PokerMatchTest : Node
         };
         resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal,
             selectedDenominations);
+        var publishedBettingHistory = game.BetStateOf(raiser);
+        Check("o snapshot público preserva o nível em que o agressor agiu",
+            publishedBettingHistory.HasActedThisRound
+            && publishedBettingHistory.BetLevelWhenLastActed == raiseTotal);
+        var bettingHandoff = resolver.BuildReclaimContext(raiser);
+        const string reclaimedAggressor = "88";
+        var remappedBettingHandoff = PokerGame.RemapReclaimedContext(
+            bettingHandoff, raiser, reclaimedAggressor);
+        var remappedActors = remappedBettingHandoff["acted_players"].AsStringArray();
+        var remappedLevels = remappedBettingHandoff["acted_bet_levels"].AsInt32Array();
+        var remappedActorIndex = System.Array.IndexOf(remappedActors, reclaimedAggressor);
+        Check("reconectar preserva o nível da última ação sob o novo id",
+            remappedActorIndex >= 0
+            && remappedActorIndex < remappedLevels.Length
+            && remappedLevels[remappedActorIndex] == raiseTotal
+            && !remappedActors.Contains(raiser)
+            && bettingHandoff["acted_players"].AsStringArray().Contains(raiser));
         Check("o servidor publica exatamente as denominações escolhidas",
             PokerChipStack.Expand(game.LastChipRuns).OrderBy(value => value)
                 .SequenceEqual(selectedDenominations.OrderBy(value => value)));
@@ -1100,6 +1125,25 @@ public partial class PokerMatchTest : Node
         Check($"aumentar abaixo do mínimo é recusado ({_lastRejection})",
             _lastRejection == "amount_out_of_range");
 
+        var legalOption = PokerBetting.LegalActions(
+                game.BetStateOf(owner),
+                game.CurrentBet,
+                game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(owner))
+            .First();
+        var oversizedSelection = Enumerable.Repeat(
+            PokerChipStack.SmallestDenomination,
+            PokerTurnResolver.MaximumPreparedWagerChips + 1).ToArray();
+        _lastRejection = null;
+        resolver.ApplyActionFor(
+            owner,
+            game.TurnToken,
+            (int)legalOption.Kind,
+            legalOption.MinTotal,
+            oversizedSelection);
+        Check($"uma ação não aceita lista física sem limite ({_lastRejection})",
+            _lastRejection == "invalid_chip_selection");
+
         Check("nenhuma recusa mexeu na mesa, no pote nem na vez",
             Snapshot(game) == before && game.TurnOwnerId == owner);
         CheckConservation(game, "depois das recusas");
@@ -1136,7 +1180,11 @@ public partial class PokerMatchTest : Node
                 break;
 
             var state = game.BetStateOf(actor);
-            var options = PokerBetting.LegalActions(state, game.CurrentBet, game.MinRaiseIncrement);
+            var options = PokerBetting.LegalActions(
+                state,
+                game.CurrentBet,
+                game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(actor));
             if (options.Count == 0)
                 break;
 
@@ -1291,6 +1339,212 @@ public partial class PokerMatchTest : Node
 
         Check($"e a ação dele é aceita ({_lastRejection ?? "sem recusa"})",
             _lastRejection == null && game.TurnToken != tokenBefore);
+    }
+
+    /// <summary>
+    /// When the big blind is all-in, the small blind still has to decide whether to complete the
+    /// call or fold. The previous shortcut saw only one stack with chips and ran the board without
+    /// collecting that decision, leaving playable chips behind outside the pot.
+    /// </summary>
+    private void TestShortStackStillGetsARealDecision(
+        PokerGame game, PokerTurnResolver resolver, Array order)
+    {
+        game.StartingStack = 10;
+        game.SmallBlind = 5;
+        game.BigBlind = 10;
+        resolver.AutoAdvanceHands = false;
+        game.SetupMatch(order, "1");
+
+        var actor = game.TurnOwnerId;
+        var options = PokerBetting.LegalActions(
+            game.BetStateOf(actor),
+            game.CurrentBet,
+            game.MinRaiseIncrement,
+            game.HasOpponentWhoCanAct(actor));
+        var call = options.FirstOrDefault(option => option.Kind == PokerActionKind.Call);
+
+        Check("o small blind não é pulado quando o big blind está all-in",
+            actor == "1"
+            && !game.ShowdownWaiting
+            && game.BetOf(actor) == 5
+            && game.AmountToCall(actor) == 5
+            && call.Kind == PokerActionKind.Call);
+        Check("sem oponente capaz de responder, não existe side pot artificial por raise",
+            options.All(option => option.Kind != PokerActionKind.Raise));
+
+        resolver.ApplyActionFor(actor, game.TurnToken, (int)call.Kind, call.MinTotal);
+        Check("all-in sem ação restante expõe as mãos imediatamente, sem grace period",
+            !game.ShowdownWaiting
+            && game.HandSettled
+            && game.RevealedHoleCards.Count == 2);
+        Check("depois do call, todos os vinte chips entram no pagamento",
+            game.HandSettled
+            && game.Winners.Values.Sum() == 20
+            && game.SeatOrder.Sum(game.StackOf) == 20);
+
+        Check("o showdown de stacks curtos conserva todas as fichas",
+            game.Winners.Values.Sum() == 20
+            && game.SeatOrder.Sum(game.StackOf) == 20);
+    }
+
+    private void TestStaleHandPauseCannotAdvanceANewSession(
+        PokerGame game, PokerTurnResolver resolver, Array order)
+    {
+        game.StartingStack = Stack;
+        game.SmallBlind = 5;
+        game.BigBlind = 10;
+        resolver.AutoAdvanceHands = true;
+        resolver.FoldedHandSeconds = 0.01f;
+        game.SetupMatch(order, "1");
+
+        var actor = game.TurnOwnerId;
+        var fold = PokerBetting.LegalActions(
+                game.BetStateOf(actor),
+                game.CurrentBet,
+                game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(actor))
+            .First(option => option.Kind == PokerActionKind.Fold);
+        resolver.ApplyActionFor(actor, game.TurnToken, (int)fold.Kind, fold.MinTotal);
+        var stalePauseRevision = resolver.HandPauseRevision;
+        Check("uma mão encerrada agenda sua continuação com revisão própria", game.HandSettled);
+
+        resolver.CompleteHandPause(stalePauseRevision);
+        var handAfterFirstCallback = game.HandNumber;
+        var tokenAfterFirstCallback = game.TurnToken;
+        var ownerAfterFirstCallback = game.TurnOwnerId;
+        resolver.CompleteHandPause(stalePauseRevision);
+        Check("a mesma continuação de mão só pode ser consumida uma vez",
+            game.HandNumber == handAfterFirstCallback
+            && game.TurnToken == tokenAfterFirstCallback
+            && game.TurnOwnerId == ownerAfterFirstCallback
+            && !game.HandSettled);
+
+        game.SetupMatch(order, "1");
+        var handBeforeStaleCallback = game.HandNumber;
+        var tokenBeforeStaleCallback = game.TurnToken;
+        var ownerBeforeStaleCallback = game.TurnOwnerId;
+        resolver.CompleteHandPause(stalePauseRevision);
+
+        Check("callback atrasado da sessão anterior não limpa nem avança a mão nova",
+            game.HandNumber == handBeforeStaleCallback
+            && game.TurnToken == tokenBeforeStaleCallback
+            && game.TurnOwnerId == ownerBeforeStaleCallback
+            && !game.HandSettled);
+
+        resolver.FoldedHandSeconds = 0.0f;
+    }
+
+    private void TestRemovingCurrentPlayerPublishesOneTurn(
+        PokerGame game, PokerTurnResolver resolver)
+    {
+        var order = new Array { "1", "2", "3" };
+        game.StartingStack = 100;
+        game.SmallBlind = 5;
+        game.BigBlind = 10;
+        resolver.AutoAdvanceHands = false;
+        game.SetupMatch(order, "1");
+
+        var removedActor = game.TurnOwnerId;
+        var tokenBeforeRemoval = game.TurnToken;
+        var publishedTurns = 0;
+        void CountPublishedTurn(string nextPlayerId, Dictionary context) => publishedTurns++;
+        game.TurnChanged += CountPublishedTurn;
+
+        game.RemovePlayerFromMatch(removedActor, "test_disconnect");
+
+        game.TurnChanged -= CountPublishedTurn;
+        Check("remover o ator publica exatamente uma nova vez",
+            publishedTurns == 1
+            && game.TurnToken == tokenBeforeRemoval + 1
+            && game.TurnOwnerId != removedActor
+            && game.TurnOrder.Count == 2);
+
+        var nextActor = game.TurnOwnerId;
+        var nextOptions = PokerBetting.LegalActions(
+            game.BetStateOf(nextActor),
+            game.CurrentBet,
+            game.MinRaiseIncrement,
+            game.HasOpponentWhoCanAct(nextActor));
+        var nextAction = nextOptions.FirstOrDefault(option => option.Kind != PokerActionKind.Fold);
+        _lastRejection = null;
+        resolver.ApplyActionFor(
+            nextActor, game.TurnToken, (int)nextAction.Kind, nextAction.MinTotal);
+        Check("o dono publicado após a remoção consegue agir",
+            nextAction.Kind != PokerActionKind.None && _lastRejection == null);
+    }
+
+    private void TestRemovingMiddlePlayerPreservesPhysicalSeats(
+        PokerGame game, PokerTurnResolver resolver)
+    {
+        var order = new Array { "1", "2", "3" };
+        game.StartingStack = 100;
+        game.SmallBlind = 5;
+        game.BigBlind = 10;
+        resolver.AutoAdvanceHands = false;
+        game.SetupMatch(order, "1");
+
+        var departedSeat = game.SeatFor("2");
+        var thirdSeat = game.SeatFor("3");
+        game.RemovePlayerFromMatch("2", "test_disconnect");
+
+        Check("remover o assento central compacta turnos sem mover o terceiro avatar",
+            game.TurnOrder.IndexOf("3") == 1
+            && game.SeatIndexFor("3") == 2
+            && game.PlayerIdAtSeat(1) == ""
+            && game.PlayerIdAtSeat(2) == "3"
+            && ReferenceEquals(game.SeatFor("3"), thirdSeat));
+        Check("durante a mesma mao, fichas do removido mantem a ancora historica sem ocupar a cadeira",
+            game.SeatOrder.Contains("2")
+            && game.BetOf("2") > 0
+            && game.SeatIndexFor("2") == 1
+            && game.PlayerIdAtSeat(1) == ""
+            && ReferenceEquals(game.SeatFor("2"), departedSeat));
+    }
+
+    private void TestReclaimedControllerWaitsForPlayerSpawn(PokerGame game)
+    {
+        var registry = PlayerRegistry.Instance;
+        var delayedPlayerId = Multiplayer.GetUniqueId().ToString();
+        if (registry.TryGetPlayerById(delayedPlayerId, out var previousLocalPlayer))
+            previousLocalPlayer.Free();
+        game.Player = null;
+
+        var delayedOrder = new Array(game.TurnOrder);
+        delayedOrder[0] = delayedPlayerId;
+        game.TurnOrder = delayedOrder;
+
+        game.EquipOrDeferReclaimedController(delayedPlayerId, delayedOrder);
+        Check("reclaim recebido antes do Player mantém o controller pendente",
+            game.PendingReclaimedControllerCount == 1 && game.IsProcessing());
+
+        var playerScene = GD.Load<PackedScene>("res://World/Player/Player.tscn");
+        var delayedPlayer = playerScene.Instantiate<Player>();
+        delayedPlayer.Name = delayedPlayerId;
+        delayedPlayer.Id = int.Parse(delayedPlayerId);
+        registry.PlayersContainer.AddChild(delayedPlayer);
+        game._Process(0.0);
+
+        var equippedController = delayedPlayer.GameHandler.CurrentController;
+        Check("quando o Player local aparece, o jogo e o controller recuperam o mesmo dono",
+            game.PendingReclaimedControllerCount == 0
+            && !game.IsProcessing()
+            && ReferenceEquals(game.Player, delayedPlayer)
+            && equippedController is PokerController);
+
+        game.EquipOrDeferReclaimedController(delayedPlayerId, delayedOrder);
+        Check("repetir o reclaim preserva exatamente a mesma instancia de controller",
+            game.PendingReclaimedControllerCount == 0
+            && ReferenceEquals(delayedPlayer.GameHandler.CurrentController, equippedController));
+
+        const string stalePlayerId = "88";
+        var staleOrder = new Array(delayedOrder);
+        staleOrder[1] = stalePlayerId;
+        game.TurnOrder = staleOrder;
+        game.EquipOrDeferReclaimedController(stalePlayerId, staleOrder);
+        game.TurnOrder = delayedOrder;
+        game._Process(0.0);
+        Check("um controller pendente é cancelado quando o assento deixa a partida",
+            game.PendingReclaimedControllerCount == 0 && !game.IsProcessing());
     }
 
     // ---------------------------------------------------------------- conservation

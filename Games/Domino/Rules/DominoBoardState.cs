@@ -76,6 +76,32 @@ public sealed class DominoBoardState
             yield return play.TileId;
     }
 
+    /// <summary>
+    /// Transfers the public authorship of existing plays when a reconnect gives the same person a
+    /// new peer id. Tile order, orientation and open ends stay untouched.
+    /// </summary>
+    public int RekeyPlayer(string oldPlayerId, string newPlayerId)
+    {
+        if (string.IsNullOrEmpty(oldPlayerId) || string.IsNullOrEmpty(newPlayerId)
+            || oldPlayerId == newPlayerId)
+        {
+            return 0;
+        }
+
+        var changed = 0;
+        for (var index = 0; index < _plays.Count; index++)
+        {
+            var play = _plays[index];
+            if (play.PlayerId != oldPlayerId)
+                continue;
+
+            _plays[index] = new PlayRecord(newPlayerId, play.TileId, play.End);
+            changed++;
+        }
+
+        return changed;
+    }
+
     public static DominoBoardState FromPlays(IEnumerable<PlayRecord> plays)
     {
         var board = new DominoBoardState();
