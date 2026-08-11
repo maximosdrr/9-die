@@ -128,8 +128,8 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float StackScatter = 0.0025f;
 
     /// <summary>Moves the bank inward and sideways so it is visible beside, not behind, the cards.</summary>
-    [Export] public float StackInset = 0.140f;
-    [Export] public float StackSideOffset = 0.215f;
+    [Export] public float StackInset = 0.115f;
+    [Export] public float StackSideOffset = 0.225f;
     /// <summary>
     /// A committed bet stays directly in front of its owner, between their cards and the centre.
     /// The larger radial distance now provides the clearance; a lateral offset would collide with
@@ -141,6 +141,11 @@ public partial class PokerSeatPresenter : Node3D
     /// keeping a real gap here prevents neighbouring stacks from sharing the same volume.
     /// </summary>
     [Export] public float BankColumnSpacing = 0.046f;
+    /// <summary>
+    /// Turns the denomination lane away from the table radius toward the player's right. This keeps
+    /// the bank and its CALL guide on the same readable diagonal instead of standing vertically.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,90,1")] public float BankLaneAngleDegrees = 55.0f;
     /// <summary>Short felt-level push that turns staged chips into a committed wager.</summary>
     [Export] public float CommittedWagerPushDistance = 0.055f;
     [Export] public float CommittedWagerPushSeconds = 0.42f;

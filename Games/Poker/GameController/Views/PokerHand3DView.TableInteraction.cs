@@ -25,7 +25,7 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>Straight chalk shortcut beside the denomination bank.</summary>
     [Export] public float CallZoneLength = 0.205f;
     [Export] public float CallZoneWidth = 0.055f;
-    [Export] public float CallZoneSideOffset = 0.060f;
+    [Export] public float CallZoneSideOffset = 0.045f;
     [Export(PropertyHint.Range, "8,32,1")] public int InteractionArcSteps = 20;
 
     [Export] public float InteractionGuideThickness = 0.0014f;
@@ -201,7 +201,7 @@ public partial class PokerHand3DView : PokerHandView
     {
         if (!HasAction(PokerActionKind.Call))
         {
-            ShowNotice("CALL nÃ£o estÃ¡ disponÃ­vel quando vocÃª pode passar", 1.6f);
+            ShowNotice("CALL não está disponível quando você pode passar", 1.6f);
             return PokerGesture.None;
         }
 
@@ -220,7 +220,7 @@ public partial class PokerHand3DView : PokerHandView
             presenter.CancelPreparedWager(immediate: true);
             if (!presenter.TryPrepareAutomaticWager(playerId, required))
             {
-                ShowNotice("NÃ£o foi possÃ­vel separar as fichas exatas para o CALL", 1.8f);
+                ShowNotice("Não foi possível separar as fichas exatas para o CALL", 1.8f);
                 RefreshPhysicalHud();
                 return PokerGesture.None;
             }

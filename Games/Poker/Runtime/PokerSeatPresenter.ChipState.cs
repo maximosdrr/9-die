@@ -24,9 +24,9 @@ public partial class PokerSeatPresenter : Node3D
         if (stack == null)
             return;
 
-        // Denomination columns follow the radial red line beside the player. Keeping the aggregate
-        // pile's own basis authoritative also lets every departing/returning chip use the exact same
-        // source positions instead of an independently guessed orientation.
+        // Denomination columns follow a player-relative diagonal, rather than the table radius.
+        // Keeping the aggregate pile's own basis authoritative also lets every departing/returning
+        // chip use the exact same source positions instead of an independently guessed orientation.
         var turned = BankBasis(facing);
         var stackPlace = StackPlace(facing, spec);
 
@@ -46,8 +46,24 @@ public partial class PokerSeatPresenter : Node3D
             + across * StackSideOffset;
     }
 
-    private static Basis BankBasis(Vector2 facing) => Basis.FromEuler(new Vector3(
-        0.0f, PokerTableLayout.YawTowardCentre(facing) + Mathf.Pi * 0.5f, 0.0f));
+    private void BankAxes(Vector2 facing, out Vector2 laneAxis, out Vector2 sideAxis)
+    {
+        var outward = facing.Normalized();
+        var playerLeft = new Vector2(-outward.Y, outward.X);
+        var angle = Mathf.DegToRad(BankLaneAngleDegrees);
+
+        // The lane turns toward the player's right. Its perpendicular points outward-left, which is
+        // precisely the "behind the chips" side used by the CALL rectangle.
+        laneAxis = (outward * Mathf.Cos(angle) - playerLeft * Mathf.Sin(angle)).Normalized();
+        sideAxis = (outward * Mathf.Sin(angle) + playerLeft * Mathf.Cos(angle)).Normalized();
+    }
+
+    private Basis BankBasis(Vector2 facing)
+    {
+        BankAxes(facing, out var lane, out _);
+        var xAxis = new Vector3(lane.X, 0.0f, lane.Y).Normalized();
+        return new Basis(xAxis, Vector3.Up, xAxis.Cross(Vector3.Up).Normalized());
+    }
 
     /// <summary>Exact local frame used by the local chalk CALL guide.</summary>
     public bool TryBankGuideFrame(
@@ -70,8 +86,7 @@ public partial class PokerSeatPresenter : Node3D
 
         facing = facing.Normalized();
         var presenterCentre = StackPlace(facing, BoardPresenter.Spec);
-        var presenterLane = facing;
-        var presenterSide = new Vector2(-facing.Y, facing.X);
+        BankAxes(facing, out var presenterLane, out var presenterSide);
         var boardCentre3 = BoardPresenter.ToLocal(ToGlobal(
             new Vector3(presenterCentre.X, 0.0f, presenterCentre.Y)));
         var boardLane3 = BoardPresenter.ToLocal(ToGlobal(

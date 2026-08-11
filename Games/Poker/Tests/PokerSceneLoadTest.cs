@@ -121,11 +121,13 @@ public partial class PokerSceneLoadTest : Node
                 ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
         Check($"saldo e apostas pendentes ocupam faixas diferentes das cartas "
               + $"(lado {seatPresenter?.StackSideOffset:F3}, dentro {seatPresenter?.StackInset:F3}, "
-              + $"gap {seatPresenter?.BankColumnSpacing:F3})",
+              + $"gap {seatPresenter?.BankColumnSpacing:F3}, diagonal "
+              + $"{seatPresenter?.BankLaneAngleDegrees:F1}°)",
             seatPresenter is { BetSideOffset: >= 0.0f and <= 0.01f,
-                StackSideOffset: >= 0.20f and <= 0.23f,
-                StackInset: >= 0.13f,
-                BankColumnSpacing: >= 0.044f }
+                StackSideOffset: >= 0.22f and <= 0.23f,
+                StackInset: >= 0.10f and <= 0.13f,
+                BankColumnSpacing: >= 0.044f,
+                BankLaneAngleDegrees: >= 50.0f and <= 60.0f }
             && game.BoardPresenter.Spec.SeatBetRadius >= 0.30f);
         Check("o turno usa um anel fino junto à borda da mesa",
             seatPresenter is { TurnRingRadius: >= 0.60f, TurnRingWidth: > 0.0f and <= 0.006f,
@@ -706,7 +708,7 @@ public partial class PokerSceneLoadTest : Node
             hand is {
                 CallZoneLength: >= 0.19f and <= 0.22f,
                 CallZoneWidth: >= 0.045f and <= 0.065f,
-                CallZoneSideOffset: >= 0.05f and <= 0.075f }
+                CallZoneSideOffset: >= 0.04f and <= 0.055f }
             && typeof(PokerSeatPresenter).GetMethod("TryPrepareAutomaticWager") != null
             && typeof(PokerHand3DView).GetMethod("TryConsumeTableGesture") != null);
         Check("os comandos usam giz procedural, fonte grande e divisões finas",
