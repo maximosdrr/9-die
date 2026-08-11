@@ -250,8 +250,14 @@ public partial class PokerMatchTest : Node
             selected && value > 0 && presenter.PreparedWagerAmount == value
             && presenter.PreparedWagerChipCount == 1);
 
+        var chipSoundscape = presenter.GetNodeOrNull<PokerChipSoundscape>("ChipSoundscape");
+        var directSoundBefore = chipSoundscape?.DirectImpactCueCount ?? 0;
         for (var frame = 0; frame < 30; frame++)
             presenter._Process(1.0 / 60.0);
+
+        Check("o impacto da ficha toca quando a selecao pousa, antes da confirmacao",
+            chipSoundscape != null
+            && chipSoundscape.DirectImpactCueCount == directSoundBefore + 1);
 
         var prepared = presenter.PreparedWagerVisualPositions();
         var seat = game.SeatFor(playerId);

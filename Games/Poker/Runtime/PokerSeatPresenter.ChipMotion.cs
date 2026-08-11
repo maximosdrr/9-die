@@ -63,7 +63,7 @@ public partial class PokerSeatPresenter : Node3D
             batch.Pile.Visible = true;
         }
 
-        BeginOrganization();
+        BeginOrganization(playSound: false);
         foreach (var batch in _chipAnimator.Batches)
         {
             if (batch.Phase != ChipBatchPhase.Organizing)
@@ -392,11 +392,24 @@ public partial class PokerSeatPresenter : Node3D
         }
     }
 
-    private void BeginOrganization()
+    private void BeginOrganization(bool playSound = true)
     {
         _organizing = true;
         var reader = new Basis(Vector3.Up, ReaderYaw(Vector2.Down));
-        _chipAnimator.BeginOrganization(BoardPresenter.PotPosition, reader, PotColumnSpacing);
+        if (!_chipAnimator.BeginOrganization(BoardPresenter.PotPosition, reader, PotColumnSpacing))
+        {
+            _organizing = false;
+            return;
+        }
+
+        if (playSound)
+        {
+            var chipCount = _chipAnimator.Batches
+                .Where(batch => batch.Phase == ChipBatchPhase.Organizing)
+                .Sum(batch => batch.Pile.ChipCount);
+            _chipSoundscape?.PlayOrganization(
+                ToGlobal(BoardPresenter.PotPosition), chipCount, ChipOrganizeSeconds);
+        }
     }
 
     private static int DenominationOf(ChipBatch batch) => PokerChipAnimator.DenominationOf(batch);

@@ -15,8 +15,8 @@ public partial class PokerSeatPresenter : Node3D
     /// This reads as "taken out of the stack" without spending a second lateral area on the table.
     /// </summary>
     [Export] public float PreparedWagerForwardInset = 0.065f;
-    [Export] public float PreparedChipMoveSeconds = 0.28f;
-    [Export] public float PreparedChipArc = 0.018f;
+    [Export] public float PreparedChipMoveSeconds = 0.34f;
+    [Export] public float PreparedChipArc = 0.028f;
     [Export] public float PreparedChipPickRadius = 0.030f;
 
     private sealed class PreparedChip
@@ -26,9 +26,13 @@ public partial class PokerSeatPresenter : Node3D
         public int Lane;
         public Vector3 From;
         public Vector3 To;
+        public Basis FromBasis = Basis.Identity;
+        public Basis ToBasis = Basis.Identity;
+        public int MotionSeed;
         public float Progress;
         public bool Included = true;
         public bool Returning;
+        public bool ImpactPlayed;
     }
 
     private readonly struct PreparedTransfer
@@ -148,6 +152,13 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         var actor = NewPreparedChip(run.Denomination, basis, source);
+        var motionSeed = run.Denomination * 17 + lane * 31 + _preparedChips.Count * 53;
+        var restBasis = basis
+            * new Basis(Vector3.Up, PokerChipPile.Noise(motionSeed, 61) * 0.42f)
+            * new Basis(Vector3.Right,
+                PokerChipPile.Noise(motionSeed, 62) * Mathf.DegToRad(3.2f))
+            * new Basis(Vector3.Forward,
+                PokerChipPile.Noise(motionSeed, 63) * Mathf.DegToRad(3.2f));
         _preparedPlayerId = playerId;
         _preparedChips.Add(new PreparedChip
         {
@@ -156,6 +167,9 @@ public partial class PokerSeatPresenter : Node3D
             Lane = lane,
             From = source,
             To = target,
+            FromBasis = basis,
+            ToBasis = restBasis,
+            MotionSeed = motionSeed,
             Progress = 0.0f,
         });
         return true;
@@ -233,13 +247,33 @@ public partial class PokerSeatPresenter : Node3D
             if (chip.Progress >= 1.0f)
                 continue;
 
+            var before = chip.Progress;
             chip.Progress = Mathf.Min(1.0f, chip.Progress
                 + Mathf.Max(0.0f, delta) / Mathf.Max(PreparedChipMoveSeconds, 0.01f));
             chip.Pile.Position = PokerMotion.ChipThrow(
                 chip.From, chip.To, chip.Progress, PreparedChipArc,
                 PokerChipPile.Noise(chip.Lane + chip.Denomination, 47) * 0.005f);
+            var eased = PokerMotion.Smooth(chip.Progress);
+            var basis = new Transform3D(chip.FromBasis, Vector3.Zero).InterpolateWith(
+                new Transform3D(chip.ToBasis, Vector3.Zero), eased).Basis;
+            if (chip.Progress < 1.0f)
+            {
+                var tumble = Mathf.Sin(chip.Progress * Mathf.Pi);
+                basis *= new Basis(Vector3.Right,
+                             PokerChipPile.Noise(chip.MotionSeed, 64) * 0.20f * tumble)
+                         * new Basis(Vector3.Forward,
+                             PokerChipPile.Noise(chip.MotionSeed, 65) * 0.14f * tumble);
+            }
+            chip.Pile.Basis = basis;
             chip.Pile.FlightProgress = chip.Progress;
             moved = true;
+
+            if (!chip.Returning && !chip.ImpactPlayed && before < 1.0f
+                && chip.Progress >= 1.0f)
+            {
+                chip.ImpactPlayed = true;
+                _chipSoundscape?.PlayImpact(chip.Pile.GlobalPosition, 1);
+            }
 
             if (chip.Progress < 1.0f || !chip.Returning)
                 continue;
@@ -265,6 +299,9 @@ public partial class PokerSeatPresenter : Node3D
         chip.Progress = 0.0f;
         chip.From = chip.Pile.Position;
         chip.To = ReturnTarget(chip.Lane, chip.Denomination);
+        chip.FromBasis = chip.Pile.Basis;
+        chip.ToBasis = _stacks.TryGetValue(_preparedPlayerId, out var bankPile)
+            ? bankPile.Basis : Basis.Identity;
         chip.Pile.FlightProgress = 0.0f;
     }
 

@@ -711,7 +711,12 @@ public partial class PokerSceneLoadTest : Node
         Check("a HUD encontra todos os nós que o script usa",
             hud.Root != null && hud.TurnLabel != null && hud.StakesLabel != null
             && hud.PreparedWagerLabel != null
-            && hud.ActionList != null && hud.ResultLabel != null && hud.HintsLabel != null);
+            && hud.ActionList != null && hud.ResultLabel != null && hud.HintsLabel != null
+            && hud.ShowdownAnnouncement != null && hud.ShowdownTitle != null
+            && hud.ShowdownPrompt != null && hud.ShowdownBell?.Stream != null);
+        Check("o aviso de showdown usa a tipografia de giz",
+            hud.ShowdownTitle?.GetThemeFont("font") != null
+            && hud.ShowdownPrompt?.GetThemeFont("font") != null);
 
         Check($"a HUD fica acima das outras camadas ({hud.Layer})", hud.Layer > 1);
 
@@ -904,6 +909,12 @@ public partial class PokerSceneLoadTest : Node
             Check($"muitas fichas ficam mais presentes sem estourar ({oneChip:F1} a {largeDrop:F1} dB)",
                 largeDrop > oneChip
                 && largeDrop <= game.SeatPresenter.ChipMaximumImpactDb);
+            var organizeBefore = chipSoundscape.OrganizationCueCount;
+            chipSoundscape.PlayOrganization(
+                game.SeatPresenter.GlobalPosition, 24, game.SeatPresenter.ChipOrganizeSeconds);
+            chipSoundscape._Process(0.5);
+            Check("a organizacao do pote agenda um chocalho limitado",
+                chipSoundscape.OrganizationCueCount > organizeBefore);
         }
         game.QueueFree();
     }
@@ -940,6 +951,13 @@ public partial class PokerSceneLoadTest : Node
             Mathf.IsEqualApprox(pile.EffectiveThickness, PokerChipAssetMeshes.Thickness));
         Check($"a pilha desenha as fichas de 225 ({pile.GetChildCount()} fichas)",
             pile.GetChildCount() == 3);
+        var visibleMesh = pile.GetChildren().OfType<Node3D>()
+            .SelectMany(chip => chip.GetChildren().OfType<MeshInstance3D>())
+            .FirstOrDefault(mesh => mesh.Visible);
+        Check($"a ficha usa um perfil mais encorpado ({PokerChipAssetMeshes.Thickness * 1000.0f:F1} mm)",
+            PokerChipAssetMeshes.Thickness >= 0.0044f
+            && visibleMesh != null
+            && Mathf.IsEqualApprox(visibleMesh.Scale.Y, PokerChipAssetMeshes.HeightScale));
 
         pile.QueueFree();
     }

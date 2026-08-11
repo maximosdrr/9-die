@@ -44,7 +44,14 @@ public partial class PokerChipVisual : Node3D
         }
 
         if (_runtimeMaterial is StandardMaterial3D standard)
+        {
             standard.AlbedoColor = colour;
+            // Clay/composite chips are semi-matte, but their bevel still catches a compact highlight.
+            // Keeping this on the per-chip body override preserves the baked numerals and edge art.
+            standard.Roughness = 0.38f;
+            standard.Metallic = 0.0f;
+            standard.MetallicSpecular = 0.52f;
+        }
         else if (_runtimeMaterial is ShaderMaterial shader)
             shader.SetShaderParameter(ShaderTintParameter, colour);
 
@@ -69,6 +76,7 @@ public partial class PokerChipVisual : Node3D
         {
             ClearSurfaceOverrides(_generatedMesh);
             _generatedMesh.Mesh = numbered;
+            _generatedMesh.Scale = new Vector3(1.0f, PokerChipAssetMeshes.HeightScale, 1.0f);
             _bodySurface = bodySurface;
             _denomination = denomination;
             _runtimeMaterial = null;
@@ -83,6 +91,7 @@ public partial class PokerChipVisual : Node3D
             {
                 Name = "NumberedChip",
                 Mesh = numbered,
+                Scale = new Vector3(1.0f, PokerChipAssetMeshes.HeightScale, 1.0f),
             };
             AddChild(_generatedMesh);
             TintTarget = _generatedMesh;
@@ -120,7 +129,7 @@ public partial class PokerChipVisual : Node3D
             {
                 TopRadius = 0.020f,
                 BottomRadius = 0.020f,
-                Height = 0.0035f,
+                Height = PokerChipAssetMeshes.Thickness,
                 RadialSegments = 20,
                 Rings = 1,
             },

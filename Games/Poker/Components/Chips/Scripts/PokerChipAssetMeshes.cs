@@ -13,7 +13,11 @@ public static class PokerChipAssetMeshes
     private const string PackPath = "res://Assets/Poker/poker_chip_set_optimized.glb";
 
     public const float Diameter = 0.040f;
-    public const float Thickness = 0.0035f;
+    public const float SourceThickness = 0.0035f;
+    // Slightly stylised 4.5 mm profile: still credible at 40 mm wide, but the rim remains readable
+    // from a seated camera instead of collapsing into a paper-thin line.
+    public const float Thickness = 0.0045f;
+    public const float HeightScale = Thickness / SourceThickness;
 
     private static readonly Dictionary<int, Mesh> Meshes = new();
     private static readonly Dictionary<int, int> BodySurfaces = new();

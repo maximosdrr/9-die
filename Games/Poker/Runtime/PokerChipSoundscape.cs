@@ -29,8 +29,16 @@ public partial class PokerChipSoundscape : Node3D
     private float _sinceLastPlayback = 10.0f;
     private int _playSequence;
 
+    private Vector3 _organizationPosition;
+    private int _organizationPulsesRemaining;
+    private int _organizationChipWeight;
+    private float _organizationPulseInterval;
+    private float _organizationCountdown;
+
     public int VoiceLimit => _voiceLimit;
     public int ActiveVoiceCount => _voices.Count(voice => voice.Playing);
+    public int DirectImpactCueCount { get; private set; }
+    public int OrganizationCueCount { get; private set; }
 
     public void Configure(
         PokerChipAnimator animator, AudioStream stream, int voiceLimit = 3,
@@ -64,6 +72,23 @@ public partial class PokerChipSoundscape : Node3D
     public override void _Process(double delta)
     {
         _sinceLastPlayback += (float)delta;
+
+        if (_organizationPulsesRemaining > 0)
+        {
+            _organizationCountdown -= (float)delta;
+            if (_organizationCountdown <= 0.0f)
+            {
+                // Several short, quiet contacts read as columns being gathered. The normal merger
+                // still limits polyphony, so organizing a large pot cannot overload the mix.
+                var side = PokerChipPile.Noise(_organizationPulsesRemaining, 91) * 0.018f;
+                QueueImpact(_organizationPosition + new Vector3(side, 0.0f, -side * 0.45f),
+                    _organizationChipWeight);
+                _organizationPulsesRemaining--;
+                OrganizationCueCount++;
+                _organizationCountdown += _organizationPulseInterval;
+            }
+        }
+
         if (_pendingChips <= 0)
             return;
 
@@ -72,6 +97,37 @@ public partial class PokerChipSoundscape : Node3D
             return;
 
         FlushImpact();
+    }
+
+    /// <summary>
+    /// Adds an externally animated chip landing to the same bounded mix as replicated actions.
+    /// Local wager preparation uses this when the selected chip actually touches the cloth.
+    /// </summary>
+    public void PlayImpact(Vector3 globalPosition, int chipCount = 1)
+    {
+        if (_stream == null || chipCount <= 0)
+            return;
+        DirectImpactCueCount++;
+        QueueImpact(globalPosition, chipCount);
+    }
+
+    /// <summary>
+    /// Schedules a restrained clatter across the pot-gathering motion instead of firing one sample
+    /// per chip. The result follows the animation and stays safe even for a very large pot.
+    /// </summary>
+    public void PlayOrganization(Vector3 globalPosition, int chipCount, float duration)
+    {
+        if (_stream == null || chipCount <= 0)
+            return;
+
+        var pulses = Mathf.Clamp(2 + Mathf.FloorToInt(Log2(chipCount) * 0.55f), 2, 5);
+        _organizationPosition = globalPosition;
+        _organizationPulsesRemaining = pulses;
+        _organizationChipWeight = Mathf.Clamp(
+            Mathf.CeilToInt(chipCount / (float)pulses), 1, 4);
+        _organizationPulseInterval = Mathf.Max(0.055f,
+            Mathf.Max(0.12f, duration) / (pulses + 1.0f));
+        _organizationCountdown = _organizationPulseInterval * 0.35f;
     }
 
     /// <summary>Safe gain curve used both by playback and integration tests.</summary>

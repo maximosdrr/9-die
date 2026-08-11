@@ -29,12 +29,21 @@ public partial class PokerHud : CanvasLayer
 
     [Export] public Label HintsLabel;
 
+    [ExportGroup("Showdown announcement")]
+    [Export] public Control ShowdownAnnouncement;
+    [Export] public Label ShowdownTitle;
+    [Export] public Label ShowdownPrompt;
+    [Export] public AudioStreamPlayer ShowdownBell;
+
     /// <summary>Rows are built once and reused; rebuilding them per refresh would flicker.</summary>
     private readonly Dictionary<PokerActionKind, ActionRow> _rows = new();
     private ActionRow _showdownRow;
 
     private PokerGame _game;
     private Player _player;
+    private Tween _showdownTween;
+    private bool _showdownWasActive;
+    private int _announcedShowdownHand = -1;
 
     private sealed class ActionRow
     {
@@ -60,6 +69,19 @@ public partial class PokerHud : CanvasLayer
                               + " · clique nas fichas e depois em CONFIRMAR APOSTA"
                               + "\nMire e clique em PASSAR/DESISTIR"
                               + " · T vista de cima · E levantar · Q (segurar) sair";
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        _showdownTween?.Kill();
+        _showdownTween = null;
+        if (ShowdownBell != null)
+        {
+            ShowdownBell.Stop();
+            // MP3 playback owns a native decoder. Releasing the stream explicitly keeps short-lived
+            // table/test scenes from retaining that decoder until the engine itself shuts down.
+            ShowdownBell.Stream = null;
         }
     }
 
@@ -92,7 +114,12 @@ public partial class PokerHud : CanvasLayer
 
         SetPanelVisible(inMatch);
         if (!inMatch)
+        {
+            ResetShowdownAnnouncement();
             return;
+        }
+
+        UpdateShowdownAnnouncement(showdownWaiting);
 
         // Nothing may be decided until the opening look has run. It plays itself, so the panel
         // reports what is happening rather than instructing — and it lists no action, because one
@@ -178,6 +205,72 @@ public partial class PokerHud : CanvasLayer
                 _showdownRow.Key.Text = PokerInput.ShowdownRevealKey;
             }
         }
+    }
+
+    private void UpdateShowdownAnnouncement(bool showdownWaiting)
+    {
+        if (!showdownWaiting)
+        {
+            _showdownWasActive = false;
+            return;
+        }
+
+        if (_showdownWasActive && _announcedShowdownHand == _game.HandNumber)
+            return;
+
+        _showdownWasActive = true;
+        _announcedShowdownHand = _game.HandNumber;
+
+        if (ShowdownAnnouncement == null)
+            return;
+
+        if (ShowdownTitle != null)
+            ShowdownTitle.Text = "SHOWDOWN";
+        if (ShowdownPrompt != null)
+        {
+            ShowdownPrompt.Text = _game.LocalMustReveal
+                ? $"MOSTRE SUAS CARTAS   [ {PokerInput.ShowdownRevealKey} ]"
+                : "AS CARTAS VÃO À MESA";
+        }
+
+        _showdownTween?.Kill();
+        ShowdownAnnouncement.Visible = true;
+        ShowdownAnnouncement.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f);
+        ShowdownAnnouncement.Scale = new Vector2(0.88f, 0.88f);
+
+        _showdownTween = CreateTween();
+        _showdownTween.SetTrans(Tween.TransitionType.Back)
+            .SetEase(Tween.EaseType.Out);
+        _showdownTween.TweenProperty(
+            ShowdownAnnouncement, "modulate", Colors.White, 0.28f);
+        _showdownTween.Parallel().TweenProperty(
+            ShowdownAnnouncement, "scale", Vector2.One, 0.36f);
+        _showdownTween.SetTrans(Tween.TransitionType.Sine)
+            .SetEase(Tween.EaseType.InOut);
+        _showdownTween.TweenInterval(2.25f);
+        _showdownTween.TweenProperty(
+            ShowdownAnnouncement, "modulate", new Color(1.0f, 1.0f, 1.0f, 0.0f), 0.65f);
+        _showdownTween.TweenCallback(Callable.From(HideShowdownAnnouncement));
+
+        // Dedicated/headless peers have no listener and must not allocate a streaming decoder.
+        // Every real player's graphical peer still hears the bell once for this hand.
+        if (ShowdownBell != null && DisplayServer.GetName() != "headless")
+            ShowdownBell.Play();
+    }
+
+    private void HideShowdownAnnouncement()
+    {
+        if (ShowdownAnnouncement != null)
+            ShowdownAnnouncement.Visible = false;
+    }
+
+    private void ResetShowdownAnnouncement()
+    {
+        _showdownWasActive = false;
+        _announcedShowdownHand = -1;
+        _showdownTween?.Kill();
+        _showdownTween = null;
+        HideShowdownAnnouncement();
     }
 
     // ---------------------------------------------------------------- building
