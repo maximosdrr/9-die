@@ -128,15 +128,22 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float StackScatter = 0.0025f;
 
     /// <summary>Moves the bank inward and sideways so it is visible beside, not behind, the cards.</summary>
-    [Export] public float StackInset = 0.090f;
-    [Export] public float StackSideOffset = 0.250f;
+    [Export] public float StackInset = 0.140f;
+    [Export] public float StackSideOffset = 0.215f;
     /// <summary>
     /// A committed bet stays directly in front of its owner, between their cards and the centre.
     /// The larger radial distance now provides the clearance; a lateral offset would collide with
     /// the reader-relative deck for one of the side chairs.
     /// </summary>
     [Export] public float BetSideOffset = 0.0f;
-    [Export] public float BankColumnSpacing = 0.034f;
+    /// <summary>
+    /// Centre-to-centre separation between denomination columns. The current art is 40 mm wide;
+    /// keeping a real gap here prevents neighbouring stacks from sharing the same volume.
+    /// </summary>
+    [Export] public float BankColumnSpacing = 0.046f;
+    /// <summary>Short felt-level push that turns staged chips into a committed wager.</summary>
+    [Export] public float CommittedWagerPushDistance = 0.055f;
+    [Export] public float CommittedWagerPushSeconds = 0.42f;
 
     [ExportGroup("Presentation sequence")]
     public float ChipLandingSeconds { get => Profile.ChipLandingSeconds; set => Profile.ChipLandingSeconds = value; }
@@ -200,16 +207,18 @@ public partial class PokerSeatPresenter : Node3D
         public readonly int Amount;
         public readonly PokerStreet Street;
         public readonly int StackAfter;
+        public readonly int ActionSeq;
         public readonly List<ChipRun> Runs;
 
         public PendingChipAction(
-            string playerId, int amount, PokerStreet street, int stackAfter,
+            string playerId, int amount, PokerStreet street, int stackAfter, int actionSeq,
             IReadOnlyList<ChipRun> runs)
         {
             PlayerId = playerId;
             Amount = amount;
             Street = street;
             StackAfter = stackAfter;
+            ActionSeq = actionSeq;
             Runs = runs?.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
                 ?? new List<ChipRun>();
         }
@@ -303,6 +312,7 @@ public partial class PokerSeatPresenter : Node3D
 
         var spec = BoardPresenter.Spec;
         CaptureChipPresentation(spec);
+        SyncReplicatedPreparedWagers();
         if (_game.CardsCleaningUp)
             BeginCardCleanup();
         else if (_cardCleanupActive)
@@ -349,6 +359,7 @@ public partial class PokerSeatPresenter : Node3D
         var moved = _game.LocalPickedUpCards != _lastPickedUp;
         _lastPickedUp = _game.LocalPickedUpCards;
         moved |= AdvancePreparedWager((float)delta);
+        moved |= AdvanceReplicatedPreparedWagers((float)delta);
 
         var localId = _game.Player == null ? null : (string)_game.Player.Name;
         LocalHandLanded = false;
@@ -419,7 +430,7 @@ public partial class PokerSeatPresenter : Node3D
 
         moved |= AdvanceChipPresentation((float)delta);
         var showdownBlocked = _collecting || _organizing || _collectionRequested
-            || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
+            || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet, ChipBatchPhase.Landing,
                 ChipBatchPhase.ToPot, ChipBatchPhase.Organizing)
             || _holeCards.Values.Any(hand => hand.Returning);
         moved |= _showdownPresenter?.Advance((float)delta, showdownBlocked) ?? false;

@@ -31,7 +31,8 @@ public partial class PokerSeatPresenter : Node3D
             return;
 
         if (PlayerRegistry.Instance is { } registry && registry.HasContainer())
-            registry.GetPlayerById(_game.LastPlayer)?.PlaySeatedGesture(PokerClips.ThirdPerson(gesture));
+            registry.GetPlayerById(_game.LastPlayer)?.PlaySeatedGesture(
+                PokerClips.ThirdPerson(gesture), BoardPresenter.GlobalPosition);
 
         if (gesture == PokerGesture.Knock)
             PlayKnock(_game.LastPlayer);
@@ -140,7 +141,8 @@ public partial class PokerSeatPresenter : Node3D
         var moving = new List<string>();
         foreach (var batch in _chipAnimator.Batches)
         {
-            if (batch.Phase is ChipBatchPhase.ToBet or ChipBatchPhase.Landing
+            if (batch.Phase is ChipBatchPhase.ToBet or ChipBatchPhase.PushingBet
+                or ChipBatchPhase.Landing
                 or ChipBatchPhase.ToPot or ChipBatchPhase.Organizing or ChipBatchPhase.ToDealer)
                 moving.Add($"{batch.Phase}:{batch.Progress:F2}/{batch.Delay:F2}");
         }
@@ -268,7 +270,7 @@ public partial class PokerSeatPresenter : Node3D
             ChipScene = _game?.ChipScene,
             Scatter = scatter,
             StableRunColumns = true,
-            StackSpacing = BankColumnSpacing,
+            StackSpacing = Mathf.Max(BankColumnSpacing, 0.044f),
             Spread = 0.0f,
             SettleSeconds = settles ? 0.24f : 0.0f,
             SettleHeight = 0.018f,

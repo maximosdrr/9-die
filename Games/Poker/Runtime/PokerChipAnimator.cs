@@ -18,6 +18,7 @@ public partial class PokerChipAnimator : Node3D
     {
         Unused,
         ToBet,
+        PushingBet,
         Landing,
         AtBet,
         ToPot,
@@ -35,6 +36,12 @@ public partial class PokerChipAnimator : Node3D
     public sealed class Batch
     {
         public PokerChipPile Pile;
+        /// <summary>
+        /// The prewarmed pile that belongs to this pool slot. A prepared physical actor temporarily
+        /// replaces <see cref="Pile"/>, but this reserve remains alive for allocation-free reuse.
+        /// </summary>
+        public PokerChipPile PoolPile;
+        public StringName PoolName;
         public Phase Phase;
         public string PlayerId = "";
         public int Amount;
@@ -114,19 +121,20 @@ public partial class PokerChipAnimator : Node3D
         if (batch == null || pile == null || batch.Pile == pile)
             return;
 
-        var placeholder = batch.Pile;
-        var poolName = placeholder?.Name ?? new StringName($"ChipBatch{_batches.IndexOf(batch)}");
+        var placeholder = batch.PoolPile ?? batch.Pile;
+        var poolName = string.IsNullOrEmpty(batch.PoolName.ToString())
+            ? placeholder?.Name ?? new StringName($"ChipBatch{_batches.IndexOf(batch)}")
+            : batch.PoolName;
         if (placeholder != null)
         {
             placeholder.Visible = false;
-            placeholder.Name = $"{poolName}_Retired";
+            placeholder.Name = $"{poolName}_Reserve";
         }
 
         if (pile.GetParent() != this)
             pile.Reparent(this, true);
         pile.Name = poolName;
         batch.Pile = pile;
-        placeholder?.QueueFree();
     }
 
     public void ResetAll()
@@ -142,6 +150,15 @@ public partial class PokerChipAnimator : Node3D
 
         // Hide first: the actor may still be parked at a previous destination.
         batch.Pile.Visible = false;
+        if (batch.PoolPile != null && batch.Pile != batch.PoolPile)
+        {
+            var released = batch.Pile;
+            released.Clear();
+            released.Name = $"{batch.PoolName}_Released";
+            released.QueueFree();
+            batch.Pile = batch.PoolPile;
+            batch.Pile.Name = batch.PoolName;
+        }
         batch.Phase = Phase.Unused;
         batch.PlayerId = "";
         batch.Amount = 0;
@@ -218,6 +235,9 @@ public partial class PokerChipAnimator : Node3D
         {
             case Phase.ToBet:
                 AdvanceToBet(batch, delta);
+                return true;
+            case Phase.PushingBet:
+                AdvancePushingBet(batch, delta);
                 return true;
             case Phase.Landing:
                 AdvanceLanding(batch, delta);
@@ -367,6 +387,23 @@ public partial class PokerChipAnimator : Node3D
         EmitLanding(batch);
     }
 
+    /// <summary>
+    /// Slides already prepared chips across the felt. Unlike ToBet this has no toss, tumble, bounce
+    /// or re-scatter: it is the short physical push that confirms the player's intention.
+    /// </summary>
+    private static void AdvancePushingBet(Batch batch, float delta)
+    {
+        batch.Progress = Mathf.Min(1.0f,
+            batch.Progress + delta / Mathf.Max(batch.Duration, 0.01f));
+        var t = PokerMotion.Smooth(batch.Progress);
+        var basis = new Transform3D(batch.FromBasis, Vector3.Zero).InterpolateWith(
+            new Transform3D(batch.ToBasis, Vector3.Zero), t).Basis;
+        batch.Pile.Transform = new Transform3D(basis, batch.From.Lerp(batch.To, t));
+        batch.Pile.FlightProgress = 1.0f;
+        if (batch.Progress >= 1.0f)
+            batch.Phase = Phase.AtBet;
+    }
+
     private void AdvanceLanding(Batch batch, float delta)
     {
         batch.Progress = Mathf.Min(1.0f,
@@ -388,9 +425,23 @@ public partial class PokerChipAnimator : Node3D
 
         batch.Progress = Mathf.Min(1.0f,
             batch.Progress + delta / Mathf.Max(_collectSeconds, 0.01f));
+        var wasContactStacked = batch.StartSpread < 0.999f;
+        var spreadProgress = wasContactStacked
+            ? Mathf.Clamp(batch.Progress / 0.28f, 0.0f, 1.0f)
+            : 1.0f;
+        batch.Pile.Spread = Mathf.Lerp(
+            batch.StartSpread, 1.0f, PokerMotion.Smooth(spreadProgress));
+
+        // First open a contact stack into disjoint loose slots, then sweep it. Moving every root to
+        // the pot while Spread was still zero collapsed all adopted one-chip piles into one volume.
+        // The Vector3 path also preserves each supporting layer's height until horizontal clearance
+        // exists; the old Vector2 overload dropped stacked roots to Y=0 on its first moving frame.
+        var travelProgress = wasContactStacked
+            ? Mathf.Clamp((batch.Progress - 0.18f) / 0.82f, 0.0f, 1.0f)
+            : batch.Progress;
         var path = PokerMotion.ChipThrow(
-            new Vector2(batch.From.X, batch.From.Z), new Vector2(batch.To.X, batch.To.Z),
-            batch.Progress, 0.028f, PokerChipPile.Noise(batch.Amount, 16) * 0.012f);
+            batch.From, batch.To, travelProgress,
+            0.028f, PokerChipPile.Noise(batch.Amount, 16) * 0.012f);
         var rotation = new Transform3D(batch.Basis, Vector3.Zero).InterpolateWith(
             new Transform3D(Basis.Identity, Vector3.Zero), PokerMotion.Smooth(batch.Progress)).Basis;
         batch.Pile.Transform = new Transform3D(rotation, path);
@@ -400,6 +451,7 @@ public partial class PokerChipAnimator : Node3D
         {
             batch.Phase = Phase.AtPotLoose;
             batch.Pile.FlightProgress = 1.0f;
+            batch.Pile.Spread = 1.0f;
             EmitLanding(batch);
         }
     }
@@ -505,6 +557,12 @@ public partial class PokerChipAnimator : Node3D
         AddChild(pile);
         pile.Prewarm(_prewarmedChipsPerBatch);
         pile.Visible = false;
-        return new Batch { Pile = pile, Phase = Phase.Unused };
+        return new Batch
+        {
+            Pile = pile,
+            PoolPile = pile,
+            PoolName = pile.Name,
+            Phase = Phase.Unused,
+        };
     }
 }

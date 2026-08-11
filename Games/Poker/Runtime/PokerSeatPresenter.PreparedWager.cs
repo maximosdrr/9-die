@@ -4,8 +4,9 @@ using Godot;
 using Poker.Rules;
 
 /// <summary>
-/// Local, reversible chip preparation. These actors are deliberately not replicated: opponents
-/// learn a wager only after it is pushed and accepted, just as they do through the existing action.
+/// Local, reversible chip preparation. The selecting peer keeps these exact actors responsive while
+/// the authority mirrors their ordered denominations; other peers reconstruct persistent preview
+/// actors in PokerSeatPresenter.ReplicatedWager and later adopt them into the confirmed bet.
 /// </summary>
 public partial class PokerSeatPresenter : Node3D
 {
@@ -29,6 +30,7 @@ public partial class PokerSeatPresenter : Node3D
         public Basis FromBasis = Basis.Identity;
         public Basis ToBasis = Basis.Identity;
         public int MotionSeed;
+        public int BetSlot;
         public float Progress;
         public bool Included = true;
         public bool Returning;
@@ -39,11 +41,13 @@ public partial class PokerSeatPresenter : Node3D
     {
         public readonly ChipRun Run;
         public readonly PokerChipPile Pile;
+        public readonly int BetSlot;
 
-        public PreparedTransfer(int denomination, PokerChipPile pile)
+        public PreparedTransfer(int denomination, PokerChipPile pile, int betSlot)
         {
             Run = new ChipRun(denomination, 1);
             Pile = pile;
+            BetSlot = betSlot;
         }
     }
 
@@ -96,7 +100,7 @@ public partial class PokerSeatPresenter : Node3D
                 out var basis, out var stack, out _))
             return false;
 
-        var point = stack + basis * new Vector3(
+        var point = stack + pile.Basis * new Vector3(
             LaneOffset(lane, bank.Count, pile.StackSpacing), 0.0f, 0.0f);
         var world = ToGlobal(point);
         var local = BoardPresenter.ToLocal(world);
@@ -137,13 +141,62 @@ public partial class PokerSeatPresenter : Node3D
         if (lane < 0 || Mathf.Abs(local.Z) > radius * 1.25f)
             return false;
 
+        return TrySelectPreparedLane(playerId, lane, out denomination);
+    }
+
+    /// <summary>
+    /// Builds an exact physical call from the same stable bank used by manual selection. It creates
+    /// the ordinary prepared actors one by one, so replication, sound and the later push all reuse
+    /// the established path instead of inventing a shortcut-only visual.
+    /// </summary>
+    public bool TryPrepareAutomaticWager(string playerId, int amount)
+    {
+        if (_preparedSubmitted || amount <= 0 || PreparedWagerAmount > 0
+            || _preparedChips.Any(chip => chip.Returning)
+            || !IsLocalWagerPlayer(playerId)
+            || !_bankRuns.TryGetValue(playerId, out var bank))
+            return false;
+
+        var probe = bank.Select(run => new ChipRun(run.Denomination, run.Count)).ToList();
+        if (!PokerChipStack.TryTake(probe, amount, out var payment))
+            return false;
+
+        foreach (var run in payment)
+        {
+            for (var chip = 0; chip < run.Count; chip++)
+            {
+                var lane = bank.FindIndex(candidate =>
+                    candidate.Denomination == run.Denomination && candidate.Count > 0);
+                if (lane >= 0 && TrySelectPreparedLane(playerId, lane, out _))
+                    continue;
+
+                RestorePreparedImmediately();
+                return false;
+            }
+        }
+
+        return PreparedWagerAmount == amount;
+    }
+
+    public bool PreparedWagerReady => PreparedWagerChipCount > 0
+        && _preparedChips.Where(chip => chip.Included)
+            .All(chip => !chip.Returning && chip.Progress >= 1.0f);
+
+    private bool TrySelectPreparedLane(string playerId, int lane, out int denomination)
+    {
+        denomination = 0;
+        if (!_stacks.TryGetValue(playerId, out var bankPile)
+            || !_bankRuns.TryGetValue(playerId, out var bank)
+            || lane < 0 || lane >= bank.Count || bank[lane].Count <= 0)
+            return false;
+
         var run = bank[lane];
         denomination = run.Denomination;
         bank[lane] = new ChipRun(run.Denomination, run.Count - 1);
         bankPile.SetRuns(bank);
 
         if (!TryPreparedPlaces(playerId, lane, denomination,
-                out var basis, out var source, out var target))
+                out var basis, out var source, out var target, out var betSlot))
         {
             bank[lane] = run;
             bankPile.SetRuns(bank);
@@ -151,14 +204,10 @@ public partial class PokerSeatPresenter : Node3D
             return false;
         }
 
-        var actor = NewPreparedChip(run.Denomination, basis, source);
-        var motionSeed = run.Denomination * 17 + lane * 31 + _preparedChips.Count * 53;
+        var actor = NewPreparedChip(run.Denomination, bankPile.Basis, source);
+        var motionSeed = run.Denomination * 17 + lane * 31 + betSlot * 53;
         var restBasis = basis
-            * new Basis(Vector3.Up, PokerChipPile.Noise(motionSeed, 61) * 0.42f)
-            * new Basis(Vector3.Right,
-                PokerChipPile.Noise(motionSeed, 62) * Mathf.DegToRad(3.2f))
-            * new Basis(Vector3.Forward,
-                PokerChipPile.Noise(motionSeed, 63) * Mathf.DegToRad(3.2f));
+            * new Basis(Vector3.Up, PokerChipPile.Noise(motionSeed, 61) * 0.42f);
         _preparedPlayerId = playerId;
         _preparedChips.Add(new PreparedChip
         {
@@ -167,9 +216,10 @@ public partial class PokerSeatPresenter : Node3D
             Lane = lane,
             From = source,
             To = target,
-            FromBasis = basis,
+            FromBasis = bankPile.Basis,
             ToBasis = restBasis,
             MotionSeed = motionSeed,
+            BetSlot = betSlot,
             Progress = 0.0f,
         });
         return true;
@@ -187,6 +237,7 @@ public partial class PokerSeatPresenter : Node3D
         var aim = BoardAimInPresenter(boardAim);
         PreparedChip selected = null;
         var nearest = float.MaxValue;
+        var highest = float.MinValue;
         for (var index = _preparedChips.Count - 1; index >= 0; index--)
         {
             var chip = _preparedChips[index];
@@ -195,10 +246,19 @@ public partial class PokerSeatPresenter : Node3D
 
             var position = chip.Pile.Position;
             var distance = new Vector2(position.X, position.Z).DistanceTo(aim);
-            if (distance > PreparedChipPickRadius * 1.35f || distance >= nearest)
+            if (distance > PreparedChipPickRadius * 1.35f)
+                continue;
+
+            // A ray aimed at an imperfect stack must take the physically exposed top chip. Choosing
+            // only the closest projected centre could remove a supporting chip and leave another one
+            // floating above the table.
+            var height = chip.Pile.Position.Y;
+            if (height < highest - 0.0001f
+                || (Mathf.IsEqualApprox(height, highest) && distance >= nearest))
                 continue;
 
             selected = chip;
+            highest = height;
             nearest = distance;
         }
 
@@ -303,6 +363,7 @@ public partial class PokerSeatPresenter : Node3D
         chip.ToBasis = _stacks.TryGetValue(_preparedPlayerId, out var bankPile)
             ? bankPile.Basis : Basis.Identity;
         chip.Pile.FlightProgress = 0.0f;
+        RetargetIncludedPreparedChips();
     }
 
     private Vector3 ReturnTarget(int lane, int denomination)
@@ -318,17 +379,18 @@ public partial class PokerSeatPresenter : Node3D
             chip.Returning && chip.Denomination == denomination);
         var height = bank[lane].Count + Mathf.Max(0, returningBelow - 1);
         var x = LaneOffset(lane, bank.Count, bankPile.StackSpacing);
-        return stack + basis * new Vector3(
+        return stack + bankPile.Basis * new Vector3(
             x, height * bankPile.EffectiveThickness, 0.0f);
     }
 
     private bool TryPreparedPlaces(
         string playerId, int lane, int denomination,
-        out Basis basis, out Vector3 source, out Vector3 target)
+        out Basis basis, out Vector3 source, out Vector3 target, out int betSlot)
     {
         basis = Basis.Identity;
         source = Vector3.Zero;
         target = Vector3.Zero;
+        betSlot = 0;
         if (!_stacks.TryGetValue(playerId, out var bankPile)
             || !_bankRuns.TryGetValue(playerId, out var bank)
             || lane < 0 || lane >= bank.Count
@@ -337,19 +399,57 @@ public partial class PokerSeatPresenter : Node3D
             return false;
 
         var x = LaneOffset(lane, bank.Count, bankPile.StackSpacing);
-        source = stack + basis * new Vector3(
+        source = stack + bankPile.Basis * new Vector3(
             x, bank[lane].Count * bankPile.EffectiveThickness, 0.0f);
 
-        // Tentative chips join the already committed blind/bet instead of occupying a second wager
-        // area. A small deterministic loose offset keeps every chip clickable and readable.
-        var slot = NextBetLooseSlot(playerId) + _preparedChips.Count(chip => chip.Included);
-        var angle = slot * 2.399963f;
-        var radius = 0.010f + Mathf.Sqrt(slot + 1.0f) * 0.006f;
-        target = bet + basis * new Vector3(
-            Mathf.Cos(angle) * radius,
-            (slot % 3) * bankPile.EffectiveThickness * 0.35f,
-            Mathf.Sin(angle) * radius);
+        // Tentative chips join the committed blind/bet in a few short contact stacks. Their projected
+        // discs are allowed to overlap; the contact layout raises every overlapping chip by its real
+        // thickness, so the result is compact without ever occupying the same volume.
+        betSlot = StablePreparedBaseBetSlot(playerId)
+                  + _preparedChips.Count(chip => chip.Included);
+        target = bet + basis * PokerChipContactLayout.RootOffset(
+            betSlot, bankPile.EffectiveDiameter, bankPile.EffectiveThickness);
         return true;
+    }
+
+    private int StablePreparedBaseBetSlot(string playerId)
+    {
+        if (_game == null || string.IsNullOrEmpty(playerId))
+            return 0;
+        return PokerChipStack.ChipCount(_game.RoundChipsOf(playerId));
+    }
+
+    /// <summary>
+    /// Removing a tentative chip compacts the surviving selection back into snapshot order. This
+    /// makes the local layout and every replicated peer derive identical contact slots.
+    /// </summary>
+    private void RetargetIncludedPreparedChips()
+    {
+        if (string.IsNullOrEmpty(_preparedPlayerId) || BoardPresenter == null
+            || !_stacks.TryGetValue(_preparedPlayerId, out var bankPile)
+            || !TrySeatChipPlaces(_preparedPlayerId, BoardPresenter.Spec,
+                out var basis, out _, out var bet))
+            return;
+
+        var slot = StablePreparedBaseBetSlot(_preparedPlayerId);
+        foreach (var chip in _preparedChips.Where(chip => chip.Included))
+        {
+            var target = bet + basis * PokerChipContactLayout.RootOffset(
+                slot, bankPile.EffectiveDiameter, bankPile.EffectiveThickness);
+            if (chip.BetSlot != slot || chip.To.DistanceTo(target) > 0.0001f)
+            {
+                chip.BetSlot = slot;
+                chip.From = chip.Pile.Position;
+                chip.To = target;
+                chip.FromBasis = chip.Pile.Basis;
+                chip.MotionSeed = chip.Denomination * 17 + chip.Lane * 31 + slot * 53;
+                chip.ToBasis = basis * new Basis(Vector3.Up,
+                    PokerChipPile.Noise(chip.MotionSeed, 61) * 0.42f);
+                chip.Progress = 0.0f;
+                chip.Pile.FlightProgress = 0.0f;
+            }
+            slot++;
+        }
     }
 
     private PokerChipPile NewPreparedChip(int denomination, Basis basis, Vector3 source)
@@ -379,7 +479,7 @@ public partial class PokerSeatPresenter : Node3D
             return new List<PreparedTransfer>();
 
         var transfers = _preparedChips.Where(chip => chip.Included)
-            .Select(chip => new PreparedTransfer(chip.Denomination, chip.Pile))
+            .Select(chip => new PreparedTransfer(chip.Denomination, chip.Pile, chip.BetSlot))
             .ToList();
         _preparedSubmitted = false;
         return transfers;

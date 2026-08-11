@@ -18,6 +18,8 @@ public partial class PokerController : SeatedTableController
     public PokerGame Game => Table as PokerGame;
 
     private PokerHandView _handView;
+    private int _latestPreparedWagerTurn = -1;
+    private int _latestPreparedWagerRevision = -1;
 
     private static readonly List<ActionOption> NoOptions = new();
 
@@ -48,8 +50,12 @@ public partial class PokerController : SeatedTableController
 
         if (Game.Resolver != null)
         {
-            SignalUtil.ConnectGuarded(Game.Resolver, SecretHandTurnResolver.SignalName.ActionRejected,
-                new Callable(this, MethodName.OnActionRejected));
+            SignalUtil.ConnectGuarded(Game.Resolver,
+                SecretHandTurnResolver.SignalName.StampedActionRejected,
+                new Callable(this, MethodName.OnStampedActionRejected));
+            SignalUtil.ConnectGuarded(Game.Resolver,
+                PokerTurnResolver.SignalName.PreparedWagerRejected,
+                new Callable(this, MethodName.OnPreparedWagerRejected));
         }
 
         return true;
@@ -66,11 +72,18 @@ public partial class PokerController : SeatedTableController
 
         _handView.Setup(Game, Player);
         _handView.ActionRequested += OnActionRequested;
+        _handView.PreparedWagerChanged += OnPreparedWagerChanged;
     }
 
     public override void _ExitTree()
     {
         base._ExitTree();
+
+        if (_handView != null)
+        {
+            _handView.ActionRequested -= OnActionRequested;
+            _handView.PreparedWagerChanged -= OnPreparedWagerChanged;
+        }
 
         if (Game == null)
             return;
@@ -82,8 +95,12 @@ public partial class PokerController : SeatedTableController
 
         if (Game.Resolver != null)
         {
-            SignalUtil.DisconnectGuarded(Game.Resolver, SecretHandTurnResolver.SignalName.ActionRejected,
-                new Callable(this, MethodName.OnActionRejected));
+            SignalUtil.DisconnectGuarded(Game.Resolver,
+                SecretHandTurnResolver.SignalName.StampedActionRejected,
+                new Callable(this, MethodName.OnStampedActionRejected));
+            SignalUtil.DisconnectGuarded(Game.Resolver,
+                PokerTurnResolver.SignalName.PreparedWagerRejected,
+                new Callable(this, MethodName.OnPreparedWagerRejected));
         }
     }
 
@@ -156,15 +173,29 @@ public partial class PokerController : SeatedTableController
         if (presenter?.PreparedWagerSubmitted != true || denominations.Sum() != added)
         {
             if (presenter?.PreparedWagerAmount > 0)
-                presenter.CancelPreparedWager(immediate: true);
+                // Publish the empty snapshot before an action that does not consume the preview.
+                // Both messages use the same reliable peer channel, so the server observes the
+                // cancellation before validating an all-in/check/fold request.
+                _handView?.CancelPreparedWager(immediate: true);
             denominations = System.Array.Empty<int>();
         }
         Game.Resolver.RequestAction(Game.TurnToken, actionKind, total, denominations);
     }
 
-    private void OnActionRejected(string reason)
+    private void OnPreparedWagerChanged(
+        int turnToken, int revision, int[] denominations)
     {
-        if (!IsMultiplayerAuthority())
+        if (!IsMultiplayerAuthority() || Game?.Resolver == null)
+            return;
+        _latestPreparedWagerTurn = turnToken;
+        _latestPreparedWagerRevision = revision;
+        Game.Resolver.RequestPreparedWager(
+            turnToken, revision, denominations ?? System.Array.Empty<int>());
+    }
+
+    private void OnStampedActionRejected(int turnToken, string reason)
+    {
+        if (!IsMultiplayerAuthority() || Game == null || turnToken != Game.TurnToken)
             return;
 
         // A stale or refused request never owns the tentative chips. Put them back before repainting
@@ -173,6 +204,21 @@ public partial class PokerController : SeatedTableController
         _handView?.ShowRejection(reason);
         // The rejection may have been "the turn already moved", so repaint from real state rather
         // than leaving the interface showing what the player thought was true.
+        RefreshView();
+    }
+
+    private void OnPreparedWagerRejected(int turnToken, int revision, string reason)
+    {
+        if (!IsMultiplayerAuthority() || Game == null
+            || turnToken != Game.TurnToken
+            || turnToken != _latestPreparedWagerTurn
+            || revision != _latestPreparedWagerRevision)
+            return;
+
+        // Only the exact rejected revision owns the local actors. An older refusal can arrive after
+        // a corrected selection and must never pull that newer wager back into the bank.
+        _handView?.CancelPreparedWager();
+        _handView?.ShowRejection(reason);
         RefreshView();
     }
 }

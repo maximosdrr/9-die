@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Poker.Rules;
 
@@ -14,8 +15,17 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>PASSAR and DESISTIR share this inner half-disc.</summary>
     [Export] public float ActionZoneRadius = 0.115f;
 
-    /// <summary>CONFIRMAR APOSTA occupies the half-ring between both radii.</summary>
-    [Export] public float ConfirmZoneRadius = 0.155f;
+    /// <summary>
+    /// CONFIRMAR APOSTA sits behind the prepared chips, independently from PASSAR/DESISTIR.
+    /// The centre matches the default betting line; the outward half-ring opens toward the pot.
+    /// </summary>
+    [Export] public float ConfirmZoneCenterRadius = 0.320f;
+    [Export] public float ConfirmZoneInnerRadius = 0.070f;
+    [Export] public float ConfirmZoneOuterRadius = 0.110f;
+    /// <summary>Straight chalk shortcut beside the denomination bank.</summary>
+    [Export] public float CallZoneLength = 0.205f;
+    [Export] public float CallZoneWidth = 0.055f;
+    [Export] public float CallZoneSideOffset = 0.060f;
     [Export(PropertyHint.Range, "8,32,1")] public int InteractionArcSteps = 20;
 
     [Export] public float InteractionGuideThickness = 0.0014f;
@@ -29,6 +39,7 @@ public partial class PokerHand3DView : PokerHandView
     private enum InteractionZone
     {
         None,
+        Call,
         ConfirmBet,
         Fold,
         Check,
@@ -37,6 +48,9 @@ public partial class PokerHand3DView : PokerHandView
     private Node3D _interactionGuide;
     private bool _interactionEnabled = true;
     private bool _wagerSubmitted;
+    private bool _automaticCallPending;
+    private int _automaticCallTurn = -1;
+    private PokerGesture _queuedTableGesture;
     private int _interactionHand = -1;
     private Vector2 _guideFacing;
     private InteractionZone _hoveredZone;
@@ -58,7 +72,7 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public PokerGesture HandleTableClick()
     {
-        if (!IsYourTurn || !_interactionEnabled)
+        if (!IsYourTurn || !_interactionEnabled || _automaticCallPending || _wagerSubmitted)
             return PokerGesture.None;
 
         if (!HasPickedUpCards)
@@ -75,20 +89,28 @@ public partial class PokerHand3DView : PokerHandView
         if (presenter == null || string.IsNullOrEmpty(playerId))
             return PokerGesture.None;
 
+        var aimedZone = ZoneAt(aim);
+        // CALL is deliberately adjacent to the bank. Give its explicit rectangle priority over the
+        // generous cylindrical chip pick radius so clicking the writing can never remove one chip.
+        if (aimedZone == InteractionZone.Call)
+            return HandleAutomaticCall(presenter, playerId);
+
         // Physical chips take precedence if one happens to cross the projected button silhouette.
         if (presenter.TryReturnPreparedChip(playerId, aim, out _))
         {
+            PublishPreparedWagerSnapshot();
             RefreshPhysicalHud();
             return PokerGesture.None;
         }
 
         if (presenter.TrySelectPreparedChip(playerId, aim, out _))
         {
+            PublishPreparedWagerSnapshot();
             RefreshPhysicalHud();
             return PokerGesture.None;
         }
 
-        return ZoneAt(aim) switch
+        return aimedZone switch
         {
             InteractionZone.Fold => HandleFold(),
             InteractionZone.Check => HandleCheck(),
@@ -99,8 +121,16 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void CancelPreparedWager(bool immediate = false)
     {
+        var presenter = Game?.SeatPresenter;
+        var publishCancellation = IsYourTurn && !_wagerSubmitted
+                                  && (presenter?.PreparedWagerAmount ?? 0) > 0;
         _wagerSubmitted = false;
-        Game?.SeatPresenter?.CancelPreparedWager(immediate);
+        _automaticCallPending = false;
+        _automaticCallTurn = -1;
+        _queuedTableGesture = PokerGesture.None;
+        presenter?.CancelPreparedWager(immediate);
+        if (publishCancellation)
+            PublishPreparedWagerSnapshot();
         RefreshPhysicalHud();
     }
 
@@ -167,6 +197,83 @@ public partial class PokerHand3DView : PokerHandView
         return PokerGesture.ThrowChips;
     }
 
+    private PokerGesture HandleAutomaticCall(PokerSeatPresenter presenter, string playerId)
+    {
+        if (!HasAction(PokerActionKind.Call))
+        {
+            ShowNotice("CALL nÃ£o estÃ¡ disponÃ­vel quando vocÃª pode passar", 1.6f);
+            return PokerGesture.None;
+        }
+
+        var total = TotalFor(PokerActionKind.Call);
+        var required = Mathf.Max(0, total - Game.BetOf(playerId));
+        if (required <= 0)
+        {
+            ShowNotice("Use PASSAR para continuar sem acrescentar fichas", 1.6f);
+            return PokerGesture.None;
+        }
+
+        if (presenter.PreparedWagerAmount != required)
+        {
+            // CALL supersedes a partial manual choice. Rebuild from the stable bank in one local
+            // transaction and publish only the final whole snapshot, avoiding a return/select flick.
+            presenter.CancelPreparedWager(immediate: true);
+            if (!presenter.TryPrepareAutomaticWager(playerId, required))
+            {
+                ShowNotice("NÃ£o foi possÃ­vel separar as fichas exatas para o CALL", 1.8f);
+                RefreshPhysicalHud();
+                return PokerGesture.None;
+            }
+            PublishPreparedWagerSnapshot();
+        }
+
+        _automaticCallPending = true;
+        _automaticCallTurn = Game.TurnToken;
+        RefreshPhysicalHud();
+        return PokerGesture.None;
+    }
+
+    private void AdvanceAutomaticCall()
+    {
+        if (!_automaticCallPending)
+            return;
+
+        var presenter = Game?.SeatPresenter;
+        var playerId = Player == null ? null : (string)Player.Name;
+        if (presenter == null || string.IsNullOrEmpty(playerId) || !IsYourTurn
+            || Game.TurnToken != _automaticCallTurn || !HasAction(PokerActionKind.Call))
+        {
+            _automaticCallPending = false;
+            _automaticCallTurn = -1;
+            return;
+        }
+
+        var denominations = presenter.PreparedWagerDenominations;
+        var publicPreview = Game.PreparedWagerOf(playerId);
+        if (!presenter.PreparedWagerReady || publicPreview == null
+            || publicPreview.TurnToken != _automaticCallTurn
+            || !publicPreview.Denominations.SequenceEqual(denominations))
+            return;
+
+        var selected = presenter.PreparedWagerAmount;
+        var total = TotalFor(PokerActionKind.Call);
+        if (!presenter.SubmitPreparedWager(playerId, selected))
+            return;
+
+        _automaticCallPending = false;
+        _automaticCallTurn = -1;
+        _wagerSubmitted = true;
+        RequestAction(PokerActionKind.Call, total);
+        _queuedTableGesture = PokerGesture.ThrowChips;
+    }
+
+    public bool TryConsumeTableGesture(out PokerGesture gesture)
+    {
+        gesture = _queuedTableGesture;
+        _queuedTableGesture = PokerGesture.None;
+        return gesture != PokerGesture.None;
+    }
+
     private void ShowWagerProblem(PokerWagerProblem problem, int required)
     {
         var text = problem switch
@@ -189,6 +296,27 @@ public partial class PokerHand3DView : PokerHandView
         if (!TrySeatAxes(out var facing, out var across))
             return InteractionZone.None;
 
+        if (TryCallZoneFrame(out var callCentre, out var callAlong, out var callAcross))
+        {
+            var callOffset = aim - callCentre;
+            if (Mathf.Abs(callOffset.Dot(callAlong)) <= CallZoneLength * 0.5f
+                && Mathf.Abs(callOffset.Dot(callAcross)) <= CallZoneWidth * 0.5f)
+                return InteractionZone.Call;
+        }
+
+        // The confirmation band is a separate U behind the prepared wager. Its curved side points
+        // toward the seated player, leaving the opening toward the chips and the middle of the table.
+        var confirmCentre = facing * ConfirmZoneCenterRadius;
+        var confirmOffset = aim - confirmCentre;
+        var confirmOutward = confirmOffset.Dot(facing);
+        var confirmLateral = confirmOffset.Dot(across);
+        var confirmRadius = Mathf.Sqrt(
+            confirmOutward * confirmOutward + confirmLateral * confirmLateral);
+        if (confirmOutward >= 0.0f
+            && confirmRadius >= ConfirmZoneInnerRadius
+            && confirmRadius <= ConfirmZoneOuterRadius)
+            return InteractionZone.ConfirmBet;
+
         var centre = facing * InteractionZoneCenterRadius;
         var offset = aim - centre;
         var inward = -offset.Dot(facing);
@@ -197,11 +325,8 @@ public partial class PokerHand3DView : PokerHandView
             return InteractionZone.None;
 
         var radius = Mathf.Sqrt(inward * inward + lateral * lateral);
-        if (radius > ConfirmZoneRadius)
+        if (radius > ActionZoneRadius)
             return InteractionZone.None;
-
-        if (radius >= ActionZoneRadius)
-            return InteractionZone.ConfirmBet;
 
         // +across is always the seated player's left, independently of which chair they occupy.
         return lateral >= 0.0f ? InteractionZone.Check : InteractionZone.Fold;
@@ -226,12 +351,31 @@ public partial class PokerHand3DView : PokerHandView
         return true;
     }
 
+    private bool TryCallZoneFrame(
+        out Vector2 centre, out Vector2 along, out Vector2 across)
+    {
+        centre = Vector2.Zero;
+        along = Vector2.Zero;
+        across = Vector2.Zero;
+        var playerId = Player == null ? null : (string)Player.Name;
+        var presenter = Game?.SeatPresenter;
+        if (presenter == null || string.IsNullOrEmpty(playerId)
+            || !presenter.TryBankGuideFrame(playerId, out var bankCentre, out along, out across))
+            return false;
+
+        centre = bankCentre + across * CallZoneSideOffset;
+        return true;
+    }
+
     private void SyncTableInteraction(int hand, bool isYourTurn)
     {
         if (hand != _interactionHand)
         {
             _interactionHand = hand;
             _wagerSubmitted = false;
+            _automaticCallPending = false;
+            _automaticCallTurn = -1;
+            _queuedTableGesture = PokerGesture.None;
             Game?.SeatPresenter?.CancelPreparedWager(immediate: true);
         }
 
@@ -324,39 +468,59 @@ public partial class PokerHand3DView : PokerHandView
 
         var yaw = PokerTableLayout.YawTowardCentre(facing);
         var labelBasis = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
-        var centre = facing * InteractionZoneCenterRadius;
+        var actionCentre = facing * InteractionZoneCenterRadius;
         var inward = -facing;
+        var confirmCentre = facing * ConfirmZoneCenterRadius;
+        var confirmOutward = facing;
         const float halfCircle = Mathf.Pi * 0.5f;
 
-        AddChalkZone(InteractionZone.Check, "CheckFill", centre, inward, across,
+        AddChalkZone(InteractionZone.Check, "CheckFill", actionCentre, inward, across,
             0.0f, ActionZoneRadius, 0.0f, halfCircle);
-        AddChalkZone(InteractionZone.Fold, "FoldFill", centre, inward, across,
+        AddChalkZone(InteractionZone.Fold, "FoldFill", actionCentre, inward, across,
             0.0f, ActionZoneRadius, -halfCircle, 0.0f);
-        AddChalkZone(InteractionZone.ConfirmBet, "ConfirmFill", centre, inward, across,
-            ActionZoneRadius, ConfirmZoneRadius, -halfCircle, halfCircle);
+        AddChalkZone(InteractionZone.ConfirmBet, "ConfirmFill", confirmCentre, confirmOutward, across,
+            ConfirmZoneInnerRadius, ConfirmZoneOuterRadius, -halfCircle, halfCircle);
+        var hasCallFrame = TryCallZoneFrame(
+            out var callCentre, out var callAlong, out var callAcross);
+        if (hasCallFrame)
+            AddChalkRectangleZone(InteractionZone.Call, "CallFill", callCentre, callAlong, callAcross,
+                CallZoneLength, CallZoneWidth);
 
         var lineMaterial = NewChalkMaterial(ChalkGuideColor with { A = 0.46f }, 1.0f);
-        AddArcLine("ConfirmOuterArc", centre, inward, across, ConfirmZoneRadius,
+        AddArcLine("ActionOuterArc", actionCentre, inward, across, ActionZoneRadius,
             -halfCircle, halfCircle, lineMaterial);
-        AddArcLine("ConfirmActionDivider", centre, inward, across, ActionZoneRadius,
-            -halfCircle, halfCircle, lineMaterial);
-        AddRadialLine("LeftBandEdge", centre, inward, across, halfCircle,
-            ActionZoneRadius, ConfirmZoneRadius, lineMaterial);
-        AddRadialLine("RightBandEdge", centre, inward, across, -halfCircle,
-            ActionZoneRadius, ConfirmZoneRadius, lineMaterial);
-        AddRadialLine("CentreDivider", centre, inward, across, 0.0f,
+        AddRadialLine("CentreDivider", actionCentre, inward, across, 0.0f,
             0.0f, ActionZoneRadius, lineMaterial);
+
+        AddArcLine("ConfirmOuterArc", confirmCentre, confirmOutward, across,
+            ConfirmZoneOuterRadius,
+            -halfCircle, halfCircle, lineMaterial);
+        AddArcLine("ConfirmInnerArc", confirmCentre, confirmOutward, across,
+            ConfirmZoneInnerRadius,
+            -halfCircle, halfCircle, lineMaterial);
+        AddRadialLine("ConfirmLeftEdge", confirmCentre, confirmOutward, across, halfCircle,
+            ConfirmZoneInnerRadius, ConfirmZoneOuterRadius, lineMaterial);
+        AddRadialLine("ConfirmRightEdge", confirmCentre, confirmOutward, across, -halfCircle,
+            ConfirmZoneInnerRadius, ConfirmZoneOuterRadius, lineMaterial);
+        if (hasCallFrame)
+            AddRectangleBorder("CallBorder", callCentre, callAlong, callAcross,
+                CallZoneLength, CallZoneWidth, lineMaterial);
 
         var actionLabelRadius = ActionZoneRadius * 0.56f;
         AddChalkLabel(InteractionZone.Check, "Check", "PASSAR",
-            SemicirclePoint(centre, inward, across, actionLabelRadius, Mathf.Pi * 0.25f), labelBasis,
+            SemicirclePoint(actionCentre, inward, across, actionLabelRadius, Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
         AddChalkLabel(InteractionZone.Fold, "Fold", "DESISTIR",
-            SemicirclePoint(centre, inward, across, actionLabelRadius, -Mathf.Pi * 0.25f), labelBasis,
+            SemicirclePoint(actionCentre, inward, across, actionLabelRadius, -Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
         AddCurvedChalkLabel(InteractionZone.ConfirmBet, "CONFIRMAR APOSTA",
-            centre, inward, across, (ActionZoneRadius + ConfirmZoneRadius) * 0.5f,
-            Mathf.Pi * 0.34f, Mathf.RoundToInt(ChalkGuideFontSize * 0.60f));
+            confirmCentre, confirmOutward, across,
+            (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
+            Mathf.Pi * 0.34f, Mathf.RoundToInt(ChalkGuideFontSize * 0.60f),
+            reverseGlyphUp: true);
+        if (hasCallFrame)
+            AddAlignedChalkLabel(InteractionZone.Call, "Call", "CALL", callCentre,
+                callAlong, -callAcross, ChalkGuideFontSize);
     }
 
     private void AddChalkZone(
@@ -367,6 +531,24 @@ public partial class PokerHand3DView : PokerHandView
         _zoneFillMaterials[zone] = material;
         AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
             innerRadius, outerRadius, startAngle, endAngle, InteractionArcSteps, material), 0.0031f);
+    }
+
+    private void AddChalkRectangleZone(
+        InteractionZone zone, string name, Vector2 centre, Vector2 along, Vector2 across,
+        float length, float width)
+    {
+        var material = NewChalkMaterial(ChalkGuideColor, 0.0f);
+        _zoneFillMaterials[zone] = material;
+        AddGuideMesh(name, BuildRectangleMesh(
+            centre, along, across, length, width, material), 0.0031f);
+    }
+
+    private void AddRectangleBorder(
+        string name, Vector2 centre, Vector2 along, Vector2 across,
+        float length, float width, Material material)
+    {
+        AddGuideMesh(name, BuildRectangleBorderMesh(
+            centre, along, across, length, width, InteractionGuideThickness, material), 0.0033f);
     }
 
     private void AddArcLine(
@@ -438,7 +620,7 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>Places each glyph on the confirmation arc and turns it along the local tangent.</summary>
     private void AddCurvedChalkLabel(
         InteractionZone zone, string text, Vector2 centre, Vector2 inward, Vector2 across,
-        float radius, float spanAngle, int fontSize)
+        float radius, float spanAngle, int fontSize, bool reverseGlyphUp = false)
     {
         if (string.IsNullOrEmpty(text))
             return;
@@ -457,6 +639,8 @@ public partial class PokerHand3DView : PokerHandView
             var right = inward * Mathf.Sin(angle) - across * Mathf.Cos(angle);
             var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
             var up3 = new Vector3(outward.X, 0.0f, outward.Y).Normalized();
+            if (reverseGlyphUp)
+                up3 = -up3;
             var normal3 = right3.Cross(up3).Normalized();
             var label = NewChalkLabel($"ConfirmGlyph{index}", text[index].ToString(),
                 fontSize, new Transform3D(
@@ -484,6 +668,19 @@ public partial class PokerHand3DView : PokerHandView
         NoDepthTest = false,
         Transform = transform,
     };
+
+    private void AddAlignedChalkLabel(
+        InteractionZone zone, string name, string text, Vector2 position,
+        Vector2 right, Vector2 up, int fontSize)
+    {
+        var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
+        var up3 = new Vector3(up.X, 0.0f, up.Y).Normalized();
+        var normal3 = right3.Cross(up3).Normalized();
+        var label = NewChalkLabel(name, text, fontSize, new Transform3D(
+            new Basis(right3, up3, normal3), new Vector3(position.X, 0.004f, position.Y)));
+        _interactionGuide.AddChild(label);
+        AddZoneLabel(zone, label);
+    }
 
     private void AddZoneLabel(InteractionZone zone, Label3D label)
     {
@@ -516,6 +713,62 @@ public partial class PokerHand3DView : PokerHandView
         mesh.SurfaceEnd();
         return mesh;
     }
+
+    private static ImmediateMesh BuildRectangleMesh(
+        Vector2 centre, Vector2 along, Vector2 across, float length, float width, Material material)
+    {
+        var mesh = new ImmediateMesh();
+        var halfLength = Mathf.Max(0.001f, length * 0.5f);
+        var halfWidth = Mathf.Max(0.001f, width * 0.5f);
+        var a = RectanglePoint(centre, along, across, -halfLength, -halfWidth);
+        var b = RectanglePoint(centre, along, across, halfLength, -halfWidth);
+        var c = RectanglePoint(centre, along, across, halfLength, halfWidth);
+        var d = RectanglePoint(centre, along, across, -halfLength, halfWidth);
+        mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, material);
+        AddInteractionTriangle(mesh, a, b, c);
+        AddInteractionTriangle(mesh, a, c, d);
+        mesh.SurfaceEnd();
+        return mesh;
+    }
+
+    private static ImmediateMesh BuildRectangleBorderMesh(
+        Vector2 centre, Vector2 along, Vector2 across, float length, float width,
+        float thickness, Material material)
+    {
+        var mesh = new ImmediateMesh();
+        var outerLength = Mathf.Max(0.002f, length * 0.5f);
+        var outerWidth = Mathf.Max(0.002f, width * 0.5f);
+        var inset = Mathf.Clamp(thickness, 0.0005f, Mathf.Min(outerLength, outerWidth) * 0.45f);
+        var innerLength = outerLength - inset;
+        var innerWidth = outerWidth - inset;
+        var outer = new[]
+        {
+            RectanglePoint(centre, along, across, -outerLength, -outerWidth),
+            RectanglePoint(centre, along, across, outerLength, -outerWidth),
+            RectanglePoint(centre, along, across, outerLength, outerWidth),
+            RectanglePoint(centre, along, across, -outerLength, outerWidth),
+        };
+        var inner = new[]
+        {
+            RectanglePoint(centre, along, across, -innerLength, -innerWidth),
+            RectanglePoint(centre, along, across, innerLength, -innerWidth),
+            RectanglePoint(centre, along, across, innerLength, innerWidth),
+            RectanglePoint(centre, along, across, -innerLength, innerWidth),
+        };
+        mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, material);
+        for (var edge = 0; edge < 4; edge++)
+        {
+            var next = (edge + 1) % 4;
+            AddInteractionTriangle(mesh, outer[edge], outer[next], inner[next]);
+            AddInteractionTriangle(mesh, outer[edge], inner[next], inner[edge]);
+        }
+        mesh.SurfaceEnd();
+        return mesh;
+    }
+
+    private static Vector2 RectanglePoint(
+        Vector2 centre, Vector2 along, Vector2 across, float alongDistance, float acrossDistance) =>
+        centre + along * alongDistance + across * acrossDistance;
 
     private static Vector2 SemicirclePoint(
         Vector2 centre, Vector2 inward, Vector2 across, float radius, float angle) =>

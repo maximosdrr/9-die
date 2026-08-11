@@ -31,6 +31,8 @@ public partial class PokerLayoutTest : Node
         TestChipsKeepTheirIdentity();
         TestStableBankDoesNotFlick();
         TestLoosePotOrganizesIntoATower();
+        TestPreparedChipsUseContactStacks();
+        TestContactStackOpensBeforeCollection();
         TestChipsSettleLikeChips();
         TestNaturalMotionCurves();
         TestBoundedChipGroups();
@@ -301,7 +303,7 @@ public partial class PokerLayoutTest : Node
         var pile = new PokerChipPile
         {
             StableRunColumns = true,
-            StackSpacing = 0.034f,
+            StackSpacing = 0.046f,
         };
         AddChild(pile);
 
@@ -317,6 +319,12 @@ public partial class PokerLayoutTest : Node
 
         var survivorsStayedStill = after.All(entry => before.TryGetValue(entry.Key, out var old)
             && old.IsEqualApprox(entry.Value));
+        var laneCentres = before.Values.Select(entry => entry.Origin.X)
+            .Distinct().OrderBy(value => value).ToList();
+        var closestLaneGap = laneCentres.Zip(laneCentres.Skip(1), (left, right) => right - left)
+            .DefaultIfEmpty(float.MaxValue).Min();
+        Check($"as colunas do banco deixam folga entre fichas ({closestLaneGap * 1000.0f:F1} mm)",
+            closestLaneGap >= pile.EffectiveDiameter + 0.003f);
         Check("pagar remove fichas existentes sem criar novas na pilha",
             paid && PokerChipStack.Total(payment) == 10 && after.Count < before.Count
             && after.Keys.All(before.ContainsKey));
@@ -439,6 +447,91 @@ public partial class PokerLayoutTest : Node
             PokerChipPile.DropCurve(0.8f) > 0.0f && PokerChipPile.DropCurve(0.8f) < 0.2f);
 
         pile.QueueFree();
+    }
+
+    private void TestPreparedChipsUseContactStacks()
+    {
+        const float diameter = PokerChipAssetMeshes.Diameter;
+        const float thickness = PokerChipAssetMeshes.Thickness;
+        var first = Enumerable.Range(0, 12)
+            .Select(slot => PokerChipContactLayout.RootOffset(slot, diameter, thickness))
+            .ToList();
+        var second = Enumerable.Range(0, 12)
+            .Select(slot => PokerChipContactLayout.RootOffset(slot, diameter, thickness))
+            .ToList();
+
+        Check("o monte de fichas preparadas e deterministico em todos os peers",
+            first.SequenceEqual(second));
+
+        var projectedOverlaps = 0;
+        var intersectingVolumes = 0;
+        for (var left = 0; left < first.Count; left++)
+        for (var right = left + 1; right < first.Count; right++)
+        {
+            var horizontal = new Vector2(
+                first[left].X - first[right].X,
+                first[left].Z - first[right].Z).Length();
+            if (horizontal >= diameter)
+                continue;
+
+            projectedOverlaps++;
+            var leftTop = first[left].Y + thickness;
+            var rightTop = first[right].Y + thickness;
+            var verticallySeparate = leftTop <= first[right].Y + 0.00001f
+                                     || rightTop <= first[left].Y + 0.00001f;
+            if (!verticallySeparate)
+                intersectingVolumes++;
+        }
+
+        Check($"as fichas preparadas se sobrepoem como pilhas ({projectedOverlaps} pares)",
+            projectedOverlaps > first.Count);
+        Check($"nenhuma ficha preparada entra no volume de outra ({intersectingVolumes} pares)",
+            intersectingVolumes == 0);
+        Check($"o monte continua compacto ({first.Max(place => new Vector2(place.X, place.Z).Length()) * 100.0f:F1} cm)",
+            first.Max(place => new Vector2(place.X, place.Z).Length()) < diameter * 1.25f);
+    }
+
+    private void TestContactStackOpensBeforeCollection()
+    {
+        var animator = new PokerChipAnimator();
+        AddChild(animator);
+        animator.Configure(null, 0.011f, 2, 1,
+            0.30f, 0.03f, 0.12f, 0.50f, 0.50f, 0.70f, 0.30f);
+
+        for (var slot = 0; slot < 2; slot++)
+        {
+            var batch = animator.Acquire();
+            var origin = PokerChipContactLayout.RootOffset(
+                slot, PokerChipAssetMeshes.Diameter, PokerChipAssetMeshes.Thickness);
+            batch.Amount = slot == 0 ? 5 : 10;
+            batch.From = origin;
+            batch.To = Vector3.Zero;
+            batch.Basis = Basis.Identity;
+            batch.StartSpread = 0.0f;
+            batch.Progress = 0.0f;
+            batch.Phase = PokerChipAnimator.Phase.ToPot;
+            batch.Pile.Transform = new Transform3D(Basis.Identity, origin);
+            batch.Pile.LooseSlotOffset = slot;
+            batch.Pile.Spread = 0.0f;
+            batch.Pile.SetRuns(new[] { new ChipRun(batch.Amount, 1) });
+            batch.Pile.RetargetLooseSlots(slot);
+            batch.Pile.Visible = true;
+        }
+
+        for (var frame = 0; frame < 40; frame++)
+        foreach (var batch in animator.Batches)
+            animator.Advance(batch, 1.0f / 60.0f);
+
+        var arrived = animator.ActiveVisualPositions().Values.ToList();
+        var clearance = arrived.Count == 2
+            ? new Vector2(arrived[0].X - arrived[1].X, arrived[0].Z - arrived[1].Z).Length()
+            : 0.0f;
+        Check("a coleta abre a pilha antes de reunir suas raizes no pote",
+            animator.Batches.All(batch => batch.Phase == PokerChipAnimator.Phase.AtPotLoose)
+            && animator.Batches.All(batch => batch.Pile.Spread > 0.999f)
+            && clearance >= PokerChipAssetMeshes.Diameter - 0.0001f);
+
+        animator.QueueFree();
     }
 
     private static float ClosestHorizontalGap(IReadOnlyList<Vector3> positions)

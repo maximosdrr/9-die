@@ -77,6 +77,12 @@ public partial class PokerHandLookingState : State
 
     public override void Process(double delta)
     {
+        if (View != null && View.TryConsumeTableGesture(out var gesture))
+        {
+            BeginGesture(gesture);
+            return;
+        }
+
         if (View != null && (!View.IsYourTurn || !View.HasAnyAction))
             StateMachine.ChangeState(StatesRef.PokerHandIdle, new Dictionary());
     }

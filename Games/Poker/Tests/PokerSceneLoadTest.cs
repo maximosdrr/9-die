@@ -119,9 +119,13 @@ public partial class PokerSceneLoadTest : Node
         Check("o par revelado recebe variação visual moderada",
             seatPresenter is { ShowdownPairPositionJitter: > 0.0f,
                 ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
-        Check("saldo e apostas pendentes ocupam faixas diferentes das cartas",
+        Check($"saldo e apostas pendentes ocupam faixas diferentes das cartas "
+              + $"(lado {seatPresenter?.StackSideOffset:F3}, dentro {seatPresenter?.StackInset:F3}, "
+              + $"gap {seatPresenter?.BankColumnSpacing:F3})",
             seatPresenter is { BetSideOffset: >= 0.0f and <= 0.01f,
-                StackSideOffset: >= 0.23f, StackInset: >= 0.08f }
+                StackSideOffset: >= 0.20f and <= 0.23f,
+                StackInset: >= 0.13f,
+                BankColumnSpacing: >= 0.044f }
             && game.BoardPresenter.Spec.SeatBetRadius >= 0.30f);
         Check("o turno usa um anel fino junto à borda da mesa",
             seatPresenter is { TurnRingRadius: >= 0.60f, TurnRingWidth: > 0.0f and <= 0.006f,
@@ -252,6 +256,9 @@ public partial class PokerSceneLoadTest : Node
         // hand. The three receivers are inherited from SecretHandTurnResolver — reflection walks the
         // derived type, so this pins what poker actually dispatches.
         CheckRpc<PokerTurnResolver>("ActOnServer", MultiplayerApi.RpcMode.AnyPeer, false);
+        CheckRpc<PokerTurnResolver>("PrepareWagerOnServer", MultiplayerApi.RpcMode.AnyPeer, false);
+        CheckRpc<PokerTurnResolver>("ReceivePreparedWagerRejected",
+            MultiplayerApi.RpcMode.Authority, false);
         CheckRpc<PokerTurnResolver>("ShowdownRevealOnServer", MultiplayerApi.RpcMode.AnyPeer, false);
         CheckRpc<PokerTurnResolver>("ReceiveHand", MultiplayerApi.RpcMode.Authority, false);
         CheckRpc<PokerTurnResolver>("ReceiveActionRejected", MultiplayerApi.RpcMode.Authority, false);
@@ -678,15 +685,30 @@ public partial class PokerSceneLoadTest : Node
         var hand = handScene?.Instantiate<PokerHand3DView>();
         var farCornerRadius = hand == null
             ? float.MaxValue
-            : Mathf.Sqrt(hand.InteractionZoneCenterRadius * hand.InteractionZoneCenterRadius
-                         + hand.ConfirmZoneRadius * hand.ConfirmZoneRadius);
-        Check("a interface física tem mira e três zonas semicirculares de clique único",
+            : Mathf.Max(
+                Mathf.Sqrt(hand.InteractionZoneCenterRadius * hand.InteractionZoneCenterRadius
+                           + hand.ActionZoneRadius * hand.ActionZoneRadius),
+                hand.ConfirmZoneCenterRadius + hand.ConfirmZoneOuterRadius);
+        Check("a confirmação fica atrás das fichas e separada de passar/desistir",
             hand is { Crosshair: not null,
                 InteractionZoneCenterRadius: >= 0.55f and <= 0.59f,
                 ActionZoneRadius: >= 0.10f and <= 0.13f,
-                ConfirmZoneRadius: >= 0.14f and <= 0.17f }
-            && hand.ConfirmZoneRadius > hand.ActionZoneRadius
+                ConfirmZoneCenterRadius: >= 0.30f and <= 0.34f,
+                ConfirmZoneInnerRadius: >= 0.06f and <= 0.08f,
+                ConfirmZoneOuterRadius: >= 0.10f and <= 0.12f }
+            && hand.ConfirmZoneOuterRadius > hand.ConfirmZoneInnerRadius
+            && Mathf.IsEqualApprox(
+                hand.ConfirmZoneCenterRadius, PokerLayoutSpec.Default.SeatBetRadius)
+            && hand.ConfirmZoneCenterRadius + hand.ConfirmZoneOuterRadius
+               < hand.InteractionZoneCenterRadius - hand.ActionZoneRadius
             && typeof(PokerHand3DView).GetMethod("HandleTableClick")?.GetParameters().Length == 0);
+        Check("CALL tem um retângulo de giz próprio ao lado do banco de fichas",
+            hand is {
+                CallZoneLength: >= 0.19f and <= 0.22f,
+                CallZoneWidth: >= 0.045f and <= 0.065f,
+                CallZoneSideOffset: >= 0.05f and <= 0.075f }
+            && typeof(PokerSeatPresenter).GetMethod("TryPrepareAutomaticWager") != null
+            && typeof(PokerHand3DView).GetMethod("TryConsumeTableGesture") != null);
         Check("os comandos usam giz procedural, fonte grande e divisões finas",
             hand is { ChalkFont: not null, ChalkHoverShader: not null,
                 ChalkGuideFontSize: >= 68, ChalkGuidePixelSize: >= 0.00018f,
@@ -885,7 +907,11 @@ public partial class PokerSceneLoadTest : Node
         // The body gesture is replayed by the seat presenter from the context, so the hook it calls
         // has to exist on Player — it is a no-op today and must stay callable.
         Check("o corpo sentado tem por onde receber um gesto",
-            typeof(Player).GetMethod(nameof(Player.PlaySeatedGesture)) != null);
+            typeof(Player).GetMethod(
+                nameof(Player.PlaySeatedGesture), new[] { typeof(string) }) != null
+            && typeof(Player).GetMethod(
+                nameof(Player.PlaySeatedGesture),
+                new[] { typeof(string), typeof(Vector3) }) != null);
 
         var scene = GD.Load<PackedScene>("res://Games/Poker/Poker.tscn");
         var game = scene?.Instantiate<PokerGame>();

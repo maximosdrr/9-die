@@ -96,6 +96,8 @@ public partial class PokerHand3DView : PokerHandView
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
     private PokerHandVisual _chipHandVisual;
+    private int _publishedWagerTurn = -1;
+    private int _publishedWagerRevision;
 
     // ---------------------------------------------------------------- what the states drive
 
@@ -155,6 +157,7 @@ public partial class PokerHand3DView : PokerHandView
             return;
 
         UpdatePeek((float)delta);
+        AdvanceAutomaticCall();
         UpdateInteractionVisibility();
 
         // Read in _Process rather than _PhysicsProcess so the hand does not swim a frame behind the
@@ -173,6 +176,28 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     // ---------------------------------------------------------------- the seam
+
+    /// <summary>
+    /// Emits the entire ordered local preview. Whole snapshots plus a per-turn revision make the
+    /// server channel idempotent and let every peer reconcile a missed selection without replaying
+    /// an unsafe client-authored delta.
+    /// </summary>
+    public void PublishPreparedWagerSnapshot()
+    {
+        if (Game?.SeatPresenter == null || Player == null)
+            return;
+
+        if (_publishedWagerTurn != Game.TurnToken)
+        {
+            _publishedWagerTurn = Game.TurnToken;
+            _publishedWagerRevision = 0;
+        }
+
+        _publishedWagerRevision++;
+        EmitSignal(PokerHandView.SignalName.PreparedWagerChanged,
+            Game.TurnToken, _publishedWagerRevision,
+            Game.SeatPresenter.PreparedWagerDenominations);
+    }
 
     public override void Refresh(int[] holeCards, IReadOnlyList<ActionOption> options, bool isYourTurn)
     {

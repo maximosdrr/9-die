@@ -20,6 +20,8 @@ using Poker.Rules;
 public partial class PokerTurnResolver : SecretHandTurnResolver
 {
     internal const int ActionRequestsPerSecond = 8;
+    internal const int PreparedWagerRequestsPerSecond = 24;
+    internal const int MaximumPreparedWagerChips = 64;
     internal const int MaximumTrackedActionPeers = 16;
 
     [Export] public PokerPresentationProfile PresentationProfile;
@@ -43,9 +45,20 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// <summary>Visible final window; pending hands are exposed automatically when it reaches zero.</summary>
     [Export] public float ShowdownRevealCountdownSeconds = 10.0f;
 
+    /// <summary>
+    /// A reversible chip-preview request has its own revision in addition to the turn stamp. Keeping
+    /// both values in the refusal lets the local controller ignore an old rejection after the player
+    /// has already corrected the selection.
+    /// </summary>
+    [Signal]
+    public delegate void PreparedWagerRejectedEventHandler(
+        int turnToken, int revision, string reason);
+
     public PokerGame Game => Table as PokerGame;
     private readonly PeerRequestRateLimiter _actionRequestLimiter = new(
         ActionRequestsPerSecond, 1000, MaximumTrackedActionPeers);
+    private readonly PeerRequestRateLimiter _preparedWagerRequestLimiter = new(
+        PreparedWagerRequestsPerSecond, 1000, MaximumTrackedActionPeers);
 
     /// <summary>All five community cards, dealt up front and revealed a street at a time.</summary>
     private readonly List<int> _board = new();
@@ -59,6 +72,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     private readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> _roundChipRuns = new();
     private readonly List<ChipRun> _potChipRuns = new();
     private List<ChipRun> _lastChipRuns = new();
+
+    // A prepared wager is public table theatre, not money. It remains separate from _chipBanks and
+    // _bets until TryAction accepts the normal poker action that names the exact same denominations.
+    private string _preparedWagerPlayer = "";
+    private int _preparedWagerTurnToken = -1;
+    private int _preparedWagerRevision = -1;
+    private int[] _preparedWagerDenominations = System.Array.Empty<int>();
+    private int _preparedWagerCommittedActionSeq = -1;
 
     /// <summary>Who is still in the session, in seating order. Shrinks as players bust.</summary>
     private readonly List<string> _seatOrder = new();
@@ -95,12 +116,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     protected override void ResetSecretState()
     {
         _actionRequestLimiter.Clear();
+        _preparedWagerRequestLimiter.Clear();
         _board.Clear();
         _bets.Clear();
         _chipBanks.Clear();
         _roundChipRuns.Clear();
         _potChipRuns.Clear();
         _lastChipRuns.Clear();
+        ResetPreparedWagerState();
         _seatOrder.Clear();
         ClearHandResult();
         _street = PokerStreet.Preflop;
@@ -122,7 +145,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _actionSeq = 0;
     }
 
-    protected override void ClearSecretState() => _board.Clear();
+    protected override void ClearSecretState()
+    {
+        _board.Clear();
+        ResetPreparedWagerState();
+    }
 
     public override void _Process(double delta)
     {
@@ -138,6 +165,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     {
         Game?.ApplyPublicSnapshot(context);
         Game?.SeatPresenter?.SnapToAuthoritativeState();
+        // ApplyPublicSnapshot refreshes once before the recovery snap. The snap deliberately discards
+        // every in-flight actor, including a replicated reversible wager, so reconcile once more from
+        // the just-applied authoritative snapshot. Without this final pass a late/reconnected peer kept
+        // the wager in PokerGame.PreparedWagers but did not draw it until some unrelated later update.
+        Game?.SeatPresenter?.Refresh();
     }
 
     protected override Dictionary BuildSnapshot() =>
@@ -194,6 +226,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
         _handNumber++;
         RaiseBlindsIfDue();
+        ResetPreparedWagerState();
 
         DealSeed = SecureSeed.Create();
         var deal = PokerDeal.Deal(_seatOrder, DealSeed);
@@ -323,6 +356,49 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             RpcId(1, MethodName.ActOnServer, turnToken, actionKind, total, denominations);
     }
 
+    /// <summary>
+    /// Publishes the complete ordered preview after one local chip was selected or returned. This
+    /// request never changes a stack: the authority only checks that the preview could be paid from
+    /// the current bank and mirrors it through the ordinary ordered turn context.
+    /// </summary>
+    public void RequestPreparedWager(int turnToken, int revision, int[] denominations)
+    {
+        denominations ??= System.Array.Empty<int>();
+        if (Multiplayer.IsServer())
+            TryPrepareWager(Multiplayer.GetUniqueId(), turnToken, revision, denominations);
+        else
+            RpcId(1, MethodName.PrepareWagerOnServer, turnToken, revision, denominations);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void PrepareWagerOnServer(int turnToken, int revision, int[] denominations)
+    {
+        if (!Multiplayer.IsServer())
+            return;
+
+        var requesterId = Multiplayer.GetRemoteSenderId();
+        if (!_preparedWagerRequestLimiter.TryConsume(requesterId))
+        {
+            RejectPreparedWager(
+                requesterId, turnToken, revision, "prepared_wager_rate_limited");
+            return;
+        }
+
+        TryPrepareWager(requesterId, turnToken, revision,
+            denominations ?? System.Array.Empty<int>());
+    }
+
+    /// <summary>Server/test seam with exactly the same identity and validation as the RPC.</summary>
+    public bool ApplyPreparedWagerFor(
+        string playerId, int turnToken, int revision, int[] denominations)
+    {
+        if (!Multiplayer.IsServer() || !int.TryParse(playerId, out var peerId))
+            return false;
+        return TryPrepareWager(peerId, turnToken, revision,
+            denominations ?? System.Array.Empty<int>());
+    }
+
     public void RequestShowdownReveal()
     {
         if (Multiplayer.IsServer())
@@ -386,6 +462,165 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     internal bool TryConsumeActionRequest(int requesterId, ulong nowMilliseconds) =>
         _actionRequestLimiter.TryConsume(requesterId, nowMilliseconds);
 
+    private bool TryPrepareWager(
+        int requesterId, int turnToken, int revision, IReadOnlyList<int> denominations)
+    {
+        var playerId = requesterId.ToString();
+        if (!TurnIsOpenFor(playerId, turnToken, out _, out var reason))
+        {
+            RejectPreparedWager(requesterId, turnToken, revision, reason);
+            return false;
+        }
+
+        if (!_handInProgress)
+        {
+            RejectPreparedWager(
+                requesterId, turnToken, revision, "hand_not_running");
+            return false;
+        }
+
+        var seat = _seatOrder.IndexOf(playerId);
+        if (seat < 0 || seat != _actingSeat)
+        {
+            RejectPreparedWager(requesterId, turnToken, revision, "not_your_turn");
+            return false;
+        }
+
+        if (revision <= 0 || denominations == null
+            || denominations.Count > MaximumPreparedWagerChips)
+        {
+            RejectPreparedWager(
+                requesterId, turnToken, revision, "invalid_prepared_wager");
+            return false;
+        }
+
+        var sameRevisionScope = _preparedWagerPlayer == playerId
+                                && _preparedWagerTurnToken == turnToken;
+        if (sameRevisionScope && revision <= _preparedWagerRevision)
+        {
+            // A duplicated reliable packet is harmless and idempotent. Reusing the same revision for
+            // different content, or travelling backwards, is a stale preview and is never published.
+            if (revision == _preparedWagerRevision
+                && OrderedDenominationsEqual(_preparedWagerDenominations, denominations))
+                return true;
+
+            // A delayed/duplicated request may never erase a newer accepted preview. The reliable
+            // channel normally preserves order, but retaining the canonical state here also makes
+            // retries and reconnect edges harmless. The owner can still explicitly cancel with a
+            // newer empty snapshot.
+            SendPreparedWagerRejection(
+                requesterId, turnToken, revision, "stale_prepared_wager");
+            return false;
+        }
+
+        long amount = 0;
+        foreach (var denomination in denominations)
+            amount += denomination;
+        if (amount < 0 || amount > int.MaxValue)
+        {
+            RejectPreparedWager(
+                requesterId, turnToken, revision, "invalid_prepared_wager");
+            return false;
+        }
+
+        if (denominations.Count > 0)
+        {
+            if (!_chipBanks.TryGetValue(playerId, out var authoritativeBank))
+            {
+                RejectPreparedWager(
+                    requesterId, turnToken, revision, "invalid_chip_selection");
+                return false;
+            }
+
+            // TryTakeExact mutates its input on success. Probe a clone so merely showing chips on
+            // the cloth can never spend them or affect a later authoritative action.
+            var probe = authoritativeBank
+                .Select(run => new ChipRun(run.Denomination, run.Count)).ToList();
+            if (!PokerChipStack.TryTakeExact(
+                    probe, denominations, (int)amount, out _))
+            {
+                RejectPreparedWager(
+                    requesterId, turnToken, revision, "invalid_chip_selection");
+                return false;
+            }
+        }
+
+        _preparedWagerPlayer = playerId;
+        _preparedWagerTurnToken = turnToken;
+        _preparedWagerRevision = revision;
+        _preparedWagerDenominations = denominations.ToArray();
+        _preparedWagerCommittedActionSeq = -1;
+        PublishPreparedWagerContext();
+        return true;
+    }
+
+    private void RejectPreparedWager(
+        int requesterId, int turnToken, int revision, string reason)
+    {
+        var playerId = requesterId.ToString();
+        var cleared = _preparedWagerPlayer == playerId
+                      && _preparedWagerTurnToken == turnToken
+                      && _preparedWagerDenominations.Length > 0;
+        if (cleared)
+            ClearPreparedWagerPreview(keepRevision: true);
+
+        SendPreparedWagerRejection(requesterId, turnToken, revision, reason);
+        if (cleared)
+            PublishPreparedWagerContext();
+    }
+
+    private void SendPreparedWagerRejection(
+        int requesterId, int turnToken, int revision, string reason)
+    {
+        if (requesterId == Multiplayer.GetUniqueId())
+            EmitSignal(SignalName.PreparedWagerRejected, turnToken, revision, reason);
+        else
+            RpcId(requesterId, MethodName.ReceivePreparedWagerRejected,
+                turnToken, revision, reason);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ReceivePreparedWagerRejected(
+        int turnToken, int revision, string reason)
+    {
+        EmitSignal(SignalName.PreparedWagerRejected, turnToken, revision, reason);
+    }
+
+    private void PublishPreparedWagerContext()
+    {
+        if (Game != null)
+            Game.CallExtendCurrentTurn(
+                BuildContext(_lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
+    }
+
+    private static bool OrderedDenominationsEqual(
+        IReadOnlyList<int> left, IReadOnlyList<int> right)
+    {
+        if (left == null || right == null || left.Count != right.Count)
+            return false;
+        for (var index = 0; index < left.Count; index++)
+        {
+            if (left[index] != right[index])
+                return false;
+        }
+        return true;
+    }
+
+    private void ClearPreparedWagerPreview(bool keepRevision)
+    {
+        _preparedWagerDenominations = System.Array.Empty<int>();
+        _preparedWagerCommittedActionSeq = -1;
+        if (keepRevision)
+            return;
+
+        _preparedWagerPlayer = "";
+        _preparedWagerTurnToken = -1;
+        _preparedWagerRevision = -1;
+    }
+
+    private void ResetPreparedWagerState() => ClearPreparedWagerPreview(keepRevision: false);
+
     /// <summary>
     /// The server acting on a named seat's behalf, validated exactly like anything else.
     ///
@@ -418,26 +653,26 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
         if (!TurnIsOpenFor(playerId, turnToken, out _, out var reason))
         {
-            Reject(requesterId, turnToken, reason);
+            RejectAction(requesterId, turnToken, reason);
             return;
         }
 
         if (!_handInProgress)
         {
-            Reject(requesterId, turnToken, "hand_not_running");
+            RejectAction(requesterId, turnToken, "hand_not_running");
             return;
         }
 
         if (actionKind < (int)PokerActionKind.Fold || actionKind > (int)PokerActionKind.Raise)
         {
-            Reject(requesterId, turnToken, "invalid_action");
+            RejectAction(requesterId, turnToken, "invalid_action");
             return;
         }
 
         var seat = _seatOrder.IndexOf(playerId);
         if (seat < 0 || seat != _actingSeat)
         {
-            Reject(requesterId, turnToken, "not_your_turn");
+            RejectAction(requesterId, turnToken, "not_your_turn");
             return;
         }
 
@@ -447,16 +682,32 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         // The same pure function the client used to build the choices, re-run from scratch.
         if (!PokerBetting.IsLegal(bet, kind, total, _currentBet, _minRaiseIncrement, out var illegal))
         {
-            Reject(requesterId, turnToken, illegal);
+            RejectAction(requesterId, turnToken, illegal);
             return;
         }
 
         var added = kind is PokerActionKind.Call or PokerActionKind.Raise
             ? Mathf.Min(total - bet.CommittedThisRound, bet.Stack) : 0;
+        var preparedForAction = _preparedWagerPlayer == playerId
+                                && _preparedWagerTurnToken == turnToken
+                                && _preparedWagerDenominations.Length > 0;
+        if (added > 0 && (requestedDenominations?.Length ?? 0) > 0
+            && (!preparedForAction
+                || !OrderedDenominationsEqual(
+                    _preparedWagerDenominations, requestedDenominations)))
+        {
+            RejectAction(requesterId, turnToken, "prepared_wager_mismatch");
+            return;
+        }
+        if (added > 0 && (requestedDenominations?.Length ?? 0) == 0 && preparedForAction)
+        {
+            RejectAction(requesterId, turnToken, "prepared_wager_mismatch");
+            return;
+        }
         if (!TryTakeAuthoritativePayment(
                 bet.PlayerId, added, requestedDenominations, out var physicalPayment))
         {
-            Reject(requesterId, turnToken, "invalid_chip_selection");
+            RejectAction(requesterId, turnToken, "invalid_chip_selection");
             return;
         }
 
@@ -476,6 +727,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         // one action can produce several contexts.
         _actionSeq++;
 
+        if (preparedForAction && added > 0)
+            _preparedWagerCommittedActionSeq = _actionSeq;
+        else
+            ClearPreparedWagerPreview(keepRevision: true);
+
         // Every action gets a moment of its own, before anything is decided on top of it.
         //
         // Advance can settle the whole hand — a fold that leaves one player standing does exactly
@@ -484,7 +740,26 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         // The turn does not move here, so this is purely "here is what just happened".
         Game.CallExtendCurrentTurn(BuildContext(_lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
 
+        // The committed preview exists for exactly the accepted-action context. Every peer captures
+        // and adopts those actors from that snapshot; subsequent contexts must no longer present it
+        // as a reversible wager.
+        ClearPreparedWagerPreview(keepRevision: true);
+
         Advance();
+    }
+
+    private void RejectAction(int requesterId, int turnToken, string reason)
+    {
+        var playerId = requesterId.ToString();
+        var cleared = _preparedWagerPlayer == playerId
+                      && _preparedWagerTurnToken == turnToken
+                      && _preparedWagerDenominations.Length > 0;
+        if (cleared)
+            ClearPreparedWagerPreview(keepRevision: true);
+
+        Reject(requesterId, turnToken, reason);
+        if (cleared)
+            PublishPreparedWagerContext();
     }
 
     private bool TryTakeAuthoritativePayment(
@@ -931,6 +1206,9 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         if (seat < 0)
             return;
 
+        if (_preparedWagerPlayer == playerId)
+            ResetPreparedWagerState();
+
         _bets[seat].HasFolded = true;
         _bets[seat].Stack = 0;
         Hands.Remove(playerId);
@@ -991,6 +1269,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         if (_roundChipRuns.Remove(oldPlayerId, out var roundRuns))
             _roundChipRuns[newPlayerId] = roundRuns;
 
+        // A preview is reversible client intent, not settled poker state. A reclaimed connection
+        // starts from the authoritative bank instead of inheriting an interaction it did not make.
+        if (_preparedWagerPlayer == oldPlayerId)
+        {
+            ResetPreparedWagerState();
+            PublishPreparedWagerContext();
+        }
+
         ReissueTo(newPlayerId);
     }
 
@@ -1003,7 +1289,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     private Dictionary BuildContext(string action, string player, int amount, bool advanceTurn = true)
     {
         if (advanceTurn)
+        {
             TurnStamp++;
+            // A preview belongs to one stamped turn. Any path that moves the turn without consuming
+            // it (disconnect, timeout or hand transition) cancels it in that same ordered context.
+            ResetPreparedWagerState();
+        }
 
         var visible = PokerDeal.BoardSize(_street);
         var board = _board.Take(Mathf.Min(visible, _board.Count)).ToArray();
@@ -1058,6 +1349,13 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             ["action_seq"] = _actionSeq,
             ["last_chip_denominations"] = PokerChipStack.Expand(_lastChipRuns),
 
+            ["prepared_player"] = _preparedWagerDenominations.Length > 0
+                ? _preparedWagerPlayer : "",
+            ["prepared_turn_token"] = _preparedWagerTurnToken,
+            ["prepared_revision"] = _preparedWagerRevision,
+            ["prepared_denominations"] = _preparedWagerDenominations,
+            ["prepared_committed_action_seq"] = _preparedWagerCommittedActionSeq,
+
             ["chip_bank_players"] = bankPlayers.ToArray(),
             ["chip_bank_denominations"] = bankDenominations.ToArray(),
             ["chip_bank_counts"] = bankCounts.ToArray(),
@@ -1099,6 +1397,13 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     }
 
     /// <summary>Context handed to the next player when the current one leaves.</summary>
-    public override Dictionary BuildHandoffContext(string outgoingPlayerId) =>
-        BuildContext("left", outgoingPlayerId, 0);
+    public override Dictionary BuildHandoffContext(string outgoingPlayerId)
+    {
+        // TableGame also asks for a handoff context when a disconnected seat is RECLAIMED. Reclaiming
+        // somebody who is not acting must not invalidate the real actor's stamped turn (or cancel the
+        // chips they are currently preparing). A genuine owner handoff still advances the stamp, so
+        // requests issued by the old connection can never be replayed by the reclaimed one.
+        var outgoingOwnsTurn = Game?.IsTurnOwner(outgoingPlayerId) == true;
+        return BuildContext("left", outgoingPlayerId, 0, advanceTurn: outgoingOwnsTurn);
+    }
 }

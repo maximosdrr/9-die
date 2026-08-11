@@ -24,10 +24,14 @@ public partial class PokerSeatPresenter : Node3D
         if (stack == null)
             return;
 
-        var turned = Basis.FromEuler(new Vector3(0.0f, PokerTableLayout.YawTowardCentre(facing), 0.0f));
+        // Denomination columns follow the radial red line beside the player. Keeping the aggregate
+        // pile's own basis authoritative also lets every departing/returning chip use the exact same
+        // source positions instead of an independently guessed orientation.
+        var turned = BankBasis(facing);
         var stackPlace = StackPlace(facing, spec);
 
         stack.Transform = new Transform3D(turned, new Vector3(stackPlace.X, 0.0f, stackPlace.Y));
+        stack.StackSpacing = Mathf.Max(BankColumnSpacing, stack.EffectiveDiameter + 0.004f);
         if (_bankRuns.TryGetValue(playerId, out var bank))
             stack.SetRuns(bank);
         else
@@ -40,6 +44,46 @@ public partial class PokerSeatPresenter : Node3D
         var across = new Vector2(-direction.Y, direction.X);
         return direction * Mathf.Max(spec.SeatBetRadius + 0.08f, spec.SeatStackRadius - StackInset)
             + across * StackSideOffset;
+    }
+
+    private static Basis BankBasis(Vector2 facing) => Basis.FromEuler(new Vector3(
+        0.0f, PokerTableLayout.YawTowardCentre(facing) + Mathf.Pi * 0.5f, 0.0f));
+
+    /// <summary>Exact local frame used by the local chalk CALL guide.</summary>
+    public bool TryBankGuideFrame(
+        string playerId, out Vector2 centre, out Vector2 laneAxis, out Vector2 sideAxis)
+    {
+        centre = Vector2.Zero;
+        laneAxis = Vector2.Zero;
+        sideAxis = Vector2.Zero;
+        if (BoardPresenter == null || string.IsNullOrEmpty(playerId))
+            return false;
+
+        var seat = SeatNodeFor(playerId);
+        if (seat == null)
+            return false;
+
+        var localSeat = ToLocal(seat.GlobalPosition);
+        var facing = new Vector2(localSeat.X, localSeat.Z);
+        if (facing.LengthSquared() < 1e-6f)
+            return false;
+
+        facing = facing.Normalized();
+        var presenterCentre = StackPlace(facing, BoardPresenter.Spec);
+        var presenterLane = facing;
+        var presenterSide = new Vector2(-facing.Y, facing.X);
+        var boardCentre3 = BoardPresenter.ToLocal(ToGlobal(
+            new Vector3(presenterCentre.X, 0.0f, presenterCentre.Y)));
+        var boardLane3 = BoardPresenter.ToLocal(ToGlobal(
+            new Vector3(presenterCentre.X + presenterLane.X, 0.0f,
+                presenterCentre.Y + presenterLane.Y))) - boardCentre3;
+        var boardSide3 = BoardPresenter.ToLocal(ToGlobal(
+            new Vector3(presenterCentre.X + presenterSide.X, 0.0f,
+                presenterCentre.Y + presenterSide.Y))) - boardCentre3;
+        centre = new Vector2(boardCentre3.X, boardCentre3.Z);
+        laneAxis = new Vector2(boardLane3.X, boardLane3.Z).Normalized();
+        sideAxis = new Vector2(boardSide3.X, boardSide3.Z).Normalized();
+        return true;
     }
 
     /// <summary>
@@ -78,7 +122,8 @@ public partial class PokerSeatPresenter : Node3D
 
             if (amount > 0)
                 _pendingChipActions.Enqueue(new PendingChipAction(
-                    playerId, amount, _game.Street, now, _game.LastChipRuns));
+                    playerId, amount, _game.Street, now, _game.ActionSeq,
+                    _game.LastChipRuns));
             else
                 _displayStacks[playerId] = now;
         }
@@ -96,11 +141,13 @@ public partial class PokerSeatPresenter : Node3D
     private void SnapToAuthoritativeState(PokerLayoutSpec spec)
     {
         RestorePreparedImmediately();
+        ClearReplicatedPreparedWagers();
         if (_cardCleanupActive)
             EndCardCleanup();
         LastRecoveryDiscardedAnimation = _presentationHand >= 0
             && (_pendingChipActions.Count > 0 || _collecting || _organizing || _collectionRequested
-                || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
+                || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
+                    ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
                     ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
                     ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
                 || ((_showdownPresenter?.Active ?? false) && !(_showdownPresenter?.ReadyForPayout ?? true)));
@@ -163,7 +210,8 @@ public partial class PokerSeatPresenter : Node3D
         && !_collecting
         && !_organizing
         && !_collectionRequested
-        && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
+        && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
+            ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
             ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
             ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
         && _visibleStreet >= _requestedStreet
@@ -180,6 +228,28 @@ public partial class PokerSeatPresenter : Node3D
     public IReadOnlyDictionary<ulong, Vector3> ActiveChipVisualPositions()
         => _chipAnimator?.ActiveVisualPositions()
             ?? new Dictionary<ulong, Vector3>();
+
+    public IReadOnlyDictionary<ulong, Vector3> ActiveBetVisualPositions(string playerId)
+    {
+        var positions = new Dictionary<ulong, Vector3>();
+        if (_chipAnimator == null || string.IsNullOrEmpty(playerId))
+            return positions;
+
+        foreach (var batch in _chipAnimator.Batches)
+        {
+            if (batch.PlayerId != playerId || batch.Phase is not
+                (ChipBatchPhase.ToBet or ChipBatchPhase.PushingBet
+                    or ChipBatchPhase.Landing or ChipBatchPhase.AtBet))
+                continue;
+
+            foreach (var child in batch.Pile.GetChildren())
+            {
+                if (child is Node3D { Visible: true } visual)
+                    positions[visual.GetInstanceId()] = batch.Pile.Transform * visual.Position;
+            }
+        }
+        return positions;
+    }
 
     /// <summary>Regression guard for the first rendered frame of a call or raise.</summary>
     public bool NewlyStartedBatchesAreAtTheirOrigin => _chipAnimator.Batches.All(batch =>
@@ -370,6 +440,16 @@ public partial class PokerSeatPresenter : Node3D
     private int NextChipSequence() => _nextChipSequence++;
 
     private bool TryPayoutSeatPlaces(string playerId, out Basis basis, out Vector3 stack)
-        => TrySeatChipPlaces(playerId, BoardPresenter.Spec, out basis, out stack, out _);
+    {
+        if (!TrySeatChipPlaces(playerId, BoardPresenter.Spec, out _, out stack, out _))
+        {
+            basis = Basis.Identity;
+            return false;
+        }
+
+        basis = _stacks.TryGetValue(playerId, out var bankPile)
+            ? bankPile.Basis : Basis.Identity;
+        return true;
+    }
 
 }

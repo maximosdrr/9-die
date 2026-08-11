@@ -67,6 +67,7 @@ public partial class PokerHud : CanvasLayer
         {
             HintsLabel.Text = "Segure o botão direito para olhar suas cartas"
                               + " · clique nas fichas e depois em CONFIRMAR APOSTA"
+                              + " · CALL paga automaticamente"
                               + "\nMire e clique em PASSAR/DESISTIR"
                               + " · T vista de cima · E levantar · Q (segurar) sair";
         }

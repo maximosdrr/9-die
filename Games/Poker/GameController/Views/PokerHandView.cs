@@ -25,6 +25,14 @@ public partial class PokerHandView : SeatedHandView
     [Signal]
     public delegate void ActionRequestedEventHandler(int actionKind, int total);
 
+    /// <summary>
+    /// Complete ordered preview after a chip is selected, returned or cancelled. The controller is
+    /// the network seam; views continue to express intent without calling an RPC themselves.
+    /// </summary>
+    [Signal]
+    public delegate void PreparedWagerChangedEventHandler(
+        int turnToken, int revision, int[] denominations);
+
     public virtual void Setup(PokerGame game, Player player)
     {
         Game = game;
