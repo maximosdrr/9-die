@@ -2,12 +2,13 @@
 
 [ext_resource type="Script" path="res://Games/Poker/GameController/Views/PokerHud.cs" id="1_phud"]
 
-[node name="PokerHud" type="CanvasLayer" node_paths=PackedStringArray("Root", "TurnLabel", "StakesLabel", "ActionList", "ResultLabel", "HintsLabel")]
+[node name="PokerHud" type="CanvasLayer" node_paths=PackedStringArray("Root", "TurnLabel", "StakesLabel", "PreparedWagerLabel", "ActionList", "ResultLabel", "HintsLabel")]
 layer = 2
 script = ExtResource("1_phud")
 Root = NodePath("Root")
 TurnLabel = NodePath("Root/Panel/Margin/Box/TurnLabel")
 StakesLabel = NodePath("Root/Panel/Margin/Box/StakesLabel")
+PreparedWagerLabel = NodePath("Root/Panel/Margin/Box/PreparedWagerLabel")
 ActionList = NodePath("Root/Panel/Margin/Box/ActionList")
 ResultLabel = NodePath("Root/Panel/Margin/Box/ResultLabel")
 HintsLabel = NodePath("Root/Hints/HintsLabel")
@@ -53,6 +54,14 @@ layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"HudLabelSmall"
 text = "Pote 0   ·   Suas fichas 0"
+horizontal_alignment = 2
+
+[node name="PreparedWagerLabel" type="Label" parent="Root/Panel/Margin/Box"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"HudLabel"
+text = "Aposta selecionada: 0"
 horizontal_alignment = 2
 
 [node name="HSeparator" type="HSeparator" parent="Root/Panel/Margin/Box"]

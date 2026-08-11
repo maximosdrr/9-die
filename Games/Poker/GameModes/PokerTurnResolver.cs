@@ -53,6 +53,13 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// <summary>Betting state per seat, parallel to <see cref="_seatOrder"/>.</summary>
     private readonly List<PlayerBetState> _bets = new();
 
+    // Monetary totals decide the rules; this ledger decides which physical chips represent them.
+    // It is server-owned so peers never independently decompose the same amount into different chips.
+    private readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> _chipBanks = new();
+    private readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> _roundChipRuns = new();
+    private readonly List<ChipRun> _potChipRuns = new();
+    private List<ChipRun> _lastChipRuns = new();
+
     /// <summary>Who is still in the session, in seating order. Shrinks as players bust.</summary>
     private readonly List<string> _seatOrder = new();
 
@@ -90,6 +97,10 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _actionRequestLimiter.Clear();
         _board.Clear();
         _bets.Clear();
+        _chipBanks.Clear();
+        _roundChipRuns.Clear();
+        _potChipRuns.Clear();
+        _lastChipRuns.Clear();
         _seatOrder.Clear();
         ClearHandResult();
         _street = PokerStreet.Preflop;
@@ -199,12 +210,19 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _street = PokerStreet.Preflop;
         _handInProgress = true;
 
+        _chipBanks.Clear();
+        _roundChipRuns.Clear();
+        _potChipRuns.Clear();
+        _lastChipRuns.Clear();
+
         foreach (var bet in _bets)
         {
             bet.CommittedThisRound = 0;
             bet.CommittedThisHand = 0;
             bet.HasFolded = false;
             bet.HasActedThisRound = false;
+            _chipBanks[bet.PlayerId] = PokerChipStack.CreatePlayableBank(bet.Stack);
+            _roundChipRuns[bet.PlayerId] = new List<ChipRun>();
         }
 
         foreach (var playerId in _seatOrder)
@@ -281,6 +299,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         var bet = _bets[seat];
         var paid = Mathf.Min(amount, bet.Stack);
 
+        if (!_chipBanks.TryGetValue(bet.PlayerId, out var bank))
+            bank = _chipBanks[bet.PlayerId] = PokerChipStack.CreatePlayableBank(bet.Stack);
+        if (!PokerChipStack.TryTake(bank, paid, out var physical))
+            physical = PokerChipStack.Decompose(paid);
+        if (!_roundChipRuns.TryGetValue(bet.PlayerId, out var round))
+            round = _roundChipRuns[bet.PlayerId] = new List<ChipRun>();
+        PokerChipStack.AddRuns(round, physical);
+
         bet.Stack -= paid;
         bet.CommittedThisRound += paid;
         bet.CommittedThisHand += paid;
@@ -288,12 +314,13 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
     // ---------------------------------------------------------------- player requests
 
-    public void RequestAction(int turnToken, int actionKind, int total)
+    public void RequestAction(int turnToken, int actionKind, int total, int[] denominations = null)
     {
+        denominations ??= System.Array.Empty<int>();
         if (Multiplayer.IsServer())
-            TryAction(Multiplayer.GetUniqueId(), turnToken, actionKind, total);
+            TryAction(Multiplayer.GetUniqueId(), turnToken, actionKind, total, denominations);
         else
-            RpcId(1, MethodName.ActOnServer, turnToken, actionKind, total);
+            RpcId(1, MethodName.ActOnServer, turnToken, actionKind, total, denominations);
     }
 
     public void RequestShowdownReveal()
@@ -340,7 +367,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ActOnServer(int turnToken, int actionKind, int total)
+    private void ActOnServer(int turnToken, int actionKind, int total, int[] denominations)
     {
         if (!Multiplayer.IsServer())
             return;
@@ -349,7 +376,8 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         if (!TryConsumeActionRequest(requesterId))
             return;
 
-        TryAction(requesterId, turnToken, actionKind, total);
+        TryAction(requesterId, turnToken, actionKind, total,
+            denominations ?? System.Array.Empty<int>());
     }
 
     private bool TryConsumeActionRequest(int requesterId) =>
@@ -367,12 +395,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// It exists for the things the server itself has to do for a seat — folding a player who ran
     /// out of time, playing a seat nobody is sitting in — and for driving a whole session headlessly.
     /// </summary>
-    public void ApplyActionFor(string playerId, int turnToken, int actionKind, int total)
+    public void ApplyActionFor(
+        string playerId, int turnToken, int actionKind, int total, int[] denominations = null)
     {
         if (!Multiplayer.IsServer() || !int.TryParse(playerId, out var seatPeerId))
             return;
 
-        TryAction(seatPeerId, turnToken, actionKind, total);
+        TryAction(seatPeerId, turnToken, actionKind, total,
+            denominations ?? System.Array.Empty<int>());
     }
 
     // ---------------------------------------------------------------- server rulings
@@ -381,7 +411,8 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// Structural failures answer before rules ones: a malformed request should be told it is
     /// malformed rather than handed an answer about poker it cannot use.
     /// </summary>
-    private void TryAction(int requesterId, int turnToken, int actionKind, int total)
+    private void TryAction(
+        int requesterId, int turnToken, int actionKind, int total, int[] requestedDenominations)
     {
         var playerId = requesterId.ToString();
 
@@ -420,12 +451,25 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             return;
         }
 
+        var added = kind is PokerActionKind.Call or PokerActionKind.Raise
+            ? Mathf.Min(total - bet.CommittedThisRound, bet.Stack) : 0;
+        if (!TryTakeAuthoritativePayment(
+                bet.PlayerId, added, requestedDenominations, out var physicalPayment))
+        {
+            Reject(requesterId, turnToken, "invalid_chip_selection");
+            return;
+        }
+
         ApplyAction(bet, kind, total);
+        if (!_roundChipRuns.TryGetValue(playerId, out var round))
+            round = _roundChipRuns[playerId] = new List<ChipRun>();
+        PokerChipStack.AddRuns(round, physicalPayment);
         bet.HasActedThisRound = true;
 
         _lastAction = kind.ToString().ToLowerInvariant();
         _lastPlayer = playerId;
         _lastAmount = total;
+        _lastChipRuns = physicalPayment;
 
         // Counts PLAYER actions, not contexts. A gesture has to fire exactly once per action, and
         // the turn stamp cannot be used for that — several contexts can carry the same action, and
@@ -441,6 +485,23 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         Game.CallExtendCurrentTurn(BuildContext(_lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
 
         Advance();
+    }
+
+    private bool TryTakeAuthoritativePayment(
+        string playerId, int amount, IReadOnlyList<int> requested, out List<ChipRun> payment)
+    {
+        payment = new List<ChipRun>();
+        if (amount <= 0)
+            return requested == null || requested.Count == 0;
+
+        if (!_chipBanks.TryGetValue(playerId, out var bank))
+            return false;
+
+        // A physical click supplies exact denominations. Keyboard/server actions supply none and use
+        // the authority's deterministic bank instead. In both cases the chosen result is published.
+        if (requested is { Count: > 0 })
+            return PokerChipStack.TryTakeExact(bank, requested, amount, out payment);
+        return PokerChipStack.TryTake(bank, amount, out payment);
     }
 
     private void ApplyAction(PlayerBetState bet, PokerActionKind kind, int total)
@@ -530,6 +591,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// <summary>Sweeps the street's bets into the hand total and clears the round.</summary>
     private void CollectRound()
     {
+        CollectRoundChipLedger();
         foreach (var bet in _bets)
         {
             bet.CommittedThisRound = 0;
@@ -538,6 +600,17 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
         _currentBet = 0;
         _minRaiseIncrement = _bigBlind;
+    }
+
+    private void CollectRoundChipLedger()
+    {
+        foreach (var playerId in _seatOrder)
+        {
+            if (!_roundChipRuns.TryGetValue(playerId, out var runs) || runs.Count == 0)
+                continue;
+            PokerChipStack.AddRuns(_potChipRuns, runs);
+            runs.Clear();
+        }
     }
 
     private void OpenStreet(PokerStreet street)
@@ -654,6 +727,10 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _handInProgress = false;
         _actingSeat = -1;
 
+        // A fold can finish before the normal street sweep. The physical ledger still has to move
+        // every committed chip into the same authoritative pot.
+        CollectRoundChipLedger();
+
         var contributions = _bets.ToDictionary(bet => bet.PlayerId, bet => bet.CommittedThisHand);
         var contenders = _bets.Where(bet => !bet.HasFolded).Select(bet => bet.PlayerId).ToList();
 
@@ -696,11 +773,17 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             bet.CommittedThisHand = 0;
         }
 
+        // Settled/reconnecting peers should see the awarded stacks, not the pre-award banks. Existing
+        // peers keep animating the exact pot actors they already own until the next hand snaps cleanly.
+        foreach (var bet in _bets)
+            _chipBanks[bet.PlayerId] = PokerChipStack.CreatePlayableBank(bet.Stack);
+
         _lastAction = showdown && contenders.Count > 1 ? "showdown" : "won";
         _lastPlayer = awards.Count > 0
             ? awards.OrderByDescending(entry => entry.Value).First().Key
             : "";
         _lastAmount = awards.Values.Sum();
+        _lastChipRuns.Clear();
 
         // Broadcast the settled hand without moving the turn, so every peer can see the board, the
         // shown cards and the new stacks before anything is dealt over the top of them.
@@ -903,6 +986,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         if (_awards.Remove(oldPlayerId, out var award))
             _awards[newPlayerId] = award;
 
+        if (_chipBanks.Remove(oldPlayerId, out var bank))
+            _chipBanks[newPlayerId] = bank;
+        if (_roundChipRuns.Remove(oldPlayerId, out var roundRuns))
+            _roundChipRuns[newPlayerId] = roundRuns;
+
         ReissueTo(newPlayerId);
     }
 
@@ -924,6 +1012,20 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         var revealCards = new List<int>(revealPlayers.Length * PokerDeal.HoleCardCount);
         foreach (var playerId in revealPlayers)
             revealCards.AddRange(_reveals[playerId]);
+
+        var bankPlayers = new List<string>();
+        var bankDenominations = new List<int>();
+        var bankCounts = new List<int>();
+        var roundChipPlayers = new List<string>();
+        var roundChipDenominations = new List<int>();
+        var roundChipCounts = new List<int>();
+        foreach (var playerId in _seatOrder)
+        {
+            AppendRuns(playerId, _chipBanks.GetValueOrDefault(playerId),
+                bankPlayers, bankDenominations, bankCounts);
+            AppendRuns(playerId, _roundChipRuns.GetValueOrDefault(playerId),
+                roundChipPlayers, roundChipDenominations, roundChipCounts);
+        }
 
         return new Dictionary
         {
@@ -954,6 +1056,16 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             ["last_player"] = player ?? "",
             ["last_amount"] = amount,
             ["action_seq"] = _actionSeq,
+            ["last_chip_denominations"] = PokerChipStack.Expand(_lastChipRuns),
+
+            ["chip_bank_players"] = bankPlayers.ToArray(),
+            ["chip_bank_denominations"] = bankDenominations.ToArray(),
+            ["chip_bank_counts"] = bankCounts.ToArray(),
+            ["round_chip_players"] = roundChipPlayers.ToArray(),
+            ["round_chip_denominations"] = roundChipDenominations.ToArray(),
+            ["round_chip_counts"] = roundChipCounts.ToArray(),
+            ["pot_chip_denominations"] = _potChipRuns.Select(run => run.Denomination).ToArray(),
+            ["pot_chip_counts"] = _potChipRuns.Select(run => run.Count).ToArray(),
 
             ["reveal_players"] = revealPlayers,
             ["reveal_cards"] = revealCards.ToArray(),
@@ -970,6 +1082,20 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
             ["win_players"] = _awards.Keys.ToArray(),
             ["win_amounts"] = _awards.Values.ToArray(),
         };
+    }
+
+    private static void AppendRuns(
+        string playerId, IReadOnlyList<ChipRun> runs, List<string> players,
+        List<int> denominations, List<int> counts)
+    {
+        if (runs == null)
+            return;
+        foreach (var run in runs)
+        {
+            players.Add(playerId);
+            denominations.Add(run.Denomination);
+            counts.Add(run.Count);
+        }
     }
 
     /// <summary>Context handed to the next player when the current one leaves.</summary>

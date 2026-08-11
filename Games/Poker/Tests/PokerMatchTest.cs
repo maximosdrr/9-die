@@ -99,6 +99,7 @@ public partial class PokerMatchTest : Node
 
         TestDeal(game);
         TestPickUpGesture(game);
+        TestPreparedWagerCanBeCorrected(game);
         TestFoldThrowsTheCards(game);
         TestSecrecy(game);
         TestRejections(game, resolver);
@@ -180,6 +181,9 @@ public partial class PokerMatchTest : Node
         if (view == null || game.SeatPresenter == null)
             return;
 
+        Check("o indicador de turno cobre os quatro lugares da mesa",
+            game.SeatPresenter.TurnRingSegments.Count == 4);
+
         Check("a mão começa com as cartas na mesa", !view.HasPickedUpCards && !game.LocalPickedUpCards);
 
         // No input whatsoever: the look is a cutscene, not a gesture.
@@ -225,6 +229,82 @@ public partial class PokerMatchTest : Node
 
         Check($"a mesa não fica com as cartas de quem já as pegou ({stillOnCloth} visíveis)",
             stillOnCloth == 0);
+    }
+
+    private void TestPreparedWagerCanBeCorrected(PokerGame game)
+    {
+        var presenter = game.SeatPresenter;
+        var playerId = game.Player == null ? null : (string)game.Player.Name;
+        if (presenter == null || string.IsNullOrEmpty(playerId))
+        {
+            Check("a aposta fisica encontra a pilha local", false);
+            return;
+        }
+
+        var bankBefore = presenter.StackChipPositions(playerId);
+        var top = bankBefore.Values.FirstOrDefault();
+        var value = 0;
+        var selected = bankBefore.Count > 0
+            && presenter.TrySelectPreparedChip(playerId, new Vector2(top.X, top.Z), out value);
+        Check("clicar numa coluna retira uma ficha real e prepara seu valor",
+            selected && value > 0 && presenter.PreparedWagerAmount == value
+            && presenter.PreparedWagerChipCount == 1);
+
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+
+        var prepared = presenter.PreparedWagerVisualPositions();
+        var seat = game.SeatFor(playerId);
+        var seatLocal = seat == null ? Vector3.Zero : presenter.ToLocal(seat.GlobalPosition);
+        var facing = new Vector2(seatLocal.X, seatLocal.Z).Normalized();
+        var betPlace = PokerTableLayout.SeatSpot(facing, game.BoardPresenter.Spec.SeatBetRadius);
+        var distanceToCommittedBet = prepared.Count == 0
+            ? float.MaxValue : prepared[0].DistanceTo(betPlace);
+        Check($"a ficha selecionada se junta ao blind/aposta ({distanceToCommittedBet * 100.0f:F1} cm)",
+            distanceToCommittedBet < 0.05f);
+        var returnedValue = 0;
+        var returned = prepared.Count == 1
+            && presenter.TryReturnPreparedChip(playerId, prepared[0], out returnedValue);
+        Check("clicar na ficha preparada inicia a devolucao para a coluna original",
+            returned && returnedValue == value && presenter.PreparedWagerAmount == 0);
+
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+
+        Check("a devolucao animada restaura a pilha sem alterar o saldo",
+            presenter.PreparedWagerChipCount == 0
+            && presenter.StackChipPositions(playerId).Count == bankBefore.Count
+            && game.StackOf(playerId) == Stack - game.BetOf(playerId));
+
+        // Reproduce the race that can happen when the player corrects one chip and immediately
+        // selects another. Confirmation must wait for the first chip to reach its lane, while an
+        // urgent state change (all-in, timeout, leaving) must still restore both visual chips.
+        var secondBank = presenter.StackChipPositions(playerId);
+        var secondTop = secondBank.Values.FirstOrDefault();
+        var selectedAgain = secondBank.Count > 0
+            && presenter.TrySelectPreparedChip(playerId,
+                new Vector2(secondTop.X, secondTop.Z), out _);
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+
+        var secondPrepared = presenter.PreparedWagerVisualPositions();
+        var returnStarted = secondPrepared.Count == 1
+            && presenter.TryReturnPreparedChip(playerId, secondPrepared[0], out _);
+        var bankDuringReturn = presenter.StackChipPositions(playerId);
+        var nextTop = bankDuringReturn.Values.FirstOrDefault();
+        var replacementSelected = bankDuringReturn.Count > 0
+            && presenter.TrySelectPreparedChip(playerId,
+                new Vector2(nextTop.X, nextTop.Z), out _);
+        var blockedWhileReturning = replacementSelected
+            && !presenter.SubmitPreparedWager(playerId, presenter.PreparedWagerAmount);
+        Check("a aposta espera a ficha devolvida chegar antes de confirmar",
+            selectedAgain && returnStarted && blockedWhileReturning);
+
+        presenter.CancelPreparedWager(immediate: true);
+        Check("um cancelamento imediato no meio da devolucao nao perde fichas",
+            presenter.PreparedWagerChipCount == 0
+            && presenter.StackChipPositions(playerId).Count == bankBefore.Count
+            && game.StackOf(playerId) == Stack - game.BetOf(playerId));
     }
 
     /// <summary>
@@ -323,8 +403,28 @@ public partial class PokerMatchTest : Node
 
         var raiser = game.TurnOwnerId;
         var raiseTotal = game.CurrentBet + game.MinRaiseIncrement;
-        resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal);
+        var preparedRaise = false;
+        if (game.Player != null && raiser == (string)game.Player.Name
+            && presenter.TryGetBankLaneAimPoint(raiser, 10, out var ten)
+            && presenter.TrySelectPreparedChip(raiser, ten, out _)
+            && presenter.TryGetBankLaneAimPoint(raiser, 5, out var five)
+            && presenter.TrySelectPreparedChip(raiser, five, out _))
+        {
+            for (var frame = 0; frame < 30; frame++)
+                presenter._Process(1.0 / 60.0);
+            preparedRaise = presenter.PreparedWagerAmount == raiseTotal - game.BetOf(raiser)
+                && presenter.SubmitPreparedWager(raiser, presenter.PreparedWagerAmount);
+        }
+        Check("a aposta manual monta o aumento com as denominações clicadas", preparedRaise);
+        var selectedDenominations = presenter.PreparedWagerDenominations;
+        resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal,
+            selectedDenominations);
+        Check("o servidor publica exatamente as denominações escolhidas",
+            PokerChipStack.Expand(game.LastChipRuns).OrderBy(value => value)
+                .SequenceEqual(selectedDenominations.OrderBy(value => value)));
         AdvancePresentation(presenter, board, 180, stopWhenReady: true);
+        Check("as fichas preparadas continuam a animação autoritativa sem cópia local",
+            presenter.PreparedWagerAmount == 0 && !presenter.PreparedWagerSubmitted);
         Check("as fichas apostadas permanecem soltas antes da coleta",
             presenter.BetsAreVisuallyLoose);
 
@@ -403,6 +503,9 @@ public partial class PokerMatchTest : Node
             maximumFrameStep < 0.025f);
         Check("o pote chega solto antes de ser organizado", sawLooseOrganization);
         Check("a organização termina em colunas compactas", presenter.PotIsOrganizedTower);
+        Check("o pote público conserva a composição física definida pelo servidor",
+            PokerChipStack.Total(game.PotChipRuns) == game.PotInMiddle
+            && presenter.PotPhysicalGroupValues().Sum() == game.PotInMiddle);
         Check("as mesmas fichas chegam ao pote sem troca de instância",
             inFlightIds.Count > 0 && inFlightIds.SetEquals(potIds));
         Check($"o áudio acompanha impactos físicos reais ({landingEvents} eventos, {landedChips} fichas)",

@@ -29,7 +29,7 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public float BoardOffset = 0.0f;
     [Export] public float PotRadius = 0.16f;
     [Export] public float SeatCardRadius = 0.40f;
-    [Export] public float SeatBetRadius = 0.25f;
+    [Export] public float SeatBetRadius = 0.32f;
     [Export] public float SeatStackRadius = 0.54f;
 
     /// <summary>
@@ -183,8 +183,8 @@ public partial class PokerBoardPresenter : Node3D
     }
 
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
-    public Vector3 DeckPosition => new Basis(Vector3.Up, ReaderYaw()) * DeckOffset;
-    public Basis DeckCardBasis => new Basis(Vector3.Up, ReaderYaw()) * PokerCard.Orientation(true);
+    public Vector3 DeckPosition => ReaderBasis * DeckOffset;
+    public Basis DeckCardBasis => ReaderBasis * PokerCard.Orientation(true);
     public float DeckTopHeight => Mathf.Max(1, DeckDepth) * Spec.CardThickness * 1.6f;
 
     /// <summary>Successive collected cards land above, never through, the visible deck proxy.</summary>
@@ -192,18 +192,41 @@ public partial class PokerBoardPresenter : Node3D
         * (DeckTopHeight + (Mathf.Max(0, slot) + 0.5f) * Spec.CardThickness * 1.7f);
 
     /// <summary>Where thrown-away hands lie, in this presenter's space.</summary>
-    public Vector3 MuckPosition => new Basis(Vector3.Up, ReaderYaw()) * MuckOffset;
+    public Vector3 MuckPosition => ReaderBasis * MuckOffset;
 
-    /// <summary>Where visually collected bets gather, in this presenter's local space.</summary>
+    /// <summary>
+    /// Direction from the table centre to this peer's chair. Board cards, deck, physical pot and the
+    /// local interaction guide all consume this exact value, so a different seat cannot produce a
+    /// slightly different version of the centre layout.
+    /// </summary>
+    public Vector2 ReaderFacing
+    {
+        get
+        {
+            var playerId = _game?.Player == null ? null : (string)_game.Player.Name;
+            var seat = playerId == null ? null : _game.SeatFor(playerId);
+            if (seat == null)
+                return Vector2.Down;
+
+            var toSeat = ToLocal(seat.GlobalPosition);
+            var facing = new Vector2(toSeat.X, toSeat.Z);
+            return facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
+        }
+    }
+
+    public Basis ReaderBasis =>
+        new(Vector3.Up, PokerTableLayout.YawTowardCentre(ReaderFacing));
+
+    /// <summary>
+    /// Where visually collected bets gather, in this presenter's local space. It is always directly
+    /// below the community row from the local player's view, at the position used before the new HUD.
+    /// </summary>
     public Vector3 PotPosition
     {
         get
         {
-            var spec = Spec;
-            var reader = new Basis(Vector3.Up, ReaderYaw());
-            // PotRadius is measured from the board centre and is deliberately independent of card
-            // length. The former hard-coded 7 cm margin left the chip faces visually under the board.
-            return reader * new Vector3(0.0f, 0.0f, spec.BoardOffset + spec.PotRadius);
+            var distance = Spec.BoardOffset + Spec.PotRadius;
+            return new Vector3(ReaderFacing.X * distance, 0.0f, ReaderFacing.Y * distance);
         }
     }
 
@@ -267,7 +290,7 @@ public partial class PokerBoardPresenter : Node3D
         if (_deck == null)
             return;
 
-        _deck.Transform = new Transform3D(new Basis(Vector3.Up, ReaderYaw()), DeckPosition);
+        _deck.Transform = new Transform3D(ReaderBasis, DeckPosition);
     }
 
     /// <summary>
@@ -277,21 +300,6 @@ public partial class PokerBoardPresenter : Node3D
     /// peer builds its own table from the same public state — so each peer may as well turn them
     /// toward its own player rather than making three of the four crane.
     /// </summary>
-    private float ReaderYaw()
-    {
-        var playerId = _game?.Player == null ? null : (string)_game.Player.Name;
-        var seat = playerId == null ? null : _game.SeatFor(playerId);
-        if (seat == null)
-            return 0.0f;
-
-        var toSeat = ToLocal(seat.GlobalPosition);
-        var facing = new Vector2(toSeat.X, toSeat.Z);
-
-        return facing.LengthSquared() < 1e-6f
-            ? 0.0f
-            : PokerTableLayout.YawTowardCentre(facing.Normalized());
-    }
-
     /// <summary>One source for every measurement on this table.</summary>
     public PokerLayoutSpec Spec => new(
         CardWidth, CardLength, CardThickness, CardGap,
@@ -409,7 +417,7 @@ public partial class PokerBoardPresenter : Node3D
             return;
         }
 
-        var reader = new Basis(Vector3.Up, ReaderYaw());
+        var reader = ReaderBasis;
         var potPlace = PotPosition;
 
         PotPile.Transform = new Transform3D(reader, potPlace);
@@ -574,7 +582,7 @@ public partial class PokerBoardPresenter : Node3D
         // One soft lateral press replaces the former double-frequency tap, which read as a twitch.
         var square = Mathf.Clamp((shuffle - 0.82f) / 0.18f, 0.0f, 1.0f);
         var tap = Mathf.Sin(square * Mathf.Pi * 2.0f) * (1.0f - square) * 0.003f;
-        var across = new Basis(Vector3.Up, ReaderYaw()) * Vector3.Right;
+        var across = ReaderBasis * Vector3.Right;
         _deck.Transform = new Transform3D(_deckRest.Basis, _deckRest.Origin + across * tap);
     }
 
@@ -636,7 +644,7 @@ public partial class PokerBoardPresenter : Node3D
     private void PlaceAll()
     {
         var spec = Spec;
-        var reader = new Basis(Vector3.Up, ReaderYaw());
+        var reader = ReaderBasis;
 
         for (var index = 0; index < _cards.Count; index++)
         {

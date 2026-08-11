@@ -21,6 +21,7 @@ public partial class PokerHud : CanvasLayer
     [Export] public Control Root;
     [Export] public Label TurnLabel;
     [Export] public Label StakesLabel;
+    [Export] public Label PreparedWagerLabel;
     [Export] public VBoxContainer ActionList;
 
     /// <summary>How the last hand ended, and why. Takes over from the actions between hands.</summary>
@@ -43,13 +44,10 @@ public partial class PokerHud : CanvasLayer
     }
 
     /// <summary>Order top to bottom, cheapest decision first and the irreversible one last.</summary>
+    // Check, call, raise and fold now live on the physical table. Only the all-in shortcut and the
+    // showdown reveal remain screen-space actions.
     private static readonly (PokerActionKind Kind, string Key)[] Layout =
-    {
-        (PokerActionKind.Check, PokerInput.CallKey),
-        (PokerActionKind.Call, PokerInput.CallKey),
-        (PokerActionKind.Raise, PokerInput.RaiseKey),
-        (PokerActionKind.Fold, PokerInput.FoldKey),
-    };
+        System.Array.Empty<(PokerActionKind, string)>();
 
     public override void _Ready()
     {
@@ -58,8 +56,10 @@ public partial class PokerHud : CanvasLayer
 
         if (HintsLabel != null)
         {
-            HintsLabel.Text = "Segure o botão esquerdo para olhar suas cartas de novo"
-                              + "\nT vista de cima · E levantar · Q (segurar) sair da mesa";
+            HintsLabel.Text = "Segure o botão direito para olhar suas cartas"
+                              + " · clique nas fichas e depois em CONFIRMAR APOSTA"
+                              + "\nMire e clique em PASSAR/DESISTIR"
+                              + " · T vista de cima · E levantar · Q (segurar) sair";
         }
     }
 
@@ -118,8 +118,15 @@ public partial class PokerHud : CanvasLayer
 
         if (StakesLabel != null)
         {
-            StakesLabel.Text = $"Pote {_game.PotTotal}   ·   Suas fichas {_game.StackOf(playerId)}"
+            var prepared = _game.SeatPresenter?.PreparedWagerAmount ?? 0;
+            StakesLabel.Text = $"Pote {_game.PotTotal}   ·   Suas fichas {Mathf.Max(0, _game.StackOf(playerId) - prepared)}"
                                + $"\n{StreetName(_game.Street)}   ·   blinds {_game.ActiveSmallBlind}/{_game.ActiveBigBlind}";
+
+            if (PreparedWagerLabel != null)
+            {
+                PreparedWagerLabel.Visible = prepared > 0;
+                PreparedWagerLabel.Text = prepared > 0 ? $"Aposta selecionada: {prepared}" : "";
+            }
         }
 
         // Between hands the actions are gone and what matters is what just happened, so the panel
@@ -153,7 +160,7 @@ public partial class PokerHud : CanvasLayer
 
         if (_rows.TryGetValue(PokerActionKind.None, out var allInRow))
         {
-            var separate = isYourTurn && allInTotal > 0 && allInTotal != raiseTotal;
+            var separate = isYourTurn && allInTotal > 0;
             allInRow.Box.Visible = separate;
             if (separate)
             {
@@ -302,7 +309,11 @@ public partial class PokerHud : CanvasLayer
     private static int AllInTotal(IReadOnlyList<ActionOption> options)
     {
         var raise = Find(options, PokerActionKind.Raise);
-        return raise?.MaxTotal ?? 0;
+        if (raise.HasValue)
+            return raise.Value.MaxTotal;
+
+        var call = Find(options, PokerActionKind.Call);
+        return call?.MaxTotal ?? 0;
     }
 
     private static ActionOption? Find(IReadOnlyList<ActionOption> options, PokerActionKind kind)

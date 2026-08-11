@@ -119,8 +119,21 @@ public partial class PokerSceneLoadTest : Node
         Check("o par revelado recebe variação visual moderada",
             seatPresenter is { ShowdownPairPositionJitter: > 0.0f,
                 ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
-        Check("fichas apostadas e saldo ficam em corredores laterais opostos às cartas",
-            seatPresenter is { BetSideOffset: >= 0.12f, StackSideOffset: >= 0.14f });
+        Check("saldo e apostas pendentes ocupam faixas diferentes das cartas",
+            seatPresenter is { BetSideOffset: >= 0.0f and <= 0.01f,
+                StackSideOffset: >= 0.14f, StackInset: >= 0.08f }
+            && game.BoardPresenter.Spec.SeatBetRadius >= 0.30f);
+        Check("o turno usa um anel fino junto à borda da mesa",
+            seatPresenter is { TurnRingRadius: >= 0.60f, TurnRingWidth: > 0.0f and <= 0.006f,
+                TurnRingArcSteps: >= 12 }
+            && seatPresenter.ActiveTurnRingColor.A <= 0.50f
+            && seatPresenter.OccupiedTurnRingColor.A <= 0.32f);
+        Check("o disco branco do dealer foi removido da apresentação",
+            typeof(PokerSeatPresenter).GetField("_dealerButton",
+                BindingFlags.Instance | BindingFlags.NonPublic) == null);
+        Check("a aposta preparada não cria mais um HUD flutuante sobre a mesa",
+            typeof(PokerSeatPresenter).GetField("_preparedWagerLabel",
+                BindingFlags.Instance | BindingFlags.NonPublic) == null);
         if (seatPresenter != null && game.BoardPresenter != null)
         {
             var spec = game.BoardPresenter.CommunityCardSpec;
@@ -131,6 +144,21 @@ public partial class PokerSceneLoadTest : Node
                 Mathf.Max(0.0f, Mathf.Abs(sideSeatBet.Y - edgeCard.Y) - spec.CardLength * 0.5f));
             Check($"até a aposta mais crítica deixa as comunitárias livres ({gap.Length() * 100.0f:F1} cm)",
                 gap.Length() > 0.05f);
+
+            var baseSpec = game.BoardPresenter.Spec;
+            var chipRadius = 0.020f;
+            var cardRadius = new Vector2(
+                baseSpec.CardWidth * 0.5f, baseSpec.CardLength * 0.5f).Length();
+            var deckGap = new Vector2(baseSpec.SeatBetRadius, 0.0f)
+                .DistanceTo(new Vector2(
+                    game.BoardPresenter.DeckOffset.X, game.BoardPresenter.DeckOffset.Z))
+                - cardRadius - chipRadius;
+            var ownCardsGap = baseSpec.SeatCardRadius - baseSpec.CardLength * 0.5f
+                - baseSpec.SeatBetRadius - chipRadius;
+            Check($"a aposta lateral também deixa o baralho livre ({deckGap * 100.0f:F1} cm)",
+                deckGap > 0.04f);
+            Check($"a aposta fica diante das cartas do dono sem entrar nelas ({ownCardsGap * 100.0f:F1} cm)",
+                ownCardsGap > 0.005f);
         }
         Check("o embaralhamento divide, intercala e esquadra o maço",
             game.BoardPresenter is { ShuffleSplitDistance: >= 0.025f,
@@ -275,18 +303,18 @@ public partial class PokerSceneLoadTest : Node
     }
 
     /// <summary>
-    /// The secrecy rule, enforced statically. Cards are int arrays; if one ever appears on a method
-    /// that is not the single targeted channel, some refactor has started dealing everyone's hand to
-    /// the whole table.
+    /// The secrecy rule, enforced statically. Physical chip denominations may also be int arrays, so
+    /// only parameters explicitly named as cards/items count as secret-hand carriers.
     /// </summary>
     private void TestHoleCardsNeverBroadcast()
     {
         var carriers = typeof(PokerTurnResolver)
             .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .Where(method => method.GetCustomAttribute<RpcAttribute>() != null)
-            .Where(method => method.GetParameters()
-                .Any(parameter => parameter.ParameterType == typeof(int[])
-                                  || parameter.ParameterType == typeof(long[])))
+            .Where(method => method.GetParameters().Any(parameter =>
+                (parameter.ParameterType == typeof(int[]) || parameter.ParameterType == typeof(long[]))
+                && (parameter.Name?.Contains("item", System.StringComparison.OrdinalIgnoreCase) == true
+                    || parameter.Name?.Contains("card", System.StringComparison.OrdinalIgnoreCase) == true)))
             .Select(method => method.Name)
             .ToList();
 
@@ -334,6 +362,7 @@ public partial class PokerSceneLoadTest : Node
         var overrides = new[]
         {
             "Refresh", "SetInteractive", "SetTopViewActive", "ShowNotice", "ShowRejection", "Clear",
+            "CancelPreparedWager",
         };
 
         var allOverridden = overrides.All(name =>
@@ -624,9 +653,6 @@ public partial class PokerSceneLoadTest : Node
     {
         var actions = new[]
         {
-            (PokerInput.Call, PokerInput.CallKey, Key.C),
-            (PokerInput.Raise, PokerInput.RaiseKey, Key.R),
-            (PokerInput.Fold, PokerInput.FoldKey, Key.X),
             (PokerInput.AllIn, PokerInput.AllInKey, Key.Z),
             (PokerInput.ShowdownReveal, PokerInput.ShowdownRevealKey, Key.S),
         };
@@ -641,11 +667,35 @@ public partial class PokerSceneLoadTest : Node
             Check($"{action} está mapeada na tecla que a HUD mostra ({printed})", mapped);
         }
 
-        Check("espiar as cartas está no botão esquerdo",
+        Check("espiar as cartas está no botão direito",
             InputMap.HasAction(PokerInput.Peek)
             && InputMap.ActionGetEvents(PokerInput.Peek)
                 .OfType<InputEventMouseButton>()
-                .Any(entry => entry.ButtonIndex == MouseButton.Left));
+                .Any(entry => entry.ButtonIndex == MouseButton.Right));
+
+        var handScene = GD.Load<PackedScene>(
+            "res://Games/Poker/GameController/Views/PokerHand3DView.tscn");
+        var hand = handScene?.Instantiate<PokerHand3DView>();
+        var farCornerRadius = hand?.ConfirmZoneFarRadius ?? float.MaxValue;
+        Check("a interface física tem mira e três zonas radiais de clique único",
+            hand is { Crosshair: not null,
+                ActionZoneNearRadius: >= 0.44f, ActionZoneFarRadius: <= 0.53f,
+                ConfirmZoneFarRadius: > 0.53f and <= 0.59f,
+                ActionZoneHalfAngleDegrees: >= 12.0f and <= 20.0f }
+            && hand.ActionZoneFarRadius > hand.ActionZoneNearRadius
+            && hand.ConfirmZoneFarRadius > hand.ActionZoneFarRadius
+            && typeof(PokerHand3DView).GetMethod("HandleTableClick")?.GetParameters().Length == 0);
+        Check("os comandos usam giz procedural, fonte grande e divisões finas",
+            hand is { ChalkFont: not null, ChalkHoverShader: not null,
+                ChalkGuideFontSize: >= 68, ChalkGuidePixelSize: >= 0.00018f,
+                ChalkHoverOpacity: > 0.0f and <= 0.30f,
+                InteractionGuideThickness: <= 0.0015f });
+        Check("o pote não mantém uma área ou um contorno amarelo próprio",
+            typeof(PokerHand3DView).GetField("PotGuideColor") == null
+            && typeof(PokerHand3DView).GetField("PotClickRadius") == null);
+        Check($"até os cantos das ações ficam dentro do tampo ({farCornerRadius:F3} m)",
+            farCornerRadius < 0.60f);
+        hand?.Free();
 
         var scene = GD.Load<PackedScene>("res://Games/Poker/GameController/Views/PokerHud.tscn");
         Check("a cena da HUD carrega", scene != null && scene.CanInstantiate());
@@ -658,14 +708,15 @@ public partial class PokerSceneLoadTest : Node
 
         Check("a HUD encontra todos os nós que o script usa",
             hud.Root != null && hud.TurnLabel != null && hud.StakesLabel != null
+            && hud.PreparedWagerLabel != null
             && hud.ActionList != null && hud.ResultLabel != null && hud.HintsLabel != null);
 
         Check($"a HUD fica acima das outras camadas ({hud.Layer})", hud.Layer > 1);
 
         // One row per action the layout knows about, plus all-in. Built once in _Ready rather than
         // rebuilt per refresh, which would flicker.
-        Check($"a HUD monta uma linha por ação ({hud.ActionList.GetChildCount()})",
-            hud.ActionList.GetChildCount() == 6);
+        Check($"a HUD mantém apenas all-in e showdown ({hud.ActionList.GetChildCount()})",
+            hud.ActionList.GetChildCount() == 2);
 
         Check("a HUD começa escondida", !hud.Root.Visible);
 

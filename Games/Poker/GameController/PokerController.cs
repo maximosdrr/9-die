@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Godot.Collections;
 using Poker.Rules;
@@ -142,14 +143,33 @@ public partial class PokerController : SeatedTableController
         base._UnhandledInput(@event);
     }
 
-    private void OnActionRequested(int actionKind, int total) =>
-        Game?.Resolver?.RequestAction(Game.TurnToken, actionKind, total);
+    private void OnActionRequested(int actionKind, int total)
+    {
+        if (Game?.Resolver == null)
+            return;
+        var presenter = Game.SeatPresenter;
+        var denominations = presenter?.PreparedWagerDenominations
+            ?? System.Array.Empty<int>();
+        var playerId = Game.Player == null ? "" : (string)Game.Player.Name;
+        var added = string.IsNullOrEmpty(playerId) ? 0
+            : Mathf.Max(0, total - Game.BetOf(playerId));
+        if (presenter?.PreparedWagerSubmitted != true || denominations.Sum() != added)
+        {
+            if (presenter?.PreparedWagerAmount > 0)
+                presenter.CancelPreparedWager(immediate: true);
+            denominations = System.Array.Empty<int>();
+        }
+        Game.Resolver.RequestAction(Game.TurnToken, actionKind, total, denominations);
+    }
 
     private void OnActionRejected(string reason)
     {
         if (!IsMultiplayerAuthority())
             return;
 
+        // A stale or refused request never owns the tentative chips. Put them back before repainting
+        // the legal state so the local table and the authoritative stack cannot disagree.
+        _handView?.CancelPreparedWager();
         _handView?.ShowRejection(reason);
         // The rejection may have been "the turn already moved", so repaint from real state rather
         // than leaving the interface showing what the player thought was true.

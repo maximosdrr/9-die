@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 namespace Poker.Rules;
@@ -98,6 +99,87 @@ public static class PokerChipStack
             count += run.Count;
 
         return count;
+    }
+
+    /// <summary>Expands runs into the exact physical denominations carried over the network.</summary>
+    public static int[] Expand(IReadOnlyList<ChipRun> runs)
+    {
+        if (runs == null)
+            return System.Array.Empty<int>();
+
+        var chips = new List<int>();
+        foreach (var run in runs)
+        {
+            for (var count = 0; count < run.Count; count++)
+                chips.Add(run.Denomination);
+        }
+        return chips.ToArray();
+    }
+
+    /// <summary>Groups an exact physical denomination list without changing its value.</summary>
+    public static List<ChipRun> FromDenominations(IEnumerable<int> denominations)
+    {
+        if (denominations == null)
+            return new List<ChipRun>();
+
+        return denominations.Where(IsDenomination).GroupBy(value => value)
+            .OrderByDescending(group => group.Key)
+            .Select(group => new ChipRun(group.Key, group.Count())).ToList();
+    }
+
+    public static bool IsDenomination(int value) =>
+        System.Array.IndexOf(Denominations, value) >= 0;
+
+    /// <summary>
+    /// Removes the exact chips named by a player's request. The amount alone is not enough here:
+    /// preserving this list is what keeps every peer looking at the same physical wager.
+    /// </summary>
+    public static bool TryTakeExact(
+        List<ChipRun> bank, IReadOnlyList<int> denominations, int expectedAmount,
+        out List<ChipRun> payment)
+    {
+        payment = new List<ChipRun>();
+        if (bank == null || denominations == null || denominations.Count == 0)
+            return expectedAmount == 0;
+        if (denominations.Count > ChipCount(bank))
+            return false;
+
+        var requested = FromDenominations(denominations);
+        if (ChipCount(requested) != denominations.Count || Total(requested) != expectedAmount)
+            return false;
+
+        foreach (var run in requested)
+        {
+            var lane = bank.FindIndex(available => available.Denomination == run.Denomination);
+            if (lane < 0 || bank[lane].Count < run.Count)
+                return false;
+        }
+
+        foreach (var run in requested)
+        {
+            var lane = bank.FindIndex(available => available.Denomination == run.Denomination);
+            var available = bank[lane];
+            bank[lane] = new ChipRun(available.Denomination, available.Count - run.Count);
+        }
+        payment = requested;
+        return true;
+    }
+
+    /// <summary>Merges physical runs while preserving denomination columns.</summary>
+    public static void AddRuns(List<ChipRun> target, IReadOnlyList<ChipRun> added)
+    {
+        if (target == null || added == null)
+            return;
+
+        foreach (var run in added)
+        {
+            var lane = target.FindIndex(existing => existing.Denomination == run.Denomination);
+            if (lane < 0)
+                target.Add(run);
+            else
+                target[lane] = new ChipRun(run.Denomination, target[lane].Count + run.Count);
+        }
+        target.Sort((left, right) => right.Denomination.CompareTo(left.Denomination));
     }
 
     /// <summary>The largest denomination worth no more than <paramref name="amount"/>.</summary>

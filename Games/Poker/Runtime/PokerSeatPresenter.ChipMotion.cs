@@ -12,13 +12,16 @@ public partial class PokerSeatPresenter : Node3D
 {
     private ChipBatch AcquireBatch() => _chipAnimator.Acquire();
 
-    private void PlaceInitialBet(string playerId, int amount, PokerLayoutSpec spec)
+    private void PlaceInitialBet(
+        string playerId, IReadOnlyList<ChipRun> authoritativeRuns, int amount, PokerLayoutSpec spec)
     {
         if (!TrySeatChipPlaces(playerId, spec, out var basis, out _, out var bet))
             return;
 
         var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
-        foreach (var run in PokerChipAnimator.GroupRuns(PokerChipStack.Decompose(amount), available))
+        var runs = authoritativeRuns is { Count: > 0 }
+            ? authoritativeRuns : PokerChipStack.Decompose(amount);
+        foreach (var run in PokerChipAnimator.GroupRuns(runs, available))
         {
             var batch = AcquireBatch();
             batch.PlayerId = playerId;
@@ -37,11 +40,13 @@ public partial class PokerSeatPresenter : Node3D
         }
     }
 
-    private void PlaceOrganizedPotSnapshot(int amount)
+    private void PlaceOrganizedPotSnapshot(IReadOnlyList<ChipRun> authoritativeRuns, int amount)
     {
         var centre = BoardPresenter.PotPosition;
         var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
-        foreach (var run in PokerChipAnimator.GroupRuns(PokerChipStack.Decompose(amount), available))
+        var runs = authoritativeRuns is { Count: > 0 }
+            ? authoritativeRuns : PokerChipStack.Decompose(amount);
+        foreach (var run in PokerChipAnimator.GroupRuns(runs, available))
         {
             var batch = AcquireBatch();
             batch.Amount = run.Value;
@@ -83,7 +88,31 @@ public partial class PokerSeatPresenter : Node3D
                 out var basis, out var stack, out var bet))
             return false;
 
-        var payment = TakeVisualPayment(action.PlayerId, action.Amount, action.StackAfter);
+        var prepared = TakeSubmittedPreparedWager(action.PlayerId, action.Amount);
+        var usesPreparedChips = prepared.Count > 0;
+        var authoritativePayment = action.Runs is { Count: > 0 }
+            ? action.Runs.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
+            : null;
+        var preparedPayment = prepared.Select(chip => chip.Run).ToList();
+        if (usesPreparedChips && authoritativePayment is { Count: > 0 }
+            && !SameChipComposition(preparedPayment, authoritativePayment))
+        {
+            // Recovery/race safety: discard the tentative rendering and trust the server's ledger.
+            ReleaseConsumedPreparedWager(prepared);
+            prepared.Clear();
+            usesPreparedChips = false;
+        }
+
+        var payment = authoritativePayment is { Count: > 0 }
+            ? authoritativePayment
+            : usesPreparedChips
+                ? preparedPayment
+                : TakeVisualPayment(action.PlayerId, action.Amount, action.StackAfter);
+
+        var publicBank = _game.ChipBankOf(action.PlayerId);
+        if (publicBank.Count > 0)
+            _bankRuns[action.PlayerId] = publicBank
+                .Select(run => new ChipRun(run.Denomination, run.Count)).ToList();
         if (_stacks.TryGetValue(action.PlayerId, out var bankPile)
             && _bankRuns.TryGetValue(action.PlayerId, out var bank))
             bankPile.SetRuns(bank);
@@ -91,8 +120,12 @@ public partial class PokerSeatPresenter : Node3D
         var groupIndex = 0;
         var paidByDenomination = new Dictionary<int, int>();
         var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
-        foreach (var run in PokerChipAnimator.GroupRuns(payment, available))
+        var movingRuns = usesPreparedChips
+            ? payment
+            : PokerChipAnimator.GroupRuns(payment, available);
+        foreach (var run in movingRuns)
         {
+            var movingIndex = groupIndex++;
             var batch = AcquireBatch();
             batch.PlayerId = action.PlayerId;
             batch.Amount = run.Value;
@@ -100,14 +133,21 @@ public partial class PokerSeatPresenter : Node3D
             batch.Sequence = _nextChipSequence++;
             batch.To = bet;
             batch.Progress = 0.0f;
-            batch.Delay = groupIndex++ * Profile.ChipFlightStagger;
+            batch.Delay = movingIndex * Profile.ChipFlightStagger;
             batch.Phase = ChipBatchPhase.ToBet;
             var paidBefore = paidByDenomination.GetValueOrDefault(run.Denomination);
             paidByDenomination[run.Denomination] = paidBefore + run.Count;
-            var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
-                ? PaymentDepartureOffset(bankAfter, run.Denomination, paidBefore, bankPile)
-                : Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
-            batch.From = stack + basis * departure;
+            if (usesPreparedChips)
+            {
+                batch.From = prepared[movingIndex].Position;
+            }
+            else
+            {
+                var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
+                    ? PaymentDepartureOffset(bankAfter, run.Denomination, paidBefore, bankPile)
+                    : Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
+                batch.From = stack + basis * departure;
+            }
 
             // Configure while hidden and reveal at the real physical source. A large stack may travel
             // as a compact same-denomination group, but it never changes value or chip type in flight.
@@ -120,7 +160,23 @@ public partial class PokerSeatPresenter : Node3D
             batch.JustStarted = true;
             batch.Pile.Visible = true;
         }
+        if (usesPreparedChips)
+            ReleaseConsumedPreparedWager(prepared);
         return groupIndex > 0;
+    }
+
+    private static bool SameChipComposition(
+        IReadOnlyList<ChipRun> left, IReadOnlyList<ChipRun> right)
+    {
+        if (PokerChipStack.Total(left) != PokerChipStack.Total(right)
+            || PokerChipStack.ChipCount(left) != PokerChipStack.ChipCount(right))
+            return false;
+        var leftCounts = left.GroupBy(run => run.Denomination)
+            .ToDictionary(group => group.Key, group => group.Sum(run => run.Count));
+        var rightCounts = right.GroupBy(run => run.Denomination)
+            .ToDictionary(group => group.Key, group => group.Sum(run => run.Count));
+        return leftCounts.Count == rightCounts.Count
+            && leftCounts.All(entry => rightCounts.GetValueOrDefault(entry.Key) == entry.Value);
     }
 
     private int NextBetLooseSlot(string playerId)

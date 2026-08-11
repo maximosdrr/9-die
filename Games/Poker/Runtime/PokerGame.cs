@@ -70,6 +70,10 @@ public partial class PokerGame : TableGame
     public readonly System.Collections.Generic.Dictionary<string, int> Stacks = new();
     public readonly System.Collections.Generic.Dictionary<string, int> BetThisRound = new();
     public readonly System.Collections.Generic.Dictionary<string, int> BetThisHand = new();
+    public readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> ChipBanks = new();
+    public readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> RoundChipRuns = new();
+    public readonly List<ChipRun> PotChipRuns = new();
+    public readonly List<ChipRun> LastChipRuns = new();
     public readonly HashSet<string> Folded = new();
     public readonly HashSet<string> AllIn = new();
 
@@ -194,6 +198,12 @@ public partial class PokerGame : TableGame
 
     public int BetOf(string playerId) => BetThisRound.GetValueOrDefault(playerId);
 
+    public IReadOnlyList<ChipRun> ChipBankOf(string playerId) =>
+        ChipBanks.TryGetValue(playerId, out var runs) ? runs : System.Array.Empty<ChipRun>();
+
+    public IReadOnlyList<ChipRun> RoundChipsOf(string playerId) =>
+        RoundChipRuns.TryGetValue(playerId, out var runs) ? runs : System.Array.Empty<ChipRun>();
+
     public bool HasFolded(string playerId) => Folded.Contains(playerId);
 
     public bool IsAllIn(string playerId) => AllIn.Contains(playerId);
@@ -276,6 +286,10 @@ public partial class PokerGame : TableGame
         Stacks.Clear();
         BetThisRound.Clear();
         BetThisHand.Clear();
+        ChipBanks.Clear();
+        RoundChipRuns.Clear();
+        PotChipRuns.Clear();
+        LastChipRuns.Clear();
         Folded.Clear();
         AllIn.Clear();
         RevealedHoleCards.Clear();
@@ -317,6 +331,14 @@ public partial class PokerGame : TableGame
         ReadTable(context, "stack_players", "stacks", Stacks);
         ReadTable(context, "round_players", "round_bets", BetThisRound);
         ReadTable(context, "hand_players", "hand_bets", BetThisHand);
+        ReadRunTable(context, "chip_bank_players", "chip_bank_denominations", "chip_bank_counts",
+            ChipBanks);
+        ReadRunTable(context, "round_chip_players", "round_chip_denominations", "round_chip_counts",
+            RoundChipRuns);
+        ReadRuns(context, "pot_chip_denominations", "pot_chip_counts", PotChipRuns);
+        LastChipRuns.Clear();
+        if (context.TryGetValue("last_chip_denominations", out var lastChips))
+            LastChipRuns.AddRange(PokerChipStack.FromDenominations(lastChips.AsInt32Array()));
 
         ReadSet(context, "folded", Folded);
         ReadSet(context, "all_in", AllIn);
@@ -370,6 +392,39 @@ public partial class PokerGame : TableGame
 
         foreach (var playerId in context[key].AsStringArray())
             into.Add(playerId);
+    }
+
+    private static void ReadRunTable(
+        Dictionary context, string playersName, string denominationsName, string countsName,
+        System.Collections.Generic.Dictionary<string, List<ChipRun>> into)
+    {
+        into.Clear();
+        if (!context.ContainsKey(playersName) || !context.ContainsKey(denominationsName)
+            || !context.ContainsKey(countsName))
+            return;
+
+        var players = context[playersName].AsStringArray();
+        var denominations = context[denominationsName].AsInt32Array();
+        var counts = context[countsName].AsInt32Array();
+        var length = Mathf.Min(players.Length, Mathf.Min(denominations.Length, counts.Length));
+        for (var index = 0; index < length; index++)
+        {
+            if (!into.TryGetValue(players[index], out var runs))
+                runs = into[players[index]] = new List<ChipRun>();
+            runs.Add(new ChipRun(denominations[index], counts[index]));
+        }
+    }
+
+    private static void ReadRuns(
+        Dictionary context, string denominationsName, string countsName, List<ChipRun> into)
+    {
+        into.Clear();
+        if (!context.ContainsKey(denominationsName) || !context.ContainsKey(countsName))
+            return;
+        var denominations = context[denominationsName].AsInt32Array();
+        var counts = context[countsName].AsInt32Array();
+        for (var index = 0; index < Mathf.Min(denominations.Length, counts.Length); index++)
+            into.Add(new ChipRun(denominations[index], counts[index]));
     }
 
     /// <summary>

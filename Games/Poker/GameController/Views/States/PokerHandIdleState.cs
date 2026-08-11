@@ -31,10 +31,7 @@ public partial class PokerHandIdleState : State
         if (View == null || !PokerHand3DView.InputIsLive)
             return;
 
-        var actionKey = @event.IsActionPressed(PokerInput.Call)
-                        || @event.IsActionPressed(PokerInput.Raise)
-                        || @event.IsActionPressed(PokerInput.Fold)
-                        || @event.IsActionPressed(PokerInput.AllIn);
+        var actionKey = @event.IsActionPressed(PokerInput.AllIn);
 
         if (!actionKey)
             return;

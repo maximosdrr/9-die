@@ -28,6 +28,7 @@ public partial class PokerRulesTest : Node
         TestBestFiveOfSeven();
         TestDealing();
         TestChipStacks();
+        TestWagerInteraction();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
@@ -327,6 +328,61 @@ public partial class PokerRulesTest : Node
 
         Check("todo saldo ate 500 paga qualquer valor em passos de 5 sem fabricar troco",
             bankCoversEveryBet);
+
+        var exactBank = PokerChipStack.CreatePlayableBank(500);
+        var beforeExact = PokerChipStack.Total(exactBank);
+        var exactSelection = new[] { 25, 10, 5 };
+        var acceptedExact = PokerChipStack.TryTakeExact(
+            exactBank, exactSelection, 40, out var exactPayment);
+        Check("a autoridade preserva as denominações fisicamente selecionadas",
+            acceptedExact && PokerChipStack.Expand(exactPayment).OrderBy(value => value)
+                .SequenceEqual(exactSelection.OrderBy(value => value))
+            && PokerChipStack.Total(exactBank) == beforeExact - 40);
+
+        var beforeInvalid = PokerChipStack.Total(exactBank);
+        var rejectedFabricated = !PokerChipStack.TryTakeExact(
+            exactBank, new[] { 25, 25, 25, 25 }, 100, out _);
+        Check("uma seleção impossível é recusada sem fabricar nem perder fichas",
+            rejectedFabricated && PokerChipStack.Total(exactBank) == beforeInvalid);
+    }
+
+    private void TestWagerInteraction()
+    {
+        var state = new PlayerBetState
+        {
+            Stack = 95,
+            CommittedThisRound = 5,
+            CommittedThisHand = 5,
+        };
+        var options = PokerBetting.LegalActions(state, currentBet: 10, minRaiseIncrement: 10);
+
+        Check("cinco fichas sobre o blind de cinco viram call para dez",
+            PokerWagerInteraction.TryResolve(options, 5, 5,
+                out var call, out var callTotal, out var callProblem, out _)
+            && call == PokerActionKind.Call && callTotal == 10
+            && callProblem == PokerWagerProblem.None);
+
+        Check("uma quantia entre call e aumento minimo fica na mesa para correcao",
+            !PokerWagerInteraction.TryResolve(options, 5, 10,
+                out _, out _, out var shortProblem, out var minimum)
+            && shortProblem == PokerWagerProblem.BelowMinimum && minimum == 15);
+
+        Check("quinze fichas sobre o blind viram aumento para vinte",
+            PokerWagerInteraction.TryResolve(options, 5, 15,
+                out var raise, out var raiseTotal, out _, out _)
+            && raise == PokerActionKind.Raise && raiseTotal == 20);
+
+        Check("clicar no pote sem selecionar fichas nunca passa por acidente",
+            !PokerWagerInteraction.TryResolve(options, 5, 0,
+                out _, out _, out var emptyProblem, out _)
+            && emptyProblem == PokerWagerProblem.NoChipsSelected);
+
+        var freeOptions = PokerBetting.LegalActions(new PlayerBetState { Stack = 100 }, 0, 10);
+        Check("uma aposta abaixo do minimo pos-flop informa dez fichas",
+            !PokerWagerInteraction.TryResolve(freeOptions, 0, 5,
+                out _, out _, out var postFlopProblem, out var postFlopMinimum)
+            && postFlopProblem == PokerWagerProblem.BelowMinimum
+            && postFlopMinimum == 10);
     }
 
     // ---------------------------------------------------------------- helpers

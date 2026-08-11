@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://Games/Poker/GameController/Views/PokerHand3DView.cs" id="1_pview"]
 [ext_resource type="PackedScene" path="res://Games/Poker/Components/Cards/PokerCard.tscn" id="2_pcard"]
@@ -7,6 +7,9 @@
 [ext_resource type="Script" path="res://Games/Poker/GameController/Views/States/PokerHandIdleState.cs" id="5_pidle"]
 [ext_resource type="Script" path="res://Games/Poker/GameController/Views/States/PokerHandLookingState.cs" id="6_plook"]
 [ext_resource type="Script" path="res://Games/Poker/GameController/Views/States/PokerHandActingState.cs" id="7_pact"]
+[ext_resource type="Script" path="res://Shared/Utilities/UI/AimCrosshair.cs" id="8_cross"]
+[ext_resource type="FontFile" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="9_chalk"]
+[ext_resource type="Shader" path="res://Games/Poker/GameController/Views/PokerChalkHover.gdshader" id="10_chalk_hover"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
 albedo_color = Color(0.62, 0.47, 0.38, 1)
@@ -188,7 +191,7 @@ _data = {
 &"HandThrowChips": SubResource("Animation_chips")
 }
 
-[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "CardHandPlaceholder", "ChipHandPlaceholder", "Hud", "MessageLabel", "AnimationPlayer")]
+[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "CardHandPlaceholder", "ChipHandPlaceholder", "Hud", "MessageLabel", "AnimationPlayer", "Crosshair")]
 script = ExtResource("1_pview")
 HandRig = NodePath("HandRig")
 CardHandPose = NodePath("HandRig/Hand/CardHandPose")
@@ -201,6 +204,9 @@ ChipHandPlaceholder = NodePath("HandRig/LeftHand/Mesh")
 Hud = NodePath("PokerHud")
 MessageLabel = NodePath("MessageLabel")
 AnimationPlayer = NodePath("HandRig/AnimationPlayer")
+Crosshair = NodePath("AimHud/Crosshair")
+ChalkFont = ExtResource("9_chalk")
+ChalkHoverShader = ExtResource("10_chalk_hover")
 
 [node name="HandRig" type="Node3D" parent="."]
 
@@ -294,6 +300,19 @@ outline_size = 14
 modulate = Color(1, 0.85, 0.55, 1)
 
 [node name="PokerHud" parent="." instance=ExtResource("3_phud")]
+
+[node name="AimHud" type="CanvasLayer" parent="."]
+layer = 3
+
+[node name="Crosshair" type="Control" parent="AimHud"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_cross")
 
 [node name="StateMachine" type="Node" parent="."]
 script = ExtResource("4_psm")

@@ -78,7 +78,7 @@ public partial class PokerSeatPresenter : Node3D
 
             if (amount > 0)
                 _pendingChipActions.Enqueue(new PendingChipAction(
-                    playerId, amount, _game.Street, now));
+                    playerId, amount, _game.Street, now, _game.LastChipRuns));
             else
                 _displayStacks[playerId] = now;
         }
@@ -95,6 +95,7 @@ public partial class PokerSeatPresenter : Node3D
 
     private void SnapToAuthoritativeState(PokerLayoutSpec spec)
     {
+        RestorePreparedImmediately();
         if (_cardCleanupActive)
             EndCardCleanup();
         LastRecoveryDiscardedAnimation = _presentationHand >= 0
@@ -127,16 +128,19 @@ public partial class PokerSeatPresenter : Node3D
         foreach (var playerId in _game.SeatOrder)
         {
             _displayStacks[playerId] = _game.StackOf(playerId);
-            _bankRuns[playerId] = PokerChipStack.CreatePlayableBank(_game.StackOf(playerId));
+            var authoritativeBank = _game.ChipBankOf(playerId);
+            _bankRuns[playerId] = authoritativeBank.Count > 0
+                ? authoritativeBank.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
+                : PokerChipStack.CreatePlayableBank(_game.StackOf(playerId));
             var blind = _game.BetOf(playerId);
             if (blind > 0)
-                PlaceInitialBet(playerId, blind, spec);
+                PlaceInitialBet(playerId, _game.RoundChipsOf(playerId), blind, spec);
         }
 
         // PotInMiddle is already authoritative on a late join. Replaying historical calls would be
         // both impossible and visually misleading, so reconstruct the same denomination columns now.
         if (!_game.HandSettled && _game.PotInMiddle > 0)
-            PlaceOrganizedPotSnapshot(_game.PotInMiddle);
+            PlaceOrganizedPotSnapshot(_game.PotChipRuns, _game.PotInMiddle);
 
         if (_game.HandSettled)
             _showdownPresenter?.Reset(authoritativeSettled: true, hand: _game.HandNumber);

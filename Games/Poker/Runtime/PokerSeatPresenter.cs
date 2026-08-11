@@ -6,8 +6,7 @@ using ChipBatchPhase = PokerChipAnimator.Phase;
 
 /// <summary>
 /// Everything each seat owns, said with objects on the table instead of a panel: two face-down
-/// cards, the chips they have pushed in, the stack they still hold, their name and count, and the
-/// dealer button.
+/// cards, the chips they have pushed in, the stack they still hold, their name, dealer role and turn.
 ///
 /// All of it is derived from <see cref="PokerGame"/>'s PUBLIC state — stacks, bets and who folded,
 /// never a card anyone still holds — so every peer draws the same table from what it already has and
@@ -37,10 +36,17 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public Color TurnColor = new(1.0f, 0.478431f, 0.2f);
     [Export] public Color IdleColor = new(0.678431f, 0.752941f, 0.839216f);
     [Export] public Color FoldedColor = new(0.45f, 0.47f, 0.52f);
+    [Export] public float DealerLabelHeightAboveHead = 0.24f;
 
-    [ExportGroup("Dealer button")]
-    [Export] public float ButtonRadius = 0.028f;
-    [Export] public float ButtonOffset = 0.10f;
+    [ExportGroup("Turn ring")]
+    [Export] public float TurnRingRadius = 0.615f;
+    [Export] public float TurnRingWidth = 0.0045f;
+    [Export] public float TurnRingHeight = 0.003f;
+    [Export] public float TurnRingGapDegrees = 8.0f;
+    [Export] public int TurnRingArcSteps = 20;
+    [Export] public Color ActiveTurnRingColor = new(0.24f, 0.66f, 0.36f, 0.48f);
+    [Export] public Color OccupiedTurnRingColor = new(0.68f, 0.28f, 0.25f, 0.30f);
+    [Export] public Color EmptyTurnRingColor = new(0.52f, 0.54f, 0.58f, 0.20f);
 
     private PokerGame _game;
 
@@ -122,13 +128,14 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float StackScatter = 0.0025f;
 
     /// <summary>Moves the bank inward and sideways so it is visible beside, not behind, the cards.</summary>
-    [Export] public float StackInset = 0.055f;
+    [Export] public float StackInset = 0.090f;
     [Export] public float StackSideOffset = 0.150f;
     /// <summary>
-    /// Keeps a pushed bet out of the projected silhouette of its owner's cards from every chair.
-    /// It remains seat-relative, so every peer still agrees on one physical table position.
+    /// A committed bet stays directly in front of its owner, between their cards and the centre.
+    /// The larger radial distance now provides the clearance; a lateral offset would collide with
+    /// the reader-relative deck for one of the side chairs.
     /// </summary>
-    [Export] public float BetSideOffset = 0.140f;
+    [Export] public float BetSideOffset = 0.0f;
     [Export] public float BankColumnSpacing = 0.034f;
 
     [ExportGroup("Presentation sequence")]
@@ -193,13 +200,18 @@ public partial class PokerSeatPresenter : Node3D
         public readonly int Amount;
         public readonly PokerStreet Street;
         public readonly int StackAfter;
+        public readonly List<ChipRun> Runs;
 
-        public PendingChipAction(string playerId, int amount, PokerStreet street, int stackAfter)
+        public PendingChipAction(
+            string playerId, int amount, PokerStreet street, int stackAfter,
+            IReadOnlyList<ChipRun> runs)
         {
             PlayerId = playerId;
             Amount = amount;
             Street = street;
             StackAfter = stackAfter;
+            Runs = runs?.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
+                ?? new List<ChipRun>();
         }
     }
 
@@ -255,7 +267,10 @@ public partial class PokerSeatPresenter : Node3D
             return count;
         }
     }
-    private MeshInstance3D _dealerButton;
+    private readonly List<MeshInstance3D> _turnRingSegments = new();
+    private readonly List<StandardMaterial3D> _turnRingMaterials = new();
+    public IReadOnlyList<MeshInstance3D> TurnRingSegments => _turnRingSegments;
+    private Label3D _dealerLabel;
     public bool LastRecoveryDiscardedAnimation { get; private set; }
     private PokerPresentationProfile Profile => PresentationProfile ??= new PokerPresentationProfile();
 
@@ -317,7 +332,8 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         DropStale(seen);
-        RefreshDealerButton(spec);
+        RefreshTurnRing();
+        RefreshDealerLabel();
         PlayActionGesture();
     }
 
@@ -332,6 +348,7 @@ public partial class PokerSeatPresenter : Node3D
         // would ever tell this presenter to stop drawing the pair lying on the cloth.
         var moved = _game.LocalPickedUpCards != _lastPickedUp;
         _lastPickedUp = _game.LocalPickedUpCards;
+        moved |= AdvancePreparedWager((float)delta);
 
         var localId = _game.Player == null ? null : (string)_game.Player.Name;
         LocalHandLanded = false;

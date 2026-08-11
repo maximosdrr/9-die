@@ -217,75 +217,44 @@ public partial class PokerSeatPresenter : Node3D
         label.Position = new Vector3(place.X, NameHeight, place.Y);
     }
 
-    private void RefreshDealerButton(PokerLayoutSpec spec)
+    private void RefreshDealerLabel()
     {
-        if (_game.SeatOrder.Length == 0 || _game.ButtonSeat >= _game.SeatOrder.Length)
+        if (_game.SeatOrder.Length == 0 || _game.ButtonSeat < 0
+            || _game.ButtonSeat >= _game.SeatOrder.Length)
         {
-            if (_dealerButton != null)
-                _dealerButton.Visible = false;
-
+            _dealerLabel?.Hide();
             return;
         }
 
-        _dealerButton ??= BuildDealerButton();
-
-        var seat = SeatNodeFor(_game.SeatOrder[_game.ButtonSeat]);
-        if (seat == null)
+        var dealerId = _game.SeatOrder[_game.ButtonSeat];
+        var player = PlayerRegistry.Instance?.GetPlayerById(dealerId);
+        var anchor = player?.HeadPivot as Node3D ?? SeatNodeFor(dealerId);
+        if (anchor == null)
         {
-            _dealerButton.Visible = false;
+            _dealerLabel?.Hide();
             return;
         }
 
-        var toSeat = ToLocal(seat.GlobalPosition);
-        var facing = new Vector2(toSeat.X, toSeat.Z);
-        if (facing.LengthSquared() < 1e-6f)
-            return;
-
-        facing = facing.Normalized();
-
-        // Beside the seat's own things rather than in front of them, so it never covers a card.
-        var across = new Vector2(-facing.Y, facing.X);
-        var place = facing * (spec.SeatBetRadius + 0.02f) + across * ButtonOffset;
-
-        _dealerButton.Position = new Vector3(place.X, 0.004f, place.Y);
-        _dealerButton.Visible = true;
+        _dealerLabel ??= BuildDealerLabel();
+        _dealerLabel.Text = "DEALER";
+        _dealerLabel.GlobalPosition = anchor.GlobalPosition + Vector3.Up * DealerLabelHeightAboveHead;
+        _dealerLabel.Show();
     }
 
-    private MeshInstance3D BuildDealerButton()
+    private Label3D BuildDealerLabel()
     {
-        var button = new MeshInstance3D
-        {
-            Mesh = new CylinderMesh
-            {
-                TopRadius = ButtonRadius,
-                BottomRadius = ButtonRadius,
-                Height = 0.006f,
-                RadialSegments = 20,
-                Rings = 1,
-            },
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = new Color(0.96f, 0.95f, 0.90f),
-                Roughness = 0.5f,
-            },
-        };
-
-        AddChild(button);
-
         var label = new Label3D
         {
-            Text = "D",
-            Billboard = BaseMaterial3D.BillboardModeEnum.Disabled,
-            PixelSize = 0.0003f,
-            FontSize = 64,
-            OutlineSize = 0,
-            Modulate = new Color(0.15f, 0.15f, 0.18f),
-            Position = new Vector3(0.0f, 0.004f, 0.0f),
-            Rotation = new Vector3(-Mathf.Pi * 0.5f, 0.0f, 0.0f),
+            Name = "DealerHeadLabel",
+            Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+            PixelSize = 0.00024f,
+            FontSize = 56,
+            OutlineSize = 10,
+            Modulate = new Color(1.0f, 0.82f, 0.30f),
+            NoDepthTest = false,
         };
-
-        button.AddChild(label);
-        return button;
+        AddChild(label);
+        return label;
     }
 
     private PokerChipPile PileFor(

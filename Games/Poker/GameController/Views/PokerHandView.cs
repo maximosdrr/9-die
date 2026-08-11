@@ -41,4 +41,9 @@ public partial class PokerHandView : SeatedHandView
         bool isYourTurn)
     {
     }
+
+    /// <summary>Returns any local, not-yet-submitted physical wager to the player's bank.</summary>
+    public virtual void CancelPreparedWager(bool immediate = false)
+    {
+    }
 }
