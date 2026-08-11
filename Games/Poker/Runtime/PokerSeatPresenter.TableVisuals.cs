@@ -223,16 +223,15 @@ public partial class PokerSeatPresenter : Node3D
     }
 
     /// <summary>
-    /// Writes the pot into the felt below its physical chips. Like the board and pot themselves, the
-    /// mark uses the local reader frame, so every chair gets the same readable composition without
-    /// moving the authoritative objects or adding network state.
+    /// Writes the pot value directly on the felt. It uses the local reader frame so the inscription
+    /// is upright from every chair without turning into a camera-facing HUD element.
     /// </summary>
     private void RefreshPotValue()
     {
         if (BoardPresenter == null)
             return;
 
-        _potValueLabel ??= BuildTableChalkLabel("PotValue");
+        _potValueLabel ??= BuildFlatPotLabel();
         _potValueLabel.Visible = _game?.IsMatchActive == true;
         if (!_potValueLabel.Visible)
             return;
@@ -242,8 +241,6 @@ public partial class PokerSeatPresenter : Node3D
                          + new Vector3(facing.X, 0.0f, facing.Y) * PotValueLabelOffset;
         var place = ToLocal(BoardPresenter.ToGlobal(boardPlace));
         _potValueLabel.Text = $"POTE {_game.PotTotal}";
-        // Use the exact basis already proven by PASSAR/DESISTIR. Building it from ad-hoc right/up
-        // axes produced a mirrored plane whose apparent rotation changed with the chair.
         var boardBasis = ReaderTableLabelBasis(facing);
         var localBasis = GlobalTransform.Basis.Inverse()
                          * BoardPresenter.GlobalTransform.Basis * boardBasis;
@@ -257,8 +254,8 @@ public partial class PokerSeatPresenter : Node3D
         * new Basis(Vector3.Right, -Mathf.Pi * 0.5f);
 
     /// <summary>
-    /// Puts a physical count beside every denomination bank. The baseline follows the same diagonal
-    /// as the chips, using the space behind the bank that was freed by the retired CALL plate.
+    /// Floats a physical count above every denomination bank. It stays attached to that player's
+    /// chips, while the billboard makes it readable from whichever peer is currently looking.
     /// </summary>
     private void RefreshStackValue(string playerId, Vector2 facing, PokerLayoutSpec spec)
     {
@@ -272,11 +269,11 @@ public partial class PokerSeatPresenter : Node3D
         if (!label.Visible)
             return;
 
-        var centre = StackPlace(facing, spec);
-        BankAxes(facing, out var laneAxis, out var sideAxis);
-        var place = centre + sideAxis * StackValueLabelSideOffset;
+        var place = StackPlace(facing, spec);
         label.Text = $"FICHAS {VisibleStackValue(playerId)}";
-        label.Transform = TableLabelTransform(place, laneAxis, -sideAxis);
+        _stacks.TryGetValue(playerId, out var pile);
+        SetFloatingLabelAnchor(label,
+            new Vector3(place.X, FloatingLabelHeight(pile), place.Y));
     }
 
     private int VisibleStackValue(string playerId)
@@ -301,11 +298,18 @@ public partial class PokerSeatPresenter : Node3D
             Font = ChalkFont,
             PixelSize = ChalkValuePixelSize,
             FontSize = ChalkValueFontSize,
-            OutlineSize = 2,
+            OutlineSize = 10,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Modulate = ChalkValueColor,
-            OutlineModulate = new Color(0.23f, 0.12f, 0.07f, 0.22f),
+            // Only yaw follows the camera. Keeping world-up prevents the label from copying the
+            // camera pitch and looking like a flat HUD element pasted over the table.
+            Billboard = BaseMaterial3D.BillboardModeEnum.FixedY,
+            // Warm room lighting tinted the supposedly white value beige. The face remains
+            // unshaded white; its outline, world perspective and cast shadow keep the 3D presence.
+            Shaded = false,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.On,
+            Modulate = FloatingValueLabelColor,
+            OutlineModulate = new Color(0.10f, 0.055f, 0.025f, 0.90f),
             TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
             NoDepthTest = false,
         };
@@ -313,14 +317,57 @@ public partial class PokerSeatPresenter : Node3D
         return label;
     }
 
-    private static Transform3D TableLabelTransform(
-        Vector2 position, Vector2 right, Vector2 up)
+    private Label3D BuildFlatPotLabel()
     {
-        var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
-        var up3 = new Vector3(up.X, 0.0f, up.Y).Normalized();
-        return new Transform3D(
-            new Basis(right3, up3, right3.Cross(up3).Normalized()),
-            new Vector3(position.X, 0.0042f, position.Y));
+        var label = BuildTableChalkLabel("PotValue");
+        label.Billboard = BaseMaterial3D.BillboardModeEnum.Disabled;
+        label.Shaded = false;
+        label.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+        label.Modulate = ChalkValueColor;
+        label.OutlineSize = 2;
+        label.OutlineModulate = new Color(0.23f, 0.12f, 0.07f, 0.22f);
+        return label;
+    }
+
+    private float FloatingLabelHeight(PokerChipPile pile) => Mathf.Max(
+        FloatingValueLabelMinimumHeight,
+        (pile?.TopHeight ?? 0.0f) + FloatingValueLabelClearance);
+
+    private void SetFloatingLabelAnchor(Label3D label, Vector3 anchor)
+    {
+        if (label == null)
+            return;
+
+        _floatingValueLabelAnchors[label] = anchor;
+        label.Position = anchor + Vector3.Up * CurrentFloatingLabelOffset();
+    }
+
+    private void AdvanceFloatingValueLabels(float delta)
+    {
+        _floatingValueLabelTime += Mathf.Max(0.0f, delta);
+        foreach (var entry in _floatingValueLabelAnchors)
+        {
+            var label = entry.Key;
+            if (!GodotObject.IsInstanceValid(label) || !label.Visible)
+                continue;
+
+            label.Position = entry.Value + Vector3.Up * CurrentFloatingLabelOffset();
+        }
+    }
+
+    private float CurrentFloatingLabelOffset() => FloatingValueBobOffset(
+        _floatingValueLabelTime,
+        0.0f,
+        FloatingValueLabelBobDistance,
+        FloatingValueLabelBobSeconds);
+
+    /// <summary>A soft rest-to-down-to-rest loop shared by every floating value label.</summary>
+    public static float FloatingValueBobOffset(
+        float elapsed, float phase, float distance, float seconds)
+    {
+        var duration = Mathf.Max(seconds, 0.01f);
+        var progress = Mathf.PosMod(elapsed / duration + phase, 1.0f);
+        return -Mathf.Abs(distance) * 0.5f * (1.0f - Mathf.Cos(Mathf.Tau * progress));
     }
 
     private void RefreshDealerLabel()
@@ -426,7 +473,11 @@ public partial class PokerSeatPresenter : Node3D
 
         Drop(_stacks, seen, pile => pile.QueueFree());
         Drop(_names, seen, label => label.QueueFree());
-        Drop(_stackValueLabels, seen, label => label.QueueFree());
+        Drop(_stackValueLabels, seen, label =>
+        {
+            _floatingValueLabelAnchors.Remove(label);
+            label.QueueFree();
+        });
     }
 
     private static void Drop<T>(Dictionary<string, T> from, HashSet<string> seen, System.Action<T> free)

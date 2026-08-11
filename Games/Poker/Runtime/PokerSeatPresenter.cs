@@ -41,12 +41,19 @@ public partial class PokerSeatPresenter : Node3D
     [ExportGroup("Chalk values")]
     [Export] public Font ChalkFont;
     [Export] public Color ChalkValueColor = new(0.95f, 0.93f, 0.86f, 0.86f);
-    [Export(PropertyHint.Range, "36,80,2")] public int ChalkValueFontSize = 64;
-    [Export] public float ChalkValuePixelSize = 0.00022f;
-    /// <summary>Moves POTE from the physical pile toward this peer's chair.</summary>
+    [Export] public Color FloatingValueLabelColor = new(1.0f, 1.0f, 1.0f, 0.98f);
+    [Export(PropertyHint.Range, "36,96,2")] public int ChalkValueFontSize = 68;
+    [Export] public float ChalkValuePixelSize = 0.00025f;
+    /// <summary>Minimum distance above the felt for the centre of a floating value label.</summary>
+    [Export] public float FloatingValueLabelMinimumHeight = 0.095f;
+    /// <summary>Air left between the highest chip and the bottom of its floating label.</summary>
+    [Export] public float FloatingValueLabelClearance = 0.028f;
+    /// <summary>Small downward travel that keeps the labels alive without reading as HUD.</summary>
+    [Export(PropertyHint.Range, "0,0.015,0.0005")] public float FloatingValueLabelBobDistance = 0.008f;
+    /// <summary>Seconds for one complete down-and-up floating cycle.</summary>
+    [Export(PropertyHint.Range, "2,8,0.1")] public float FloatingValueLabelBobSeconds = 3.4f;
+    /// <summary>Moves the flat POTE inscription slightly toward this peer's chair.</summary>
     [Export] public float PotValueLabelOffset = 0.068f;
-    /// <summary>Moves FICHAS behind its bank into the space freed by the retired CALL plate.</summary>
-    [Export] public float StackValueLabelSideOffset = 0.060f;
 
     [ExportGroup("Turn ring")]
     [Export] public float TurnRingRadius = 0.615f;
@@ -254,6 +261,8 @@ public partial class PokerSeatPresenter : Node3D
     private readonly Dictionary<string, Label3D> _names = new();
     private readonly Dictionary<string, Label3D> _stackValueLabels = new();
     private Label3D _potValueLabel;
+    private readonly Dictionary<Label3D, Vector3> _floatingValueLabelAnchors = new();
+    private float _floatingValueLabelTime;
     private PokerChipAnimator _chipAnimator;
     private PokerChipSoundscape _chipSoundscape;
     private readonly Queue<PendingChipAction> _pendingChipActions = new();
@@ -389,6 +398,7 @@ public partial class PokerSeatPresenter : Node3D
             moved |= _showdownPresenter?.Advance((float)delta, blocked: false) ?? false;
             if (moved)
                 Refresh();
+            AdvanceFloatingValueLabels((float)delta);
             return;
         }
 
@@ -458,6 +468,8 @@ public partial class PokerSeatPresenter : Node3D
         // labels, and there is no reason to pay for that on a still table.
         if (moved)
             Refresh();
+
+        AdvanceFloatingValueLabels((float)delta);
 
         var ready = PresentationReadyForAction;
         if (ready != _lastPresentationReady)

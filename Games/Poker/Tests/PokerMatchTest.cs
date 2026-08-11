@@ -269,17 +269,37 @@ public partial class PokerMatchTest : Node
         var localId = game.Player == null ? "" : (string)game.Player.Name;
         var potFacing = game.BoardPresenter.ReaderFacing.Normalized();
         var expectedPotBasis = PokerSeatPresenter.ReaderTableLabelBasis(potFacing);
-        Check("o valor do pote está escrito no feltro, não no canto da tela",
+        Check("o valor do pote volta a ficar escrito no feltro",
             presenter?.PotValueLabel is { Visible: true } potLabel
             && potLabel.Text == $"POTE {game.PotTotal}"
             && potLabel.Font == presenter.ChalkFont
+            && potLabel.Billboard == BaseMaterial3D.BillboardModeEnum.Disabled
+            && !potLabel.Shaded
+            && potLabel.CastShadow == GeometryInstance3D.ShadowCastingSetting.Off
             && potLabel.Basis.X.Dot(expectedPotBasis.X) > 0.99f
-            && potLabel.Basis.Y.Dot(expectedPotBasis.Y) > 0.99f);
-        Check("o saldo acompanha o banco físico e sua orientação",
+            && potLabel.Basis.Y.Dot(expectedPotBasis.Y) > 0.99f
+            && potLabel.Position.Y < 0.01f);
+        Check("o saldo acompanha o banco físico, suspenso e legível para qualquer observador",
             presenter?.StackValueLabelOf(localId) is { Visible: true } stackLabel
             && stackLabel.Text == $"FICHAS {game.StackOf(localId)}"
             && stackLabel.Font == presenter.ChalkFont
-            && Mathf.Abs(stackLabel.Basis.Y.Dot(Vector3.Up)) < 0.01f);
+            && stackLabel.Billboard == BaseMaterial3D.BillboardModeEnum.FixedY
+            && !stackLabel.Shaded
+            && stackLabel.Modulate.R >= 0.99f
+            && stackLabel.Modulate.G >= 0.99f
+            && stackLabel.Modulate.B >= 0.99f
+            && stackLabel.Position.Y >= presenter.FloatingValueLabelMinimumHeight
+                                        - presenter.FloatingValueLabelBobDistance - 0.0001f);
+
+        var remoteId = game.SeatOrder.FirstOrDefault(id => id != localId);
+        Check("os valores dos outros jogadores usam o mesmo billboard",
+            !string.IsNullOrEmpty(remoteId)
+            && presenter?.StackValueLabelOf(remoteId) is { Visible: true } remoteStackLabel
+            && remoteStackLabel.Billboard == BaseMaterial3D.BillboardModeEnum.FixedY
+            && !remoteStackLabel.Shaded
+            && remoteStackLabel.Modulate.R >= 0.99f
+            && remoteStackLabel.Position.Y >= presenter.FloatingValueLabelMinimumHeight
+                                              - presenter.FloatingValueLabelBobDistance - 0.0001f);
 
         CheckConservation(game, "logo após a distribuição");
     }

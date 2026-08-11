@@ -101,10 +101,21 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter is { BoardPresenter: not null, Seats: not null, CardScene: not null });
         Check("pote e bancos recebem valores físicos com a mesma tipografia de giz",
             seatPresenter is { ChalkFont: not null,
-                ChalkValueFontSize: >= 62 and <= 70,
-                ChalkValuePixelSize: >= 0.00021f and <= 0.00025f,
-                PotValueLabelOffset: >= 0.055f and <= 0.080f,
-                StackValueLabelSideOffset: >= 0.055f and <= 0.070f });
+                ChalkValueFontSize: >= 66 and <= 74,
+                ChalkValuePixelSize: >= 0.00024f and <= 0.00028f,
+                FloatingValueLabelMinimumHeight: >= 0.090f and <= 0.11f,
+                FloatingValueLabelClearance: >= 0.020f and <= 0.040f,
+                FloatingValueLabelBobDistance: >= 0.006f and <= 0.010f,
+                FloatingValueLabelBobSeconds: >= 3.0f and <= 4.5f,
+                PotValueLabelOffset: >= 0.055f and <= 0.080f });
+        Check("os valores flutuantes usam branco puro",
+            seatPresenter?.FloatingValueLabelColor is { R: >= 0.99f, G: >= 0.99f, B: >= 0.99f });
+        Check("a flutuação desce e volta ao repouso sem saltos",
+            Mathf.IsZeroApprox(PokerSeatPresenter.FloatingValueBobOffset(0.0f, 0.0f, 0.004f, 4.0f))
+            && Mathf.IsEqualApprox(
+                PokerSeatPresenter.FloatingValueBobOffset(2.0f, 0.0f, 0.004f, 4.0f), -0.004f)
+            && Mathf.IsZeroApprox(
+                PokerSeatPresenter.FloatingValueBobOffset(4.0f, 0.0f, 0.004f, 4.0f)));
         Check("o servidor e a apresentacao usam o mesmo perfil temporal",
             seatPresenter?.PresentationProfile != null
             && ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));

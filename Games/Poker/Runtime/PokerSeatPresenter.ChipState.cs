@@ -52,8 +52,8 @@ public partial class PokerSeatPresenter : Node3D
         var playerLeft = new Vector2(-outward.Y, outward.X);
         var angle = Mathf.DegToRad(BankLaneAngleDegrees);
 
-        // The lane turns toward the player's right. Its perpendicular points outward-left, which is
-        // precisely the "behind the chips" side used by the physical FICHAS label.
+        // The lane turns toward the player's right. Its perpendicular remains useful to action-chip
+        // placement even though the value label now floats directly above the bank.
         laneAxis = (outward * Mathf.Cos(angle) - playerLeft * Mathf.Sin(angle)).Normalized();
         sideAxis = (outward * Mathf.Sin(angle) + playerLeft * Mathf.Cos(angle)).Normalized();
     }
