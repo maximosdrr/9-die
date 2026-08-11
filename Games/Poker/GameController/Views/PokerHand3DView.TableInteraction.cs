@@ -24,8 +24,18 @@ public partial class PokerHand3DView : PokerHandView
     [Export] public float ConfirmZoneOuterRadius = 0.110f;
     /// <summary>Straight chalk shortcut beside the denomination bank.</summary>
     [Export] public float CallZoneLength = 0.205f;
-    [Export] public float CallZoneWidth = 0.055f;
-    [Export] public float CallZoneSideOffset = 0.045f;
+    [Export] public float CallZoneWidth = 0.032f;
+    [Export] public float CallZoneSideOffset = 0.055f;
+    /// <summary>
+    /// Invisible tolerance around the thin chalk plate. It preserves a subtle drawing while making
+    /// the target equally reliable from the two oblique chair cameras.
+    /// </summary>
+    [Export] public float CallZoneHitPadding = 0.010f;
+    [Export(PropertyHint.Range, "0,1,0.01")] public float CallHoverOpacity = 0.34f;
+    [Export(PropertyHint.Range, "0.15,0.6,0.01")] public float CallClickMaxSeconds = 0.35f;
+    [Export(PropertyHint.Range, "1,4,0.1")] public float AllInHoldSeconds = 2.0f;
+    [Export(PropertyHint.Range, "0,1,0.01")] public float AllInHoldOpacity = 0.58f;
+    [Export] public Color AllInHoldColor = new(0.30f, 0.88f, 0.45f, 0.86f);
     [Export(PropertyHint.Range, "8,32,1")] public int InteractionArcSteps = 20;
 
     [Export] public float InteractionGuideThickness = 0.0014f;
@@ -50,6 +60,9 @@ public partial class PokerHand3DView : PokerHandView
     private bool _wagerSubmitted;
     private bool _automaticCallPending;
     private int _automaticCallTurn = -1;
+    private bool _callHoldActive;
+    private float _callHoldElapsed;
+    private int _callHoldTurn = -1;
     private PokerGesture _queuedTableGesture;
     private int _interactionHand = -1;
     private Vector2 _guideFacing;
@@ -93,7 +106,7 @@ public partial class PokerHand3DView : PokerHandView
         // CALL is deliberately adjacent to the bank. Give its explicit rectangle priority over the
         // generous cylindrical chip pick radius so clicking the writing can never remove one chip.
         if (aimedZone == InteractionZone.Call)
-            return HandleAutomaticCall(presenter, playerId);
+            return BeginCallHold();
 
         // Physical chips take precedence if one happens to cross the projected button silhouette.
         if (presenter.TryReturnPreparedChip(playerId, aim, out _))
@@ -119,6 +132,98 @@ public partial class PokerHand3DView : PokerHandView
         };
     }
 
+    /// <summary>
+    /// A short press is committed only on release, leaving the same physical target free to become
+    /// an intentional two-second all-in without ever firing both actions.
+    /// </summary>
+    public PokerGesture HandleTableRelease()
+    {
+        if (!_callHoldActive)
+            return PokerGesture.None;
+
+        var presenter = Game?.SeatPresenter;
+        var playerId = Player == null ? null : (string)Player.Name;
+        var valid = IsYourTurn && !_wagerSubmitted && Game?.TurnToken == _callHoldTurn
+                    && presenter != null && !string.IsNullOrEmpty(playerId);
+        var quickClick = IsQuickCallRelease(_callHoldElapsed, CallClickMaxSeconds);
+        ResetCallHold();
+        return valid && quickClick
+            ? HandleAutomaticCall(presenter, playerId)
+            : PokerGesture.None;
+    }
+
+    /// <summary>
+    /// Classifies the release independently from the two-second all-in timer. The gap between a
+    /// quick click and a completed hold deliberately performs no action, preventing an abandoned
+    /// all-in from silently becoming a call.
+    /// </summary>
+    public static bool IsQuickCallRelease(float heldSeconds, float maxClickSeconds) =>
+        heldSeconds >= 0.0f && heldSeconds <= Mathf.Max(0.0f, maxClickSeconds);
+
+    private PokerGesture BeginCallHold()
+    {
+        if (!HasAction(PokerActionKind.Call) && !TryAllIn(out _, out _))
+        {
+            ShowNotice("CALL e ALL-IN não estão disponíveis agora", 1.6f);
+            return PokerGesture.None;
+        }
+
+        _callHoldActive = true;
+        _callHoldElapsed = 0.0f;
+        _callHoldTurn = Game?.TurnToken ?? -1;
+        SetHoveredZone(InteractionZone.Call);
+        UpdateCallHoldVisual();
+        return PokerGesture.None;
+    }
+
+    public void AdvanceCallHold(float delta)
+    {
+        if (!_callHoldActive)
+            return;
+
+        if (!IsYourTurn || _wagerSubmitted || Game?.TurnToken != _callHoldTurn)
+        {
+            ResetCallHold();
+            return;
+        }
+
+        // A lost release event (for example when the window loses focus) must cancel, never finish,
+        // an irreversible action after the player is no longer physically holding the button.
+        if (!Input.IsMouseButtonPressed(MouseButton.Left))
+        {
+            ResetCallHold();
+            return;
+        }
+
+        _callHoldElapsed = Mathf.Min(
+            _callHoldElapsed + Mathf.Max(0.0f, delta), Mathf.Max(0.1f, AllInHoldSeconds));
+        UpdateCallHoldVisual();
+        if (_callHoldElapsed + 1e-5f < Mathf.Max(0.1f, AllInHoldSeconds))
+            return;
+
+        if (!TryAllIn(out var kind, out var total))
+        {
+            ResetCallHold();
+            ShowNotice("Você não tem como ir de all-in agora", 1.5f);
+            return;
+        }
+
+        // The hold supersedes any tentative manual amount. The authoritative action then takes the
+        // exact remaining bank and uses the established chip push on every peer.
+        CancelPreparedWager(immediate: true);
+        _wagerSubmitted = true;
+        RequestAction(kind, total);
+        _queuedTableGesture = PokerGesture.ThrowChips;
+    }
+
+    private void ResetCallHold()
+    {
+        _callHoldActive = false;
+        _callHoldElapsed = 0.0f;
+        _callHoldTurn = -1;
+        UpdateCallHoldVisual();
+    }
+
     public override void CancelPreparedWager(bool immediate = false)
     {
         var presenter = Game?.SeatPresenter;
@@ -127,6 +232,7 @@ public partial class PokerHand3DView : PokerHandView
         _wagerSubmitted = false;
         _automaticCallPending = false;
         _automaticCallTurn = -1;
+        ResetCallHold();
         _queuedTableGesture = PokerGesture.None;
         presenter?.CancelPreparedWager(immediate);
         if (publishCancellation)
@@ -299,8 +405,10 @@ public partial class PokerHand3DView : PokerHandView
         if (TryCallZoneFrame(out var callCentre, out var callAlong, out var callAcross))
         {
             var callOffset = aim - callCentre;
-            if (Mathf.Abs(callOffset.Dot(callAlong)) <= CallZoneLength * 0.5f
-                && Mathf.Abs(callOffset.Dot(callAcross)) <= CallZoneWidth * 0.5f)
+            if (Mathf.Abs(callOffset.Dot(callAlong))
+                    <= CallZoneLength * 0.5f + CallZoneHitPadding
+                && Mathf.Abs(callOffset.Dot(callAcross))
+                    <= CallZoneWidth * 0.5f + CallZoneHitPadding)
                 return InteractionZone.Call;
         }
 
@@ -375,6 +483,7 @@ public partial class PokerHand3DView : PokerHandView
             _wagerSubmitted = false;
             _automaticCallPending = false;
             _automaticCallTurn = -1;
+            ResetCallHold();
             _queuedTableGesture = PokerGesture.None;
             Game?.SeatPresenter?.CancelPreparedWager(immediate: true);
         }
@@ -395,13 +504,17 @@ public partial class PokerHand3DView : PokerHandView
         SetCrosshairVisible(visible);
         SetGuideVisible(visible);
         if (visible)
+        {
             RefreshInteractionHover();
+            UpdateCallHoldVisual();
+        }
     }
 
     private void SetGuideVisible(bool visible)
     {
         if (!visible)
         {
+            ResetCallHold();
             SetHoveredZone(InteractionZone.None);
             _interactionGuide?.Hide();
             return;
@@ -413,6 +526,12 @@ public partial class PokerHand3DView : PokerHandView
 
     private void RefreshInteractionHover()
     {
+        if (_callHoldActive)
+        {
+            SetHoveredZone(InteractionZone.Call);
+            return;
+        }
+
         var zone = TryAimPoint(out var aim) ? ZoneAt(aim) : InteractionZone.None;
         SetHoveredZone(zone);
     }
@@ -425,7 +544,9 @@ public partial class PokerHand3DView : PokerHandView
         _hoveredZone = zone;
         foreach (var entry in _zoneFillMaterials)
         {
-            var strength = entry.Key == zone ? ChalkHoverOpacity : 0.0f;
+            var strength = entry.Key == zone
+                ? entry.Key == InteractionZone.Call ? CallHoverOpacity : ChalkHoverOpacity
+                : 0.0f;
             entry.Value.SetShaderParameter("chalk_strength", strength);
         }
 
@@ -434,6 +555,44 @@ public partial class PokerHand3DView : PokerHandView
             var alpha = entry.Key == zone ? 1.0f : ChalkGuideColor.A;
             foreach (var label in entry.Value)
                 label.Modulate = ChalkGuideColor with { A = alpha };
+        }
+
+        UpdateCallHoldVisual();
+    }
+
+    private void UpdateCallHoldVisual()
+    {
+        var progress = _callHoldActive
+            ? Mathf.Clamp(_callHoldElapsed / Mathf.Max(0.1f, AllInHoldSeconds), 0.0f, 1.0f)
+            : 1.0f;
+
+        if (_zoneFillMaterials.TryGetValue(InteractionZone.Call, out var material))
+        {
+            material.SetShaderParameter("use_fill_progress", _callHoldActive);
+            material.SetShaderParameter("fill_progress", progress);
+            material.SetShaderParameter("chalk_color",
+                _callHoldActive ? AllInHoldColor : ChalkGuideColor);
+            material.SetShaderParameter("chalk_strength", _callHoldActive
+                ? Mathf.Lerp(0.18f, AllInHoldOpacity, PokerMotion.Smooth(progress))
+                : _hoveredZone == InteractionZone.Call ? CallHoverOpacity : 0.0f);
+        }
+
+        if (!_zoneLabels.TryGetValue(InteractionZone.Call, out var labels))
+            return;
+
+        var remaining = Mathf.Max(0.0f, AllInHoldSeconds - _callHoldElapsed);
+        var text = _callHoldActive
+            ? $"ALL-IN {remaining:0.0}s"
+            : HasAction(PokerActionKind.Raise)
+                ? HasAction(PokerActionKind.Call) ? "CALL · SEGURE ALL-IN" : "SEGURE · ALL-IN"
+                : "CALL";
+        var colour = _callHoldActive
+            ? AllInHoldColor with { A = 1.0f }
+            : ChalkGuideColor with { A = _hoveredZone == InteractionZone.Call ? 1.0f : ChalkGuideColor.A };
+        foreach (var label in labels)
+        {
+            label.Text = text;
+            label.Modulate = colour;
         }
     }
 
@@ -520,7 +679,8 @@ public partial class PokerHand3DView : PokerHandView
             reverseGlyphUp: true);
         if (hasCallFrame)
             AddAlignedChalkLabel(InteractionZone.Call, "Call", "CALL", callCentre,
-                callAlong, -callAcross, ChalkGuideFontSize);
+                callAlong, -callAcross, Mathf.RoundToInt(ChalkGuideFontSize * 0.58f));
+        UpdateCallHoldVisual();
     }
 
     private void AddChalkZone(
@@ -528,6 +688,9 @@ public partial class PokerHand3DView : PokerHandView
         float innerRadius, float outerRadius, float startAngle, float endAngle)
     {
         var material = NewChalkMaterial(ChalkGuideColor, 0.0f);
+        // Sector UVs are table-space and must never be clipped by CALL's 0..1 progress mask.
+        material.SetShaderParameter("use_fill_progress", false);
+        material.SetShaderParameter("fill_progress", 1.0f);
         _zoneFillMaterials[zone] = material;
         AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
             innerRadius, outerRadius, startAngle, endAngle, InteractionArcSteps, material), 0.0031f);
@@ -538,6 +701,8 @@ public partial class PokerHand3DView : PokerHandView
         float length, float width)
     {
         var material = NewChalkMaterial(ChalkGuideColor, 0.0f);
+        material.SetShaderParameter("use_fill_progress", false);
+        material.SetShaderParameter("fill_progress", 1.0f);
         _zoneFillMaterials[zone] = material;
         AddGuideMesh(name, BuildRectangleMesh(
             centre, along, across, length, width, material), 0.0031f);
@@ -725,8 +890,10 @@ public partial class PokerHand3DView : PokerHandView
         var c = RectanglePoint(centre, along, across, halfLength, halfWidth);
         var d = RectanglePoint(centre, along, across, -halfLength, halfWidth);
         mesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, material);
-        AddInteractionTriangle(mesh, a, b, c);
-        AddInteractionTriangle(mesh, a, c, d);
+        AddInteractionTriangle(mesh, a, b, c,
+            new Vector2(0.0f, 0.0f), new Vector2(1.0f, 0.0f), new Vector2(1.0f, 1.0f));
+        AddInteractionTriangle(mesh, a, c, d,
+            new Vector2(0.0f, 0.0f), new Vector2(1.0f, 1.0f), new Vector2(0.0f, 1.0f));
         mesh.SurfaceEnd();
         return mesh;
     }
@@ -782,10 +949,26 @@ public partial class PokerHand3DView : PokerHandView
         AddInteractionVertex(mesh, c);
     }
 
+    private static void AddInteractionTriangle(
+        ImmediateMesh mesh, Vector2 a, Vector2 b, Vector2 c,
+        Vector2 uvA, Vector2 uvB, Vector2 uvC)
+    {
+        AddInteractionVertex(mesh, a, uvA);
+        AddInteractionVertex(mesh, b, uvB);
+        AddInteractionVertex(mesh, c, uvC);
+    }
+
     private static void AddInteractionVertex(ImmediateMesh mesh, Vector2 point)
     {
         mesh.SurfaceSetNormal(Vector3.Up);
         mesh.SurfaceSetUV(point * 8.0f);
+        mesh.SurfaceAddVertex(new Vector3(point.X, 0.0f, point.Y));
+    }
+
+    private static void AddInteractionVertex(ImmediateMesh mesh, Vector2 point, Vector2 uv)
+    {
+        mesh.SurfaceSetNormal(Vector3.Up);
+        mesh.SurfaceSetUV(uv);
         mesh.SurfaceAddVertex(new Vector3(point.X, 0.0f, point.Y));
     }
 }

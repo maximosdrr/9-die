@@ -53,8 +53,7 @@ public partial class PokerHud : CanvasLayer
     }
 
     /// <summary>Order top to bottom, cheapest decision first and the irreversible one last.</summary>
-    // Check, call, raise and fold now live on the physical table. Only the all-in shortcut and the
-    // showdown reveal remain screen-space actions.
+    // Every betting action now lives on the physical table. Only showdown reveal remains in HUD.
     private static readonly (PokerActionKind Kind, string Key)[] Layout =
         System.Array.Empty<(PokerActionKind, string)>();
 
@@ -67,7 +66,7 @@ public partial class PokerHud : CanvasLayer
         {
             HintsLabel.Text = "Segure o botão direito para olhar suas cartas"
                               + " · clique nas fichas e depois em CONFIRMAR APOSTA"
-                              + " · CALL paga automaticamente"
+                              + " · clique CALL para pagar ou segure para ALL-IN"
                               + "\nMire e clique em PASSAR/DESISTIR"
                               + " · T vista de cima · E levantar · Q (segurar) sair";
         }
@@ -166,8 +165,6 @@ public partial class PokerHud : CanvasLayer
             ResultLabel.Text = result;
         }
 
-        var allInTotal = AllInTotal(options);
-
         foreach (var entry in Layout)
         {
             if (!_rows.TryGetValue(entry.Kind, out var row))
@@ -184,17 +181,6 @@ public partial class PokerHud : CanvasLayer
 
             row.Text.Text = Describe(entry.Kind, option.Value, playerId, raiseTotal);
             row.Key.Text = entry.Key;
-        }
-
-        if (_rows.TryGetValue(PokerActionKind.None, out var allInRow))
-        {
-            var separate = isYourTurn && allInTotal > 0;
-            allInRow.Box.Visible = separate;
-            if (separate)
-            {
-                allInRow.Text.Text = $"All-in {allInTotal}";
-                allInRow.Key.Text = PokerInput.AllInKey;
-            }
         }
 
         if (_showdownRow != null)
@@ -284,9 +270,6 @@ public partial class PokerHud : CanvasLayer
         foreach (var entry in Layout)
             _rows[entry.Kind] = AddRow();
 
-        // All-in has no PokerActionKind of its own — it is a raise for everything — so it is keyed
-        // under None, which is the enum's "no decision" slot and cannot collide with a real action.
-        _rows[PokerActionKind.None] = AddRow();
         _showdownRow = AddRow();
     }
 
@@ -399,16 +382,6 @@ public partial class PokerHud : CanvasLayer
             PokerActionKind.Raise => $"◂ Aumentar para {Mathf.Clamp(raiseTotal, option.MinTotal, option.MaxTotal)} ▸",
             _ => "",
         };
-
-    private static int AllInTotal(IReadOnlyList<ActionOption> options)
-    {
-        var raise = Find(options, PokerActionKind.Raise);
-        if (raise.HasValue)
-            return raise.Value.MaxTotal;
-
-        var call = Find(options, PokerActionKind.Call);
-        return call?.MaxTotal ?? 0;
-    }
 
     private static ActionOption? Find(IReadOnlyList<ActionOption> options, PokerActionKind kind)
     {

@@ -660,9 +660,14 @@ public partial class PokerSceneLoadTest : Node
     /// </summary>
     private void TestHud()
     {
+        Check("a janela de validação usa Full HD (1920x1080)",
+            (int)ProjectSettings.GetSetting("display/window/size/viewport_width", 0) == 1920
+            && (int)ProjectSettings.GetSetting("display/window/size/viewport_height", 0) == 1080
+            && (int)ProjectSettings.GetSetting("display/window/size/window_width_override", 0) == 1920
+            && (int)ProjectSettings.GetSetting("display/window/size/window_height_override", 0) == 1080);
+
         var actions = new[]
         {
-            (PokerInput.AllIn, PokerInput.AllInKey, Key.Z),
             (PokerInput.ShowdownReveal, PokerInput.ShowdownRevealKey, Key.S),
         };
 
@@ -707,10 +712,26 @@ public partial class PokerSceneLoadTest : Node
         Check("CALL tem um retângulo de giz próprio ao lado do banco de fichas",
             hand is {
                 CallZoneLength: >= 0.19f and <= 0.22f,
-                CallZoneWidth: >= 0.045f and <= 0.065f,
-                CallZoneSideOffset: >= 0.04f and <= 0.055f }
+                CallZoneWidth: >= 0.028f and <= 0.038f,
+                CallZoneSideOffset: >= 0.05f and <= 0.065f,
+                CallZoneHitPadding: >= 0.008f and <= 0.012f,
+                CallHoverOpacity: >= 0.30f and <= 0.38f,
+                CallClickMaxSeconds: >= 0.30f and <= 0.40f,
+                AllInHoldSeconds: >= 1.9f and <= 2.1f,
+                AllInHoldOpacity: > 0.4f and <= 0.7f }
+            && hand.CallZoneSideOffset
+               - hand.CallZoneWidth * 0.5f - hand.CallZoneHitPadding >= 0.028f
+            && hand.ChalkHoverShader?.Code.Contains("fill_progress") == true
             && typeof(PokerSeatPresenter).GetMethod("TryPrepareAutomaticWager") != null
-            && typeof(PokerHand3DView).GetMethod("TryConsumeTableGesture") != null);
+            && typeof(PokerHand3DView).GetMethod("TryConsumeTableGesture") != null
+            && typeof(PokerHand3DView).GetMethod("HandleTableRelease") != null
+            && typeof(PokerHand3DView).GetMethod("AdvanceCallHold") != null);
+        Check("CALL só aceita uma liberação realmente rápida",
+            PokerHand3DView.IsQuickCallRelease(0.12f, hand?.CallClickMaxSeconds ?? 0.0f)
+            && PokerHand3DView.IsQuickCallRelease(0.35f, hand?.CallClickMaxSeconds ?? 0.0f)
+            && !PokerHand3DView.IsQuickCallRelease(0.36f, hand?.CallClickMaxSeconds ?? 0.0f)
+            && !PokerHand3DView.IsQuickCallRelease(1.5f, hand?.CallClickMaxSeconds ?? 0.0f)
+            && !PokerHand3DView.IsQuickCallRelease(2.0f, hand?.CallClickMaxSeconds ?? 0.0f));
         Check("os comandos usam giz procedural, fonte grande e divisões finas",
             hand is { ChalkFont: not null, ChalkHoverShader: not null,
                 ChalkGuideFontSize: >= 68, ChalkGuidePixelSize: >= 0.00018f,
@@ -744,10 +765,9 @@ public partial class PokerSceneLoadTest : Node
 
         Check($"a HUD fica acima das outras camadas ({hud.Layer})", hud.Layer > 1);
 
-        // One row per action the layout knows about, plus all-in. Built once in _Ready rather than
-        // rebuilt per refresh, which would flicker.
-        Check($"a HUD mantém apenas all-in e showdown ({hud.ActionList.GetChildCount()})",
-            hud.ActionList.GetChildCount() == 2);
+        // Betting stays on the table; the only contextual screen-space row is showdown.
+        Check($"a HUD remove o antigo botão Z e mantém apenas showdown ({hud.ActionList.GetChildCount()})",
+            hud.ActionList.GetChildCount() == 1);
 
         Check("a HUD começa escondida", !hud.Root.Visible);
 

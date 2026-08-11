@@ -5,7 +5,7 @@ using Poker.Rules;
 /// <summary>
 /// Your turn. The crosshair turns the table into the interface: chips are selected and returned
 /// with one click, and check, fold or wager confirmation use one click on their hovered chalk zone.
-/// All-in remains the only keyboard shortcut.
+/// A short CALL press pays; holding the same physical control for two seconds goes all-in.
 /// </summary>
 [GlobalClass]
 public partial class PokerHandLookingState : State
@@ -25,50 +25,15 @@ public partial class PokerHandLookingState : State
         if (View == null || !PokerHand3DView.InputIsLive || !View.IsYourTurn)
             return;
 
-        if (@event is InputEventMouseButton
-            {
-                ButtonIndex: MouseButton.Left,
-                Pressed: true,
-            })
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } mouse)
         {
             View.GetViewport().SetInputAsHandled();
-            var gesture = View.HandleTableClick();
+            var gesture = mouse.Pressed
+                ? View.HandleTableClick()
+                : View.HandleTableRelease();
             if (gesture != PokerGesture.None)
                 BeginGesture(gesture);
-            return;
         }
-
-        if (@event.IsActionPressed(PokerInput.AllIn))
-            ActAllIn();
-    }
-
-    private bool Blocked()
-    {
-        if (View.HasPickedUpCards)
-            return false;
-
-        View.ShowNotice("Aguarde — você ainda está olhando suas cartas", 1.5f);
-        return true;
-    }
-
-    private void ActAllIn()
-    {
-        View.GetViewport().SetInputAsHandled();
-
-        if (Blocked())
-            return;
-
-        if (!View.TryAllIn(out var kind, out var total))
-        {
-            View.ShowNotice("Você não tem como ir de all-in agora", 1.5f);
-            return;
-        }
-
-        // The shortcut supersedes any tentative manual amount. The established authoritative
-        // animation then removes the whole stack from one coherent source.
-        View.CancelPreparedWager(immediate: true);
-        View.RequestAction(kind, total);
-        BeginGesture(PokerGesture.ThrowChips);
     }
 
     private void BeginGesture(PokerGesture gesture) =>
