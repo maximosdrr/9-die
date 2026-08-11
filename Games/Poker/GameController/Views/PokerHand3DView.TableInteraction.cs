@@ -38,7 +38,8 @@ public partial class PokerHand3DView : PokerHandView
     [Export(PropertyHint.Range, "0.15,0.6,0.01")] public float CallClickMaxSeconds = 0.35f;
     [Export(PropertyHint.Range, "1,4,0.1")] public float CallLabelCycleSeconds = 2.0f;
     [Export(PropertyHint.Range, "0.1,0.5,0.01")] public float CallLabelFadeSeconds = 0.24f;
-    [Export(PropertyHint.Range, "1,4,0.1")] public float AllInHoldSeconds = 2.0f;
+    [Export(PropertyHint.Range, "0.5,2,0.1")] public float AllInHoldSeconds = 1.0f;
+    [Export(PropertyHint.Range, "0.1,0.6,0.01")] public float AllInVisualDelaySeconds = 0.35f;
     [Export(PropertyHint.Range, "0,1,0.01")] public float AllInHoldOpacity = 0.58f;
     [Export] public Color AllInHoldColor = new(0.30f, 0.88f, 0.45f, 0.86f);
     [Export(PropertyHint.Range, "8,32,1")] public int InteractionArcSteps = 20;
@@ -63,8 +64,10 @@ public partial class PokerHand3DView : PokerHandView
     private Node3D _interactionGuide;
     private bool _interactionEnabled = true;
     private bool _wagerSubmitted;
-    private bool _automaticCallPending;
-    private int _automaticCallTurn = -1;
+    private bool _automaticWagerPending;
+    private int _automaticWagerTurn = -1;
+    private PokerActionKind _automaticWagerKind = PokerActionKind.None;
+    private int _automaticWagerTotal;
     private bool _callHoldActive;
     private float _callHoldElapsed;
     private int _callHoldTurn = -1;
@@ -91,7 +94,7 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public PokerGesture HandleTableClick()
     {
-        if (!IsYourTurn || !_interactionEnabled || _automaticCallPending || _wagerSubmitted)
+        if (!IsYourTurn || !_interactionEnabled || _automaticWagerPending || _wagerSubmitted)
             return PokerGesture.None;
 
         if (!HasPickedUpCards)
@@ -140,7 +143,7 @@ public partial class PokerHand3DView : PokerHandView
 
     /// <summary>
     /// A short press is committed only on release, leaving the same physical target free to become
-    /// an intentional two-second all-in without ever firing both actions.
+    /// an intentional one-second all-in without ever firing both actions.
     /// </summary>
     public PokerGesture HandleTableRelease()
     {
@@ -154,25 +157,68 @@ public partial class PokerHand3DView : PokerHandView
         var quickClick = IsQuickCallRelease(_callHoldElapsed, CallClickMaxSeconds);
         ResetCallHold();
         return valid && quickClick
-            ? HandleAutomaticCall(presenter, playerId)
+            ? HandleAutomaticWager(presenter, playerId)
             : PokerGesture.None;
     }
 
     /// <summary>
-    /// Classifies the release independently from the two-second all-in timer. The gap between a
+    /// Classifies the release independently from the one-second all-in timer. The gap between a
     /// quick click and a completed hold deliberately performs no action, preventing an abandoned
     /// all-in from silently becoming a call.
     /// </summary>
     public static bool IsQuickCallRelease(float heldSeconds, float maxClickSeconds) =>
         heldSeconds >= 0.0f && heldSeconds <= Mathf.Max(0.0f, maxClickSeconds);
 
-    /// <summary>Alternates one short word at a time while the crosshair remains on CALL.</summary>
-    public static string CallLabelForHover(float elapsed, float cycleSeconds)
+    /// <summary>Alternates the available shortcut with the explicit hold instruction.</summary>
+    public static string CallLabelForHover(
+        string automaticLabel, float elapsed, float cycleSeconds)
     {
         var interval = Mathf.Max(0.1f, cycleSeconds);
         var index = Mathf.FloorToInt(Mathf.Max(0.0f, elapsed) / interval);
-        return index % 2 == 0 ? "CALL" : "ALL-IN";
+        return index % 2 == 0 ? automaticLabel : "SEGURE ALL-IN";
     }
+
+    public static string CallLabelForHover(float elapsed, float cycleSeconds) =>
+        CallLabelForHover("CALL", elapsed, cycleSeconds);
+
+    /// <summary>
+    /// CALL has priority when chips are owed. With nothing to call, the same physical shortcut
+    /// becomes AUTO and chooses the minimum legal raise rather than disappearing from the table.
+    /// </summary>
+    public static bool TryAutomaticWagerOption(
+        IReadOnlyList<ActionOption> options, out PokerActionKind kind, out int total)
+    {
+        if (options != null)
+        {
+            foreach (var option in options)
+            {
+                if (option.Kind != PokerActionKind.Call)
+                    continue;
+
+                kind = PokerActionKind.Call;
+                total = option.MinTotal;
+                return true;
+            }
+
+            foreach (var option in options)
+            {
+                if (option.Kind != PokerActionKind.Raise)
+                    continue;
+
+                kind = PokerActionKind.Raise;
+                total = option.MinTotal;
+                return true;
+            }
+        }
+
+        kind = PokerActionKind.None;
+        total = 0;
+        return false;
+    }
+
+    public static string AutomaticWagerLabel(IReadOnlyList<ActionOption> options) =>
+        TryAutomaticWagerOption(options, out var kind, out _)
+            && kind == PokerActionKind.Raise ? "AUTO" : "CALL";
 
     /// <summary>Fades out before each word swap and back in afterwards, producing a soft blink.</summary>
     public static float CallLabelOpacityForHover(
@@ -182,7 +228,7 @@ public partial class PokerHand3DView : PokerHandView
         var interval = Mathf.Max(0.1f, cycleSeconds);
         var fade = Mathf.Clamp(fadeSeconds, 0.01f, interval * 0.45f);
         // The first word starts readable. Subsequent swaps pass through zero opacity so no frame
-        // ever contains CALL and ALL-IN at the same time.
+        // ever contains the automatic action and SEGURE ALL-IN at the same time.
         if (elapsed < interval - fade)
             return 1.0f;
 
@@ -192,6 +238,21 @@ public partial class PokerHand3DView : PokerHandView
         if (phase < fade)
             return PokerMotion.Smooth(phase / fade);
         return 1.0f;
+    }
+
+    /// <summary>
+    /// A quick click lives entirely inside the dead zone and therefore never flashes the green
+    /// all-in progress. After that threshold, the remaining hold time maps cleanly from zero to one.
+    /// </summary>
+    public static float AllInHoldVisualProgress(
+        float heldSeconds, float visualDelaySeconds, float holdSeconds)
+    {
+        var end = Mathf.Max(0.1f, holdSeconds);
+        var start = Mathf.Clamp(visualDelaySeconds, 0.0f, end - 0.01f);
+        if (heldSeconds <= start)
+            return 0.0f;
+
+        return Mathf.Clamp((heldSeconds - start) / (end - start), 0.0f, 1.0f);
     }
 
     public void AdvanceCallLabelCycle(float delta)
@@ -205,9 +266,9 @@ public partial class PokerHand3DView : PokerHandView
 
     private PokerGesture BeginCallHold()
     {
-        if (!HasAction(PokerActionKind.Call) && !TryAllIn(out _, out _))
+        if (!TryAutomaticWagerOption(_options, out _, out _) && !TryAllIn(out _, out _))
         {
-            ShowNotice("CALL e ALL-IN não estão disponíveis agora", 1.6f);
+            ShowNotice("A aposta automática e o ALL-IN não estão disponíveis agora", 1.6f);
             return PokerGesture.None;
         }
 
@@ -273,8 +334,7 @@ public partial class PokerHand3DView : PokerHandView
         var publishCancellation = IsYourTurn && !_wagerSubmitted
                                   && (presenter?.PreparedWagerAmount ?? 0) > 0;
         _wagerSubmitted = false;
-        _automaticCallPending = false;
-        _automaticCallTurn = -1;
+        ResetAutomaticWager();
         ResetCallHold();
         _queuedTableGesture = PokerGesture.None;
         presenter?.CancelPreparedWager(immediate);
@@ -346,15 +406,14 @@ public partial class PokerHand3DView : PokerHandView
         return PokerGesture.ThrowChips;
     }
 
-    private PokerGesture HandleAutomaticCall(PokerSeatPresenter presenter, string playerId)
+    private PokerGesture HandleAutomaticWager(PokerSeatPresenter presenter, string playerId)
     {
-        if (!HasAction(PokerActionKind.Call))
+        if (!TryAutomaticWagerOption(_options, out var kind, out var total))
         {
-            ShowNotice("CALL não está disponível quando você pode passar", 1.6f);
+            ShowNotice("A aposta automática não está disponível agora", 1.6f);
             return PokerGesture.None;
         }
 
-        var total = TotalFor(PokerActionKind.Call);
         var required = Mathf.Max(0, total - Game.BetOf(playerId));
         if (required <= 0)
         {
@@ -364,56 +423,70 @@ public partial class PokerHand3DView : PokerHandView
 
         if (presenter.PreparedWagerAmount != required)
         {
-            // CALL supersedes a partial manual choice. Rebuild from the stable bank in one local
-            // transaction and publish only the final whole snapshot, avoiding a return/select flick.
+            // The shortcut supersedes a partial manual choice. Rebuild from the stable bank in one
+            // local transaction and publish only the final snapshot, avoiding a return/select flick.
             presenter.CancelPreparedWager(immediate: true);
             if (!presenter.TryPrepareAutomaticWager(playerId, required))
             {
-                ShowNotice("Não foi possível separar as fichas exatas para o CALL", 1.8f);
+                var label = kind == PokerActionKind.Call ? "CALL" : "AUTO";
+                ShowNotice($"Não foi possível separar as fichas exatas para o {label}", 1.8f);
                 RefreshPhysicalHud();
                 return PokerGesture.None;
             }
             PublishPreparedWagerSnapshot();
         }
 
-        _automaticCallPending = true;
-        _automaticCallTurn = Game.TurnToken;
+        _automaticWagerPending = true;
+        _automaticWagerTurn = Game.TurnToken;
+        _automaticWagerKind = kind;
+        _automaticWagerTotal = total;
         RefreshPhysicalHud();
         return PokerGesture.None;
     }
 
-    private void AdvanceAutomaticCall()
+    private void AdvanceAutomaticWager()
     {
-        if (!_automaticCallPending)
+        if (!_automaticWagerPending)
             return;
 
         var presenter = Game?.SeatPresenter;
         var playerId = Player == null ? null : (string)Player.Name;
         if (presenter == null || string.IsNullOrEmpty(playerId) || !IsYourTurn
-            || Game.TurnToken != _automaticCallTurn || !HasAction(PokerActionKind.Call))
+            || Game.TurnToken != _automaticWagerTurn
+            || !OptionAllows(_automaticWagerKind, _automaticWagerTotal))
         {
-            _automaticCallPending = false;
-            _automaticCallTurn = -1;
+            ResetAutomaticWager();
             return;
         }
 
         var denominations = presenter.PreparedWagerDenominations;
         var publicPreview = Game.PreparedWagerOf(playerId);
         if (!presenter.PreparedWagerReady || publicPreview == null
-            || publicPreview.TurnToken != _automaticCallTurn
+            || publicPreview.TurnToken != _automaticWagerTurn
             || !publicPreview.Denominations.SequenceEqual(denominations))
             return;
 
         var selected = presenter.PreparedWagerAmount;
-        var total = TotalFor(PokerActionKind.Call);
         if (!presenter.SubmitPreparedWager(playerId, selected))
             return;
 
-        _automaticCallPending = false;
-        _automaticCallTurn = -1;
+        var kind = _automaticWagerKind;
+        var total = _automaticWagerTotal;
+        ResetAutomaticWager();
         _wagerSubmitted = true;
-        RequestAction(PokerActionKind.Call, total);
+        RequestAction(kind, total);
         _queuedTableGesture = PokerGesture.ThrowChips;
+    }
+
+    private bool OptionAllows(PokerActionKind kind, int total) =>
+        _options.Any(option => option.Kind == kind && option.Allows(total));
+
+    private void ResetAutomaticWager()
+    {
+        _automaticWagerPending = false;
+        _automaticWagerTurn = -1;
+        _automaticWagerKind = PokerActionKind.None;
+        _automaticWagerTotal = 0;
     }
 
     public bool TryConsumeTableGesture(out PokerGesture gesture)
@@ -524,8 +597,7 @@ public partial class PokerHand3DView : PokerHandView
         {
             _interactionHand = hand;
             _wagerSubmitted = false;
-            _automaticCallPending = false;
-            _automaticCallTurn = -1;
+            ResetAutomaticWager();
             ResetCallHold();
             _queuedTableGesture = PokerGesture.None;
             Game?.SeatPresenter?.CancelPreparedWager(immediate: true);
@@ -607,16 +679,20 @@ public partial class PokerHand3DView : PokerHandView
     private void UpdateCallHoldVisual()
     {
         var progress = _callHoldActive
-            ? Mathf.Clamp(_callHoldElapsed / Mathf.Max(0.1f, AllInHoldSeconds), 0.0f, 1.0f)
-            : 1.0f;
+            ? AllInHoldVisualProgress(
+                _callHoldElapsed,
+                Mathf.Max(AllInVisualDelaySeconds, CallClickMaxSeconds),
+                AllInHoldSeconds)
+            : 0.0f;
+        var showHoldIntent = _callHoldActive && progress > 0.0f;
 
         if (_zoneFillMaterials.TryGetValue(InteractionZone.Call, out var material))
         {
-            material.SetShaderParameter("use_fill_progress", _callHoldActive);
+            material.SetShaderParameter("use_fill_progress", showHoldIntent);
             material.SetShaderParameter("fill_progress", progress);
             material.SetShaderParameter("chalk_color",
-                _callHoldActive ? AllInHoldColor : ChalkGuideColor);
-            material.SetShaderParameter("chalk_strength", _callHoldActive
+                showHoldIntent ? AllInHoldColor : ChalkGuideColor);
+            material.SetShaderParameter("chalk_strength", showHoldIntent
                 ? Mathf.Lerp(0.18f, AllInHoldOpacity, PokerMotion.Smooth(progress))
                 : _hoveredZone == InteractionZone.Call ? CallHoverOpacity : 0.0f);
         }
@@ -624,16 +700,18 @@ public partial class PokerHand3DView : PokerHandView
         if (!_zoneLabels.TryGetValue(InteractionZone.Call, out var labels))
             return;
 
-        var text = _callHoldActive
-            ? "ALL-IN"
-            : _hoveredZone == InteractionZone.Call
-                ? CallLabelForHover(_callHoverElapsed, CallLabelCycleSeconds)
-                : "CALL";
+        var automaticLabel = AutomaticWagerLabel(_options);
+        var text = showHoldIntent
+            ? "SEGURE ALL-IN"
+            : !_callHoldActive && _hoveredZone == InteractionZone.Call
+                ? CallLabelForHover(
+                    automaticLabel, _callHoverElapsed, CallLabelCycleSeconds)
+                : automaticLabel;
         var hoverOpacity = _hoveredZone == InteractionZone.Call
             ? CallLabelOpacityForHover(
                 _callHoverElapsed, CallLabelCycleSeconds, CallLabelFadeSeconds)
             : ChalkGuideColor.A;
-        var colour = _callHoldActive
+        var colour = showHoldIntent
             ? AllInHoldColor with { A = 1.0f }
             : ChalkGuideColor with { A = hoverOpacity };
         foreach (var label in labels)
@@ -725,7 +803,8 @@ public partial class PokerHand3DView : PokerHandView
             Mathf.Pi * ConfirmLabelSpanPi, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f),
             reverseGlyphUp: true);
         if (hasCallFrame)
-            AddAlignedChalkLabel(InteractionZone.Call, "Call", "CALL", callCentre,
+            AddAlignedChalkLabel(InteractionZone.Call, "Call",
+                AutomaticWagerLabel(_options), callCentre,
                 callAlong, -callAcross, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
         UpdateCallHoldVisual();
     }

@@ -726,8 +726,11 @@ public partial class PokerSceneLoadTest : Node
                 CallClickMaxSeconds: >= 0.30f and <= 0.40f,
                 CallLabelCycleSeconds: >= 1.9f and <= 2.1f,
                 CallLabelFadeSeconds: >= 0.18f and <= 0.32f,
-                AllInHoldSeconds: >= 1.9f and <= 2.1f,
+                AllInHoldSeconds: >= 0.9f and <= 1.1f,
+                AllInVisualDelaySeconds: >= 0.30f and <= 0.40f,
                 AllInHoldOpacity: > 0.4f and <= 0.7f }
+            && hand.AllInVisualDelaySeconds >= hand.CallClickMaxSeconds
+            && hand.AllInVisualDelaySeconds < hand.AllInHoldSeconds
             && hand.CallZoneSideOffset
                - hand.CallZoneWidth * 0.5f - hand.CallZoneHitPadding >= 0.028f
             && hand.ChalkHoverShader?.Code.Contains("fill_progress") == true
@@ -736,14 +739,40 @@ public partial class PokerSceneLoadTest : Node
             && typeof(PokerHand3DView).GetMethod("HandleTableRelease") != null
             && typeof(PokerHand3DView).GetMethod("AdvanceCallHold") != null
             && typeof(PokerHand3DView).GetMethod("AdvanceCallLabelCycle") != null);
-        Check("o CALL alterna com ALL-IN sem juntar os dois textos",
+        Check("CALL/AUTO alterna com SEGURE ALL-IN sem juntar os textos",
             PokerHand3DView.CallLabelForHover(0.0f, 2.0f) == "CALL"
             && PokerHand3DView.CallLabelForHover(1.99f, 2.0f) == "CALL"
-            && PokerHand3DView.CallLabelForHover(2.0f, 2.0f) == "ALL-IN"
-            && PokerHand3DView.CallLabelForHover(3.99f, 2.0f) == "ALL-IN"
+            && PokerHand3DView.CallLabelForHover(2.0f, 2.0f) == "SEGURE ALL-IN"
+            && PokerHand3DView.CallLabelForHover(3.99f, 2.0f) == "SEGURE ALL-IN"
             && PokerHand3DView.CallLabelForHover(4.0f, 2.0f) == "CALL"
+            && PokerHand3DView.CallLabelForHover("AUTO", 0.0f, 2.0f) == "AUTO"
+            && PokerHand3DView.CallLabelForHover("AUTO", 2.0f, 2.0f) == "SEGURE ALL-IN"
             && PokerHand3DView.CallLabelOpacityForHover(0.0f, 2.0f, 0.24f) > 0.99f
             && PokerHand3DView.CallLabelOpacityForHover(2.0f, 2.0f, 0.24f) < 0.01f);
+        var callOptions = new List<ActionOption>
+        {
+            new(PokerActionKind.Call, 10, 10),
+            new(PokerActionKind.Raise, 20, 100),
+        };
+        var autoOptions = new List<ActionOption>
+        {
+            new(PokerActionKind.Check, 0, 0),
+            new(PokerActionKind.Raise, 10, 100),
+        };
+        Check("CALL paga primeiro; sem CALL, AUTO faz exatamente a aposta mínima",
+            PokerHand3DView.TryAutomaticWagerOption(
+                callOptions, out var callKind, out var callTotal)
+            && callKind == PokerActionKind.Call && callTotal == 10
+            && PokerHand3DView.AutomaticWagerLabel(callOptions) == "CALL"
+            && PokerHand3DView.TryAutomaticWagerOption(
+                autoOptions, out var autoKind, out var autoTotal)
+            && autoKind == PokerActionKind.Raise && autoTotal == 10
+            && PokerHand3DView.AutomaticWagerLabel(autoOptions) == "AUTO");
+        Check("o clique rápido não mostra a barra; o hold de um segundo a completa",
+            PokerHand3DView.AllInHoldVisualProgress(0.12f, 0.35f, 1.0f) == 0.0f
+            && PokerHand3DView.AllInHoldVisualProgress(0.35f, 0.35f, 1.0f) == 0.0f
+            && PokerHand3DView.AllInHoldVisualProgress(0.36f, 0.35f, 1.0f) > 0.0f
+            && PokerHand3DView.AllInHoldVisualProgress(1.0f, 0.35f, 1.0f) > 0.99f);
         Check("a confirmação curta e legível agora se chama APOSTAR",
             PokerHand3DView.ConfirmBetLabelText == "APOSTAR");
         Check("CALL só aceita uma liberação realmente rápida",
@@ -751,7 +780,7 @@ public partial class PokerSceneLoadTest : Node
             && PokerHand3DView.IsQuickCallRelease(0.35f, hand?.CallClickMaxSeconds ?? 0.0f)
             && !PokerHand3DView.IsQuickCallRelease(0.36f, hand?.CallClickMaxSeconds ?? 0.0f)
             && !PokerHand3DView.IsQuickCallRelease(1.5f, hand?.CallClickMaxSeconds ?? 0.0f)
-            && !PokerHand3DView.IsQuickCallRelease(2.0f, hand?.CallClickMaxSeconds ?? 0.0f));
+            && !PokerHand3DView.IsQuickCallRelease(1.0f, hand?.CallClickMaxSeconds ?? 0.0f));
         Check("os comandos usam giz procedural, fonte grande e divisões finas",
             hand is { ChalkFont: not null, ChalkHoverShader: not null,
                 ChalkGuideFontSize: >= 68, ChalkGuidePixelSize: >= 0.00018f,
