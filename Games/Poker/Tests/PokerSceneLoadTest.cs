@@ -722,7 +722,7 @@ public partial class PokerSceneLoadTest : Node
                 CallClickMaxSeconds: >= 0.30f and <= 0.40f,
                 CallLabelCycleSeconds: >= 1.9f and <= 2.1f,
                 CallLabelFadeSeconds: >= 0.18f and <= 0.32f,
-                AllInHoldSeconds: >= 0.9f and <= 1.1f,
+                AllInHoldSeconds: >= 1.4f and <= 1.6f,
                 AllInVisualDelaySeconds: >= 0.30f and <= 0.40f,
                 AllInHoldOpacity: > 0.4f and <= 0.7f }
             && hand.AllInVisualDelaySeconds >= hand.CallClickMaxSeconds
@@ -768,11 +768,15 @@ public partial class PokerSceneLoadTest : Node
             && PokerHand3DView.WagerButtonLabel(callOptions, hasPreparedChips: true) == "APOSTAR"
             && PokerHand3DView.WagerButtonLabel(callOptions, hasPreparedChips: false) == "CALL"
             && PokerHand3DView.WagerButtonLabel(autoOptions, hasPreparedChips: false) == "AUTO");
-        Check("o clique rápido não mostra a barra; o hold de um segundo a completa",
-            PokerHand3DView.AllInHoldVisualProgress(0.12f, 0.35f, 1.0f) == 0.0f
-            && PokerHand3DView.AllInHoldVisualProgress(0.35f, 0.35f, 1.0f) == 0.0f
-            && PokerHand3DView.AllInHoldVisualProgress(0.36f, 0.35f, 1.0f) > 0.0f
-            && PokerHand3DView.AllInHoldVisualProgress(1.0f, 0.35f, 1.0f) > 0.99f);
+        Check("o clique rápido não mostra a barra; o hold de 1,5 segundo a completa",
+            PokerHand3DView.AllInHoldVisualProgress(0.12f, 0.35f, 1.5f) == 0.0f
+            && PokerHand3DView.AllInHoldVisualProgress(0.35f, 0.35f, 1.5f) == 0.0f
+            && PokerHand3DView.AllInHoldVisualProgress(0.36f, 0.35f, 1.5f) > 0.0f
+            && PokerHand3DView.AllInHoldVisualProgress(1.5f, 0.35f, 1.5f) > 0.99f);
+        Check("o verde começa em zero e percorre o mesmo arco em todas as cadeiras",
+            PokerHand3DView.SectorProgressUv(0, 20, outer: false) == Vector2.Zero
+            && Mathf.IsEqualApprox(PokerHand3DView.SectorProgressUv(10, 20, true).X, 0.5f)
+            && PokerHand3DView.SectorProgressUv(20, 20, true) == Vector2.One);
         Check("a confirmação curta e legível agora se chama APOSTAR",
             PokerHand3DView.ConfirmBetLabelText == "APOSTAR");
         Check("CALL só aceita uma liberação realmente rápida",

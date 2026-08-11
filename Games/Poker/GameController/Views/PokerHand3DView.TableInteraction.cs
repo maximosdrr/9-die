@@ -30,7 +30,7 @@ public partial class PokerHand3DView : PokerHandView
     [Export(PropertyHint.Range, "0.15,0.6,0.01")] public float CallClickMaxSeconds = 0.35f;
     [Export(PropertyHint.Range, "1,4,0.1")] public float CallLabelCycleSeconds = 2.0f;
     [Export(PropertyHint.Range, "0.1,0.5,0.01")] public float CallLabelFadeSeconds = 0.24f;
-    [Export(PropertyHint.Range, "0.5,2,0.1")] public float AllInHoldSeconds = 1.0f;
+    [Export(PropertyHint.Range, "0.5,2,0.1")] public float AllInHoldSeconds = 1.5f;
     [Export(PropertyHint.Range, "0.1,0.6,0.01")] public float AllInVisualDelaySeconds = 0.35f;
     [Export(PropertyHint.Range, "0,1,0.01")] public float AllInHoldOpacity = 0.58f;
     [Export] public Color AllInHoldColor = new(0.30f, 0.88f, 0.45f, 0.86f);
@@ -133,7 +133,7 @@ public partial class PokerHand3DView : PokerHandView
 
     /// <summary>
     /// A short press is committed only on release, leaving the same physical target free to become
-    /// an intentional one-second all-in without ever firing both actions.
+    /// an intentional 1.5-second all-in without ever firing both actions.
     /// </summary>
     public PokerGesture HandleTableRelease()
     {
@@ -155,7 +155,7 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     /// <summary>
-    /// Classifies the release independently from the one-second all-in timer. The gap between a
+    /// Classifies the release independently from the 1.5-second all-in timer. The gap between a
     /// quick click and a completed hold deliberately performs no action, preventing an abandoned
     /// all-in from silently becoming a call.
     /// </summary>
@@ -249,7 +249,20 @@ public partial class PokerHand3DView : PokerHandView
         if (heldSeconds <= start)
             return 0.0f;
 
-        return Mathf.Clamp((heldSeconds - start) / (end - start), 0.0f, 1.0f);
+        var fillDuration = end - start;
+        var remaining = Mathf.Max(0.0f, end - heldSeconds);
+        return 1.0f - Mathf.Clamp(remaining / fillDuration, 0.0f, 1.0f);
+    }
+
+    /// <summary>
+    /// Progress UVs are local to the arc, never table coordinates. The same 0..1 range is therefore
+    /// produced for every chair and peer, independently of where or how the local guide is rotated.
+    /// </summary>
+    public static Vector2 SectorProgressUv(int step, int steps, bool outer)
+    {
+        var safeSteps = Mathf.Max(1, steps);
+        return new Vector2(
+            Mathf.Clamp(step / (float)safeSteps, 0.0f, 1.0f), outer ? 1.0f : 0.0f);
     }
 
     public void AdvanceCallLabelCycle(float delta)
@@ -982,8 +995,14 @@ public partial class PokerHand3DView : PokerHandView
             var outer0 = SemicirclePoint(centre, inward, across, outerRadius, angle0);
             var inner1 = SemicirclePoint(centre, inward, across, innerRadius, angle1);
             var outer1 = SemicirclePoint(centre, inward, across, outerRadius, angle1);
-            AddInteractionTriangle(mesh, inner0, outer0, outer1);
-            AddInteractionTriangle(mesh, inner0, outer1, inner1);
+            var innerUv0 = SectorProgressUv(step, steps, outer: false);
+            var outerUv0 = SectorProgressUv(step, steps, outer: true);
+            var innerUv1 = SectorProgressUv(step + 1, steps, outer: false);
+            var outerUv1 = SectorProgressUv(step + 1, steps, outer: true);
+            AddInteractionTriangle(mesh, inner0, outer0, outer1,
+                innerUv0, outerUv0, outerUv1);
+            AddInteractionTriangle(mesh, inner0, outer1, inner1,
+                innerUv0, outerUv1, innerUv1);
         }
         mesh.SurfaceEnd();
         return mesh;
@@ -994,27 +1013,12 @@ public partial class PokerHand3DView : PokerHandView
         centre + inward * (Mathf.Cos(angle) * radius) + across * (Mathf.Sin(angle) * radius);
 
     private static void AddInteractionTriangle(
-        ImmediateMesh mesh, Vector2 a, Vector2 b, Vector2 c)
-    {
-        AddInteractionVertex(mesh, a);
-        AddInteractionVertex(mesh, b);
-        AddInteractionVertex(mesh, c);
-    }
-
-    private static void AddInteractionTriangle(
         ImmediateMesh mesh, Vector2 a, Vector2 b, Vector2 c,
         Vector2 uvA, Vector2 uvB, Vector2 uvC)
     {
         AddInteractionVertex(mesh, a, uvA);
         AddInteractionVertex(mesh, b, uvB);
         AddInteractionVertex(mesh, c, uvC);
-    }
-
-    private static void AddInteractionVertex(ImmediateMesh mesh, Vector2 point)
-    {
-        mesh.SurfaceSetNormal(Vector3.Up);
-        mesh.SurfaceSetUV(point * 8.0f);
-        mesh.SurfaceAddVertex(new Vector3(point.X, 0.0f, point.Y));
     }
 
     private static void AddInteractionVertex(ImmediateMesh mesh, Vector2 point, Vector2 uv)

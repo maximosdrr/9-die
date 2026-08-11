@@ -5,7 +5,7 @@ using Poker.Rules;
 /// <summary>
 /// Your turn. The crosshair turns the table into the interface: chips are selected and returned
 /// with one click, and check, fold or wager confirmation use one click on their hovered chalk zone.
-/// A short wager-arc press pays, auto-bets or confirms staged chips; a one-second hold goes all-in.
+/// A short wager-arc press pays, auto-bets or confirms staged chips; a 1.5-second hold goes all-in.
 /// </summary>
 [GlobalClass]
 public partial class PokerHandLookingState : State
