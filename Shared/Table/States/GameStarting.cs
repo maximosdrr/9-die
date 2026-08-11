@@ -1,7 +1,7 @@
-using Godot;
-using Godot.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Godot;
+using Godot.Collections;
 
 [GlobalClass]
 public partial class GameStarting : State

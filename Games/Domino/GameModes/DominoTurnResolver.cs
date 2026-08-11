@@ -61,7 +61,12 @@ public partial class DominoTurnResolver : SecretHandTurnResolver
     /// the leaver's tiles back in the boneyard by the time this runs, so the counts are correct.
     /// </summary>
     public override Dictionary BuildHandoffContext(string outgoingPlayerId) =>
-        BuildContext("left", outgoingPlayerId, DominoTileId.NoEnd);
+        BuildContext("left", outgoingPlayerId, DominoTileId.NoEnd,
+            advanceTurn: Game?.IsTurnOwner(outgoingPlayerId) == true);
+
+    public override Dictionary BuildReclaimContext(string outgoingPlayerId) =>
+        BuildContext("reclaimed", outgoingPlayerId, DominoTileId.NoEnd,
+            advanceTurn: Game?.IsTurnOwner(outgoingPlayerId) == true);
 
     // ---------------------------------------------------------------- deal
 
@@ -379,6 +384,8 @@ public partial class DominoTurnResolver : SecretHandTurnResolver
 
         if (_lastPlayerId == oldPlayerId)
             _lastPlayerId = newPlayerId;
+
+        _board.RekeyPlayer(oldPlayerId, newPlayerId);
 
         ReissueTo(newPlayerId);
     }

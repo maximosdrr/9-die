@@ -37,13 +37,15 @@ public partial class TableTurnNetworkBridge : Node
         // Reliable ordering guarantees this setup reaches the late peer before mode-specific
         // snapshots (the domino board/private hand or the pool table state).
         RpcId(peerId, MethodName.RpcSyncMatchSetup,
-            new Array(TableGame.TurnOrder), TableGame.TurnOwnerId);
+            new Array(TableGame.TurnOrder), TableGame.TurnOwnerId,
+            TableGame.BuildSeatSlotSnapshot());
     }
 
     private void OnMatchStartedServerSide(Array playersIds, string firstPlayer)
     {
         if (Multiplayer.IsServer())
-            Rpc(MethodName.RpcSyncMatchSetup, playersIds, firstPlayer);
+            Rpc(MethodName.RpcSyncMatchSetup, playersIds, firstPlayer,
+                TableGame.BuildSeatSlotSnapshot());
     }
 
     private void OnTurnChangedServerSide(string nextPlayerId, Dictionary context)
@@ -77,9 +79,9 @@ public partial class TableTurnNetworkBridge : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void RpcSyncMatchSetup(Array playersIds, string firstPlayer)
+    private void RpcSyncMatchSetup(Array playersIds, string firstPlayer, string[] seatSlots)
     {
-        TableGame.PrepareMatch(playersIds, firstPlayer);
+        TableGame.StageSeatSlotSnapshot(seatSlots);
         TableGame.SetupMatch(playersIds, firstPlayer);
     }
 

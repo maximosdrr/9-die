@@ -39,12 +39,24 @@ public partial class PoolGame : TableGame
 
     public override void _Ready()
     {
+        SetProcess(false);
         BallPlacementManager.SimulationRunner = SimulationRunner;
         _gameModeHandler = GameModeHandler;
         MatchOver += OnMatchIsOver;
         MatchStarted += OnMatchStarts;
         PlayerRemovedFromMatch += OnPlayerRemovedFromMatch;
         PlayerReclaimed += OnPlayerReclaimed;
+    }
+
+    public override void _Process(double delta)
+    {
+        ProcessPendingReclaim();
+    }
+
+    public override void _ExitTree()
+    {
+        ClearPendingReclaim();
+        base._ExitTree();
     }
 
     private void OnBallPocketed(Ball ball)
@@ -98,6 +110,7 @@ public partial class PoolGame : TableGame
 
     public override async void SetupMatch(Array players, string firstTurnOwner)
     {
+        ClearPendingReclaim();
         PrepareMatch(players, firstTurnOwner);
         var setupVersion = ++_setupVersion;
         _runtimeReady = false;
@@ -207,50 +220,88 @@ public partial class PoolGame : TableGame
         }
         EmitSignal(SignalName.HudStateUpdated);
 
-        if (!_runtimeReady)
-        {
-            _pendingReclaimNewId = newPlayerId;
-            _pendingReclaimContext = context?.Duplicate() ?? new Dictionary();
-            return;
-        }
-
-        ApplyReclaimedPlayer(newPlayerId, context);
+        QueuePendingReclaim(newPlayerId, context);
+        ProcessPendingReclaim();
     }
 
-    private void ApplyReclaimedPlayer(string newPlayerId, Dictionary context)
+    private bool TryApplyReclaimedPlayer(string newPlayerId, Dictionary context)
     {
-        var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
-        if (newPlayer == null)
-            return;
+        var registry = PlayerRegistry.Instance;
+        if (registry == null || !registry.TryGetPlayerById(newPlayerId, out var newPlayer)
+            || !IsInstanceValid(newPlayer))
+            return false;
+
+        AttachLocalReclaimedPlayer(newPlayerId, newPlayer);
+        if (GameControllerScene == null || newPlayer.GameHandler == null)
+            return false;
+
+        // Reliable reclaim state can be replayed while the scene catches up. Re-equipping here
+        // would destroy the live controller and could start a second placement continuation.
+        if (newPlayer.GameHandler.CurrentTableGame == this
+            && IsInstanceValid(newPlayer.GameHandler.CurrentController))
+        {
+            return true;
+        }
 
         newPlayer.GameHandler.EquipGameController(GameControllerScene, this, Camera);
 
         // TableGame already transferred the cached turn identity without touching the old,
         // already-freed Player node.
         if (!IsTurnOwner(newPlayerId))
-            return;
+            return true;
 
         var resolver = _gameModeHandler?.CurrentGameMode?.TurnResolver as PoolTurnResolver;
         resolver?.ResumeReclaimedTurn(newPlayerId, context);
         newPlayer.GameHandler.CurrentController?.ApplyControl(newPlayerId, context);
+        return true;
     }
 
     private void ProcessPendingReclaim()
     {
         if (string.IsNullOrEmpty(_pendingReclaimNewId))
+        {
+            SetProcess(false);
+            return;
+        }
+
+        if (!IsMatchActive || !TurnOrder.Contains(_pendingReclaimNewId))
+        {
+            ClearPendingReclaim();
+            return;
+        }
+
+        if (!_runtimeReady)
             return;
 
         var newId = _pendingReclaimNewId;
         var context = _pendingReclaimContext ?? new Dictionary();
+        if (!TryApplyReclaimedPlayer(newId, context))
+            return;
+
+        _pendingReclaimNewId = null;
+        _pendingReclaimContext = null;
+        SetProcess(false);
+        context.Dispose();
+    }
+
+    private void QueuePendingReclaim(string newPlayerId, Dictionary context)
+    {
         ClearPendingReclaim();
-        ApplyReclaimedPlayer(newId, context);
+        _pendingReclaimNewId = newPlayerId;
+        _pendingReclaimContext = context?.Duplicate() ?? new Dictionary();
+        SetProcess(true);
     }
 
     private void ClearPendingReclaim()
     {
+        _pendingReclaimContext?.Dispose();
         _pendingReclaimNewId = null;
         _pendingReclaimContext = null;
+        SetProcess(false);
     }
+
+    internal bool HasPendingReclaimedController =>
+        !string.IsNullOrEmpty(_pendingReclaimNewId);
 
     public Dictionary BuildPublicSnapshot()
     {

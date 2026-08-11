@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -17,6 +18,10 @@ public partial class PlayerMovementSecurityTest : Node
 
         TestInputValidation();
         TestSequenceRateAndTimeout();
+        TestPredictionCorrectionRetargeting();
+        TestOwningSnapshotPresentation();
+        TestNativeWindowHandleConversion();
+        TestCameraMountLifecycle();
         TestRpcContract();
         TestMovementModeRateLimiter();
         TestProfileValidation();
@@ -74,6 +79,180 @@ public partial class PlayerMovementSecurityTest : Node
             !rateGuard.TryAccept(9, 3, Vector2.Zero, 0.0f, 2));
         Check("o orçamento reabre na janela seguinte",
             rateGuard.TryAccept(9, 4, Vector2.Zero, 0.0f, 1_000));
+    }
+
+    private void TestPredictionCorrectionRetargeting()
+    {
+        var correction = new PlayerPredictionCorrection();
+        correction.Retarget(new Vector3(0.4f, 0.0f, -0.2f));
+
+        // A later snapshot says that the peer is already aligned. It must cancel the stale
+        // correction instead of leaving movement after input has stopped.
+        correction.Retarget(Vector3.Zero);
+        Check("snapshot alinhado cancela correção posicional antiga no peer",
+            correction.PositionError == Vector3.Zero);
+
+        correction.Retarget(new Vector3(0.6f, 0.0f, 0.0f));
+        var firstPositionStep = correction.ConsumePositionStep(0.2f);
+        correction.Retarget(new Vector3(-0.1f, 0.0f, 0.0f));
+        var newestPositionStep = correction.ConsumePositionStep(0.2f);
+        Check("snapshot novo substitui correção posicional pendente",
+            firstPositionStep.IsEqualApprox(new Vector3(0.2f, 0.0f, 0.0f))
+            && newestPositionStep.IsEqualApprox(new Vector3(-0.1f, 0.0f, 0.0f))
+            && correction.PositionError == Vector3.Zero);
+
+        const float stoppedLocalYaw = 0.75f;
+        var yawAfterOppositeSnapshot = PlayerMovementProtocol.ResolveOwningClientYaw(
+            stoppedLocalYaw,
+            serverYaw: -1.2f);
+        var yawAfterAlignedSnapshot = PlayerMovementProtocol.ResolveOwningClientYaw(
+            yawAfterOppositeSnapshot,
+            serverYaw: 0.0f);
+        Check("snapshot de yaw nunca move a câmera local após o mouse parar",
+            Mathf.IsEqualApprox(yawAfterOppositeSnapshot, stoppedLocalYaw)
+            && Mathf.IsEqualApprox(yawAfterAlignedSnapshot, stoppedLocalYaw));
+        Check("yaw local inválido recua para o valor seguro do servidor",
+            Mathf.IsEqualApprox(
+                PlayerMovementProtocol.ResolveOwningClientYaw(float.NaN, -0.4f),
+                -0.4f));
+
+        var predictedAtAcknowledgement = new Vector3(2.0f, 0.0f, 1.0f);
+        var currentPrediction = new Vector3(4.0f, 0.0f, 1.5f);
+        var serverAtAcknowledgement = new Vector3(1.5f, 0.0f, 1.0f);
+        correction.Retarget(serverAtAcknowledgement - predictedAtAcknowledgement);
+        var correctedCurrent = currentPrediction + correction.ConsumePositionStep(10.0f);
+        var unacknowledgedDelta = currentPrediction - predictedAtAcknowledgement;
+        Check("reconciliação preserva movimento posterior ao ack",
+            correctedCurrent.IsEqualApprox(serverAtAcknowledgement + unacknowledgedDelta));
+    }
+
+    private void TestOwningSnapshotPresentation()
+    {
+        var reconcile = typeof(Player).GetMethod(
+            "ReconcilePrediction",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var applyCorrection = typeof(Player).GetMethod(
+            "ApplyPredictionCorrection",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var scene = GD.Load<PackedScene>("res://World/Player/Player.tscn");
+        var player = scene?.Instantiate<Player>();
+
+        if (player == null || reconcile == null || applyCorrection == null)
+        {
+            Check("fluxo real de reconciliação do peer está disponível", false);
+            player?.Free();
+            return;
+        }
+
+        // A different authority keeps this fixture on the observer path while it enters the tree;
+        // the calls below then exercise exactly the owning-client reconciliation methods.
+        player.SetMultiplayerAuthority(7);
+        AddChild(player);
+        player.SetPhysicsProcess(false);
+        player.PredictionCorrectionSpeed = 4.0f;
+        player.HardCorrectionDistance = 1.5f;
+        player.GlobalPosition = Vector3.Zero;
+        player.GlobalRotation = new Vector3(0.0f, 0.75f, 0.0f);
+
+        reconcile.Invoke(player, new object[]
+        {
+            0,
+            new Vector3(0.4f, 0.0f, 0.0f),
+            -1.2f,
+            Vector3.Zero
+        });
+        applyCorrection.Invoke(player, new object[] { 0.05f });
+        var positionAfterFirstStep = player.GlobalPosition;
+        var yawAfterOppositeSnapshot = player.GlobalRotation.Y;
+        Check("fluxo real aplica somente o passo posicional permitido",
+            positionAfterFirstStep.IsEqualApprox(new Vector3(0.2f, 0.0f, 0.0f)));
+
+        // The newest snapshot is aligned and carries a different yaw. It must cancel remaining
+        // positional debt and must not become another local camera input.
+        reconcile.Invoke(player, new object[]
+        {
+            0,
+            positionAfterFirstStep,
+            0.0f,
+            Vector3.Zero
+        });
+        applyCorrection.Invoke(player, new object[] { 1.0f });
+
+        Check("fluxo real do peer para quando o snapshot mais novo está alinhado",
+            player.GlobalPosition.IsEqualApprox(positionAfterFirstStep));
+        Check("fluxo real do peer não reaplica yaw remoto como input local",
+            Mathf.IsEqualApprox(yawAfterOppositeSnapshot, 0.75f)
+            && Mathf.IsEqualApprox(player.GlobalRotation.Y, 0.75f));
+
+        // Even a teleport-sized position correction preserves local mouselook. Server yaw remains
+        // authoritative for its own body and for observers, not for this owner camera.
+        var hardCorrectionPosition = positionAfterFirstStep + new Vector3(2.0f, 0.0f, 0.0f);
+        reconcile.Invoke(player, new object[]
+        {
+            0,
+            hardCorrectionPosition,
+            -2.0f,
+            Vector3.Zero
+        });
+        Check("hard correction reposiciona sem girar a câmera do dono",
+            player.GlobalPosition.IsEqualApprox(hardCorrectionPosition)
+            && Mathf.IsEqualApprox(player.GlobalRotation.Y, 0.75f));
+
+        player.Free();
+    }
+
+    private void TestNativeWindowHandleConversion()
+    {
+        Check("handle nativo nulo é rejeitado",
+            !TvShareButton.TryConvertNativeWindowHandle(0, out var nullHandle)
+            && nullHandle == IntPtr.Zero);
+        Check("handle nativo válido preserva o valor",
+            TvShareButton.TryConvertNativeWindowHandle(42, out var validHandle)
+            && validHandle == new IntPtr(42));
+
+        var beyond32Bits = (long)uint.MaxValue + 1L;
+        var acceptedBeyond32Bits = TvShareButton.TryConvertNativeWindowHandle(
+            beyond32Bits,
+            out var wideHandle);
+        Check("conversão de handle respeita a largura do processo",
+            IntPtr.Size == sizeof(long)
+                ? acceptedBeyond32Bits && wideHandle.ToInt64() == beyond32Bits
+                : !acceptedBeyond32Bits && wideHandle == IntPtr.Zero);
+    }
+
+    private void TestCameraMountLifecycle()
+    {
+        var rig = new Node3D { Name = "CameraTestRig" };
+        var mount = new RemoteTransform3D
+        {
+            Name = "CameraMount",
+            UpdatePosition = false,
+            UpdateRotation = false,
+            UpdateScale = false
+        };
+        var camera = new GlobalCamera { Name = "CameraUnderTest" };
+
+        AddChild(rig);
+        rig.AddChild(mount);
+        AddChild(camera);
+
+        camera.TransitionTo(mount);
+        Check("mount local só ativa quando a câmera assume controle",
+            camera.CurrentRemote == mount
+            && mount.RemotePath == camera.GetPath()
+            && mount.UpdatePosition
+            && mount.UpdateRotation
+            && !mount.UpdateScale);
+
+        camera.TransitionTo(null);
+        Check("liberar a câmera desativa o mount anterior",
+            camera.CurrentRemote == null
+            && !mount.UpdatePosition
+            && !mount.UpdateRotation
+            && !mount.UpdateScale);
+
+        camera.Free();
+        rig.Free();
     }
 
     private void TestRpcContract()
@@ -203,6 +382,15 @@ public partial class PlayerMovementSecurityTest : Node
         Check("UI local não faz parte do avatar replicado",
             player?.FindChild("PlayerHud", recursive: true, owned: false) == null
             && player?.FindChild("TvShareButton", recursive: true, owned: false) == null);
+        var cameraMount = player?.GetNodeOrNull<RemoteTransform3D>(
+            "FirstPerson/HeadPivot/RemoteFPS");
+        Check("câmera remota nasce desconectada até pertencer ao peer local",
+            cameraMount != null
+            && string.IsNullOrEmpty(cameraMount.RemotePath.ToString())
+            && !cameraMount.UpdatePosition
+            && !cameraMount.UpdateRotation
+            && !cameraMount.UpdateScale);
+
         if (config != null)
         {
             var position = new NodePath(".:position");
@@ -224,6 +412,8 @@ public partial class PlayerMovementSecurityTest : Node
 
             player.SetMultiplayerAuthority(7);
             player.ConfigureServerAuthoritativeReplication();
+            Check("autoridade de input alcança apenas o HeadPivot do dono",
+                player.HeadPivot.GetMultiplayerAuthority() == 7);
             Check("o sincronizador permanece sob autoridade do servidor",
                 synchronizer.GetMultiplayerAuthority() == PlayerProfileProtocol.ServerPeerId);
         }

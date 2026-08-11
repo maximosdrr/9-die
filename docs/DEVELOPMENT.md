@@ -8,6 +8,16 @@ O comando padrão é:
 ./tools/run-tests.ps1
 ```
 
+Antes dos testes completos, normalize e valide o estilo C#:
+
+```powershell
+dotnet format 9Die.sln
+dotnet format 9Die.sln --verify-no-changes --no-restore
+```
+
+O primeiro comando é a correção mecânica; o segundo é a mesma barreira usada pelo CI. Mudanças
+funcionais devem continuar pequenas e nomeadas mesmo quando o formatador não encontra diferenças.
+
 Etapas executadas:
 
 1. confirma versões do .NET e do Godot Mono;
@@ -26,6 +36,11 @@ Para um subconjunto:
 
 O limite pode ser ajustado para um teste legitimamente longo com
 `-TestTimeoutSeconds <segundos>`, sem remover a proteção do runner.
+
+Execute runners Godot sequencialmente quando compartilham a mesma árvore de trabalho. O hot reload
+do GodotSteam cria uma DLL temporária de nome fixo; duas importações simultâneas podem disputar esse
+arquivo e produzir uma falha de importação que não existe no jogo. Instâncias normais host/cliente
+continuam sendo o procedimento correto para o smoke multiplayer.
 
 Antes de entregar uma mudança de rede, física, cena raiz ou lifecycle, rode também:
 
@@ -96,6 +111,20 @@ repositório enquanto estiverem em avaliação, mas não devem aumentar a build 
 
 O CI instala o template oficial, gera uma exportação Release real e executa a cena principal a
 partir do pacote. A saída local padrão fica em `outputs/`, que não é versionada.
+
+Para reproduzir a exportação local pela linha de comando, crie o diretório de destino antes de
+chamar o Godot (a engine não cria os diretórios pais do preset):
+
+```powershell
+$releaseDirectory = Join-Path $PWD "outputs/local"
+$releaseExecutable = Join-Path $releaseDirectory "9die.exe"
+New-Item -Path $releaseDirectory -ItemType Directory -Force | Out-Null
+& $env:GODOT_BIN --headless --path . --export-release "Windows Desktop" $releaseExecutable
+```
+
+Um export só é aprovado quando o exit code é zero **e** a saída não contém `ERROR:`. O Godot pode
+retornar zero depois de uma falha interna do publish .NET e reaproveitar um artefato anterior; o CI
+valida as duas condições e depois abre o executável gerado.
 
 O App ID `480` é o Spacewar de desenvolvimento. Configure o App ID real e `steam_appid.txt` no
 pipeline de distribuição; nunca publique a build comercial com 480.

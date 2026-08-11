@@ -10,7 +10,7 @@ using Godot;
 /// </summary>
 public static class PokerChipAssetMeshes
 {
-    private const string PackPath = "res://Assets/Poker/poker_chip_set_optimized.glb";
+    public const string AssetPath = "res://Assets/Poker/poker_chip_set_optimized.glb";
 
     public const float Diameter = 0.040f;
     public const float SourceThickness = 0.0035f;
@@ -52,10 +52,10 @@ public static class PokerChipAssetMeshes
             return;
 
         _loaded = true;
-        var pack = GD.Load<PackedScene>(PackPath);
+        var pack = GD.Load<PackedScene>(AssetPath);
         if (pack == null)
         {
-            GD.PushWarning($"Pacote otimizado de fichas não encontrado em {PackPath}.");
+            GD.PushWarning($"Pacote otimizado de fichas não encontrado em {AssetPath}.");
             return;
         }
 

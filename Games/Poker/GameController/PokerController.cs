@@ -141,7 +141,10 @@ public partial class PokerController : SeatedTableController
         // never offer an action the server would reject.
         var options = isYourTurn
             ? PokerBetting.LegalActions(
-                Game.BetStateOf(playerId), Game.CurrentBet, Game.MinRaiseIncrement)
+                Game.BetStateOf(playerId),
+                Game.CurrentBet,
+                Game.MinRaiseIncrement,
+                Game.HasOpponentWhoCanAct(playerId))
             : NoOptions;
 
         _handView.Refresh(Game.LocalHoleCards, options, isYourTurn);

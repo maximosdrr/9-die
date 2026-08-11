@@ -35,13 +35,14 @@ public partial class PokerSeatPresenter : Node3D
             hand.Returning = false;
             hand.Returned = 1.0f;
 
-            var seat = System.Array.IndexOf(_game.SeatOrder, playerId);
+            var dealPosition = DealPosition(
+                _game.SeatOrder, _game.ButtonSeat, playerId);
             var seats = Mathf.Max(1, _game.SeatOrder.Length);
 
             for (var i = 0; i < hand.Cards.Length; i++)
             {
                 hand.Dealt[i] = 0.0f;
-                hand.Wait[i] = (i * seats + Mathf.Max(seat, 0)) * DealStagger;
+                hand.Wait[i] = (i * seats + dealPosition) * DealStagger;
                 hand.ReleasedFrom[i] = Transform3D.Identity;
                 hand.Cards[i].Configure(0, spec, faceDown: true);
             }
@@ -93,6 +94,13 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         PlaceHoleCards(playerId, hand, facing, spec, revealed != null);
+    }
+
+    internal static int DealPosition(
+        IReadOnlyList<string> seatOrder, int buttonSeat, string playerId)
+    {
+        var order = PokerSeating.DealOrder(seatOrder, buttonSeat);
+        return Mathf.Max(order.IndexOf(playerId), 0);
     }
 
     private SeatHand EnsureHand(string playerId)

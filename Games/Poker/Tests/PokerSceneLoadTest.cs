@@ -36,6 +36,7 @@ public partial class PokerSceneLoadTest : Node
         TestHud();
         TestGestureVocabulary();
         TestBoardDealAndFlip();
+        TestRuntimeResourceManifest();
         TestChipPack();
         TestCardAtlas();
         TestPlayerCountGate();
@@ -99,15 +100,25 @@ public partial class PokerSceneLoadTest : Node
         Check("a mesa tem o apresentador de assentos", seatPresenter != null);
         Check("o apresentador de assentos conhece a mesa e os assentos",
             seatPresenter is { BoardPresenter: not null, Seats: not null, CardScene: not null });
+        var missingTurnState = game.BetStateOf(null);
+        Check("leituras durante um handoff sem dono falham fechadas em vez de lancar excecao",
+            game.StackOf(null) == 0
+            && game.BetOf(null) == 0
+            && game.ChipBankOf(null).Count == 0
+            && missingTurnState.Stack == 0
+            && missingTurnState.CommittedThisRound == 0);
         Check("pote e bancos recebem valores físicos com a mesma tipografia de giz",
-            seatPresenter is { ChalkFont: not null,
+            seatPresenter is
+            {
+                ChalkFont: not null,
                 ChalkValueFontSize: >= 66 and <= 74,
                 ChalkValuePixelSize: >= 0.00024f and <= 0.00028f,
                 FloatingValueLabelMinimumHeight: >= 0.090f and <= 0.11f,
                 FloatingValueLabelClearance: >= 0.020f and <= 0.040f,
                 FloatingValueLabelBobDistance: >= 0.006f and <= 0.010f,
                 FloatingValueLabelBobSeconds: >= 3.0f and <= 4.5f,
-                PotValueLabelOffset: >= 0.055f and <= 0.080f });
+                PotValueLabelOffset: >= 0.055f and <= 0.080f
+            });
         Check("os valores flutuantes usam branco puro",
             seatPresenter?.FloatingValueLabelColor is { R: >= 0.99f, G: >= 0.99f, B: >= 0.99f });
         Check("a flutuação desce e volta ao repouso sem saltos",
@@ -120,10 +131,13 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter?.PresentationProfile != null
             && ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));
         Check("a troca de mão reserva recolhimento e embaralhamento antes da próxima distribuição",
-            seatPresenter?.PresentationProfile is { CardReturnSeconds: >= 1.0f,
+            seatPresenter?.PresentationProfile is
+            {
+                CardReturnSeconds: >= 1.0f,
                 CardReturnStagger: >= 0.06f, DeckGatherHoldSeconds: >= 0.2f,
                 DeckShuffleSeconds: >= 1.5f, MaximumCollectionCardSlots: >= 20,
-                CardCleanupDuration: > 3.0f });
+                CardCleanupDuration: > 3.0f
+            });
         Check("showdown e pagamento vivem em componentes independentes",
             seatPresenter?.GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter") != null
             && seatPresenter.GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer") != null
@@ -134,21 +148,30 @@ public partial class PokerSceneLoadTest : Node
             && seatPresenter.ShowdownPairSpacing < game.BoardPresenter.Spec.CardWidth
             && seatPresenter.ShowdownPairLayerSeparation > game.BoardPresenter.Spec.CardThickness);
         Check("o par revelado recebe variação visual moderada",
-            seatPresenter is { ShowdownPairPositionJitter: > 0.0f,
-                ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
+            seatPresenter is
+            {
+                ShowdownPairPositionJitter: > 0.0f,
+                ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f
+            });
         Check($"saldo e apostas pendentes ocupam faixas diferentes das cartas "
               + $"(lado {seatPresenter?.StackSideOffset:F3}, dentro {seatPresenter?.StackInset:F3}, "
               + $"gap {seatPresenter?.BankColumnSpacing:F3}, diagonal "
               + $"{seatPresenter?.BankLaneAngleDegrees:F1}°)",
-            seatPresenter is { BetSideOffset: >= 0.0f and <= 0.01f,
+            seatPresenter is
+            {
+                BetSideOffset: >= 0.0f and <= 0.01f,
                 StackSideOffset: >= 0.22f and <= 0.23f,
                 StackInset: >= 0.10f and <= 0.13f,
                 BankColumnSpacing: >= 0.044f,
-                BankLaneAngleDegrees: >= 50.0f and <= 60.0f }
+                BankLaneAngleDegrees: >= 50.0f and <= 60.0f
+            }
             && game.BoardPresenter.Spec.SeatBetRadius >= 0.30f);
         Check("o turno usa um anel fino junto à borda da mesa",
-            seatPresenter is { TurnRingRadius: >= 0.60f, TurnRingWidth: > 0.0f and <= 0.006f,
-                TurnRingArcSteps: >= 12 }
+            seatPresenter is
+            {
+                TurnRingRadius: >= 0.60f, TurnRingWidth: > 0.0f and <= 0.006f,
+                TurnRingArcSteps: >= 12
+            }
             && seatPresenter.ActiveTurnRingColor.A <= 0.50f
             && seatPresenter.OccupiedTurnRingColor.A <= 0.32f);
         Check("o disco branco do dealer foi removido da apresentação",
@@ -184,8 +207,11 @@ public partial class PokerSceneLoadTest : Node
                 ownCardsGap > 0.005f);
         }
         Check("o embaralhamento divide, intercala e esquadra o maço",
-            game.BoardPresenter is { ShuffleSplitDistance: >= 0.025f,
-                ShuffleLift: >= 0.008f, ShuffleHalfYawDegrees: >= 3.0f });
+            game.BoardPresenter is
+            {
+                ShuffleSplitDistance: >= 0.025f,
+                ShuffleLift: >= 0.008f, ShuffleHalfYawDegrees: >= 3.0f
+            });
         Check("o futuro dealer tem pontos de extensao para animacao e som",
             typeof(PokerPayoutSequencer).GetEvent("DealerChangeStarted") != null
             && typeof(PokerSeatPresenter).GetField("DealerAnimator") != null
@@ -521,10 +547,14 @@ public partial class PokerSceneLoadTest : Node
         var controller = scene.Instantiate<PokerController>();
         AddChild(controller);
 
-        Check("o controlador tem o rig do assento",
-            controller.GetNodeOrNull<RemoteTransform3D>("LookRig/LookPitch/RemoteSeat") != null);
-        Check("o controlador tem o rig de cima",
-            controller.GetNodeOrNull<RemoteTransform3D>("TopRig/RemoteTop") != null);
+        var remoteSeat = controller.GetNodeOrNull<RemoteTransform3D>(
+            "LookRig/LookPitch/RemoteSeat");
+        var remoteTop = controller.GetNodeOrNull<RemoteTransform3D>("TopRig/RemoteTop");
+        Check("o controlador tem o rig do assento", remoteSeat != null);
+        Check("o controlador tem o rig de cima", remoteTop != null);
+        Check("os rigs remotos nascem inertes até uma câmera ser escolhida",
+            remoteSeat is { UpdatePosition: false, UpdateRotation: false, UpdateScale: false }
+            && remoteTop is { UpdatePosition: false, UpdateRotation: false, UpdateScale: false });
         Check("os dois rigs são independentes do corpo do jogador",
             controller.GetNode<Node3D>("LookRig").TopLevel
             && controller.GetNode<Node3D>("TopRig").TopLevel);
@@ -714,13 +744,16 @@ public partial class PokerSceneLoadTest : Node
                            + hand.ActionZoneRadius * hand.ActionZoneRadius),
                 hand.ConfirmZoneCenterRadius + hand.ConfirmZoneOuterRadius);
         Check("a confirmação fica atrás das fichas e separada de passar/desistir",
-            hand is { Crosshair: not null,
+            hand is
+            {
+                Crosshair: not null,
                 InteractionZoneCenterRadius: >= 0.55f and <= 0.59f,
                 ActionZoneRadius: >= 0.10f and <= 0.13f,
                 ConfirmZoneCenterRadius: >= 0.30f and <= 0.34f,
                 ConfirmZoneInnerRadius: >= 0.06f and <= 0.08f,
                 ConfirmZoneOuterRadius: >= 0.10f and <= 0.12f,
-                ConfirmLabelSpanPi: >= 0.10f and <= 0.16f }
+                ConfirmLabelSpanPi: >= 0.10f and <= 0.16f
+            }
             && hand.ConfirmZoneOuterRadius > hand.ConfirmZoneInnerRadius
             && Mathf.IsEqualApprox(
                 hand.ConfirmZoneCenterRadius, PokerLayoutSpec.Default.SeatBetRadius)
@@ -728,14 +761,16 @@ public partial class PokerSceneLoadTest : Node
                < hand.InteractionZoneCenterRadius - hand.ActionZoneRadius
             && typeof(PokerHand3DView).GetMethod("HandleTableClick")?.GetParameters().Length == 0);
         Check("um único arco reúne CALL, AUTO, APOSTAR e o hold de ALL-IN",
-            hand is {
+            hand is
+            {
                 CallHoverOpacity: >= 0.30f and <= 0.38f,
                 CallClickMaxSeconds: >= 0.30f and <= 0.40f,
                 CallLabelCycleSeconds: >= 1.9f and <= 2.1f,
                 CallLabelFadeSeconds: >= 0.18f and <= 0.32f,
                 AllInHoldSeconds: >= 1.4f and <= 1.6f,
                 AllInVisualDelaySeconds: >= 0.30f and <= 0.40f,
-                AllInHoldOpacity: > 0.4f and <= 0.7f }
+                AllInHoldOpacity: > 0.4f and <= 0.7f
+            }
             && hand.AllInVisualDelaySeconds >= hand.CallClickMaxSeconds
             && hand.AllInVisualDelaySeconds < hand.AllInHoldSeconds
             && hand.ChalkHoverShader?.Code.Contains("fill_progress") == true
@@ -797,10 +832,13 @@ public partial class PokerSceneLoadTest : Node
             && !PokerHand3DView.IsQuickCallRelease(1.5f, hand?.CallClickMaxSeconds ?? 0.0f)
             && !PokerHand3DView.IsQuickCallRelease(1.0f, hand?.CallClickMaxSeconds ?? 0.0f));
         Check("os comandos usam giz procedural, fonte grande e divisões finas",
-            hand is { ChalkFont: not null, ChalkHoverShader: not null,
+            hand is
+            {
+                ChalkFont: not null, ChalkHoverShader: not null,
                 ChalkGuideFontSize: >= 68, ChalkGuidePixelSize: >= 0.00018f,
                 ChalkHoverOpacity: > 0.0f and <= 0.30f,
-                InteractionGuideThickness: <= 0.0015f });
+                InteractionGuideThickness: <= 0.0015f
+            });
         Check("o pote não mantém uma área ou um contorno amarelo próprio",
             typeof(PokerHand3DView).GetField("PotGuideColor") == null
             && typeof(PokerHand3DView).GetField("PotClickRadius") == null);
@@ -1033,6 +1071,33 @@ public partial class PokerSceneLoadTest : Node
         game.QueueFree();
     }
 
+    /// <summary>Path-loaded production assets must be rooted in the explicit export manifest.</summary>
+    private void TestRuntimeResourceManifest()
+    {
+        var manifest = GD.Load<RuntimeResourceManifest>(
+            "res://Shared/Resources/RuntimeResourceManifest.tres");
+        var exportedPaths = manifest?.Resources
+            .Where(resource => resource != null)
+            .Select(resource => resource.ResourcePath)
+            .ToHashSet();
+
+        var dynamicallyLoadedAssets = new[]
+        {
+            PokerChipAssetMeshes.AssetPath,
+            PokerChipMeshes.AssetPath,
+            PokerCardAssetMeshes.AssetPath,
+            PokerCardFaces.AtlasPath,
+            PokerCardFaces.PreferredBackPath,
+            PokerCardFaces.FallbackBackPath,
+        };
+        foreach (var path in dynamicallyLoadedAssets.Where(
+                     path => ResourceLoader.Exists(path)))
+        {
+            Check($"o recurso dinamico {path.GetFile()} entra na exportacao Release",
+                exportedPaths?.Contains(path) == true);
+        }
+    }
+
     /// <summary>Every logical denomination resolves to one optimized, correctly sized mesh.</summary>
     private void TestChipPack()
     {
@@ -1097,9 +1162,9 @@ public partial class PokerSceneLoadTest : Node
             {
                 importedMaterialsAreSharpAtAnAngle &= mesh.SurfaceGetMaterial(surface)
                     is BaseMaterial3D
-                    {
-                        TextureFilter: BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
-                    };
+                {
+                    TextureFilter: BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+                };
             }
         }
 

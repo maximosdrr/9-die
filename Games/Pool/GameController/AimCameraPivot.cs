@@ -147,7 +147,7 @@ public partial class AimCameraPivot : Node3D
             return;
 
         if (@event is InputEventMouseMotion motion)
-            ApplyRotation(motion.Relative);
+            ApplyRotation(PointerMotion.ReadScreenDelta(motion));
     }
 
     private void ApplyRotation(Vector2 relativeMotion)

@@ -22,6 +22,7 @@ public partial class DominoSceneLoadTest : Node
         TestGameScene();
         TestRpcModes();
         TestActionRateLimiter();
+        TestDisconnectedPeerRepliesAreDropped();
         TestHandsNeverBroadcast();
         TestHandViewIsASeam();
         TestControllerIsAGameController();
@@ -32,6 +33,8 @@ public partial class DominoSceneLoadTest : Node
         TestCameraRigs();
         TestArtPack();
         TestPlayerCountGate();
+        TestReclaimedStateDoesNotWaitForPlayerNode();
+        TestReclaimPreservesTheActorsTurnStamp();
         FreeRemainingFixtures();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
@@ -52,6 +55,115 @@ public partial class DominoSceneLoadTest : Node
         LoadScene("res://Games/Domino/GameController/DominoController.tscn");
         LoadScene("res://Games/Domino/GameController/Views/DominoHand3DView.tscn");
         LoadScene("res://Games/Domino/Components/Tiles/DominoTile.tscn");
+    }
+
+    private void TestDisconnectedPeerRepliesAreDropped()
+    {
+        Check("resposta privada nao tenta RPC para peer que ja desconectou",
+            !SecretHandTurnResolver.ShouldSendRemoteReply(
+                peerId: 7, localPeerId: 1, connectedPeers: new[] { 2, 3 },
+                hasMultiplayerPeer: true)
+            && !SecretHandTurnResolver.ShouldSendRemoteReply(
+                peerId: 7, localPeerId: 1, connectedPeers: new[] { 7 },
+                hasMultiplayerPeer: false)
+            && SecretHandTurnResolver.ShouldSendRemoteReply(
+                peerId: 7, localPeerId: 1, connectedPeers: new[] { 7 },
+                hasMultiplayerPeer: true));
+    }
+
+    private void TestReclaimedStateDoesNotWaitForPlayerNode()
+    {
+        var game = new DominoGame();
+        game.GameControllerScene = GD.Load<PackedScene>(
+            "res://Games/Domino/GameController/DominoController.tscn");
+        AddChild(game);
+        game.HandCounts["old-peer"] = 6;
+
+        game.MigrateReclaimedPlayerState("old-peer", "new-peer");
+
+        Check("reconexao migra a mao publica antes do Player substituto nascer",
+            !game.HandCounts.ContainsKey("old-peer")
+            && game.HandCounts.TryGetValue("new-peer", out var count)
+            && count == 6);
+
+        var table = new Table();
+        table.PlayersOnMatch.Add("old-peer-a");
+        table.PlayersOnMatch.Add("old-peer-b");
+        game.Table = table;
+        game.PrepareMatch(
+            new Godot.Collections.Array { "old-peer-a", "old-peer-b" }, "old-peer-a");
+        game.ApplyPlayerReclaimed(
+            "old-peer-a",
+            "new-peer-a",
+            new Godot.Collections.Array { "new-peer-a", "old-peer-b" },
+            new Godot.Collections.Dictionary());
+        game.ApplyPlayerReclaimed(
+            "old-peer-b",
+            "new-peer-b",
+            new Godot.Collections.Array { "new-peer-a", "new-peer-b" },
+            new Godot.Collections.Dictionary());
+        Check("reconexoes simultaneas do domino aguardam todos os Players substitutos",
+            game.PendingReclaimedControllerCount == 2
+            && game.IsReclaimedControllerPending("new-peer-a")
+            && game.IsReclaimedControllerPending("new-peer-b"));
+
+        game.ApplyPlayerRemoved(
+            "new-peer-a", new Godot.Collections.Array { "new-peer-b" });
+        Check("cancelar um reconnect pendente preserva os demais",
+            game.PendingReclaimedControllerCount == 1
+            && !game.IsReclaimedControllerPending("new-peer-a")
+            && game.IsReclaimedControllerPending("new-peer-b"));
+
+        var matchOver = typeof(DominoGame).GetMethod(
+            "OnMatchIsOver", BindingFlags.Instance | BindingFlags.NonPublic);
+        matchOver?.Invoke(game, ["", new Godot.Collections.Dictionary()]);
+        Check("fim da partida cancela controller tardio do domino",
+            matchOver != null && !game.HasPendingReclaimedController);
+
+        RemoveChild(game);
+        game.Free();
+        table.Free();
+    }
+
+    private void TestReclaimPreservesTheActorsTurnStamp()
+    {
+        var game = new DominoGame();
+        var resolver = new DominoTurnResolver();
+        AddChild(game);
+        game.AddChild(resolver);
+        game.TurnOrder = new Godot.Collections.Array { "1", "2" };
+        var owner = new Player { Name = "1" };
+        game.TurnOwner = owner;
+        resolver.Setup(game);
+
+        var otherSeatContext = resolver.BuildReclaimContext("2");
+        var actorContext = resolver.BuildReclaimContext("1");
+        Check("reconectar outro assento nao queima o token de quem esta agindo",
+            (int)otherSeatContext["turn_token"] == 0
+            && (int)actorContext["turn_token"] == 1);
+
+        var remapped = DominoGame.RemapReclaimedContext(
+            new Godot.Collections.Dictionary
+            {
+                ["turn_token"] = 7,
+                ["play_players"] = Variant.From(new[] { "1", "2", "1" }),
+                ["hand_players"] = Variant.From(new[] { "1", "2" }),
+                ["last_player"] = "1",
+            },
+            "1",
+            "77");
+        Check("reclaim do ator publica token e ids sob o novo peer",
+            (int)remapped["turn_token"] == 7
+            && remapped["play_players"].AsStringArray().SequenceEqual(
+                new[] { "77", "2", "77" })
+            && remapped["hand_players"].AsStringArray().SequenceEqual(
+                new[] { "77", "2" })
+            && (string)remapped["last_player"] == "77");
+
+        owner.Free();
+        game.TurnOwner = null;
+        RemoveChild(game);
+        game.Free();
     }
 
     private PackedScene LoadScene(string path)
@@ -578,9 +690,38 @@ public partial class DominoSceneLoadTest : Node
 
         Check("o manifesto de recursos dinâmicos está ligado à composição principal",
             main.RuntimeResources != null);
+        var expectedDynamicResources = new HashSet<string>
+        {
+            "res://App/UI/Menus/LobbyListItem.tscn",
+            "res://Games/Pool/Components/Balls/Ball.tscn",
+            "res://Assets/PoolGame/Scenes/CueBall.tscn",
+            "res://Assets/PoolGame/Scenes/Ball1.tscn",
+            "res://Assets/PoolGame/Scenes/Ball2.tscn",
+            "res://Assets/PoolGame/Scenes/Ball3.tscn",
+            "res://Assets/PoolGame/Scenes/Ball4.tscn",
+            "res://Assets/PoolGame/Scenes/Ball5.tscn",
+            "res://Assets/PoolGame/Scenes/Ball6.tscn",
+            "res://Assets/PoolGame/Scenes/Ball7.tscn",
+            "res://Assets/PoolGame/Scenes/Ball8.tscn",
+            "res://Assets/PoolGame/Scenes/Ball9.tscn",
+            "res://Assets/PoolGame/Scenes/Ball10.tscn",
+            "res://Assets/PoolGame/Scenes/Ball11.tscn",
+            "res://Assets/PoolGame/Scenes/Ball12.tscn",
+            "res://Assets/PoolGame/Scenes/Ball13.tscn",
+            "res://Assets/PoolGame/Scenes/Ball14.tscn",
+            "res://Assets/PoolGame/Scenes/Ball15.tscn",
+            "res://Assets/Dominoes/dominoes.glb",
+            PokerChipAssetMeshes.AssetPath,
+            PokerChipMeshes.AssetPath,
+            PokerCardAssetMeshes.AssetPath,
+            PokerCardFaces.FallbackBackPath,
+        };
+        var manifestedResources = main.RuntimeResources?.Resources
+            .Where(resource => resource != null)
+            .Select(resource => resource.ResourcePath)
+            .ToHashSet();
         Check("todo recurso carregado dinamicamente entra no pacote de produção",
-            main.RuntimeResources?.Resources.Count == 21
-            && main.RuntimeResources.Resources.All(resource => resource != null));
+            manifestedResources?.SetEquals(expectedDynamicResources) == true);
 
         var tables = new List<Table>();
         CollectTables(main, tables);
@@ -652,6 +793,12 @@ public partial class DominoSceneLoadTest : Node
         var controller = scene.Instantiate<DominoController>();
         AddChild(controller);
 
+        var remoteSeat = controller.GetNodeOrNull<RemoteTransform3D>(
+            "LookRig/LookPitch/RemoteSeat");
+        var remoteTop = controller.GetNodeOrNull<RemoteTransform3D>("TopRig/RemoteTop");
+        Check("remotes de camera do domino nascem desconectados e inertes",
+            RemoteStartsDisconnected(remoteSeat) && RemoteStartsDisconnected(remoteTop));
+
         Check("o controlador tem o rig de olhar em volta",
             controller.GetNodeOrNull<RemoteTransform3D>("LookRig/LookPitch/RemoteSeat") != null);
         Check("o controlador tem o rig da vista de cima",
@@ -688,6 +835,15 @@ public partial class DominoSceneLoadTest : Node
         controller.QueueFree();
 
         Check("a ação da vista de cima está mapeada", InputMap.HasAction("toggle_top_view"));
+    }
+
+    private static bool RemoteStartsDisconnected(RemoteTransform3D remote)
+    {
+        return remote != null
+            && remote.RemotePath.IsEmpty
+            && !remote.UpdatePosition
+            && !remote.UpdateRotation
+            && !remote.UpdateScale;
     }
 
     /// <summary>

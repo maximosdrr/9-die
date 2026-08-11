@@ -8,8 +8,7 @@ public partial class PokerSeatPresenter : Node3D
         EnsureTurnRing();
         for (var seatIndex = 0; seatIndex < _turnRingSegments.Count; seatIndex++)
         {
-            var playerId = seatIndex < _game.TurnOrder.Count
-                ? (string)_game.TurnOrder[seatIndex] : "";
+            var playerId = _game.PlayerIdAtSeat(seatIndex);
             var occupied = !string.IsNullOrEmpty(playerId)
                 && System.Array.IndexOf(_game.SeatOrder, playerId) >= 0;
             var color = !occupied || !_game.IsMatchActive

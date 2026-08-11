@@ -117,8 +117,11 @@ public partial class StateMachine : Node
     {
         var parent = GetParent() as Node3D;
 
-        foreach (var child in GetChildren())
+        // GetChildren() allocates a native-backed Godot Array whose finalizer can run after the
+        // engine has started shutting down. Indexing the existing children avoids that wrapper.
+        for (var index = 0; index < GetChildCount(); index++)
         {
+            var child = GetChild(index);
             if (child is State state)
             {
                 state.StateMachine = this;

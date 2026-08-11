@@ -5,10 +5,10 @@ namespace Poker.Rules;
 /// <summary>
 /// The best five-card hand available from a player's cards, as a comparable rank.
 ///
-/// Works on any number of cards from five up, so it covers Hold'em's seven (two private plus five
-/// community) and also a short board mid-hand. It never enumerates the 21 five-card subsets: it
-/// counts ranks and suits once and reads the answer off those counts, which is both faster and
-/// easier to check by eye against the rules.
+/// Accepts the five to seven distinct physical cards a Hold'em hand can contain. The compact rank
+/// evaluator counts ranks and suits once; <see cref="BestFive(IReadOnlyList{int})"/> enumerates at
+/// most the 21 five-card choices only when presentation needs the actual winning cards. Invalid,
+/// duplicate or oversized inputs fail closed.
 ///
 /// The two things that are always got wrong, both pinned by tests: the WHEEL (A-2-3-4-5 is the
 /// LOWEST straight, not an ace-high one) and KICKERS (two players with the same pair are separated
@@ -34,17 +34,7 @@ public static class PokerHandEvaluator
 
     public static int[] BestFive(IReadOnlyList<int> cards)
     {
-        var valid = new List<int>(7);
-        if (cards != null)
-        {
-            foreach (var card in cards)
-            {
-                if (CardId.IsValid(card))
-                    valid.Add(card);
-            }
-        }
-
-        if (valid.Count < 5)
+        if (!TryReadRealCards(cards, out var valid))
             return System.Array.Empty<int>();
 
         PokerHandRank bestRank = PokerHandRank.None;
@@ -124,7 +114,7 @@ public static class PokerHandEvaluator
 
     public static PokerHandRank Evaluate(IReadOnlyList<int> cards)
     {
-        if (cards == null || cards.Count < 5)
+        if (!TryReadRealCards(cards, out var validCards))
             return PokerHandRank.None;
 
         var rankCount = new int[CardId.Ranks];
@@ -132,11 +122,8 @@ public static class PokerHandEvaluator
         var suitRanks = new int[CardId.Suits];
         var rankMask = 0;
 
-        foreach (var card in cards)
+        foreach (var card in validCards)
         {
-            if (!CardId.IsValid(card))
-                continue;
-
             var rank = CardId.RankOf(card);
             var suit = CardId.SuitOf(card);
 
@@ -216,6 +203,36 @@ public static class PokerHandEvaluator
         var high = TopRanks(rankMask, 5);
         return new PokerHandRank(HandCategory.HighCard,
             high[0], high[1], high[2], high[3], high[4]);
+    }
+
+    /// <summary>
+    /// Reads a real set of physical cards. Invalid IDs and duplicates fail closed instead of being
+    /// ignored: ignoring either can turn fewer than five cards into a padded high-card hand, or let
+    /// one duplicated ID manufacture a pair, trips or quads that no deck can contain.
+    /// </summary>
+    private static bool TryReadRealCards(
+        IReadOnlyList<int> cards, out List<int> validCards)
+    {
+        validCards = new List<int>(cards?.Count ?? 0);
+        // Hold'em evaluates either a five-card hand or the best five of six/seven available cards.
+        // Bounding the input also prevents an accidental public payload from expanding the
+        // combination search to millions of five-card subsets.
+        if (cards == null || cards.Count is < 5 or > 7)
+            return false;
+
+        var seen = new HashSet<int>();
+        foreach (var card in cards)
+        {
+            if (!CardId.IsValid(card) || !seen.Add(card))
+            {
+                validCards.Clear();
+                return false;
+            }
+
+            validCards.Add(card);
+        }
+
+        return true;
     }
 
     /// <summary>

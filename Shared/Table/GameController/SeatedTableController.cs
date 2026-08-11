@@ -28,14 +28,14 @@ public partial class SeatedTableController : GameController
     /// Usually tighter than the walking camera so what is on the table stays readable from the chair
     /// without changing physical sizes or any layout shared by every peer.
     /// </summary>
-    [Export] public float SeatFov = 48.0f;
+    [Export] public float SeatFov = 55.0f;
 
     /// <summary>
     /// Fine adjustment from the authored eye marker, in the seat's local axes. Positive Z moves the
     /// camera back from the table and positive Y raises it. Kept per controller so poker can use a
     /// more distant, elevated composition without changing domino's established camera.
     /// </summary>
-    [Export] public Vector3 SeatViewOffset = Vector3.Zero;
+    [Export] public Vector3 SeatViewOffset = new(0.0f, 0.3f, 0.18f);
 
     [Export] public float MouseSensitivity = 0.004f;
 
@@ -46,7 +46,7 @@ public partial class SeatedTableController : GameController
     [Export] public float MaxPitchDeg = 25.0f;
 
     /// <summary>Where the head rests: tilted down at the table, which is what the player wants to see.</summary>
-    [Export] public float RestPitchDeg = -32.0f;
+    [Export] public float RestPitchDeg = -35.0f;
 
     /// <summary>
     /// Animation requested while seated. PlayerStrike falls back to Idle until this clip is added to
@@ -55,10 +55,10 @@ public partial class SeatedTableController : GameController
     [Export] public string SeatedAnimationName = "SitForAGame";
 
     [ExportGroup("Top view")]
-    [Export] public float TopFov = 55.0f;
+    [Export] public float TopFov = 52.0f;
 
     /// <summary>Height above the surface. Framed so the whole playing area fills the shot at TopFov.</summary>
-    [Export] public float TopHeight = 0.58f;
+    [Export] public float TopHeight = 0.88f;
 
     /// <summary>
     /// How far the overhead view slides per pixel of mouse movement. Without panning, a crosshair
@@ -160,6 +160,10 @@ public partial class SeatedTableController : GameController
         var assignedSeat = SeatFor((string)Player.Name);
         if (assignedSeat != null)
         {
+            // Cache this on every physical copy, not only on the input authority. Permanent
+            // removal releases occupancy before mode handlers run, but the server still needs this
+            // trusted marker to move the old body clear before restoring its collider.
+            CacheStandExit(assignedSeat);
             Player.EnterSeatedGameMode();
             if (Multiplayer.IsServer()
                 && TryGetAuthoritativePose(seated: true, out var position, out var yaw))
@@ -416,10 +420,14 @@ public partial class SeatedTableController : GameController
         if (@event is not InputEventMouseMotion motion || !InputFocus.IsCaptured)
             return;
 
+        var screenDelta = PointerMotion.ReadScreenDelta(motion);
+        if (screenDelta.IsZeroApprox())
+            return;
+
         if (_inTopView)
-            PanTopView(motion.Relative);
+            PanTopView(screenDelta);
         else
-            ApplyLook(motion.Relative);
+            ApplyLook(screenDelta);
 
         GetViewport().SetInputAsHandled();
     }
@@ -517,23 +525,31 @@ public partial class SeatedTableController : GameController
         if (!IsInstanceValid(Player) || !IsInstanceValid(Table))
             return false;
 
-        var playerId = (string)Player.Name;
-        if (!Table.TurnOrder.Contains(playerId))
-            return false;
-
-        var seat = SeatFor(playerId);
-        if (seat == null || !seat.IsInsideTree())
-            return false;
-
         if (seated)
         {
-            if (!Table.IsMatchActive)
+            var playerId = (string)Player.Name;
+            if (!Table.IsMatchActive || !Table.TurnOrder.Contains(playerId))
                 return false;
 
-            position = seat.GlobalPosition;
-            yaw = seat.GlobalRotation.Y;
+            var assignedSeat = SeatFor(playerId);
+            if (assignedSeat == null || !assignedSeat.IsInsideTree())
+                return false;
+
+            position = assignedSeat.GlobalPosition;
+            yaw = assignedSeat.GlobalRotation.Y;
             return true;
         }
+
+        if (_hasCachedStandExit)
+        {
+            position = _cachedStandPosition;
+            yaw = _cachedStandYaw;
+            return true;
+        }
+
+        var seat = SeatFor((string)Player.Name);
+        if (seat == null || !seat.IsInsideTree())
+            return false;
 
         var standExit = seat.GetNodeOrNull<Marker3D>("StandExit");
         position = standExit?.GlobalPosition
@@ -541,6 +557,14 @@ public partial class SeatedTableController : GameController
                 0.0f, 0.0f, (SeatsRoot as TableSeatAnchors)?.StandBackDistance ?? 0.55f));
         yaw = standExit?.GlobalRotation.Y ?? seat.GlobalRotation.Y;
         return true;
+    }
+
+    internal void CacheAssignedStandExit()
+    {
+        if (!IsInstanceValid(Player))
+            return;
+
+        CacheStandExit(SeatFor((string)Player.Name));
     }
 
     private void CacheStandExit(Marker3D seat)

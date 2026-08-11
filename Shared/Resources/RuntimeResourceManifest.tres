@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="RuntimeResourceManifest" load_steps=23 format=3]
+[gd_resource type="Resource" script_class="RuntimeResourceManifest" load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://Shared/Resources/RuntimeResourceManifest.cs" id="1_script"]
 [ext_resource type="PackedScene" path="res://App/UI/Menus/LobbyListItem.tscn" id="2_lobby_item"]
@@ -22,7 +22,9 @@
 [ext_resource type="PackedScene" path="res://Assets/Dominoes/dominoes.glb" id="20_domino_meshes"]
 [ext_resource type="PackedScene" path="res://Assets/Poker/poker_assets.glb" id="21_poker_chips"]
 [ext_resource type="Texture2D" path="res://Assets/Poker/poker_assets_2.png" id="24_card_back_fallback"]
+[ext_resource type="PackedScene" path="res://Assets/Poker/poker_chip_set_optimized.glb" id="25_optimized_poker_chips"]
+[ext_resource type="PackedScene" path="res://Assets/Poker/poker_cards_assets.glb" id="26_poker_cards"]
 
 [resource]
 script = ExtResource("1_script")
-Resources = Array[Resource]([ExtResource("2_lobby_item"), ExtResource("3_pool_ball"), ExtResource("4_cue_ball"), ExtResource("5_ball_1"), ExtResource("6_ball_2"), ExtResource("7_ball_3"), ExtResource("8_ball_4"), ExtResource("9_ball_5"), ExtResource("10_ball_6"), ExtResource("11_ball_7"), ExtResource("12_ball_8"), ExtResource("13_ball_9"), ExtResource("14_ball_10"), ExtResource("15_ball_11"), ExtResource("16_ball_12"), ExtResource("17_ball_13"), ExtResource("18_ball_14"), ExtResource("19_ball_15"), ExtResource("20_domino_meshes"), ExtResource("21_poker_chips"), ExtResource("24_card_back_fallback")])
+Resources = Array[Resource]([ExtResource("2_lobby_item"), ExtResource("3_pool_ball"), ExtResource("4_cue_ball"), ExtResource("5_ball_1"), ExtResource("6_ball_2"), ExtResource("7_ball_3"), ExtResource("8_ball_4"), ExtResource("9_ball_5"), ExtResource("10_ball_6"), ExtResource("11_ball_7"), ExtResource("12_ball_8"), ExtResource("13_ball_9"), ExtResource("14_ball_10"), ExtResource("15_ball_11"), ExtResource("16_ball_12"), ExtResource("17_ball_13"), ExtResource("18_ball_14"), ExtResource("19_ball_15"), ExtResource("20_domino_meshes"), ExtResource("21_poker_chips"), ExtResource("24_card_back_fallback"), ExtResource("25_optimized_poker_chips"), ExtResource("26_poker_cards")])

@@ -180,9 +180,7 @@ public partial class DominoSeatPresenter : Node3D
 
         for (var seatIndex = 0; seatIndex < _turnRingSegments.Count; seatIndex++)
         {
-            var playerId = _game != null && seatIndex < _game.TurnOrder.Count
-                ? (string)_game.TurnOrder[seatIndex]
-                : "";
+            var playerId = _game?.PlayerIdAtSeat(seatIndex) ?? "";
 
             var color = string.IsNullOrEmpty(playerId) || !_game.IsMatchActive
                 ? EmptyTurnRingColor

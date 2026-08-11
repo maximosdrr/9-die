@@ -6,8 +6,11 @@
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <!-- Test scenes are not exported and their harness code must not ship in the game assembly. -->
+  <ItemGroup Condition="'$(Configuration)' == 'Release'
+      Or '$(Configuration)' == 'ExportDebug'
+      Or '$(Configuration)' == 'ExportRelease'">
+    <!-- Godot publishes with ExportDebug/ExportRelease, not Debug/Release. Test scenes are not
+         exported, so their harness code must not ship in any distributable game assembly. -->
     <Compile Remove="**/Tests/**/*.cs" />
   </ItemGroup>
 </Project>

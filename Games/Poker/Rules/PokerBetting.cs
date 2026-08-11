@@ -32,8 +32,17 @@ public sealed class PlayerBetState
 
     public bool HasFolded;
 
-    /// <summary>Whether they have had a turn since the last raise reopened the action.</summary>
+    /// <summary>Whether they have acted since the last full raise or since this street opened.</summary>
     public bool HasActedThisRound;
+
+    /// <summary>
+    /// The table's highest bet immediately after this player's last action.
+    ///
+    /// A single short all-in does not reopen raising for somebody who already acted. Several short
+    /// all-ins can, however, add up to a full raise. Remembering the bet level the player last faced
+    /// lets the same rule cover both cases without reconstructing action history.
+    /// </summary>
+    public int BetLevelWhenLastActed;
 
     /// <summary>Out of chips but still in the hand: they see every remaining card for free.</summary>
     public bool IsAllIn => !HasFolded && Stack <= 0;
@@ -89,11 +98,16 @@ public static class PokerBetting
         player == null ? 0 : player.CommittedThisRound + player.Stack;
 
     /// <summary>
-    /// Smallest legal raise: the current bet plus the last full raise. Clamped to the player's stack,
-    /// because being unable to afford a full raise never stops anyone from going all-in.
+    /// Smallest legal no-limit raise: the current bet plus the last full raise. Clamped to the
+    /// player's stack, because being unable to afford a full raise never stops anyone from going
+    /// all-in. A short opening all-in is not a limit-poker "completion": the full increment is still
+    /// added to the amount being faced.
     /// </summary>
-    public static int MinRaiseTotal(PlayerBetState player, int currentBet, int minRaiseIncrement) =>
-        System.Math.Min(currentBet + System.Math.Max(minRaiseIncrement, 1), MaxTotal(player));
+    public static int MinRaiseTotal(PlayerBetState player, int currentBet, int minRaiseIncrement)
+    {
+        var minimumTotal = currentBet + System.Math.Max(minRaiseIncrement, 1);
+        return System.Math.Min(minimumTotal, MaxTotal(player));
+    }
 
     /// <summary>
     /// A raise that reaches at least the full increment. A SHORT all-in does not reopen the betting
@@ -103,7 +117,31 @@ public static class PokerBetting
     public static bool IsFullRaise(int raiseTotal, int currentBet, int minRaiseIncrement) =>
         raiseTotal - currentBet >= System.Math.Max(minRaiseIncrement, 1);
 
-    public static List<ActionOption> LegalActions(PlayerBetState player, int currentBet, int minRaiseIncrement)
+    /// <summary>
+    /// Whether this player still has the right to raise.
+    ///
+    /// Players who have not acted may always raise. For somebody who already acted, one or more
+    /// short all-ins reopen raising only after the total increase they now face reaches the last
+    /// full raise increment.
+    /// </summary>
+    public static bool RaiseIsReopenedFor(
+        PlayerBetState player, int currentBet, int minRaiseIncrement)
+    {
+        if (player == null || !player.CanAct)
+            return false;
+
+        if (!player.HasActedThisRound)
+            return true;
+
+        var increaseFaced = currentBet - player.BetLevelWhenLastActed;
+        return increaseFaced >= System.Math.Max(minRaiseIncrement, 1);
+    }
+
+    public static List<ActionOption> LegalActions(
+        PlayerBetState player,
+        int currentBet,
+        int minRaiseIncrement,
+        bool anotherPlayerCanAct = true)
     {
         var options = new List<ActionOption>();
         if (player == null || !player.CanAct)
@@ -129,7 +167,9 @@ public static class PokerBetting
         }
 
         // Only worth offering if they can actually get above the current bet.
-        if (maxTotal > currentBet)
+        if (anotherPlayerCanAct
+            && maxTotal > currentBet
+            && RaiseIsReopenedFor(player, currentBet, minRaiseIncrement))
         {
             options.Add(new ActionOption(
                 PokerActionKind.Raise,
@@ -151,6 +191,18 @@ public static class PokerBetting
         int currentBet,
         int minRaiseIncrement,
         out string reason)
+        => IsLegal(
+            player, kind, total, currentBet, minRaiseIncrement,
+            anotherPlayerCanAct: true, out reason);
+
+    public static bool IsLegal(
+        PlayerBetState player,
+        PokerActionKind kind,
+        int total,
+        int currentBet,
+        int minRaiseIncrement,
+        bool anotherPlayerCanAct,
+        out string reason)
     {
         if (player == null || player.HasFolded)
         {
@@ -164,7 +216,8 @@ public static class PokerBetting
             return false;
         }
 
-        foreach (var option in LegalActions(player, currentBet, minRaiseIncrement))
+        foreach (var option in LegalActions(
+                     player, currentBet, minRaiseIncrement, anotherPlayerCanAct))
         {
             if (option.Kind != kind)
                 continue;
@@ -192,10 +245,17 @@ public static class PokerBetting
     /// than offering one the server would refuse.
     /// </summary>
     public static List<int> RaisePresets(
-        PlayerBetState player, int currentBet, int minRaiseIncrement, int potSize)
+        PlayerBetState player,
+        int currentBet,
+        int minRaiseIncrement,
+        int potSize,
+        bool anotherPlayerCanAct = true)
     {
         var presets = new List<int>();
-        if (player == null || !player.CanAct)
+        if (player == null
+            || !player.CanAct
+            || !anotherPlayerCanAct
+            || !RaiseIsReopenedFor(player, currentBet, minRaiseIncrement))
             return presets;
 
         var max = MaxTotal(player);
@@ -279,5 +339,34 @@ public static class PokerBetting
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// Amount players face after the blinds are posted. With two or more funded players the full
+    /// big blind remains the bring-in even when its owner was short. If at most one player can still
+    /// act, nobody can raise behind them, so they need only match the largest amount actually posted.
+    /// Any excess blind is later returned by normal pot settlement.
+    /// </summary>
+    public static int BetToMatchAfterBlinds(
+        IEnumerable<PlayerBetState> players, int configuredBigBlind)
+    {
+        if (players == null)
+            return 0;
+
+        var ableToAct = 0;
+        var largestPosted = 0;
+        foreach (var player in players)
+        {
+            if (player == null)
+                continue;
+
+            if (player.CanAct)
+                ableToAct++;
+            largestPosted = System.Math.Max(largestPosted, player.CommittedThisRound);
+        }
+
+        return ableToAct <= 1
+            ? largestPosted
+            : System.Math.Max(configuredBigBlind, largestPosted);
     }
 }

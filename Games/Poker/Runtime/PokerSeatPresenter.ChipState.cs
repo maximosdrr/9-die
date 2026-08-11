@@ -276,11 +276,11 @@ public partial class PokerSeatPresenter : Node3D
             // Manually selected chips are already separate one-chip actors. Their root positions,
             // rather than an internal pile spread, are what makes the committed wager look loose.
             for (var left = 0; left < bets.Count; left++)
-            for (var right = left + 1; right < bets.Count; right++)
-            {
-                if (bets[left].Pile.Position.DistanceTo(bets[right].Pile.Position) > 0.003f)
-                    return true;
-            }
+                for (var right = left + 1; right < bets.Count; right++)
+                {
+                    if (bets[left].Pile.Position.DistanceTo(bets[right].Pile.Position) > 0.003f)
+                        return true;
+                }
             return false;
         }
     }

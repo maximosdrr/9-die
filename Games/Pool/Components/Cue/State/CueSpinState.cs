@@ -30,7 +30,7 @@ public partial class CueSpinState : State
 
         if (@event is InputEventMouseMotion motion)
         {
-            ProcessSpinInput(motion.Relative);
+            ProcessSpinInput(PointerMotion.ReadScreenDelta(motion));
             Cue.SnapToRestPose();
             Cue.GetViewport().SetInputAsHandled();
         }

@@ -21,9 +21,13 @@ public partial class PokerBettingTest : Node
 
         TestLegalActions();
         TestRaiseLimits();
+        TestShortAllInReopening();
+        TestShortOpeningAllIn();
+        TestShortBigBlindBringIn();
         TestRoundCompletion();
         TestSeatingThreeHanded();
         TestSeatingHeadsUp();
+        TestThreeToTwoButtonTransition();
         TestActionOrderSkips();
         TestRaisePresets();
 
@@ -116,6 +120,112 @@ public partial class PokerBettingTest : Node
             && noCheck == "action_not_available");
     }
 
+    /// <summary>
+    /// A short all-in changes the amount to call but does not automatically give a previous actor a
+    /// second raise. Multiple short all-ins can add up to a full raise and reopen it. This is the
+    /// distinction that a single "has acted" flag cannot express without the remembered bet level.
+    /// </summary>
+    private void TestShortAllInReopening()
+    {
+        var previousActor = Player(
+            "1", stack: 400, committed: 100, acted: true, betLevelWhenLastActed: 100);
+        var afterOneShortAllIn = PokerBetting.LegalActions(
+            previousActor, currentBet: 150, minRaiseIncrement: 100);
+
+        Check("um all-in curto ainda permite pagar ou desistir",
+            afterOneShortAllIn.Any(option => option.Kind == PokerActionKind.Call)
+            && afterOneShortAllIn.Any(option => option.Kind == PokerActionKind.Fold));
+        Check("um all-in curto isolado nao reabre o raise para quem ja agiu",
+            afterOneShortAllIn.All(option => option.Kind != PokerActionKind.Raise)
+            && !PokerBetting.IsLegal(
+                previousActor,
+                PokerActionKind.Raise,
+                total: 250,
+                currentBet: 150,
+                minRaiseIncrement: 100,
+                out var closedReason)
+            && closedReason == "action_not_available");
+        Check("atalhos de raise tambem somem quando a acao nao foi reaberta",
+            PokerBetting.RaisePresets(
+                previousActor, 150, 100, potSize: 300).Count == 0);
+
+        var notYetActed = Player("2", stack: 400, committed: 100);
+        Check("quem ainda nao agiu pode aumentar depois do mesmo all-in curto",
+            PokerBetting.LegalActions(notYetActed, 150, 100)
+                .Any(option => option.Kind == PokerActionKind.Raise));
+
+        var afterCumulativeShortAllIns = PokerBetting.LegalActions(
+            previousActor, currentBet: 200, minRaiseIncrement: 100);
+        Check("all-ins curtos cumulativos que somam um raise cheio reabrem a acao",
+            afterCumulativeShortAllIns.Any(option =>
+                option.Kind == PokerActionKind.Raise && option.MinTotal == 300));
+
+        previousActor.BetLevelWhenLastActed = 150;
+        Check("pagar um all-in curto inicia uma nova base para a proxima reabertura",
+            PokerBetting.LegalActions(previousActor, 200, 100)
+                .All(option => option.Kind != PokerActionKind.Raise));
+
+        var lastPlayerWithChips = Player("3", stack: 400, committed: 100);
+        var headsUpAgainstAllIn = PokerBetting.LegalActions(
+            lastPlayerWithChips,
+            currentBet: 150,
+            minRaiseIncrement: 100,
+            anotherPlayerCanAct: false);
+        Check("contra oponentes todos all-in, a ultima decisao e apenas pagar ou desistir",
+            headsUpAgainstAllIn.Any(option => option.Kind == PokerActionKind.Call)
+            && headsUpAgainstAllIn.Any(option => option.Kind == PokerActionKind.Fold)
+            && headsUpAgainstAllIn.All(option => option.Kind != PokerActionKind.Raise));
+    }
+
+    private void TestShortOpeningAllIn()
+    {
+        var unactedPlayer = Player("1", stack: 100, committed: 0);
+        var optionsAfterShortOpening = PokerBetting.LegalActions(
+            unactedPlayer, currentBet: 3, minRaiseIncrement: 10);
+        var fullRaise = optionsAfterShortOpening.FirstOrDefault(option =>
+            option.Kind == PokerActionKind.Raise);
+
+        Check("depois de uma abertura all-in de 3, o raise NL minimo soma 10 e vai a 13",
+            fullRaise.Kind == PokerActionKind.Raise
+            && fullRaise.MinTotal == 13
+            && fullRaise.MaxTotal == 100
+            && PokerBetting.IsFullRaise(13, 3, 10));
+
+        var previousCaller = Player(
+            "2", stack: 97, committed: 3, acted: true, betLevelWhenLastActed: 3);
+        Check("um segundo all-in curto ate 10 nao reabre para quem ja pagou 3",
+            PokerBetting.LegalActions(previousCaller, currentBet: 10, minRaiseIncrement: 10)
+                .All(option => option.Kind != PokerActionKind.Raise));
+
+        var previousChecker = Player(
+            "3", stack: 100, committed: 0, acted: true, betLevelWhenLastActed: 0);
+        Check("um check anterior nao e reaberto por uma aposta all-in curta de 3",
+            PokerBetting.LegalActions(previousChecker, currentBet: 3, minRaiseIncrement: 10)
+                .All(option => option.Kind != PokerActionKind.Raise));
+        Check("o raise cheio posterior a 13 reabre a acao para quem havia dado check",
+            PokerBetting.LegalActions(previousChecker, currentBet: 13, minRaiseIncrement: 10)
+                .Any(option => option.Kind == PokerActionKind.Raise
+                               && option.MinTotal == 23));
+    }
+
+    private void TestShortBigBlindBringIn()
+    {
+        var headsUp = new List<PlayerBetState>
+        {
+            Player("button", stack: 99, committed: 1),
+            Player("big-blind", stack: 0, committed: 3),
+        };
+        Check("contra um big blind all-in de 3, o unico oponente paga somente ate 3",
+            PokerBetting.BetToMatchAfterBlinds(headsUp, configuredBigBlind: 10) == 3);
+
+        var multiway = new List<PlayerBetState>(headsUp)
+        {
+            Player("third", stack: 100, committed: 0),
+        };
+        Check("com dois jogadores ainda financiados, o bring-in continua no big blind de 10",
+            PokerBetting.BetToMatchAfterBlinds(multiway, configuredBigBlind: 10) == 10);
+    }
+
     // ---------------------------------------------------------------- closing the street
 
     private void TestRoundCompletion()
@@ -187,6 +297,11 @@ public partial class PokerBettingTest : Node
         var order = PokerSeating.OddChipOrder(new List<string> { "A", "B", "C" }, buttonSeat: 0);
         Check($"a ordem da ficha ímpar começa à esquerda do botão ({string.Join(",", order)})",
             order.SequenceEqual(new[] { "B", "C", "A" }));
+
+        var dealOrder = PokerSeating.DealOrder(
+            new List<string> { "A", "B", "C" }, buttonSeat: 0);
+        Check("a primeira carta sai à esquerda do botão em uma mesa de três",
+            dealOrder.SequenceEqual(new[] { "B", "C", "A" }));
     }
 
     private void TestSeatingHeadsUp()
@@ -211,6 +326,73 @@ public partial class PokerBettingTest : Node
             && PokerSeating.BigBlindSeat(1, seats) == 0
             && PokerSeating.FirstToActPreflop(1, seats) == 1
             && PokerSeating.FirstToActPostflop(1, seats) == 0);
+
+        var dealOrder = PokerSeating.DealOrder(new List<string> { "A", "B" }, button);
+        Check("mão a mão, o big blind recebe primeiro e o botão/small blind recebe por último",
+            dealOrder.SequenceEqual(new[] { "B", "A" }));
+    }
+
+    private void TestThreeToTwoButtonTransition()
+    {
+        var expectedButtons = new[] { "C", "C", "B" };
+        var expectedBigBlinds = new[] { "B", "A", "A" };
+
+        for (var bustedSeat = 0; bustedSeat < 3; bustedSeat++)
+        {
+            var oldSeats = new List<PlayerBetState>
+            {
+                Player("A", stack: 100, committed: 0),
+                Player("B", stack: 100, committed: 0),
+                Player("C", stack: 100, committed: 0),
+            };
+            oldSeats[bustedSeat].Stack = 0;
+
+            var nextButtonInOldOrder = PokerSeating.NextButtonSeat(oldSeats, currentButtonSeat: 0);
+            var nextButtonId = oldSeats[nextButtonInOldOrder].PlayerId;
+            var survivors = oldSeats.Where(player => player.Stack > 0).ToList();
+            var nextButton = survivors.FindIndex(player => player.PlayerId == nextButtonId);
+            var nextBigBlind = survivors[
+                PokerSeating.BigBlindSeat(nextButton, survivors.Count)].PlayerId;
+
+            Check($"transição 3→2 com {oldSeats[bustedSeat].PlayerId} eliminado não repete o BB",
+                nextButtonId == expectedButtons[bustedSeat]
+                && nextBigBlind == expectedBigBlinds[bustedSeat]
+                && (nextBigBlind != "C" || bustedSeat == 2));
+        }
+
+        var fourSeatIds = new[] { "A", "B", "C", "D" };
+        for (var firstSurvivor = 0; firstSurvivor < fourSeatIds.Length - 1; firstSurvivor++)
+        {
+            for (var secondSurvivor = firstSurvivor + 1;
+                 secondSurvivor < fourSeatIds.Length;
+                 secondSurvivor++)
+            {
+                var fourSeats = fourSeatIds
+                    .Select((id, seat) => Player(
+                        id,
+                        stack: seat == firstSurvivor || seat == secondSurvivor ? 100 : 0,
+                        committed: 0))
+                    .ToList();
+
+                const int oldBigBlind = 2; // Button A: small blind B, big blind C.
+                var expectedBigBlindSeat = Enumerable.Range(1, fourSeats.Count)
+                    .Select(step => (oldBigBlind + step) % fourSeats.Count)
+                    .First(seat => fourSeats[seat].Stack > 0);
+                var expectedBigBlindId = fourSeats[expectedBigBlindSeat].PlayerId;
+
+                var nextButtonInOldOrder = PokerSeating.NextButtonSeat(
+                    fourSeats, currentButtonSeat: 0);
+                var nextButtonId = fourSeats[nextButtonInOldOrder].PlayerId;
+                var survivors = fourSeats.Where(player => player.Stack > 0).ToList();
+                var compactButton = survivors.FindIndex(player => player.PlayerId == nextButtonId);
+                var actualBigBlindId = survivors[
+                    PokerSeating.BigBlindSeat(compactButton, survivors.Count)].PlayerId;
+
+                Check($"transição 4→2 com {string.Join('/', survivors.Select(player => player.PlayerId))} preserva o próximo BB",
+                    actualBigBlindId == expectedBigBlindId
+                    && nextButtonId != expectedBigBlindId);
+            }
+        }
     }
 
     private void TestActionOrderSkips()
@@ -273,7 +455,12 @@ public partial class PokerBettingTest : Node
 
     // ---------------------------------------------------------------- helpers
 
-    private static PlayerBetState Player(string id, int stack, int committed, bool acted = false) =>
+    private static PlayerBetState Player(
+        string id,
+        int stack,
+        int committed,
+        bool acted = false,
+        int betLevelWhenLastActed = 0) =>
         new()
         {
             PlayerId = id,
@@ -281,6 +468,7 @@ public partial class PokerBettingTest : Node
             CommittedThisRound = committed,
             CommittedThisHand = committed,
             HasActedThisRound = acted,
+            BetLevelWhenLastActed = betLevelWhenLastActed,
         };
 
     private void Check(string label, bool condition)

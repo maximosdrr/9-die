@@ -1,7 +1,7 @@
+using System.Reflection;
 using Godot;
 using Godot.Collections;
 using Pool.Simulation;
-using System.Reflection;
 
 /// <summary>
 /// Covers the cue control rework: that a normalised 0..1 power maps to a sane, monotonic cue ball
@@ -21,7 +21,7 @@ public partial class CueControlTest : Node
     private int _passed;
     private int _failed;
 
-    public override void _Ready()
+    public override async void _Ready()
     {
         GD.Print("=== Teste de controle do taco ===");
 
@@ -37,10 +37,20 @@ public partial class CueControlTest : Node
         TestShortShotRecoveryKeepsSoloTurn();
         TestCuePresentationRecovery();
         TestTurnOwnershipSurvivesTeardown();
+        TestPointerMotionNormalization();
+        TestLatestPlacementRequestWins();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
         if (_failed > 0)
             GD.PushWarning($"{_failed} verificação(ões) de controle falharam.");
+
+        // Let nodes queued during the checks complete their normal tree teardown. The scene
+        // creates short-lived native-backed collections, so finish their managed finalizers while
+        // Godot's native runtime is still alive instead of leaving them for process shutdown.
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        System.GC.Collect();
+        System.GC.WaitForPendingFinalizers();
+        System.GC.Collect();
 
         GetTree().Quit(_failed > 0 ? 1 : 0);
     }
@@ -208,6 +218,59 @@ public partial class CueControlTest : Node
             !Cue.IsOwnedTurn(game, 7));
 
         game.Free();
+    }
+
+    private void TestPointerMotionNormalization()
+    {
+        using var motion = new InputEventMouseMotion
+        {
+            Relative = new Vector2(2.0f, 3.0f),
+            ScreenRelative = new Vector2(4.0f, 6.0f),
+            Velocity = new Vector2(20.0f, 30.0f),
+            ScreenVelocity = new Vector2(40.0f, 60.0f),
+        };
+
+        Check("mouselook usa ScreenRelative para ficar estavel entre resolucoes",
+            PointerMotion.ReadScreenDelta(motion).IsEqualApprox(new Vector2(4.0f, 6.0f)));
+
+        motion.ScreenRelative = Vector2.Zero;
+        Check("mouselook preserva fallback para plataformas sem ScreenRelative",
+            PointerMotion.ReadScreenDelta(motion).IsEqualApprox(new Vector2(2.0f, 3.0f)));
+
+        motion.ScreenRelative = new Vector2(float.NaN, 1.0f);
+        Check("mouselook descarta movimento nao finito",
+            PointerMotion.ReadScreenDelta(motion) == Vector2.Zero);
+
+        Check("gesto do taco usa velocidade de tela normalizada",
+            PointerMotion.ReadScreenVelocity(motion)
+                .IsEqualApprox(new Vector2(40.0f, 60.0f)));
+
+        motion.ScreenVelocity = Vector2.Zero;
+        Check("velocidade do gesto preserva fallback da plataforma",
+            PointerMotion.ReadScreenVelocity(motion)
+                .IsEqualApprox(new Vector2(20.0f, 30.0f)));
+
+        motion.ScreenVelocity = new Vector2(1.0f, float.PositiveInfinity);
+        Check("gesto do taco descarta velocidade nao finita",
+            PointerMotion.ReadScreenVelocity(motion) == Vector2.Zero);
+    }
+
+    private void TestLatestPlacementRequestWins()
+    {
+        var controller = new PoolController();
+        AddChild(controller);
+        var supersededRequest = controller.BeginControlRequest();
+        var latestRequest = controller.BeginControlRequest();
+
+        Check("somente a espera de reposicionamento mais recente pode retomar o taco",
+            !controller.IsCurrentControlRequest(supersededRequest)
+            && controller.IsCurrentControlRequest(latestRequest));
+
+        controller.TakeControl();
+        Check("handoff explicito invalida qualquer espera antiga de reposicionamento",
+            !controller.IsCurrentControlRequest(latestRequest));
+
+        controller.Free();
     }
 
     private void TestCueImpactUsesFiniteEnergy()

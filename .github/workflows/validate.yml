@@ -5,7 +5,9 @@ on:
   push:
     branches:
       - main
+      - develop
       - feature/**
+      - bughunt/**
       - codex/**
 
 concurrency:
@@ -76,6 +78,10 @@ jobs:
         shell: pwsh
         run: ./tools/run-tests.ps1 -GodotBin '${{ steps.godot.outputs.bin }}'
 
+      - name: Verify C# formatting
+        shell: pwsh
+        run: dotnet format 9Die.sln --verify-no-changes --no-restore --verbosity minimal
+
       - name: Verify Release build
         shell: pwsh
         run: dotnet build 9Die.sln --configuration Release --no-restore --verbosity minimal
@@ -87,10 +93,17 @@ jobs:
           $executable = Join-Path $exportDirectory "9die.exe"
           New-Item -Path $exportDirectory -ItemType Directory -Force | Out-Null
 
-          & '${{ steps.godot.outputs.bin }}' --headless --path . `
-            --export-release "Windows Desktop" $executable
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
-            throw "Release export failed with exit code $LASTEXITCODE."
+          $exportOutput = @(
+            & '${{ steps.godot.outputs.bin }}' --headless --path . `
+              --export-release "Windows Desktop" $executable 2>&1
+          )
+          $exportExitCode = $LASTEXITCODE
+          $exportOutput | Write-Host
+          $exportErrors = @($exportOutput | Select-String -Pattern '(?i)(?:SCRIPT ERROR:|ERROR:)')
+          if ($exportExitCode -ne 0 `
+              -or $exportErrors.Count -gt 0 `
+              -or -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+            throw "Release export failed with exit code $exportExitCode and $($exportErrors.Count) engine error(s)."
           }
 
           # The exported Windows binary uses the GUI subsystem, so PowerShell's call operator does

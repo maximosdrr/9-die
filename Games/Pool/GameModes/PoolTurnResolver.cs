@@ -1,7 +1,7 @@
+using System.Threading.Tasks;
 using Godot;
 using Godot.Collections;
 using Pool.Simulation;
-using System.Threading.Tasks;
 
 /// <summary>
 /// Turns the outcome of a shot into a turn decision.

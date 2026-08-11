@@ -62,6 +62,8 @@ metadata/_custom_type_script = "uid://dia1p1hxycici"
 transform = Transform3D(-4.371139e-08, -0.99999994, 0, -4.371139e-08, 1.9106853e-15, 0.99999994, -1, 4.3711385e-08, -4.3711385e-08, 0, 2.5, 0)
 
 [node name="RemoteTop" type="RemoteTransform3D" parent="OverheadView" unique_id=1670131329]
-remote_path = NodePath("../..")
+update_position = false
+update_rotation = false
+update_scale = false
 
 [node name="PoolTable" parent="." unique_id=1705720398 instance=ExtResource("3_8ji62")]

@@ -1,5 +1,5 @@
-using Godot;
 using System;
+using Godot;
 
 public partial class TvScreenShare
 {
@@ -13,16 +13,18 @@ public partial class TvScreenShare
 
     private void DisplayFrame(byte[] encodedBytes)
     {
-        if (!IsValidMediaPayload(encodedBytes, isAudio: false))
+        // Validate dimensions from the tiny container header before asking the decoder to
+        // allocate pixel storage. A compact WebP can advertise a 16k x 16k canvas while staying
+        // below the encoded byte limit, which would otherwise be an allocation denial-of-service.
+        if (!IsSafeEncodedFrame(encodedBytes))
             return;
 
-        var image = new Image();
+        using var image = new Image();
         var err = image.LoadWebpFromBuffer(encodedBytes);
         if (err != Error.Ok)
             return;
 
-        if (image.GetWidth() <= 0 || image.GetHeight() <= 0
-            || image.GetWidth() > CaptureWidth || image.GetHeight() > CaptureHeight)
+        if (image.GetWidth() != CaptureWidth || image.GetHeight() != CaptureHeight)
         {
             GD.PushWarning($"[TvScreenShare] Frame descartado com dimensão inválida: {image.GetWidth()}x{image.GetHeight()}.");
             return;
