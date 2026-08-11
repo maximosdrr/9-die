@@ -8,13 +8,14 @@ public partial class PokerHand3DView : PokerHandView
     [ExportGroup("Table interaction")]
     [Export] public AimCrosshair Crosshair;
 
-    /// <summary>The two inner chalk sectors, moved clear of the table rim.</summary>
-    [Export] public float ActionZoneNearRadius = 0.455f;
-    [Export] public float ActionZoneFarRadius = 0.515f;
+    /// <summary>Distance from the table centre to the flat side of the local semicircular panel.</summary>
+    [Export] public float InteractionZoneCenterRadius = 0.575f;
 
-    /// <summary>The wager button is the outer arc embracing PASSAR and DESISTIR.</summary>
-    [Export] public float ConfirmZoneFarRadius = 0.575f;
-    [Export(PropertyHint.Range, "10,28,0.5")] public float ActionZoneHalfAngleDegrees = 16.0f;
+    /// <summary>PASSAR and DESISTIR share this inner half-disc.</summary>
+    [Export] public float ActionZoneRadius = 0.115f;
+
+    /// <summary>CONFIRMAR APOSTA occupies the half-ring between both radii.</summary>
+    [Export] public float ConfirmZoneRadius = 0.155f;
     [Export(PropertyHint.Range, "8,32,1")] public int InteractionArcSteps = 20;
 
     [Export] public float InteractionGuideThickness = 0.0014f;
@@ -40,7 +41,7 @@ public partial class PokerHand3DView : PokerHandView
     private Vector2 _guideFacing;
     private InteractionZone _hoveredZone;
     private readonly Dictionary<InteractionZone, ShaderMaterial> _zoneFillMaterials = new();
-    private readonly Dictionary<InteractionZone, Label3D> _zoneLabels = new();
+    private readonly Dictionary<InteractionZone, List<Label3D>> _zoneLabels = new();
 
     public bool TryAimPoint(out Vector2 tableLocal) =>
         AimPlane.TryAim(Game?.Camera, Game?.BoardPresenter, out tableLocal);
@@ -186,22 +187,22 @@ public partial class PokerHand3DView : PokerHandView
         if (!TrySeatAxes(out var facing, out var across))
             return InteractionZone.None;
 
-        var radial = aim.Dot(facing);
-        var lateral = aim.Dot(across);
-        var radius = Mathf.Sqrt(radial * radial + lateral * lateral);
-        var angle = Mathf.Atan2(lateral, radial);
-        var halfAngle = Mathf.DegToRad(ActionZoneHalfAngleDegrees);
-        if (Mathf.Abs(angle) > halfAngle)
+        var centre = facing * InteractionZoneCenterRadius;
+        var offset = aim - centre;
+        var inward = -offset.Dot(facing);
+        var lateral = offset.Dot(across);
+        if (inward < 0.0f)
             return InteractionZone.None;
 
-        if (radius >= ActionZoneFarRadius && radius <= ConfirmZoneFarRadius)
+        var radius = Mathf.Sqrt(inward * inward + lateral * lateral);
+        if (radius > ConfirmZoneRadius)
+            return InteractionZone.None;
+
+        if (radius >= ActionZoneRadius)
             return InteractionZone.ConfirmBet;
 
-        if (radius < ActionZoneNearRadius || radius > ActionZoneFarRadius)
-            return InteractionZone.None;
-
         // +across is always the seated player's left, independently of which chair they occupy.
-        return angle >= 0.0f ? InteractionZone.Check : InteractionZone.Fold;
+        return lateral >= 0.0f ? InteractionZone.Check : InteractionZone.Fold;
     }
 
     private bool TrySeatAxes(out Vector2 facing, out Vector2 across)
@@ -284,7 +285,8 @@ public partial class PokerHand3DView : PokerHandView
         foreach (var entry in _zoneLabels)
         {
             var alpha = entry.Key == zone ? 1.0f : ChalkGuideColor.A;
-            entry.Value.Modulate = ChalkGuideColor with { A = alpha };
+            foreach (var label in entry.Value)
+                label.Modulate = ChalkGuideColor with { A = alpha };
         }
     }
 
@@ -319,69 +321,68 @@ public partial class PokerHand3DView : PokerHandView
 
         var yaw = PokerTableLayout.YawTowardCentre(facing);
         var labelBasis = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
-        var halfAngle = Mathf.DegToRad(ActionZoneHalfAngleDegrees);
+        var centre = facing * InteractionZoneCenterRadius;
+        var inward = -facing;
+        const float halfCircle = Mathf.Pi * 0.5f;
 
-        AddChalkZone(InteractionZone.Check, "CheckFill", facing, across,
-            ActionZoneNearRadius, ActionZoneFarRadius, 0.0f, halfAngle);
-        AddChalkZone(InteractionZone.Fold, "FoldFill", facing, across,
-            ActionZoneNearRadius, ActionZoneFarRadius, -halfAngle, 0.0f);
-        AddChalkZone(InteractionZone.ConfirmBet, "ConfirmFill", facing, across,
-            ActionZoneFarRadius, ConfirmZoneFarRadius, -halfAngle, halfAngle);
+        AddChalkZone(InteractionZone.Check, "CheckFill", centre, inward, across,
+            0.0f, ActionZoneRadius, 0.0f, halfCircle);
+        AddChalkZone(InteractionZone.Fold, "FoldFill", centre, inward, across,
+            0.0f, ActionZoneRadius, -halfCircle, 0.0f);
+        AddChalkZone(InteractionZone.ConfirmBet, "ConfirmFill", centre, inward, across,
+            ActionZoneRadius, ConfirmZoneRadius, -halfCircle, halfCircle);
 
         var lineMaterial = NewChalkMaterial(ChalkGuideColor with { A = 0.46f }, 1.0f);
-        AddArcLine("InnerArc", facing, across, ActionZoneNearRadius,
-            -halfAngle, halfAngle, lineMaterial);
-        AddArcLine("ActionArc", facing, across, ActionZoneFarRadius,
-            -halfAngle, halfAngle, lineMaterial);
-        AddArcLine("OuterArc", facing, across, ConfirmZoneFarRadius,
-            -halfAngle, halfAngle, lineMaterial);
-        AddRadialLine("LeftEdge", facing, across, halfAngle,
-            ActionZoneNearRadius, ConfirmZoneFarRadius, lineMaterial);
-        AddRadialLine("RightEdge", facing, across, -halfAngle,
-            ActionZoneNearRadius, ConfirmZoneFarRadius, lineMaterial);
-        AddRadialLine("CentreDivider", facing, across, 0.0f,
-            ActionZoneNearRadius, ActionZoneFarRadius, lineMaterial);
+        AddArcLine("ConfirmOuterArc", centre, inward, across, ConfirmZoneRadius,
+            -halfCircle, halfCircle, lineMaterial);
+        AddArcLine("ConfirmActionDivider", centre, inward, across, ActionZoneRadius,
+            -halfCircle, halfCircle, lineMaterial);
+        AddRadialLine("LeftBandEdge", centre, inward, across, halfCircle,
+            ActionZoneRadius, ConfirmZoneRadius, lineMaterial);
+        AddRadialLine("RightBandEdge", centre, inward, across, -halfCircle,
+            ActionZoneRadius, ConfirmZoneRadius, lineMaterial);
+        AddRadialLine("CentreDivider", centre, inward, across, 0.0f,
+            0.0f, ActionZoneRadius, lineMaterial);
 
-        var actionLabelRadius = (ActionZoneNearRadius + ActionZoneFarRadius) * 0.5f;
+        var actionLabelRadius = ActionZoneRadius * 0.56f;
         AddChalkLabel(InteractionZone.Check, "Check", "PASSAR",
-            PolarPoint(facing, across, actionLabelRadius, halfAngle * 0.5f), labelBasis,
+            SemicirclePoint(centre, inward, across, actionLabelRadius, Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
         AddChalkLabel(InteractionZone.Fold, "Fold", "DESISTIR",
-            PolarPoint(facing, across, actionLabelRadius, -halfAngle * 0.5f), labelBasis,
+            SemicirclePoint(centre, inward, across, actionLabelRadius, -Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
-        AddChalkLabel(InteractionZone.ConfirmBet, "ConfirmBet", "CONFIRMAR\nAPOSTA",
-            PolarPoint(facing, across,
-                (ActionZoneFarRadius + ConfirmZoneFarRadius) * 0.5f, 0.0f), labelBasis,
-            Mathf.RoundToInt(ChalkGuideFontSize * 0.62f));
+        AddCurvedChalkLabel(InteractionZone.ConfirmBet, "CONFIRMAR APOSTA",
+            centre, inward, across, (ActionZoneRadius + ConfirmZoneRadius) * 0.5f,
+            Mathf.Pi * 0.34f, Mathf.RoundToInt(ChalkGuideFontSize * 0.60f));
     }
 
     private void AddChalkZone(
-        InteractionZone zone, string name, Vector2 facing, Vector2 across,
+        InteractionZone zone, string name, Vector2 centre, Vector2 inward, Vector2 across,
         float innerRadius, float outerRadius, float startAngle, float endAngle)
     {
         var material = NewChalkMaterial(ChalkGuideColor, 0.0f);
         _zoneFillMaterials[zone] = material;
-        AddGuideMesh(name, BuildSectorMesh(facing, across,
+        AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
             innerRadius, outerRadius, startAngle, endAngle, InteractionArcSteps, material), 0.0031f);
     }
 
     private void AddArcLine(
-        string name, Vector2 facing, Vector2 across, float radius,
+        string name, Vector2 centre, Vector2 inward, Vector2 across, float radius,
         float startAngle, float endAngle, Material material)
     {
         var half = InteractionGuideThickness * 0.5f;
-        AddGuideMesh(name, BuildSectorMesh(facing, across,
+        AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
             radius - half, radius + half, startAngle, endAngle,
             InteractionArcSteps, material), 0.0033f);
     }
 
     private void AddRadialLine(
-        string name, Vector2 facing, Vector2 across, float angle,
+        string name, Vector2 centre, Vector2 inward, Vector2 across, float angle,
         float innerRadius, float outerRadius, Material material)
     {
         var middle = Mathf.Max((innerRadius + outerRadius) * 0.5f, 0.01f);
         var halfAngle = InteractionGuideThickness / (middle * 2.0f);
-        AddGuideMesh(name, BuildSectorMesh(facing, across,
+        AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
             innerRadius, outerRadius, angle - halfAngle, angle + halfAngle,
             1, material), 0.0033f);
     }
@@ -428,11 +429,71 @@ public partial class PokerHand3DView : PokerHandView
                 new Vector3(position.X, 0.004f, position.Y)),
         };
         _interactionGuide.AddChild(label);
-        _zoneLabels[zone] = label;
+        AddZoneLabel(zone, label);
+    }
+
+    /// <summary>Places each glyph on the confirmation arc and turns it along the local tangent.</summary>
+    private void AddCurvedChalkLabel(
+        InteractionZone zone, string text, Vector2 centre, Vector2 inward, Vector2 across,
+        float radius, float spanAngle, int fontSize)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        for (var index = 0; index < text.Length; index++)
+        {
+            var angle = text.Length <= 1
+                ? 0.0f
+                : Mathf.Lerp(spanAngle, -spanAngle, index / (float)(text.Length - 1));
+            if (text[index] == ' ')
+                continue;
+
+            var point = SemicirclePoint(centre, inward, across, radius, angle);
+            var outward = inward * Mathf.Cos(angle) + across * Mathf.Sin(angle);
+            // The word is laid left-to-right while angles run from +span to -span.
+            var right = inward * Mathf.Sin(angle) - across * Mathf.Cos(angle);
+            var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
+            var up3 = new Vector3(outward.X, 0.0f, outward.Y).Normalized();
+            var normal3 = right3.Cross(up3).Normalized();
+            var label = NewChalkLabel($"ConfirmGlyph{index}", text[index].ToString(),
+                fontSize, new Transform3D(
+                    new Basis(right3, up3, normal3),
+                    new Vector3(point.X, 0.004f, point.Y)));
+            _interactionGuide.AddChild(label);
+            AddZoneLabel(zone, label);
+        }
+    }
+
+    private Label3D NewChalkLabel(
+        string name, string text, int fontSize, Transform3D transform) => new()
+    {
+        Name = name,
+        Text = text,
+        Font = ChalkFont,
+        PixelSize = ChalkGuidePixelSize,
+        FontSize = fontSize,
+        OutlineSize = 2,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        Modulate = ChalkGuideColor,
+        OutlineModulate = new Color(0.23f, 0.12f, 0.07f, 0.20f),
+        TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic,
+        NoDepthTest = false,
+        Transform = transform,
+    };
+
+    private void AddZoneLabel(InteractionZone zone, Label3D label)
+    {
+        if (!_zoneLabels.TryGetValue(zone, out var labels))
+        {
+            labels = new List<Label3D>();
+            _zoneLabels[zone] = labels;
+        }
+        labels.Add(label);
     }
 
     private static ImmediateMesh BuildSectorMesh(
-        Vector2 facing, Vector2 across, float innerRadius, float outerRadius,
+        Vector2 centre, Vector2 inward, Vector2 across, float innerRadius, float outerRadius,
         float startAngle, float endAngle, int steps, Material material)
     {
         steps = Mathf.Max(1, steps);
@@ -442,10 +503,10 @@ public partial class PokerHand3DView : PokerHandView
         {
             var angle0 = Mathf.Lerp(startAngle, endAngle, step / (float)steps);
             var angle1 = Mathf.Lerp(startAngle, endAngle, (step + 1) / (float)steps);
-            var inner0 = PolarPoint(facing, across, innerRadius, angle0);
-            var outer0 = PolarPoint(facing, across, outerRadius, angle0);
-            var inner1 = PolarPoint(facing, across, innerRadius, angle1);
-            var outer1 = PolarPoint(facing, across, outerRadius, angle1);
+            var inner0 = SemicirclePoint(centre, inward, across, innerRadius, angle0);
+            var outer0 = SemicirclePoint(centre, inward, across, outerRadius, angle0);
+            var inner1 = SemicirclePoint(centre, inward, across, innerRadius, angle1);
+            var outer1 = SemicirclePoint(centre, inward, across, outerRadius, angle1);
             AddInteractionTriangle(mesh, inner0, outer0, outer1);
             AddInteractionTriangle(mesh, inner0, outer1, inner1);
         }
@@ -453,9 +514,9 @@ public partial class PokerHand3DView : PokerHandView
         return mesh;
     }
 
-    private static Vector2 PolarPoint(
-        Vector2 facing, Vector2 across, float radius, float angle) =>
-        facing * (Mathf.Cos(angle) * radius) + across * (Mathf.Sin(angle) * radius);
+    private static Vector2 SemicirclePoint(
+        Vector2 centre, Vector2 inward, Vector2 across, float radius, float angle) =>
+        centre + inward * (Mathf.Cos(angle) * radius) + across * (Mathf.Sin(angle) * radius);
 
     private static void AddInteractionTriangle(
         ImmediateMesh mesh, Vector2 a, Vector2 b, Vector2 c)

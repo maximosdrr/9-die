@@ -676,14 +676,16 @@ public partial class PokerSceneLoadTest : Node
         var handScene = GD.Load<PackedScene>(
             "res://Games/Poker/GameController/Views/PokerHand3DView.tscn");
         var hand = handScene?.Instantiate<PokerHand3DView>();
-        var farCornerRadius = hand?.ConfirmZoneFarRadius ?? float.MaxValue;
-        Check("a interface física tem mira e três zonas radiais de clique único",
+        var farCornerRadius = hand == null
+            ? float.MaxValue
+            : Mathf.Sqrt(hand.InteractionZoneCenterRadius * hand.InteractionZoneCenterRadius
+                         + hand.ConfirmZoneRadius * hand.ConfirmZoneRadius);
+        Check("a interface física tem mira e três zonas semicirculares de clique único",
             hand is { Crosshair: not null,
-                ActionZoneNearRadius: >= 0.44f, ActionZoneFarRadius: <= 0.53f,
-                ConfirmZoneFarRadius: > 0.53f and <= 0.59f,
-                ActionZoneHalfAngleDegrees: >= 12.0f and <= 20.0f }
-            && hand.ActionZoneFarRadius > hand.ActionZoneNearRadius
-            && hand.ConfirmZoneFarRadius > hand.ActionZoneFarRadius
+                InteractionZoneCenterRadius: >= 0.55f and <= 0.59f,
+                ActionZoneRadius: >= 0.10f and <= 0.13f,
+                ConfirmZoneRadius: >= 0.14f and <= 0.17f }
+            && hand.ConfirmZoneRadius > hand.ActionZoneRadius
             && typeof(PokerHand3DView).GetMethod("HandleTableClick")?.GetParameters().Length == 0);
         Check("os comandos usam giz procedural, fonte grande e divisões finas",
             hand is { ChalkFont: not null, ChalkHoverShader: not null,
