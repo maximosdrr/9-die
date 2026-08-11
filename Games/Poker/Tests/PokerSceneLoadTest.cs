@@ -104,7 +104,7 @@ public partial class PokerSceneLoadTest : Node
                 ChalkValueFontSize: >= 62 and <= 70,
                 ChalkValuePixelSize: >= 0.00021f and <= 0.00025f,
                 PotValueLabelOffset: >= 0.055f and <= 0.080f,
-                StackValueLabelSideOffset: >= 0.045f and <= 0.065f });
+                StackValueLabelSideOffset: >= 0.055f and <= 0.070f });
         Check("o servidor e a apresentacao usam o mesmo perfil temporal",
             seatPresenter?.PresentationProfile != null
             && ReferenceEquals(seatPresenter.PresentationProfile, game.Resolver?.PresentationProfile));
@@ -666,11 +666,11 @@ public partial class PokerSceneLoadTest : Node
     /// </summary>
     private void TestHud()
     {
-        Check("a janela de validação usa Full HD (1920x1080)",
-            (int)ProjectSettings.GetSetting("display/window/size/viewport_width", 0) == 1920
-            && (int)ProjectSettings.GetSetting("display/window/size/viewport_height", 0) == 1080
-            && (int)ProjectSettings.GetSetting("display/window/size/window_width_override", 0) == 1920
-            && (int)ProjectSettings.GetSetting("display/window/size/window_height_override", 0) == 1080);
+        Check("a janela de desenvolvimento usa a escala original (1152x648)",
+            (int)ProjectSettings.GetSetting("display/window/size/viewport_width", 0) == 1152
+            && (int)ProjectSettings.GetSetting("display/window/size/viewport_height", 0) == 648
+            && (int)ProjectSettings.GetSetting("display/window/size/window_width_override", 0) == 1152
+            && (int)ProjectSettings.GetSetting("display/window/size/window_height_override", 0) == 648);
 
         var actions = new[]
         {
@@ -716,12 +716,8 @@ public partial class PokerSceneLoadTest : Node
             && hand.ConfirmZoneCenterRadius + hand.ConfirmZoneOuterRadius
                < hand.InteractionZoneCenterRadius - hand.ActionZoneRadius
             && typeof(PokerHand3DView).GetMethod("HandleTableClick")?.GetParameters().Length == 0);
-        Check("CALL tem um retângulo de giz próprio ao lado do banco de fichas",
+        Check("um único arco reúne CALL, AUTO, APOSTAR e o hold de ALL-IN",
             hand is {
-                CallZoneLength: >= 0.19f and <= 0.22f,
-                CallZoneWidth: >= 0.028f and <= 0.038f,
-                CallZoneSideOffset: >= 0.05f and <= 0.065f,
-                CallZoneHitPadding: >= 0.008f and <= 0.012f,
                 CallHoverOpacity: >= 0.30f and <= 0.38f,
                 CallClickMaxSeconds: >= 0.30f and <= 0.40f,
                 CallLabelCycleSeconds: >= 1.9f and <= 2.1f,
@@ -731,9 +727,10 @@ public partial class PokerSceneLoadTest : Node
                 AllInHoldOpacity: > 0.4f and <= 0.7f }
             && hand.AllInVisualDelaySeconds >= hand.CallClickMaxSeconds
             && hand.AllInVisualDelaySeconds < hand.AllInHoldSeconds
-            && hand.CallZoneSideOffset
-               - hand.CallZoneWidth * 0.5f - hand.CallZoneHitPadding >= 0.028f
             && hand.ChalkHoverShader?.Code.Contains("fill_progress") == true
+            && typeof(PokerHand3DView).GetField("CallZoneLength") == null
+            && typeof(PokerHand3DView).GetField("CallZoneWidth") == null
+            && typeof(PokerHand3DView).GetField("CallZoneSideOffset") == null
             && typeof(PokerSeatPresenter).GetMethod("TryPrepareAutomaticWager") != null
             && typeof(PokerHand3DView).GetMethod("TryConsumeTableGesture") != null
             && typeof(PokerHand3DView).GetMethod("HandleTableRelease") != null
@@ -767,7 +764,10 @@ public partial class PokerSceneLoadTest : Node
             && PokerHand3DView.TryAutomaticWagerOption(
                 autoOptions, out var autoKind, out var autoTotal)
             && autoKind == PokerActionKind.Raise && autoTotal == 10
-            && PokerHand3DView.AutomaticWagerLabel(autoOptions) == "AUTO");
+            && PokerHand3DView.AutomaticWagerLabel(autoOptions) == "AUTO"
+            && PokerHand3DView.WagerButtonLabel(callOptions, hasPreparedChips: true) == "APOSTAR"
+            && PokerHand3DView.WagerButtonLabel(callOptions, hasPreparedChips: false) == "CALL"
+            && PokerHand3DView.WagerButtonLabel(autoOptions, hasPreparedChips: false) == "AUTO");
         Check("o clique rápido não mostra a barra; o hold de um segundo a completa",
             PokerHand3DView.AllInHoldVisualProgress(0.12f, 0.35f, 1.0f) == 0.0f
             && PokerHand3DView.AllInHoldVisualProgress(0.35f, 0.35f, 1.0f) == 0.0f

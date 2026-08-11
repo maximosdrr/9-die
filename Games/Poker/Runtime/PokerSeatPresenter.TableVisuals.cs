@@ -258,7 +258,7 @@ public partial class PokerSeatPresenter : Node3D
 
     /// <summary>
     /// Puts a physical count beside every denomination bank. The baseline follows the same diagonal
-    /// as the chips, while the offset uses the side opposite CALL so neither label becomes a button.
+    /// as the chips, using the space behind the bank that was freed by the retired CALL plate.
     /// </summary>
     private void RefreshStackValue(string playerId, Vector2 facing, PokerLayoutSpec spec)
     {
@@ -274,7 +274,7 @@ public partial class PokerSeatPresenter : Node3D
 
         var centre = StackPlace(facing, spec);
         BankAxes(facing, out var laneAxis, out var sideAxis);
-        var place = centre - sideAxis * StackValueLabelSideOffset;
+        var place = centre + sideAxis * StackValueLabelSideOffset;
         label.Text = $"FICHAS {VisibleStackValue(playerId)}";
         label.Transform = TableLabelTransform(place, laneAxis, -sideAxis);
     }

@@ -53,7 +53,7 @@ public partial class PokerSeatPresenter : Node3D
         var angle = Mathf.DegToRad(BankLaneAngleDegrees);
 
         // The lane turns toward the player's right. Its perpendicular points outward-left, which is
-        // precisely the "behind the chips" side used by the CALL rectangle.
+        // precisely the "behind the chips" side used by the physical FICHAS label.
         laneAxis = (outward * Mathf.Cos(angle) - playerLeft * Mathf.Sin(angle)).Normalized();
         sideAxis = (outward * Mathf.Sin(angle) + playerLeft * Mathf.Cos(angle)).Normalized();
     }
@@ -63,42 +63,6 @@ public partial class PokerSeatPresenter : Node3D
         BankAxes(facing, out var lane, out _);
         var xAxis = new Vector3(lane.X, 0.0f, lane.Y).Normalized();
         return new Basis(xAxis, Vector3.Up, xAxis.Cross(Vector3.Up).Normalized());
-    }
-
-    /// <summary>Exact local frame used by the local chalk CALL guide.</summary>
-    public bool TryBankGuideFrame(
-        string playerId, out Vector2 centre, out Vector2 laneAxis, out Vector2 sideAxis)
-    {
-        centre = Vector2.Zero;
-        laneAxis = Vector2.Zero;
-        sideAxis = Vector2.Zero;
-        if (BoardPresenter == null || string.IsNullOrEmpty(playerId))
-            return false;
-
-        var seat = SeatNodeFor(playerId);
-        if (seat == null)
-            return false;
-
-        var localSeat = ToLocal(seat.GlobalPosition);
-        var facing = new Vector2(localSeat.X, localSeat.Z);
-        if (facing.LengthSquared() < 1e-6f)
-            return false;
-
-        facing = facing.Normalized();
-        var presenterCentre = StackPlace(facing, BoardPresenter.Spec);
-        BankAxes(facing, out var presenterLane, out var presenterSide);
-        var boardCentre3 = BoardPresenter.ToLocal(ToGlobal(
-            new Vector3(presenterCentre.X, 0.0f, presenterCentre.Y)));
-        var boardLane3 = BoardPresenter.ToLocal(ToGlobal(
-            new Vector3(presenterCentre.X + presenterLane.X, 0.0f,
-                presenterCentre.Y + presenterLane.Y))) - boardCentre3;
-        var boardSide3 = BoardPresenter.ToLocal(ToGlobal(
-            new Vector3(presenterCentre.X + presenterSide.X, 0.0f,
-                presenterCentre.Y + presenterSide.Y))) - boardCentre3;
-        centre = new Vector2(boardCentre3.X, boardCentre3.Z);
-        laneAxis = new Vector2(boardLane3.X, boardLane3.Z).Normalized();
-        sideAxis = new Vector2(boardSide3.X, boardSide3.Z).Normalized();
-        return true;
     }
 
     /// <summary>

@@ -45,8 +45,8 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float ChalkValuePixelSize = 0.00022f;
     /// <summary>Moves POTE from the physical pile toward this peer's chair.</summary>
     [Export] public float PotValueLabelOffset = 0.068f;
-    /// <summary>Places FICHAS opposite the CALL plate, parallel to the denomination lane.</summary>
-    [Export] public float StackValueLabelSideOffset = 0.052f;
+    /// <summary>Moves FICHAS behind its bank into the space freed by the retired CALL plate.</summary>
+    [Export] public float StackValueLabelSideOffset = 0.060f;
 
     [ExportGroup("Turn ring")]
     [Export] public float TurnRingRadius = 0.615f;
@@ -153,7 +153,7 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float BankColumnSpacing = 0.046f;
     /// <summary>
     /// Turns the denomination lane away from the table radius toward the player's right. This keeps
-    /// the bank and its CALL guide on the same readable diagonal instead of standing vertically.
+    /// the bank and its chalk value on the same readable diagonal instead of standing vertically.
     /// </summary>
     [Export(PropertyHint.Range, "0,90,1")] public float BankLaneAngleDegrees = 55.0f;
     /// <summary>Short felt-level push that turns staged chips into a committed wager.</summary>

@@ -8,8 +8,8 @@ using Poker.Rules;
 ///
 /// Betting is physical and reversible: chips are taken from denomination stacks, staged in front of
 /// the player and pushed through the outer confirmation arc. Fold and check occupy separate chalk
-/// sectors and all three respond to one deliberate hovered click. CALL/AUTO also accepts a
-/// one-second hold for all-in, keeping the irreversible action physical and explicit.
+/// sectors and all three respond to one deliberate hovered click. The wager arc becomes CALL,
+/// AUTO or APOSTAR from the physical chip state and accepts a one-second hold for all-in.
 ///
 /// The right mouse button turns the cards up while held. At rest they lie face down, which is both
 /// the real gesture and the honest one — a card
