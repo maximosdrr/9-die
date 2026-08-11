@@ -215,8 +215,26 @@ public partial class PokerSeatPresenter : Node3D
         return positions;
     }
 
-    public bool BetsAreVisuallyLoose => _chipAnimator.Batches.Any(batch =>
-        batch.Phase == ChipBatchPhase.AtBet && batch.Pile.Spread > 0.95f);
+    public bool BetsAreVisuallyLoose
+    {
+        get
+        {
+            var bets = _chipAnimator.Batches
+                .Where(batch => batch.Phase == ChipBatchPhase.AtBet).ToList();
+            if (bets.Any(batch => batch.Pile.Spread > 0.95f))
+                return true;
+
+            // Manually selected chips are already separate one-chip actors. Their root positions,
+            // rather than an internal pile spread, are what makes the committed wager look loose.
+            for (var left = 0; left < bets.Count; left++)
+            for (var right = left + 1; right < bets.Count; right++)
+            {
+                if (bets[left].Pile.Position.DistanceTo(bets[right].Pile.Position) > 0.003f)
+                    return true;
+            }
+            return false;
+        }
+    }
 
     public bool PotIsLooseWhileOrganizing => _chipAnimator.Batches.Any(batch =>
         batch.Phase == ChipBatchPhase.Organizing && batch.Progress < 0.25f

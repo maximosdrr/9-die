@@ -104,6 +104,31 @@ public partial class PokerChipAnimator : Node3D
         return extra;
     }
 
+    /// <summary>
+    /// Promotes a locally prepared chip into the persistent animation pool without replacing its mesh
+    /// or moving it. The pooled placeholder is retired; from this point on the same physical actor can
+    /// be collected into the pot and paid to a winner.
+    /// </summary>
+    public void Adopt(Batch batch, PokerChipPile pile)
+    {
+        if (batch == null || pile == null || batch.Pile == pile)
+            return;
+
+        var placeholder = batch.Pile;
+        var poolName = placeholder?.Name ?? new StringName($"ChipBatch{_batches.IndexOf(batch)}");
+        if (placeholder != null)
+        {
+            placeholder.Visible = false;
+            placeholder.Name = $"{poolName}_Retired";
+        }
+
+        if (pile.GetParent() != this)
+            pile.Reparent(this, true);
+        pile.Name = poolName;
+        batch.Pile = pile;
+        placeholder?.QueueFree();
+    }
+
     public void ResetAll()
     {
         foreach (var batch in _batches)

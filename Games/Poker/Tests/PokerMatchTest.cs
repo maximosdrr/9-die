@@ -417,11 +417,25 @@ public partial class PokerMatchTest : Node
         }
         Check("a aposta manual monta o aumento com as denominações clicadas", preparedRaise);
         var selectedDenominations = presenter.PreparedWagerDenominations;
+        var preparedVisuals = presenter.PreparedWagerVisuals();
         resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal,
             selectedDenominations);
         Check("o servidor publica exatamente as denominações escolhidas",
             PokerChipStack.Expand(game.LastChipRuns).OrderBy(value => value)
                 .SequenceEqual(selectedDenominations.OrderBy(value => value)));
+        presenter._Process(1.0 / 60.0);
+        board._Process(1.0 / 60.0);
+        var committedPreparedVisuals = presenter.ActiveChipVisualPositions();
+        var preservedPrepared = preparedVisuals.Count(entry =>
+            committedPreparedVisuals.TryGetValue(entry.Key, out var after)
+            && entry.Value.DistanceTo(after) < 0.0001f);
+        var worstPreparedStep = preparedVisuals
+            .Where(entry => committedPreparedVisuals.ContainsKey(entry.Key))
+            .Select(entry => entry.Value.DistanceTo(committedPreparedVisuals[entry.Key]))
+            .DefaultIfEmpty(float.MaxValue).Max();
+        Check($"confirmar preserva as fichas sem segundo lançamento "
+              + $"({preservedPrepared}/{preparedVisuals.Count}, passo {worstPreparedStep * 100.0f:F2} cm)",
+            preparedVisuals.Count > 0 && preservedPrepared == preparedVisuals.Count);
         AdvancePresentation(presenter, board, 180, stopWhenReady: true);
         Check("as fichas preparadas continuam a animação autoritativa sem cópia local",
             presenter.PreparedWagerAmount == 0 && !presenter.PreparedWagerSubmitted);

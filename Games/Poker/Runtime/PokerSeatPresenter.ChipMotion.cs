@@ -103,10 +103,12 @@ public partial class PokerSeatPresenter : Node3D
             usesPreparedChips = false;
         }
 
-        var payment = authoritativePayment is { Count: > 0 }
-            ? authoritativePayment
-            : usesPreparedChips
-                ? preparedPayment
+        // Once the server confirms the exact same composition, keep the one-chip runs in the order
+        // selected by the player. Regrouping them here was the now-redundant "disorganize" animation.
+        var payment = usesPreparedChips
+            ? preparedPayment
+            : authoritativePayment is { Count: > 0 }
+                ? authoritativePayment
                 : TakeVisualPayment(action.PlayerId, action.Amount, action.StackAfter);
 
         var publicBank = _game.ChipBankOf(action.PlayerId);
@@ -133,21 +135,32 @@ public partial class PokerSeatPresenter : Node3D
             batch.Sequence = _nextChipSequence++;
             batch.To = bet;
             batch.Progress = 0.0f;
-            batch.Delay = movingIndex * Profile.ChipFlightStagger;
-            batch.Phase = ChipBatchPhase.ToBet;
             var paidBefore = paidByDenomination.GetValueOrDefault(run.Denomination);
             paidByDenomination[run.Denomination] = paidBefore + run.Count;
             if (usesPreparedChips)
             {
-                batch.From = prepared[movingIndex].Position;
+                // The selection animation already placed this exact chip on the cloth. Promote that
+                // actor directly to AtBet: no replacement, second throw, landing bounce or re-scatter.
+                var transfer = prepared[movingIndex];
+                _chipAnimator.Adopt(batch, transfer.Pile);
+                batch.From = batch.Pile.Position;
+                batch.To = batch.From;
+                batch.Delay = 0.0f;
+                batch.Phase = ChipBatchPhase.AtBet;
+                batch.Pile.LooseSlotOffset = NextBetLooseSlot(action.PlayerId);
+                batch.Pile.Spread = 0.0f;
+                batch.Pile.FlightProgress = 1.0f;
+                batch.JustStarted = false;
+                batch.Pile.Visible = true;
+                continue;
             }
-            else
-            {
-                var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
-                    ? PaymentDepartureOffset(bankAfter, run.Denomination, paidBefore, bankPile)
-                    : Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
-                batch.From = stack + basis * departure;
-            }
+
+            batch.Delay = movingIndex * Profile.ChipFlightStagger;
+            batch.Phase = ChipBatchPhase.ToBet;
+            var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
+                ? PaymentDepartureOffset(bankAfter, run.Denomination, paidBefore, bankPile)
+                : Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
+            batch.From = stack + basis * departure;
 
             // Configure while hidden and reveal at the real physical source. A large stack may travel
             // as a compact same-denomination group, but it never changes value or chip type in flight.
@@ -161,7 +174,7 @@ public partial class PokerSeatPresenter : Node3D
             batch.Pile.Visible = true;
         }
         if (usesPreparedChips)
-            ReleaseConsumedPreparedWager(prepared);
+            CompletePreparedWagerAdoption();
         return groupIndex > 0;
     }
 

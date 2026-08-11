@@ -121,7 +121,7 @@ public partial class PokerSceneLoadTest : Node
                 ShowdownPairAngleJitterDegrees: > 0.0f and <= 8.0f });
         Check("saldo e apostas pendentes ocupam faixas diferentes das cartas",
             seatPresenter is { BetSideOffset: >= 0.0f and <= 0.01f,
-                StackSideOffset: >= 0.14f, StackInset: >= 0.08f }
+                StackSideOffset: >= 0.23f, StackInset: >= 0.08f }
             && game.BoardPresenter.Spec.SeatBetRadius >= 0.30f);
         Check("o turno usa um anel fino junto à borda da mesa",
             seatPresenter is { TurnRingRadius: >= 0.60f, TurnRingWidth: > 0.0f and <= 0.006f,

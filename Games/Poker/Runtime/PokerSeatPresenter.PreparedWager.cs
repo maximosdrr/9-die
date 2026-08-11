@@ -34,12 +34,12 @@ public partial class PokerSeatPresenter : Node3D
     private readonly struct PreparedTransfer
     {
         public readonly ChipRun Run;
-        public readonly Vector3 Position;
+        public readonly PokerChipPile Pile;
 
-        public PreparedTransfer(int denomination, Vector3 position)
+        public PreparedTransfer(int denomination, PokerChipPile pile)
         {
             Run = new ChipRun(denomination, 1);
-            Position = position;
+            Pile = pile;
         }
     }
 
@@ -58,6 +58,25 @@ public partial class PokerSeatPresenter : Node3D
         .Where(chip => chip.Included)
         .Select(chip => new Vector2(chip.Pile.Position.X, chip.Pile.Position.Z))
         .ToList();
+
+    public IReadOnlyList<ulong> PreparedWagerVisualIds() => _preparedChips
+        .Where(chip => chip.Included)
+        .SelectMany(chip => chip.Pile.GetChildren().OfType<Node3D>())
+        .Where(visual => visual.Visible)
+        .Select(visual => visual.GetInstanceId())
+        .ToList();
+
+    public IReadOnlyDictionary<ulong, Vector3> PreparedWagerVisuals()
+    {
+        var visuals = new Dictionary<ulong, Vector3>();
+        foreach (var chip in _preparedChips.Where(chip => chip.Included))
+        foreach (var child in chip.Pile.GetChildren())
+        {
+            if (child is Node3D { Visible: true } visual)
+                visuals[visual.GetInstanceId()] = chip.Pile.Transform * visual.Position;
+        }
+        return visuals;
+    }
 
     public bool TryGetBankLaneAimPoint(
         string playerId, int denomination, out Vector2 boardAim)
@@ -302,7 +321,9 @@ public partial class PokerSeatPresenter : Node3D
         {
             Name = $"PreparedChip{_preparedChips.Count}",
             ChipScene = _game?.ChipScene,
+            Scatter = ChipScatter,
             CombineRunsIntoColumns = true,
+            LooseWhenSpread = true,
             Spread = 0.0f,
             SettleSeconds = 0.0f,
         };
@@ -321,10 +342,20 @@ public partial class PokerSeatPresenter : Node3D
             return new List<PreparedTransfer>();
 
         var transfers = _preparedChips.Where(chip => chip.Included)
-            .Select(chip => new PreparedTransfer(chip.Denomination, chip.Pile.Position))
+            .Select(chip => new PreparedTransfer(chip.Denomination, chip.Pile))
             .ToList();
         _preparedSubmitted = false;
         return transfers;
+    }
+
+    /// <summary>
+    /// The animator adopted the exact tentative actors, so they are no longer local preparation state.
+    /// Clearing only the bookkeeping preserves their node identity and their final selected positions.
+    /// </summary>
+    private void CompletePreparedWagerAdoption()
+    {
+        _preparedChips.Clear();
+        _preparedPlayerId = "";
     }
 
     private void ReleaseConsumedPreparedWager(IReadOnlyList<PreparedTransfer> transfers)

@@ -122,13 +122,9 @@ public partial class PokerHand3DView : PokerHandView
 
     private PokerGesture HandleCheck()
     {
-        if (Game?.SeatPresenter?.PreparedWagerAmount > 0)
-        {
-            ShowNotice("Devolva as fichas selecionadas antes de passar", 1.8f);
-            return PokerGesture.None;
-        }
-
-        if (!HasAction(PokerActionKind.Check))
+        var prepared = Game?.SeatPresenter?.PreparedWagerAmount ?? 0;
+        if (!PokerWagerInteraction.TryPrepareCheck(
+                _options, prepared, out var returnSelectedChips))
         {
             var playerId = Player == null ? null : (string)Player.Name;
             var call = playerId == null ? 0 : Game.AmountToCall(playerId);
@@ -137,6 +133,12 @@ public partial class PokerHand3DView : PokerHandView
                 : "Passar não está disponível agora", 1.8f);
             return PokerGesture.None;
         }
+
+        // A prepared wager is only a reversible intention. Choosing PASSAR is unambiguous, so return
+        // those chips physically and let the legal check continue instead of trapping the player
+        // between "complete the wager" and "return the wager" notices.
+        if (returnSelectedChips)
+            CancelPreparedWager();
 
         RequestAction(PokerActionKind.Check, TotalFor(PokerActionKind.Check));
         return PokerGesture.Knock;
@@ -236,7 +238,8 @@ public partial class PokerHand3DView : PokerHandView
         var presenter = Game?.SeatPresenter;
         if (_wagerSubmitted && presenter is { PreparedWagerSubmitted: false, PreparedWagerAmount: 0 })
             _wagerSubmitted = false;
-        else if (!isYourTurn && !_wagerSubmitted && presenter?.PreparedWagerAmount > 0)
+        else if (!isYourTurn && !_wagerSubmitted
+                 && presenter is { PreparedWagerSubmitted: false, PreparedWagerAmount: > 0 })
             presenter.CancelPreparedWager();
 
         UpdateInteractionVisibility();

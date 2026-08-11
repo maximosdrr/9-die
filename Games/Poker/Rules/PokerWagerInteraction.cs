@@ -18,6 +18,22 @@ public enum PokerWagerProblem
 /// </summary>
 public static class PokerWagerInteraction
 {
+    /// <summary>
+    /// Resolves the physical PASSAR button before looking at a tentative wager. A legal check always
+    /// wins: selected chips are returned automatically. When a call is required the same chips remain
+    /// selected, allowing the player to add the missing value instead of entering a contradictory loop.
+    /// </summary>
+    public static bool TryPrepareCheck(
+        IReadOnlyList<ActionOption> options, int selectedAmount, out bool returnSelectedChips)
+    {
+        returnSelectedChips = false;
+        if (!Find(options, PokerActionKind.Check).HasValue)
+            return false;
+
+        returnSelectedChips = selectedAmount > 0;
+        return true;
+    }
+
     public static bool TryResolve(
         IReadOnlyList<ActionOption> options,
         int committedThisRound,
