@@ -12,13 +12,16 @@ public partial class PokerSeatPresenter : Node3D
 {
     private ChipBatch AcquireBatch() => _chipAnimator.Acquire();
 
-    private void PlaceInitialBet(string playerId, int amount, PokerLayoutSpec spec)
+    private void PlaceInitialBet(
+        string playerId, IReadOnlyList<ChipRun> authoritativeRuns, int amount, PokerLayoutSpec spec)
     {
         if (!TrySeatChipPlaces(playerId, spec, out var basis, out _, out var bet))
             return;
 
         var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
-        foreach (var run in PokerChipAnimator.GroupRuns(PokerChipStack.Decompose(amount), available))
+        var runs = authoritativeRuns is { Count: > 0 }
+            ? authoritativeRuns : PokerChipStack.Decompose(amount);
+        foreach (var run in PokerChipAnimator.GroupRuns(runs, available))
         {
             var batch = AcquireBatch();
             batch.PlayerId = playerId;
@@ -37,11 +40,13 @@ public partial class PokerSeatPresenter : Node3D
         }
     }
 
-    private void PlaceOrganizedPotSnapshot(int amount)
+    private void PlaceOrganizedPotSnapshot(IReadOnlyList<ChipRun> authoritativeRuns, int amount)
     {
         var centre = BoardPresenter.PotPosition;
         var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
-        foreach (var run in PokerChipAnimator.GroupRuns(PokerChipStack.Decompose(amount), available))
+        var runs = authoritativeRuns is { Count: > 0 }
+            ? authoritativeRuns : PokerChipStack.Decompose(amount);
+        foreach (var run in PokerChipAnimator.GroupRuns(runs, available))
         {
             var batch = AcquireBatch();
             batch.Amount = run.Value;
@@ -58,7 +63,7 @@ public partial class PokerSeatPresenter : Node3D
             batch.Pile.Visible = true;
         }
 
-        BeginOrganization();
+        BeginOrganization(playSound: false);
         foreach (var batch in _chipAnimator.Batches)
         {
             if (batch.Phase != ChipBatchPhase.Organizing)
@@ -83,7 +88,42 @@ public partial class PokerSeatPresenter : Node3D
                 out var basis, out var stack, out var bet))
             return false;
 
-        var payment = TakeVisualPayment(action.PlayerId, action.Amount, action.StackAfter);
+        // The blind and any earlier contribution by this player are already physical AtBet actors.
+        // Confirming a wager pushes the whole contribution as one gesture; moving only the freshly
+        // selected actors made the blind appear glued to its old position.
+        BeginCommittedWagerPush(action.PlayerId, basis, bet);
+
+        var authoritativePayment = action.Runs is { Count: > 0 }
+            ? action.Runs.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
+            : null;
+        var prepared = TakeSubmittedPreparedWager(action.PlayerId, action.Amount);
+        var preparedWasLocal = prepared.Count > 0;
+        if (!preparedWasLocal)
+            prepared = TakeReplicatedPreparedWager(
+                action.PlayerId, action.ActionSeq, action.Amount, authoritativePayment);
+        var usesPreparedChips = prepared.Count > 0;
+        var preparedPayment = prepared.Select(chip => chip.Run).ToList();
+        if (usesPreparedChips && authoritativePayment is { Count: > 0 }
+            && !SameChipComposition(preparedPayment, authoritativePayment))
+        {
+            // Recovery/race safety: discard the tentative rendering and trust the server's ledger.
+            ReleaseConsumedPreparedWager(prepared);
+            prepared.Clear();
+            usesPreparedChips = false;
+        }
+
+        // Once the server confirms the exact same composition, keep the one-chip runs in the order
+        // selected by the player. Regrouping them here was the now-redundant "disorganize" animation.
+        var payment = usesPreparedChips
+            ? preparedPayment
+            : authoritativePayment is { Count: > 0 }
+                ? authoritativePayment
+                : TakeVisualPayment(action.PlayerId, action.Amount, action.StackAfter);
+
+        var publicBank = _game.ChipBankOf(action.PlayerId);
+        if (publicBank.Count > 0)
+            _bankRuns[action.PlayerId] = publicBank
+                .Select(run => new ChipRun(run.Denomination, run.Count)).ToList();
         if (_stacks.TryGetValue(action.PlayerId, out var bankPile)
             && _bankRuns.TryGetValue(action.PlayerId, out var bank))
             bankPile.SetRuns(bank);
@@ -91,28 +131,57 @@ public partial class PokerSeatPresenter : Node3D
         var groupIndex = 0;
         var paidByDenomination = new Dictionary<int, int>();
         var available = Mathf.Max(1, MaxAnimatedChipGroups - _chipAnimator.ActiveBatchCount);
-        foreach (var run in PokerChipAnimator.GroupRuns(payment, available))
+        var movingRuns = usesPreparedChips
+            ? payment
+            : PokerChipAnimator.GroupRuns(payment, available);
+        foreach (var run in movingRuns)
         {
+            var movingIndex = groupIndex++;
             var batch = AcquireBatch();
             batch.PlayerId = action.PlayerId;
             batch.Amount = run.Value;
             batch.Basis = basis;
             batch.Sequence = _nextChipSequence++;
-            batch.To = bet;
+            batch.To = bet + basis * Vector3.Forward * CommittedWagerPushDistance;
             batch.Progress = 0.0f;
-            batch.Delay = groupIndex++ * Profile.ChipFlightStagger;
-            batch.Phase = ChipBatchPhase.ToBet;
             var paidBefore = paidByDenomination.GetValueOrDefault(run.Denomination);
             paidByDenomination[run.Denomination] = paidBefore + run.Count;
+            if (usesPreparedChips)
+            {
+                // The selection animation already placed this exact chip on the cloth. Adopt it and
+                // slide it a few centimetres toward the centre, synchronized with the hand/body push.
+                var transfer = prepared[movingIndex];
+                _chipAnimator.Adopt(batch, transfer.Pile);
+                batch.Basis = batch.Pile.Basis;
+                batch.From = batch.Pile.Position;
+                // Preserve the canonical slot chosen while the chip was tentative. Recounting after
+                // setting AtBet includes this very batch and shifts the loose destination by one.
+                batch.Pile.LooseSlotOffset = transfer.BetSlot;
+                batch.To = CommittedBetTarget(batch.Pile, basis, bet);
+                batch.FromBasis = batch.Pile.Basis;
+                batch.ToBasis = batch.Pile.Basis;
+                batch.Duration = CommittedWagerPushSeconds;
+                batch.Delay = 0.0f;
+                batch.Phase = ChipBatchPhase.PushingBet;
+                batch.Pile.Spread = 0.0f;
+                batch.Pile.FlightProgress = 1.0f;
+                batch.JustStarted = false;
+                batch.Pile.Visible = true;
+                continue;
+            }
+
+            batch.Delay = movingIndex * Profile.ChipFlightStagger;
+            batch.Phase = ChipBatchPhase.ToBet;
             var departure = _bankRuns.TryGetValue(action.PlayerId, out var bankAfter)
                 ? PaymentDepartureOffset(bankAfter, run.Denomination, paidBefore, bankPile)
                 : Vector3.Up * (bankPile?.TopHeight ?? 0.0f);
-            batch.From = stack + basis * departure;
+            var bankBasis = bankPile?.Basis ?? basis;
+            batch.From = stack + bankBasis * departure;
 
             // Configure while hidden and reveal at the real physical source. A large stack may travel
             // as a compact same-denomination group, but it never changes value or chip type in flight.
             batch.Pile.Visible = false;
-            batch.Pile.Transform = new Transform3D(basis, batch.From);
+            batch.Pile.Transform = new Transform3D(bankBasis, batch.From);
             batch.Pile.LooseSlotOffset = NextBetLooseSlot(action.PlayerId);
             batch.Pile.Spread = 0.0f;
             batch.Pile.FlightProgress = 0.0f;
@@ -120,7 +189,59 @@ public partial class PokerSeatPresenter : Node3D
             batch.JustStarted = true;
             batch.Pile.Visible = true;
         }
+        if (usesPreparedChips && preparedWasLocal)
+            CompletePreparedWagerAdoption();
         return groupIndex > 0;
+    }
+
+    private void BeginCommittedWagerPush(string playerId, Basis basis, Vector3 bet)
+    {
+        foreach (var batch in _chipAnimator.Batches)
+        {
+            if (batch.PlayerId != playerId || batch.Phase != ChipBatchPhase.AtBet)
+                continue;
+
+            var target = CommittedBetTarget(batch.Pile, basis, bet);
+            if (batch.Pile.Position.DistanceTo(target) < 0.0001f)
+                continue;
+
+            batch.From = batch.Pile.Position;
+            batch.To = target;
+            batch.FromBasis = batch.Pile.Basis;
+            batch.ToBasis = batch.Pile.Basis;
+            batch.Progress = 0.0f;
+            batch.Delay = 0.0f;
+            batch.Duration = CommittedWagerPushSeconds;
+            batch.JustStarted = false;
+            batch.Phase = ChipBatchPhase.PushingBet;
+            batch.Pile.FlightProgress = 1.0f;
+        }
+    }
+
+    private Vector3 CommittedBetTarget(PokerChipPile pile, Basis basis, Vector3 bet)
+    {
+        var target = bet;
+        if (pile != null && pile.Spread < 0.5f)
+        {
+            target += basis * PokerChipContactLayout.RootOffset(
+                pile.LooseSlotOffset, pile.EffectiveDiameter, pile.EffectiveThickness);
+        }
+
+        return target + basis * Vector3.Forward * CommittedWagerPushDistance;
+    }
+
+    private static bool SameChipComposition(
+        IReadOnlyList<ChipRun> left, IReadOnlyList<ChipRun> right)
+    {
+        if (PokerChipStack.Total(left) != PokerChipStack.Total(right)
+            || PokerChipStack.ChipCount(left) != PokerChipStack.ChipCount(right))
+            return false;
+        var leftCounts = left.GroupBy(run => run.Denomination)
+            .ToDictionary(group => group.Key, group => group.Sum(run => run.Count));
+        var rightCounts = right.GroupBy(run => run.Denomination)
+            .ToDictionary(group => group.Key, group => group.Sum(run => run.Count));
+        return leftCounts.Count == rightCounts.Count
+            && leftCounts.All(entry => rightCounts.GetValueOrDefault(entry.Key) == entry.Value);
     }
 
     private int NextBetLooseSlot(string playerId)
@@ -129,7 +250,8 @@ public partial class PokerSeatPresenter : Node3D
         foreach (var batch in _chipAnimator.Batches)
         {
             if (batch.PlayerId != playerId || batch.Phase is not
-                (ChipBatchPhase.ToBet or ChipBatchPhase.Landing or ChipBatchPhase.AtBet))
+                (ChipBatchPhase.ToBet or ChipBatchPhase.PushingBet
+                    or ChipBatchPhase.Landing or ChipBatchPhase.AtBet))
                 continue;
             next += batch.Pile.ChipCount;
         }
@@ -205,7 +327,9 @@ public partial class PokerSeatPresenter : Node3D
         facing = facing.Normalized();
         basis = Basis.FromEuler(new Vector3(0.0f, PokerTableLayout.YawTowardCentre(facing), 0.0f));
         var stack2 = StackPlace(facing, spec);
-        var bet2 = PokerTableLayout.SeatSpot(facing, spec.SeatBetRadius);
+        var across = new Vector2(-facing.Y, facing.X);
+        var bet2 = PokerTableLayout.SeatSpot(facing, spec.SeatBetRadius)
+            - across * BetSideOffset;
         stack = new Vector3(stack2.X, 0.0f, stack2.Y);
         bet = new Vector3(bet2.X, 0.0f, bet2.Y);
         return true;
@@ -217,7 +341,8 @@ public partial class PokerSeatPresenter : Node3D
 
         // An action from the visible street goes first, even when it is the call that requested the
         // following street. Actions already received for a future street wait behind collection.
-        if (!_collecting && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing)
+        if (!_collecting && !HasPhase(
+                ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet, ChipBatchPhase.Landing)
             && _pendingChipActions.TryPeek(out var next) && next.Street <= _visibleStreet)
         {
             _pendingChipActions.Dequeue();
@@ -228,7 +353,7 @@ public partial class PokerSeatPresenter : Node3D
         {
             var phaseBefore = batch.Phase;
             moved |= _chipAnimator.Advance(batch, delta);
-            if (phaseBefore == ChipBatchPhase.ToWinner
+            if (phaseBefore == ChipBatchPhase.OrganizingWinner
                 && batch.Phase == ChipBatchPhase.AtWinner)
             {
                 _displayStacks[batch.WinnerId] = Mathf.Min(_game.StackOf(batch.WinnerId),
@@ -237,12 +362,13 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         var payoutWasCompleted = _payoutSequencer?.Completed ?? false;
-        moved |= _payoutSequencer?.Advance() ?? false;
+        moved |= _payoutSequencer?.Advance(delta) ?? false;
 
         var visibleActionPending = _pendingChipActions.TryPeek(out var queued)
             && queued.Street <= _visibleStreet;
         if (_collectionRequested && !_collecting && !visibleActionPending
-            && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing))
+            && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
+                ChipBatchPhase.Landing))
         {
             BeginCollection();
             moved = true;
@@ -301,6 +427,7 @@ public partial class PokerSeatPresenter : Node3D
 
             batch.From = batch.Pile.Position;
             batch.To = pot;
+            batch.StartSpread = batch.Pile.Spread;
             batch.Pile.RetargetLooseSlots(looseSlot);
             looseSlot += batch.Pile.ChipCount;
             batch.Progress = 0.0f;
@@ -321,11 +448,24 @@ public partial class PokerSeatPresenter : Node3D
         }
     }
 
-    private void BeginOrganization()
+    private void BeginOrganization(bool playSound = true)
     {
         _organizing = true;
         var reader = new Basis(Vector3.Up, ReaderYaw(Vector2.Down));
-        _chipAnimator.BeginOrganization(BoardPresenter.PotPosition, reader, PotColumnSpacing);
+        if (!_chipAnimator.BeginOrganization(BoardPresenter.PotPosition, reader, PotColumnSpacing))
+        {
+            _organizing = false;
+            return;
+        }
+
+        if (playSound)
+        {
+            var chipCount = _chipAnimator.Batches
+                .Where(batch => batch.Phase == ChipBatchPhase.Organizing)
+                .Sum(batch => batch.Pile.ChipCount);
+            _chipSoundscape?.PlayOrganization(
+                ToGlobal(BoardPresenter.PotPosition), chipCount, ChipOrganizeSeconds);
+        }
     }
 
     private static int DenominationOf(ChipBatch batch) => PokerChipAnimator.DenominationOf(batch);
@@ -335,8 +475,11 @@ public partial class PokerSeatPresenter : Node3D
         if ((_payoutSequencer?.Started ?? false) || (_payoutSequencer?.Completed ?? false)
             || !_game.HandSettled || !_settlementCollected
             || _collecting || _organizing || _collectionRequested
-            || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
-                ChipBatchPhase.ToPot, ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer))
+            || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
+                ChipBatchPhase.Landing,
+                ChipBatchPhase.ToPot, ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer,
+                ChipBatchPhase.ToWinner, ChipBatchPhase.AtWinnerLoose,
+                ChipBatchPhase.OrganizingWinner))
             return false;
 
         // In an uncontested hand there is no comparison to wait for. At a showdown, however, the

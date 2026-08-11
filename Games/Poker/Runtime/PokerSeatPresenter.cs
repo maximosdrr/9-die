@@ -6,8 +6,7 @@ using ChipBatchPhase = PokerChipAnimator.Phase;
 
 /// <summary>
 /// Everything each seat owns, said with objects on the table instead of a panel: two face-down
-/// cards, the chips they have pushed in, the stack they still hold, their name and count, and the
-/// dealer button.
+/// cards, the chips they have pushed in, the stack they still hold, their name, dealer role and turn.
 ///
 /// All of it is derived from <see cref="PokerGame"/>'s PUBLIC state — stacks, bets and who folded,
 /// never a card anyone still holds — so every peer draws the same table from what it already has and
@@ -37,10 +36,34 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public Color TurnColor = new(1.0f, 0.478431f, 0.2f);
     [Export] public Color IdleColor = new(0.678431f, 0.752941f, 0.839216f);
     [Export] public Color FoldedColor = new(0.45f, 0.47f, 0.52f);
+    [Export] public float DealerLabelHeightAboveHead = 0.24f;
 
-    [ExportGroup("Dealer button")]
-    [Export] public float ButtonRadius = 0.028f;
-    [Export] public float ButtonOffset = 0.10f;
+    [ExportGroup("Chalk values")]
+    [Export] public Font ChalkFont;
+    [Export] public Color ChalkValueColor = new(0.95f, 0.93f, 0.86f, 0.86f);
+    [Export] public Color FloatingValueLabelColor = new(1.0f, 1.0f, 1.0f, 0.98f);
+    [Export(PropertyHint.Range, "36,96,2")] public int ChalkValueFontSize = 68;
+    [Export] public float ChalkValuePixelSize = 0.00025f;
+    /// <summary>Minimum distance above the felt for the centre of a floating value label.</summary>
+    [Export] public float FloatingValueLabelMinimumHeight = 0.095f;
+    /// <summary>Air left between the highest chip and the bottom of its floating label.</summary>
+    [Export] public float FloatingValueLabelClearance = 0.028f;
+    /// <summary>Small downward travel that keeps the labels alive without reading as HUD.</summary>
+    [Export(PropertyHint.Range, "0,0.015,0.0005")] public float FloatingValueLabelBobDistance = 0.008f;
+    /// <summary>Seconds for one complete down-and-up floating cycle.</summary>
+    [Export(PropertyHint.Range, "2,8,0.1")] public float FloatingValueLabelBobSeconds = 3.4f;
+    /// <summary>Moves the flat POTE inscription slightly toward this peer's chair.</summary>
+    [Export] public float PotValueLabelOffset = 0.068f;
+
+    [ExportGroup("Turn ring")]
+    [Export] public float TurnRingRadius = 0.615f;
+    [Export] public float TurnRingWidth = 0.0045f;
+    [Export] public float TurnRingHeight = 0.003f;
+    [Export] public float TurnRingGapDegrees = 8.0f;
+    [Export] public int TurnRingArcSteps = 20;
+    [Export] public Color ActiveTurnRingColor = new(0.24f, 0.66f, 0.36f, 0.48f);
+    [Export] public Color OccupiedTurnRingColor = new(0.68f, 0.28f, 0.25f, 0.30f);
+    [Export] public Color EmptyTurnRingColor = new(0.52f, 0.54f, 0.58f, 0.20f);
 
     private PokerGame _game;
 
@@ -102,6 +125,10 @@ public partial class PokerSeatPresenter : Node3D
         public readonly Transform3D[] ReleasedFrom = new Transform3D[PokerDeal.HoleCardCount];
         public bool Returning;
         public float Returned = 1.0f;
+        public readonly Transform3D[] CleanupFrom = new Transform3D[PokerDeal.HoleCardCount];
+        public readonly bool[] CleanupActive = new bool[PokerDeal.HoleCardCount];
+        public readonly bool[] CleanupFaceDown = new bool[PokerDeal.HoleCardCount];
+        public readonly int[] CleanupSlot = new int[PokerDeal.HoleCardCount];
     }
 
     [ExportGroup("Betting chips")]
@@ -118,9 +145,27 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float StackScatter = 0.0025f;
 
     /// <summary>Moves the bank inward and sideways so it is visible beside, not behind, the cards.</summary>
-    [Export] public float StackInset = 0.055f;
-    [Export] public float StackSideOffset = 0.105f;
-    [Export] public float BankColumnSpacing = 0.034f;
+    [Export] public float StackInset = 0.115f;
+    [Export] public float StackSideOffset = 0.225f;
+    /// <summary>
+    /// A committed bet stays directly in front of its owner, between their cards and the centre.
+    /// The larger radial distance now provides the clearance; a lateral offset would collide with
+    /// the reader-relative deck for one of the side chairs.
+    /// </summary>
+    [Export] public float BetSideOffset = 0.0f;
+    /// <summary>
+    /// Centre-to-centre separation between denomination columns. The current art is 40 mm wide;
+    /// keeping a real gap here prevents neighbouring stacks from sharing the same volume.
+    /// </summary>
+    [Export] public float BankColumnSpacing = 0.046f;
+    /// <summary>
+    /// Turns the denomination lane away from the table radius toward the player's right. This keeps
+    /// the bank and its chalk value on the same readable diagonal instead of standing vertically.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,90,1")] public float BankLaneAngleDegrees = 55.0f;
+    /// <summary>Short felt-level push that turns staged chips into a committed wager.</summary>
+    [Export] public float CommittedWagerPushDistance = 0.055f;
+    [Export] public float CommittedWagerPushSeconds = 0.42f;
 
     [ExportGroup("Presentation sequence")]
     public float ChipLandingSeconds { get => Profile.ChipLandingSeconds; set => Profile.ChipLandingSeconds = value; }
@@ -129,6 +174,8 @@ public partial class PokerSeatPresenter : Node3D
     public float ChipCollectStagger { get => Profile.ChipCollectStagger; set => Profile.ChipCollectStagger = value; }
     public float ChipPayoutSeconds { get => Profile.ChipPayoutSeconds; set => Profile.ChipPayoutSeconds = value; }
     public float ChipPayoutStagger { get => Profile.ChipPayoutStagger; set => Profile.ChipPayoutStagger = value; }
+    /// <summary>How far inward from the bank payout chips land loose before being stacked.</summary>
+    [Export] public float WinnerLooseLandingInset = 0.060f;
     [Export] public float PotColumnSpacing = 0.050f;
     /// <summary>
     /// Maximum ordinary number of independently moving chip groups. Above this, chips of the same
@@ -139,8 +186,18 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public int PrewarmedChipsPerBatch = 1;
 
     [ExportGroup("Showdown comparison")]
+    /// <summary>Time for an exposed pair to travel from the player's hands to the cloth.</summary>
+    public float ShowdownRevealMotionSeconds { get => Profile.ShowdownRevealMotionSeconds; set => Profile.ShowdownRevealMotionSeconds = value; }
     /// <summary>Time left for everyone to read the exposed hole cards before ranking rearranges them.</summary>
     public float ShowdownRevealHoldSeconds { get => Profile.ShowdownRevealHoldSeconds; set => Profile.ShowdownRevealHoldSeconds = value; }
+    /// <summary>Centre-to-centre distance between the two cards exposed in front of their owner.</summary>
+    [Export] public float ShowdownPairSpacing = 0.054f;
+    /// <summary>Small table-plane variation that keeps exposed pairs from looking mechanically placed.</summary>
+    [Export] public float ShowdownPairPositionJitter = 0.006f;
+    /// <summary>Maximum clockwise/counter-clockwise variation of each exposed card.</summary>
+    [Export(PropertyHint.Range, "0,8,0.25")] public float ShowdownPairAngleJitterDegrees = 4.0f;
+    /// <summary>Physical layer separation for overlapping cards, preventing coplanar depth flicker.</summary>
+    [Export] public float ShowdownPairLayerSeparation = 0.0012f;
     public float ShowdownCardSeconds { get => Profile.ShowdownCardSeconds; set => Profile.ShowdownCardSeconds = value; }
     public float ShowdownRowStagger { get => Profile.ShowdownRowStagger; set => Profile.ShowdownRowStagger = value; }
     public float ShowdownCardStagger { get => Profile.ShowdownCardStagger; set => Profile.ShowdownCardStagger = value; }
@@ -150,8 +207,16 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public Color ShowdownWinnerColor = new(0.35f, 1.0f, 0.48f);
     [Export] public Color ShowdownOtherColor = new(0.88f, 0.91f, 0.96f);
 
-    /// <summary>Placeholder knuckle on wood. Any short, dry hit reads correctly.</summary>
+    [ExportGroup("Table sounds")]
+    /// <summary>Short, dry knuckle impact used by the check/pass action.</summary>
     [Export] public AudioStream KnockSound;
+    [Export(PropertyHint.Range, "-24,0,0.5")] public float KnockVolumeDb = -4.0f;
+
+    /// <summary>Chip-on-felt recording. Nearby arrivals are merged before this sample is played.</summary>
+    [Export] public AudioStream ChipLandingSound;
+    [Export(PropertyHint.Range, "1,3,1")] public int ChipImpactVoiceLimit = 3;
+    [Export(PropertyHint.Range, "-30,-3,0.5")] public float ChipSingleImpactDb = -17.0f;
+    [Export(PropertyHint.Range, "-24,-3,0.5")] public float ChipMaximumImpactDb = -11.0f;
 
     [ExportGroup("Dealer change")]
     [Export] public AudioStream DealerChangeSound;
@@ -164,13 +229,20 @@ public partial class PokerSeatPresenter : Node3D
         public readonly int Amount;
         public readonly PokerStreet Street;
         public readonly int StackAfter;
+        public readonly int ActionSeq;
+        public readonly List<ChipRun> Runs;
 
-        public PendingChipAction(string playerId, int amount, PokerStreet street, int stackAfter)
+        public PendingChipAction(
+            string playerId, int amount, PokerStreet street, int stackAfter, int actionSeq,
+            IReadOnlyList<ChipRun> runs)
         {
             PlayerId = playerId;
             Amount = amount;
             Street = street;
             StackAfter = stackAfter;
+            ActionSeq = actionSeq;
+            Runs = runs?.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
+                ?? new List<ChipRun>();
         }
     }
 
@@ -187,7 +259,12 @@ public partial class PokerSeatPresenter : Node3D
     public bool LocalHandLanded { get; private set; }
     private readonly Dictionary<string, PokerChipPile> _stacks = new();
     private readonly Dictionary<string, Label3D> _names = new();
+    private readonly Dictionary<string, Label3D> _stackValueLabels = new();
+    private Label3D _potValueLabel;
+    private readonly Dictionary<Label3D, Vector3> _floatingValueLabelAnchors = new();
+    private float _floatingValueLabelTime;
     private PokerChipAnimator _chipAnimator;
+    private PokerChipSoundscape _chipSoundscape;
     private readonly Queue<PendingChipAction> _pendingChipActions = new();
     private readonly Dictionary<string, int> _observedStacks = new();
     private readonly Dictionary<string, int> _observedCommitted = new();
@@ -205,7 +282,30 @@ public partial class PokerSeatPresenter : Node3D
     private bool _settlementCollected;
     private bool _lastPresentationReady;
     private int _nextChipSequence;
-    private MeshInstance3D _dealerButton;
+    private bool _cardCleanupActive;
+    private float _cardCleanupElapsed;
+    public bool CardsReturningToDeck => _cardCleanupActive;
+    public int ReturningCardCount
+    {
+        get
+        {
+            var count = BoardPresenter?.ReturningCardCount ?? 0;
+            count += _showdownPresenter?.CleanupCardCount ?? 0;
+            foreach (var hand in _holeCards.Values)
+            {
+                foreach (var active in hand.CleanupActive)
+                {
+                    if (active)
+                        count++;
+                }
+            }
+            return count;
+        }
+    }
+    private readonly List<MeshInstance3D> _turnRingSegments = new();
+    private readonly List<StandardMaterial3D> _turnRingMaterials = new();
+    public IReadOnlyList<MeshInstance3D> TurnRingSegments => _turnRingSegments;
+    private Label3D _dealerLabel;
     public bool LastRecoveryDiscardedAnimation { get; private set; }
     private PokerPresentationProfile Profile => PresentationProfile ??= new PokerPresentationProfile();
 
@@ -238,6 +338,11 @@ public partial class PokerSeatPresenter : Node3D
 
         var spec = BoardPresenter.Spec;
         CaptureChipPresentation(spec);
+        SyncReplicatedPreparedWagers();
+        if (_game.CardsCleaningUp)
+            BeginCardCleanup();
+        else if (_cardCleanupActive)
+            EndCardCleanup();
         var seen = new HashSet<string>();
 
         for (var index = 0; index < _game.SeatOrder.Length; index++)
@@ -256,13 +361,17 @@ public partial class PokerSeatPresenter : Node3D
 
             facing = facing.Normalized();
 
-            RefreshHoleCards(playerId, facing, spec);
+            if (!_cardCleanupActive)
+                RefreshHoleCards(playerId, facing, spec);
             RefreshChips(playerId, facing, spec);
+            RefreshStackValue(playerId, facing, spec);
             RefreshName(playerId, facing);
         }
 
         DropStale(seen);
-        RefreshDealerButton(spec);
+        RefreshPotValue();
+        RefreshTurnRing();
+        RefreshDealerLabel();
         PlayActionGesture();
     }
 
@@ -277,9 +386,21 @@ public partial class PokerSeatPresenter : Node3D
         // would ever tell this presenter to stop drawing the pair lying on the cloth.
         var moved = _game.LocalPickedUpCards != _lastPickedUp;
         _lastPickedUp = _game.LocalPickedUpCards;
+        moved |= AdvancePreparedWager((float)delta);
+        moved |= AdvanceReplicatedPreparedWagers((float)delta);
 
         var localId = _game.Player == null ? null : (string)_game.Player.Name;
         LocalHandLanded = false;
+
+        if (_cardCleanupActive)
+        {
+            moved |= AdvanceCardCleanup((float)delta);
+            moved |= _showdownPresenter?.Advance((float)delta, blocked: false) ?? false;
+            if (moved)
+                Refresh();
+            AdvanceFloatingValueLabels((float)delta);
+            return;
+        }
 
         foreach (var entry in _holeCards)
         {
@@ -289,7 +410,7 @@ public partial class PokerSeatPresenter : Node3D
             if (hand.Returning && hand.Returned < 1.0f)
             {
                 hand.Returned = Mathf.Min(1.0f,
-                    hand.Returned + (float)delta / Mathf.Max(MuckSeconds, 0.01f));
+                    hand.Returned + (float)delta / Mathf.Max(ShowdownRevealMotionSeconds, 0.01f));
                 moved = true;
                 if (hand.Returned >= 1.0f)
                     hand.Returning = false;
@@ -338,7 +459,7 @@ public partial class PokerSeatPresenter : Node3D
 
         moved |= AdvanceChipPresentation((float)delta);
         var showdownBlocked = _collecting || _organizing || _collectionRequested
-            || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing,
+            || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet, ChipBatchPhase.Landing,
                 ChipBatchPhase.ToPot, ChipBatchPhase.Organizing)
             || _holeCards.Values.Any(hand => hand.Returning);
         moved |= _showdownPresenter?.Advance((float)delta, showdownBlocked) ?? false;
@@ -347,6 +468,8 @@ public partial class PokerSeatPresenter : Node3D
         // labels, and there is no reason to pay for that on a still table.
         if (moved)
             Refresh();
+
+        AdvanceFloatingValueLabels((float)delta);
 
         var ready = PresentationReadyForAction;
         if (ready != _lastPresentationReady)

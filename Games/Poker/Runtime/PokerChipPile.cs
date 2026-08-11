@@ -18,8 +18,9 @@ using Poker.Rules;
 /// Every bit of that scatter is derived from the chip's own index, so it is identical on every peer
 /// and stable from frame to frame. Nothing about it travels over the network.
 ///
-/// Geometry comes from <see cref="PokerChipMeshes"/> — a rim and a coloured body — and falls back to
-/// a flat cylinder when the art pack is missing, so the table stays playable either way.
+/// Geometry normally comes from <see cref="PokerChipAssetMeshes"/>, with a different embossed mesh
+/// for every value. The previous pack and a flat cylinder remain ordered fallbacks, so a missing art
+/// import cannot make the table unplayable.
 /// </summary>
 [GlobalClass]
 public partial class PokerChipPile : Node3D
@@ -249,11 +250,15 @@ public partial class PokerChipPile : Node3D
 
     /// <summary>How tall one chip actually is once drawn — what the stacking steps by.</summary>
     public float EffectiveThickness =>
-        PokerChipMeshes.IsAvailable ? PokerChipMeshes.Thickness : ChipThickness;
+        PokerChipAssetMeshes.IsAvailable ? PokerChipAssetMeshes.Thickness
+        : PokerChipMeshes.IsAvailable ? PokerChipMeshes.Thickness
+        : ChipThickness;
 
     /// <summary>Actual drawn diameter, including the scale of a replacement mesh.</summary>
     public float EffectiveDiameter =>
-        PokerChipMeshes.IsAvailable ? PokerChipMeshes.Diameter : ChipDiameter;
+        PokerChipAssetMeshes.IsAvailable ? PokerChipAssetMeshes.Diameter
+        : PokerChipMeshes.IsAvailable ? PokerChipMeshes.Diameter
+        : ChipDiameter;
 
     /// <summary>
     /// Reassigns this batch into a shared layout without moving it on the calling frame. The caller
@@ -710,6 +715,6 @@ public partial class PokerChipPile : Node3D
             ? known
             : new Color(0.5f, 0.5f, 0.5f);
 
-        _visuals[index]?.Configure(colour);
+        _visuals[index]?.Configure(denomination, colour);
     }
 }

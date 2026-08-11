@@ -98,7 +98,9 @@ public partial class PokerMatchTest : Node
         game.SetupMatch(order, "1");
 
         TestDeal(game);
+        TestPreparedWagerIsServerAuthoritative(game, resolver);
         TestPickUpGesture(game);
+        TestPreparedWagerCanBeCorrected(game);
         TestFoldThrowsTheCards(game);
         TestSecrecy(game);
         TestRejections(game, resolver);
@@ -119,6 +121,112 @@ public partial class PokerMatchTest : Node
         TestSecondSessionIsPlayable(game, resolver, order);
 
         Finish();
+    }
+
+    private void TestPreparedWagerIsServerAuthoritative(
+        PokerGame game, PokerTurnResolver resolver)
+    {
+        var playerId = game.TurnOwnerId;
+        var token = game.TurnToken;
+        var bankBefore = PokerChipStack.Expand(game.ChipBankOf(playerId));
+        var denomination = bankBefore.FirstOrDefault(value => value > 0);
+        var stackBefore = game.StackOf(playerId);
+        var betBefore = game.BetOf(playerId);
+        var potBefore = game.PotTotal;
+
+        var accepted = denomination > 0
+            && resolver.ApplyPreparedWagerFor(
+                playerId, token, 1, new[] { denomination });
+        var snapshot = game.PreparedWagerOf(playerId);
+        Check("o servidor publica a aposta preparada completa e ordenada",
+            accepted && snapshot != null
+            && snapshot.PlayerId == playerId
+            && snapshot.TurnToken == token
+            && snapshot.Revision == 1
+            && !snapshot.IsCommitted
+            && snapshot.Denominations.SequenceEqual(new[] { denomination }));
+        Check("preparar uma ficha nao altera saldo, aposta, pote ou composicao da pilha",
+            game.StackOf(playerId) == stackBefore
+            && game.BetOf(playerId) == betBefore
+            && game.PotTotal == potBefore
+            && PokerChipStack.Expand(game.ChipBankOf(playerId)).SequenceEqual(bankBefore));
+
+        var duplicate = resolver.ApplyPreparedWagerFor(
+            playerId, token, 1, new[] { denomination });
+        Check("repetir a mesma revisao e conteudo e idempotente",
+            duplicate && game.PreparedWagerOf(playerId)?.Revision == 1);
+
+        var stale = resolver.ApplyPreparedWagerFor(
+            playerId, token, 1, new[] { denomination, denomination });
+        snapshot = game.PreparedWagerOf(playerId);
+        Check("uma revisao stale nao apaga o snapshot mais novo",
+            !stale && snapshot != null && snapshot.Revision == 1
+            && snapshot.Denominations.SequenceEqual(new[] { denomination }));
+
+        var invalid = resolver.ApplyPreparedWagerFor(
+            playerId, token, 2, new[] { 999_999 });
+        Check("uma composicao inexistente e recusada sem gastar fichas",
+            !invalid && game.PreparedWagerOf(playerId) == null
+            && game.StackOf(playerId) == stackBefore
+            && game.BetOf(playerId) == betBefore
+            && PokerChipStack.Expand(game.ChipBankOf(playerId)).SequenceEqual(bankBefore));
+
+        var selectedAgain = resolver.ApplyPreparedWagerFor(
+            playerId, token, 3, new[] { denomination });
+        var cancelled = resolver.ApplyPreparedWagerFor(
+            playerId, token, 4, System.Array.Empty<int>());
+        Check("um snapshot vazio mais novo cancela a aposta preparada para todos",
+            selectedAgain && cancelled && game.PreparedWagerOf(playerId) == null);
+
+        var otherPlayer = game.SeatOrder.FirstOrDefault(id => id != playerId);
+        var preparedBeforeOtherReclaim = !string.IsNullOrEmpty(otherPlayer)
+            && resolver.ApplyPreparedWagerFor(
+                playerId, token, 5, new[] { denomination });
+        var reclaimContext = string.IsNullOrEmpty(otherPlayer)
+            ? null
+            : resolver.BuildHandoffContext(otherPlayer);
+        var previewSurvivedOtherReclaim = game.PreparedWagerOf(playerId);
+        var sameStampedTurnStillAccepts = preparedBeforeOtherReclaim
+            && resolver.ApplyPreparedWagerFor(
+                playerId, token, 6, new[] { denomination });
+        Check("reconectar outro assento preserva o token e a aposta preparada de quem age",
+            reclaimContext != null
+            && reclaimContext.TryGetValue("turn_token", out var reclaimedToken)
+            && (int)reclaimedToken == token
+            && previewSurvivedOtherReclaim?.Revision == 5
+            && sameStampedTurnStillAccepts);
+
+        const string reclaimedPlayer = "77";
+        var remappedContext = PokerGame.RemapReclaimedContext(
+            reclaimContext, otherPlayer, reclaimedPlayer);
+        var remappedSeats = remappedContext["seat_order"].AsStringArray();
+        var remappedBanks = remappedContext["chip_bank_players"].AsStringArray();
+        Check("o handoff troca o id antigo em assentos e ledgers sem zerar o snapshot",
+            remappedSeats.Contains(reclaimedPlayer)
+            && !remappedSeats.Contains(otherPlayer)
+            && remappedBanks.Contains(reclaimedPlayer)
+            && remappedContext["stacks"].AsInt32Array().Sum()
+               == reclaimContext["stacks"].AsInt32Array().Sum()
+            && reclaimContext["seat_order"].AsStringArray().Contains(otherPlayer));
+
+        // Exercise the protected recovery entry point itself: applying the public snapshot first
+        // creates the replicated preview, the recovery snap discards transient actors, and the final
+        // reconciliation must put the authoritative preview back immediately.
+        var presenter = game.SeatPresenter;
+        var applyFullSnapshot = typeof(PokerTurnResolver).GetMethod(
+            "ApplyFullSnapshot",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var localPlayer = game.Player;
+        game.Player = null; // Treat the staged wager as remote on this headless host.
+        applyFullSnapshot?.Invoke(resolver, new object[] { reclaimContext });
+        var recoveredRemotePreview = presenter?.ReplicatedPreparedWagerChipCount(playerId) ?? 0;
+        game.Player = localPlayer;
+        Check("um snapshot completo reconstrói imediatamente a aposta preparada remota",
+            applyFullSnapshot != null && recoveredRemotePreview == 1);
+
+        resolver.ApplyPreparedWagerFor(
+            playerId, token, 7, System.Array.Empty<int>());
+        presenter?.SnapToAuthoritativeState();
     }
 
     // ---------------------------------------------------------------- the deal
@@ -157,6 +265,42 @@ public partial class PokerMatchTest : Node
               + $"(pote {game.PotTotal}, no meio {game.PotInMiddle})",
             game.PotInMiddle == 0);
 
+        var presenter = game.SeatPresenter;
+        var localId = game.Player == null ? "" : (string)game.Player.Name;
+        var potFacing = game.BoardPresenter.ReaderFacing.Normalized();
+        var expectedPotBasis = PokerSeatPresenter.ReaderTableLabelBasis(potFacing);
+        Check("o valor do pote volta a ficar escrito no feltro",
+            presenter?.PotValueLabel is { Visible: true } potLabel
+            && potLabel.Text == $"POTE {game.PotTotal}"
+            && potLabel.Font == presenter.ChalkFont
+            && potLabel.Billboard == BaseMaterial3D.BillboardModeEnum.Disabled
+            && !potLabel.Shaded
+            && potLabel.CastShadow == GeometryInstance3D.ShadowCastingSetting.Off
+            && potLabel.Basis.X.Dot(expectedPotBasis.X) > 0.99f
+            && potLabel.Basis.Y.Dot(expectedPotBasis.Y) > 0.99f
+            && potLabel.Position.Y < 0.01f);
+        Check("o saldo acompanha o banco físico, suspenso e legível para qualquer observador",
+            presenter?.StackValueLabelOf(localId) is { Visible: true } stackLabel
+            && stackLabel.Text == $"FICHAS {game.StackOf(localId)}"
+            && stackLabel.Font == presenter.ChalkFont
+            && stackLabel.Billboard == BaseMaterial3D.BillboardModeEnum.FixedY
+            && !stackLabel.Shaded
+            && stackLabel.Modulate.R >= 0.99f
+            && stackLabel.Modulate.G >= 0.99f
+            && stackLabel.Modulate.B >= 0.99f
+            && stackLabel.Position.Y >= presenter.FloatingValueLabelMinimumHeight
+                                        - presenter.FloatingValueLabelBobDistance - 0.0001f);
+
+        var remoteId = game.SeatOrder.FirstOrDefault(id => id != localId);
+        Check("os valores dos outros jogadores usam o mesmo billboard",
+            !string.IsNullOrEmpty(remoteId)
+            && presenter?.StackValueLabelOf(remoteId) is { Visible: true } remoteStackLabel
+            && remoteStackLabel.Billboard == BaseMaterial3D.BillboardModeEnum.FixedY
+            && !remoteStackLabel.Shaded
+            && remoteStackLabel.Modulate.R >= 0.99f
+            && remoteStackLabel.Position.Y >= presenter.FloatingValueLabelMinimumHeight
+                                              - presenter.FloatingValueLabelBobDistance - 0.0001f);
+
         CheckConservation(game, "logo após a distribuição");
     }
 
@@ -179,6 +323,9 @@ public partial class PokerMatchTest : Node
 
         if (view == null || game.SeatPresenter == null)
             return;
+
+        Check("o indicador de turno cobre os quatro lugares da mesa",
+            game.SeatPresenter.TurnRingSegments.Count == 4);
 
         Check("a mão começa com as cartas na mesa", !view.HasPickedUpCards && !game.LocalPickedUpCards);
 
@@ -225,6 +372,99 @@ public partial class PokerMatchTest : Node
 
         Check($"a mesa não fica com as cartas de quem já as pegou ({stillOnCloth} visíveis)",
             stillOnCloth == 0);
+    }
+
+    private void TestPreparedWagerCanBeCorrected(PokerGame game)
+    {
+        var presenter = game.SeatPresenter;
+        var playerId = game.Player == null ? null : (string)game.Player.Name;
+        if (presenter == null || string.IsNullOrEmpty(playerId))
+        {
+            Check("a aposta fisica encontra a pilha local", false);
+            return;
+        }
+
+        var bankBefore = presenter.StackChipPositions(playerId);
+        var top = bankBefore.Values.FirstOrDefault();
+        var value = 0;
+        var selected = bankBefore.Count > 0
+            && presenter.TrySelectPreparedChip(playerId, new Vector2(top.X, top.Z), out value);
+        Check("clicar numa coluna retira uma ficha real e prepara seu valor",
+            selected && value > 0 && presenter.PreparedWagerAmount == value
+            && presenter.PreparedWagerChipCount == 1);
+
+        var chipSoundscape = presenter.GetNodeOrNull<PokerChipSoundscape>("ChipSoundscape");
+        var directSoundBefore = chipSoundscape?.DirectImpactCueCount ?? 0;
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+
+        Check("o impacto da ficha toca quando a selecao pousa, antes da confirmacao",
+            chipSoundscape != null
+            && chipSoundscape.DirectImpactCueCount == directSoundBefore + 1);
+
+        var prepared = presenter.PreparedWagerVisualPositions();
+        var seat = game.SeatFor(playerId);
+        var seatLocal = seat == null ? Vector3.Zero : presenter.ToLocal(seat.GlobalPosition);
+        var facing = new Vector2(seatLocal.X, seatLocal.Z).Normalized();
+        var betPlace = PokerTableLayout.SeatSpot(facing, game.BoardPresenter.Spec.SeatBetRadius);
+        var distanceToCommittedBet = prepared.Count == 0
+            ? float.MaxValue : prepared[0].DistanceTo(betPlace);
+        Check($"a ficha selecionada se junta ao blind/aposta ({distanceToCommittedBet * 100.0f:F1} cm)",
+            distanceToCommittedBet < 0.05f);
+        var returnedValue = 0;
+        var returned = prepared.Count == 1
+            && presenter.TryReturnPreparedChip(playerId, prepared[0], out returnedValue);
+        Check("clicar na ficha preparada inicia a devolucao para a coluna original",
+            returned && returnedValue == value && presenter.PreparedWagerAmount == 0);
+
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+
+        Check("a devolucao animada restaura a pilha sem alterar o saldo",
+            presenter.PreparedWagerChipCount == 0
+            && presenter.StackChipPositions(playerId).Count == bankBefore.Count
+            && game.StackOf(playerId) == Stack - game.BetOf(playerId));
+
+        // Reproduce the race that can happen when the player corrects one chip and immediately
+        // selects another. Confirmation must wait for the first chip to reach its lane, while an
+        // urgent state change (all-in, timeout, leaving) must still restore both visual chips.
+        var secondBank = presenter.StackChipPositions(playerId);
+        var secondTop = secondBank.Values.FirstOrDefault();
+        var selectedAgain = secondBank.Count > 0
+            && presenter.TrySelectPreparedChip(playerId,
+                new Vector2(secondTop.X, secondTop.Z), out _);
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+
+        var secondPrepared = presenter.PreparedWagerVisualPositions();
+        var returnStarted = secondPrepared.Count == 1
+            && presenter.TryReturnPreparedChip(playerId, secondPrepared[0], out _);
+        var bankDuringReturn = presenter.StackChipPositions(playerId);
+        var nextTop = bankDuringReturn.Values.FirstOrDefault();
+        var replacementSelected = bankDuringReturn.Count > 0
+            && presenter.TrySelectPreparedChip(playerId,
+                new Vector2(nextTop.X, nextTop.Z), out _);
+        var blockedWhileReturning = replacementSelected
+            && !presenter.SubmitPreparedWager(playerId, presenter.PreparedWagerAmount);
+        Check("a aposta espera a ficha devolvida chegar antes de confirmar",
+            selectedAgain && returnStarted && blockedWhileReturning);
+
+        presenter.CancelPreparedWager(immediate: true);
+        Check("um cancelamento imediato no meio da devolucao nao perde fichas",
+            presenter.PreparedWagerChipCount == 0
+            && presenter.StackChipPositions(playerId).Count == bankBefore.Count
+            && game.StackOf(playerId) == Stack - game.BetOf(playerId));
+
+        var automaticValue = game.ChipBankOf(playerId)
+            .FirstOrDefault(run => run.Count > 0).Denomination;
+        var automaticPrepared = automaticValue > 0
+            && presenter.TryPrepareAutomaticWager(playerId, automaticValue);
+        for (var frame = 0; frame < 30; frame++)
+            presenter._Process(1.0 / 60.0);
+        Check("o atalho CALL separa uma composicao exata pelo fluxo fisico normal",
+            automaticPrepared && presenter.PreparedWagerAmount == automaticValue
+            && presenter.PreparedWagerReady);
+        presenter.CancelPreparedWager(immediate: true);
     }
 
     /// <summary>
@@ -277,6 +517,15 @@ public partial class PokerMatchTest : Node
         Check($"e elas param no descarte, longe do assento ({worst * 100.0f:F1} cm do ponto)",
             worst < 0.10f);
 
+        var muckOnTable = new Vector2(muck.X, muck.Z);
+        var towardPlayer = muckOnTable.Dot(board.ReaderFacing);
+        var acrossPlayer = Mathf.Abs(muckOnTable.Cross(board.ReaderFacing));
+        Check("o descarte fica perto do jogador, sem cruzar a mesa",
+            towardPlayer > 0.18f
+            && muckOnTable.Length() < board.Spec.SeatBetRadius);
+        Check("e permanece ao lado do pote e dos controles",
+            acrossPlayer > board.Spec.CardWidth);
+
         Check("e ficam viradas para baixo", thrown.All(card => card.IsFaceDown));
 
         // The hand in front of the eye has to let go at the same moment, or the player is left
@@ -311,13 +560,86 @@ public partial class PokerMatchTest : Node
         }
         resolver.AutoAdvanceHands = false;
         var chipAnimator = presenter.GetNodeOrNull<PokerChipAnimator>("ChipAnimator");
+        var landingEvents = 0;
+        var landedChips = 0;
+        chipAnimator.ChipsLanded += (_, count) =>
+        {
+            landingEvents++;
+            landedChips += count;
+        };
         var warmedBatchSizes = chipAnimator.Batches.Select(batch => batch.Pile)
             .ToDictionary(pile => pile.Name.ToString(), pile => pile.GetChildCount());
 
         var raiser = game.TurnOwnerId;
         var raiseTotal = game.CurrentBet + game.MinRaiseIncrement;
-        resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal);
+        var preparedRaise = false;
+        if (game.Player != null && raiser == (string)game.Player.Name
+            && presenter.TryGetBankLaneAimPoint(raiser, 10, out var ten)
+            && presenter.TrySelectPreparedChip(raiser, ten, out _)
+            && presenter.TryGetBankLaneAimPoint(raiser, 5, out var five)
+            && presenter.TrySelectPreparedChip(raiser, five, out _))
+        {
+            for (var frame = 0; frame < 30; frame++)
+                presenter._Process(1.0 / 60.0);
+            preparedRaise = presenter.PreparedWagerAmount == raiseTotal - game.BetOf(raiser)
+                && presenter.SubmitPreparedWager(raiser, presenter.PreparedWagerAmount);
+        }
+        Check("a aposta manual monta o aumento com as denominações clicadas", preparedRaise);
+        var selectedDenominations = presenter.PreparedWagerDenominations;
+        var preparedVisuals = presenter.PreparedWagerVisuals();
+        var publishedPreview = resolver.ApplyPreparedWagerFor(
+            raiser, game.TurnToken, 100, selectedDenominations);
+        var publicPreview = game.PreparedWagerOf(raiser);
+        Check("a autoridade replica a seleção antes de aceitar o aumento",
+            publishedPreview && publicPreview != null && !publicPreview.IsCommitted
+            && publicPreview.Denominations.SequenceEqual(selectedDenominations));
+
+        PokerPreparedWagerSnapshot committedPreview = null;
+        var clearedAfterCommit = false;
+        game.PreparedWagersChanged += () =>
+        {
+            var current = game.PreparedWagerOf(raiser);
+            if (current?.IsCommitted == true)
+                committedPreview = current;
+            else if (committedPreview != null)
+                clearedAfterCommit = true;
+        };
+        resolver.ApplyActionFor(raiser, game.TurnToken, (int)PokerActionKind.Raise, raiseTotal,
+            selectedDenominations);
+        Check("o servidor publica exatamente as denominações escolhidas",
+            PokerChipStack.Expand(game.LastChipRuns).OrderBy(value => value)
+                .SequenceEqual(selectedDenominations.OrderBy(value => value)));
+        Check("o contexto confirmado identifica as mesmas fichas e a action seq para adoção",
+            committedPreview != null
+            && committedPreview.CommittedActionSeq == game.ActionSeq
+            && committedPreview.Denominations.SequenceEqual(selectedDenominations)
+            && clearedAfterCommit);
+        presenter._Process(1.0 / 60.0);
+        board._Process(1.0 / 60.0);
+        var adoptedVisuals = presenter.ActiveChipVisualPositions();
+        var preservedPrepared = preparedVisuals.Keys.Count(adoptedVisuals.ContainsKey);
+        Check($"confirmar preserva os atores das fichas ({preservedPrepared}/{preparedVisuals.Count})",
+            preparedVisuals.Count > 0 && preservedPrepared == preparedVisuals.Count);
+        Check("a confirmação entra na fase física de empurrar a aposta",
+            chipAnimator.Batches.Any(batch => batch.Phase == PokerChipAnimator.Phase.PushingBet));
+
+        for (var frame = 1; frame < 12; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+        }
+        var pushedVisuals = presenter.ActiveChipVisualPositions();
+        var pushedTowardCentre = preparedVisuals.Keys.Count(id =>
+            preparedVisuals.TryGetValue(id, out var before)
+            && pushedVisuals.TryGetValue(id, out var after)
+            && new Vector2(after.X, after.Z).Length()
+               < new Vector2(before.X, before.Z).Length() - 0.003f);
+        Check($"o clique confirmado empurra as mesmas fichas para a frente "
+              + $"({pushedTowardCentre}/{preparedVisuals.Count})",
+            pushedTowardCentre == preparedVisuals.Count);
         AdvancePresentation(presenter, board, 180, stopWhenReady: true);
+        Check("as fichas preparadas continuam a animação autoritativa sem cópia local",
+            presenter.PreparedWagerAmount == 0 && !presenter.PreparedWagerSubmitted);
         Check("as fichas apostadas permanecem soltas antes da coleta",
             presenter.BetsAreVisuallyLoose);
 
@@ -326,6 +648,7 @@ public partial class PokerMatchTest : Node
         var bankBeforeCall = presenter.StackChipTransforms(caller);
         var bankPositionsBeforeCall = presenter.StackChipPositions(caller);
         var activeBeforeCall = presenter.ActiveChipVisualPositions();
+        var callerBetBeforeCall = presenter.ActiveBetVisualPositions(caller);
         resolver.ApplyActionFor(caller, game.TurnToken, (int)PokerActionKind.Call, game.CurrentBet);
         var authoritativeAfterCall = game.StackOf(caller);
         Check("a pilha nao perde fichas um quadro antes do lancamento",
@@ -359,6 +682,19 @@ public partial class PokerMatchTest : Node
             : newMovingPositions.Max(moving => removedPositions.Min(removed => removed.DistanceTo(moving)));
         Check($"a ficha movel nasce na ficha retirada ({takeoffGap * 100.0f:F2} cm de diferenca)",
             takeoffGap < 0.012f && worstTakeoffGap < 0.005f);
+
+        for (var frame = 0; frame < 12; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+        }
+        var callerBetDuringPush = presenter.ActiveBetVisualPositions(caller);
+        var pushedExistingBet = callerBetBeforeCall.Any(entry =>
+            callerBetDuringPush.TryGetValue(entry.Key, out var after)
+            && new Vector2(after.X, after.Z).Length()
+               < new Vector2(entry.Value.X, entry.Value.Z).Length() - 0.003f);
+        Check("confirmar o pagamento empurra junto o blind que ja estava na mesa",
+            callerBetBeforeCall.Count > 0 && pushedExistingBet);
 
         var inFlightIds = presenter.ActiveChipVisualIds().ToHashSet();
         Check("nenhuma ficha e instanciada durante o pagamento",
@@ -396,8 +732,13 @@ public partial class PokerMatchTest : Node
             maximumFrameStep < 0.025f);
         Check("o pote chega solto antes de ser organizado", sawLooseOrganization);
         Check("a organização termina em colunas compactas", presenter.PotIsOrganizedTower);
+        Check("o pote público conserva a composição física definida pelo servidor",
+            PokerChipStack.Total(game.PotChipRuns) == game.PotInMiddle
+            && presenter.PotPhysicalGroupValues().Sum() == game.PotInMiddle);
         Check("as mesmas fichas chegam ao pote sem troca de instância",
             inFlightIds.Count > 0 && inFlightIds.SetEquals(potIds));
+        Check($"o áudio acompanha impactos físicos reais ({landingEvents} eventos, {landedChips} fichas)",
+            landingEvents > 0 && landedChips >= inFlightIds.Count);
         Check("o flop só aparece depois de o pote terminar a organização",
             presenter.PresentationReadyForAction && board.VisibleFaceUpCount == PokerDeal.BoardSize(PokerStreet.Flop));
 
@@ -407,9 +748,73 @@ public partial class PokerMatchTest : Node
         var recoveryOptions = PokerBetting.LegalActions(
             game.BetStateOf(recoveryActor), game.CurrentBet, game.MinRaiseIncrement);
         var recoveryRaise = recoveryOptions.FirstOrDefault(option => option.Kind == PokerActionKind.Raise);
+        var remotePreviewPublished = false;
+        var remoteReturnReusedActor = false;
+        var committedPreviewWasAdopted = false;
+        var committedPreviewWasNotRecreated = false;
         if (recoveryRaise.Kind == PokerActionKind.Raise)
-            resolver.ApplyActionFor(recoveryActor, game.TurnToken,
-                (int)recoveryRaise.Kind, recoveryRaise.MinTotal);
+        {
+            var added = Mathf.Max(0, recoveryRaise.MinTotal - game.BetOf(recoveryActor));
+            var bankProbe = game.ChipBankOf(recoveryActor)
+                .Select(run => new ChipRun(run.Denomination, run.Count)).ToList();
+            if (PokerChipStack.TryTake(bankProbe, added, out var payment))
+            {
+                var denominations = PokerChipStack.Expand(payment);
+                remotePreviewPublished = resolver.ApplyPreparedWagerFor(
+                    recoveryActor, game.TurnToken, 500, denominations);
+                for (var frame = 0; frame < 30; frame++)
+                    presenter._Process(1.0 / 60.0);
+
+                var beforeReturn = presenter
+                    .ReplicatedPreparedWagerVisualIds(recoveryActor).ToHashSet();
+                var returned = resolver.ApplyPreparedWagerFor(
+                    recoveryActor, game.TurnToken, 501, System.Array.Empty<int>());
+                var selectedAgain = resolver.ApplyPreparedWagerFor(
+                    recoveryActor, game.TurnToken, 502, denominations);
+                var afterReselect = presenter
+                    .ReplicatedPreparedWagerVisualIds(recoveryActor).ToHashSet();
+                remoteReturnReusedActor = returned && selectedAgain
+                    && beforeReturn.Count == denominations.Length
+                    && beforeReturn.SetEquals(afterReselect);
+
+                var adoptedIds = new HashSet<ulong>();
+                PokerGame.PreparedWagersChangedEventHandler onPreparedChanged = () =>
+                {
+                    var committed = game.PreparedWagerOf(recoveryActor);
+                    if (committedPreviewWasAdopted || committed?.IsCommitted != true)
+                        return;
+
+                    // Exercise the frame in which the accepted preview is still the current context.
+                    // Refreshing twice here used to recreate and debit the same remote chips.
+                    presenter.Refresh();
+                    presenter._Process(1.0 / 60.0);
+                    adoptedIds.UnionWith(presenter.ActiveChipVisualIds());
+                    presenter.Refresh();
+                    committedPreviewWasAdopted = afterReselect.Count > 0
+                        && afterReselect.All(adoptedIds.Contains);
+                    committedPreviewWasNotRecreated =
+                        presenter.ReplicatedPreparedWagerChipCount(recoveryActor) == 0;
+                };
+                game.PreparedWagersChanged += onPreparedChanged;
+                resolver.ApplyActionFor(recoveryActor, game.TurnToken,
+                    (int)recoveryRaise.Kind, recoveryRaise.MinTotal, denominations);
+                game.PreparedWagersChanged -= onPreparedChanged;
+            }
+            else
+            {
+                resolver.ApplyActionFor(recoveryActor, game.TurnToken,
+                    (int)recoveryRaise.Kind, recoveryRaise.MinTotal);
+            }
+        }
+
+        Check("a prévia remota usa atores físicos antes da ação",
+            recoveryRaise.Kind != PokerActionKind.Raise || remotePreviewPublished);
+        Check("cancelar e reselecionar remotamente reverte os mesmos atores",
+            recoveryRaise.Kind != PokerActionKind.Raise || remoteReturnReusedActor);
+        Check("a ação remota adota exatamente os atores da prévia comprometida",
+            recoveryRaise.Kind != PokerActionKind.Raise || committedPreviewWasAdopted);
+        Check("um refresh do contexto comprometido não recria a prévia consumida",
+            recoveryRaise.Kind != PokerActionKind.Raise || committedPreviewWasNotRecreated);
         presenter.SnapToAuthoritativeState();
         Check("uma reconexao descarta a animacao local que ficou pendente",
             recoveryRaise.Kind != PokerActionKind.Raise || presenter.LastRecoveryDiscardedAnimation);
@@ -419,7 +824,7 @@ public partial class PokerMatchTest : Node
             && presenter.ActiveChipGroupCount <= presenter.MaxAnimatedChipGroups);
 
         var safety = 0;
-        while (!game.HandSettled && safety++ < 20)
+        while (!game.ShowdownWaiting && !game.HandSettled && safety++ < 20)
         {
             var actor = game.TurnOwnerId;
             var options = PokerBetting.LegalActions(
@@ -432,12 +837,38 @@ public partial class PokerMatchTest : Node
             AdvancePresentation(presenter, board, 600, stopWhenReady: true);
         }
 
+        Check("o showdown abre uma decisão antes de revelar ou pagar",
+            game.ShowdownWaiting && game.Winners.Count == 0
+            && game.RevealedHoleCards.Count == 0 && game.PendingShowdownReveals.Count > 1);
+
+        var revealOrder = game.PendingShowdownReveals.ToArray();
+        resolver.ApplyShowdownRevealFor(revealOrder[0]);
+        Check("cada jogador revela somente a própria mão quando pressiona S",
+            game.ShowdownWaiting && game.RevealedHoleCards.Count == 1
+            && !game.PendingShowdownReveals.Contains(revealOrder[0]));
+
+        resolver.AdvanceShowdownRevealClock(9.9f);
+        Check("os primeiros dez segundos não poluem a interface com contagem",
+            game.ShowdownCountdown < 0);
+        resolver.AdvanceShowdownRevealClock(0.2f);
+        Check("depois da tolerância começa uma contagem regressiva de dez segundos",
+            game.ShowdownCountdown == 10);
+
+        resolver.AdvanceShowdownRevealClock(10.0f);
+        Check("quem não decide a tempo é revelado automaticamente e o showdown é pago",
+            game.HandSettled && game.PendingShowdownReveals.Count == 0
+            && game.RevealedHoleCards.Count == revealOrder.Length);
+
         var revealSafety = 0;
+        var sawRemoteRevealMotion = false;
         while (presenter.ShowdownRevealHoldElapsed <= 0.0f && revealSafety++ < 300)
         {
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
+            sawRemoteRevealMotion |= presenter.RemoteRevealedHandsInMotion > 0;
         }
+        Check("a mão remota viaja das mãos estimadas até a mesa no showdown",
+            sawRemoteRevealMotion);
         Check("as mãos reveladas permanecem na mesa antes do ranking",
             presenter.ShowdownRevealHoldElapsed > 0.0f
             && presenter.ShowdownDisplayedCardCount == 0);
@@ -516,10 +947,14 @@ public partial class PokerMatchTest : Node
             presenter.PotDenominationColumnCount >= 2);
         var payoutPrevious = presenter.ActiveChipVisualPositions();
         var payoutMaximumStep = 0.0f;
+        var sawLoosePayout = false;
+        var sawWinnerOrganization = false;
         for (var frame = 0; frame < 900 && !presenter.PayoutCompleted; frame++)
         {
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
+            sawLoosePayout |= presenter.PayoutHasLooseDelivery;
+            sawWinnerOrganization |= presenter.WinnerOrganizationInProgress;
             var current = presenter.ActiveChipVisualPositions();
             foreach (var entry in current)
             {
@@ -535,6 +970,9 @@ public partial class PokerMatchTest : Node
             && presenter.ChipsDeliveredToWinners > 0);
         Check("todo jogador premiado recebe fichas visíveis",
             presenter.PayoutRecipientCount == game.Winners.Count);
+        Check("as fichas chegam soltas antes de serem empilhadas", sawLoosePayout);
+        Check("a pilha dos vencedores só se forma depois da entrega",
+            sawWinnerOrganization);
         Check("o pote percorre o ponto do dealer quando precisa de troco",
             forcedAwards.Count != 2 || presenter.DealerChangeCompleted);
         var splitPlan = PokerPayoutPlanner.Create(
@@ -556,6 +994,33 @@ public partial class PokerMatchTest : Node
         Check("o saldo visual só alcança o resultado depois que as fichas chegam",
             game.Winners.Keys.All(winner => presenter.DisplayedStackOf(winner) == game.StackOf(winner)));
 
+        game.CardsCleaningUp = true;
+        presenter.Refresh();
+        Check("a troca de mão recolhe as cartas visíveis sem recriá-las",
+            presenter.CardsReturningToDeck && board.CardCleanupActive
+            && presenter.ReturningCardCount > 0);
+        var cleanupFrames = Mathf.CeilToInt(
+            presenter.PresentationProfile.CardCleanupDuration * 60.0f) + 2;
+        var sawGatherHold = false;
+        var sawDetailedShuffle = false;
+        for (var frame = 0; frame < cleanupFrames; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+            sawGatherHold |= board.DeckGatherHoldInProgress
+                && presenter.ReturningCardCount > 0;
+            sawDetailedShuffle |= board.DeckShuffleInProgress
+                && board.DeckCardSpread >= board.ShuffleSplitDistance;
+        }
+        Check("as cartas repousam juntas sobre o maço antes do embaralhamento", sawGatherHold);
+        Check("o maço se divide fisicamente antes de ser intercalado", sawDetailedShuffle);
+        Check("o embaralhamento termina dentro da janela reservada pelo servidor",
+            !board.CardCleanupActive && presenter.ReturningCardCount == 0);
+        game.CardsCleaningUp = false;
+        presenter.Refresh();
+        Check("a apresentação fica pronta para receber a próxima distribuição",
+            !presenter.CardsReturningToDeck);
+
         var interrupted = chipAnimator.Batches.FirstOrDefault(batch =>
             batch.Phase == PokerChipAnimator.Phase.AtWinner);
         if (interrupted != null)
@@ -566,6 +1031,7 @@ public partial class PokerMatchTest : Node
                 && presenter.PayoutCompleted && presenter.ActiveChipGroupCount == 0));
         Check("depois da reconexao o saldo visual coincide com o servidor",
             game.SeatOrder.All(player => presenter.DisplayedStackOf(player) == game.StackOf(player)));
+
     }
 
     private static void AdvancePresentation(
@@ -680,6 +1146,7 @@ public partial class PokerMatchTest : Node
 
             var tokenBefore = game.TurnToken;
             resolver.ApplyActionFor(actor, game.TurnToken, (int)chosen.Kind, chosen.MinTotal);
+            RevealAllAtShowdown(game, resolver);
             actions++;
 
             CheckConservation(game, $"após a ação {actions}");
@@ -848,6 +1315,15 @@ public partial class PokerMatchTest : Node
 
     private static string Snapshot(PokerGame game) =>
         $"{game.PotTotal}|{game.CurrentBet}|{game.Street}|{game.Board.Length}|{game.HandNumber}";
+
+    private static void RevealAllAtShowdown(PokerGame game, PokerTurnResolver resolver)
+    {
+        if (!game.ShowdownWaiting)
+            return;
+
+        foreach (var playerId in game.PendingShowdownReveals.ToArray())
+            resolver.ApplyShowdownRevealFor(playerId);
+    }
 
     // ---------------------------------------------------------------- harness
 

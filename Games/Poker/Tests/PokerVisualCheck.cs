@@ -20,6 +20,9 @@ public partial class PokerVisualCheck : Node3D
     private PokerGame _game;
     private int _frames;
     private bool _shot;
+    private bool _captureRevealHold;
+    private bool _captureRevealMotion;
+    private bool _capturePayoutLoose;
 
     public override void _Ready()
     {
@@ -47,6 +50,17 @@ public partial class PokerVisualCheck : Node3D
         _game.BoardPresenter.FlipStagger = 0.08f;
         _game.BoardPresenter.FlipSeconds = 0.28f;
         _game.SeatPresenter.ShowdownCardSeconds = 0.48f;
+        _captureRevealHold = OS.GetEnvironment("POKER_CAPTURE_REVEAL") == "1";
+        _captureRevealMotion = OS.GetEnvironment("POKER_CAPTURE_REVEAL_MOTION") == "1";
+        _capturePayoutLoose = OS.GetEnvironment("POKER_CAPTURE_PAYOUT_LOOSE") == "1";
+        if (_captureRevealHold)
+            _game.SeatPresenter.ShowdownRevealHoldSeconds = 3600.0f;
+        if (_capturePayoutLoose)
+        {
+            _game.SeatPresenter.ShowdownRevealHoldSeconds = 0.01f;
+            _game.SeatPresenter.PresentationProfile.RankedHandsReadingSeconds = 0.01f;
+            _game.SeatPresenter.PresentationProfile.WinnerLooseHoldSeconds = 3600.0f;
+        }
 
         var order = new Array { "1", "2" };
         _game.TurnOrder = order;
@@ -69,6 +83,13 @@ public partial class PokerVisualCheck : Node3D
         var safety = 0;
         while (!_game.HandSettled && safety++ < 20)
         {
+            if (_game.ShowdownWaiting)
+            {
+                foreach (var playerId in _game.PendingShowdownReveals.ToArray())
+                    resolver.ApplyShowdownRevealFor(playerId);
+                continue;
+            }
+
             var actor = _game.TurnOwnerId;
             var state = _game.BetStateOf(actor);
             var options = PokerBetting.LegalActions(state, _game.CurrentBet, _game.MinRaiseIncrement);
@@ -81,10 +102,35 @@ public partial class PokerVisualCheck : Node3D
 
         // Advance the local presentation deterministically. The harness submits all actions in one
         // method call, whereas a real table naturally gets many rendered frames between them.
-        for (var frame = 0; frame < 1200 && !_game.SeatPresenter.ShowdownPresentationSettled; frame++)
+        var revealMotionFrames = 0;
+        for (var frame = 0; frame < 2400; frame++)
         {
             _game.SeatPresenter._Process(1.0 / 60.0);
             _game.BoardPresenter._Process(1.0 / 60.0);
+
+            if (_captureRevealMotion)
+            {
+                if (_game.SeatPresenter.RemoteRevealedHandsInMotion > 0)
+                    revealMotionFrames++;
+                if (revealMotionFrames >= 12)
+                    break;
+                continue;
+            }
+            if (_capturePayoutLoose)
+            {
+                if (_game.SeatPresenter.PayoutHasLooseDelivery
+                    && !_game.SeatPresenter.WinnerOrganizationInProgress)
+                    break;
+                continue;
+            }
+            if (_captureRevealHold)
+            {
+                if (_game.SeatPresenter.ShowdownRevealHoldElapsed > 0.0f)
+                    break;
+                continue;
+            }
+            if (_game.SeatPresenter.ShowdownPresentationSettled)
+                break;
         }
 
         BuildCamera();
@@ -107,14 +153,29 @@ public partial class PokerVisualCheck : Node3D
         _game.Resolver.ApplyActionFor(actor, _game.TurnToken, (int)option.Kind, amount);
     }
 
-    /// <summary>Low and close, roughly where a seated player's eye is, so chip edges read.</summary>
+    /// <summary>Uses the real seat pose and FOV, so this diagnostic matches normal play.</summary>
     private void BuildCamera()
     {
-        var camera = new Camera3D { Fov = 48.0f, Current = true };
-        AddChild(camera);
+        var controllerScene = GD.Load<PackedScene>(
+            "res://Games/Poker/GameController/PokerController.tscn");
+        var controller = controllerScene?.Instantiate<PokerController>();
+        var seat = _game.SeatFor("1");
+        var eye = seat?.GetNodeOrNull<Node3D>("SeatView") ?? seat;
+        var eyeTransform = eye?.GlobalTransform ?? Transform3D.Identity;
+        var eyeBasis = eyeTransform.Basis.Orthonormalized();
+        var offset = controller?.SeatViewOffset ?? new Vector3(0.0f, 0.15f, 0.18f);
+        var pitch = controller?.RestPitchDeg ?? -35.0f;
 
-        camera.GlobalPosition = new Vector3(0.0f, 1.62f, 0.78f);
-        camera.LookAt(new Vector3(0.0f, 0.718f, -0.06f), Vector3.Up);
+        var camera = new Camera3D
+        {
+            Fov = controller?.SeatFov ?? 48.0f,
+            Current = true,
+            GlobalTransform = new Transform3D(
+                eyeBasis * new Basis(Vector3.Right, Mathf.DegToRad(pitch)),
+                eyeTransform.Origin + eyeBasis * offset),
+        };
+        AddChild(camera);
+        controller?.Free();
 
         var light = new DirectionalLight3D { LightEnergy = 1.4f, ShadowEnabled = true };
         AddChild(light);

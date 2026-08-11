@@ -3,16 +3,16 @@ using Godot;
 using Poker.Rules;
 
 /// <summary>
-/// The player's two cards held in front of the camera, plus the corner HUD that says what they can
-/// do with them.
+/// The player's two cards held in front of the camera, the table-space interaction and the small
+/// status HUD.
 ///
-/// The input model is deliberately flat: every action fires the moment its key is pressed, with no
-/// confirmation step. What makes that safe for a raise is that the AMOUNT is not a mode — A/D adjust
-/// a persistent number the HUD is always showing, and R sends whatever is on screen. So there is
-/// never a gesture whose meaning depends on what happened before it.
+/// Betting is physical and reversible: chips are taken from denomination stacks, staged in front of
+/// the player and pushed through the outer confirmation arc. Fold and check occupy separate chalk
+/// sectors and all three respond to one deliberate hovered click. The wager arc becomes CALL,
+/// AUTO or APOSTAR from the physical chip state and accepts a 1.5-second hold for all-in.
 ///
-/// The left mouse button does one thing and one thing only: hold it to turn the cards up and read
-/// them. At rest they lie face down, which is both the real gesture and the honest one — a card
+/// The right mouse button turns the cards up while held. At rest they lie face down, which is both
+/// the real gesture and the honest one — a card
 /// nobody is looking at should not be facing the room.
 ///
 /// Nothing here talks to the network. It emits one intent and the controller forwards it.
@@ -47,7 +47,10 @@ public partial class PokerHand3DView : PokerHandView
     /// 0.412 m below the eye. PokerSceneLoadTest sweeps the whole pitch range and fails if the cards
     /// can reach the cloth.
     /// </summary>
-    [Export] public Vector3 HandOffset = new(0.05f, -0.09f, -0.34f);
+    // The poker camera uses a tighter 42° lens. Moving the camera-attached hand back by the same
+    // optical ratio keeps it from growing over the table while the world view loses wide-angle
+    // distortion.
+    [Export] public Vector3 HandOffset = new(0.05f, -0.09f, -0.39f);
 
     [Export] public float FanStepDeg = 11.0f;
     [Export] public float FanRadius = 0.40f;
@@ -94,6 +97,8 @@ public partial class PokerHand3DView : PokerHandView
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
     private PokerHandVisual _chipHandVisual;
+    private int _publishedWagerTurn = -1;
+    private int _publishedWagerRevision;
 
     // ---------------------------------------------------------------- what the states drive
 
@@ -103,7 +108,7 @@ public partial class PokerHand3DView : PokerHandView
 
     public bool HasAnyAction => _options.Count > 0;
 
-    /// <summary>The raise currently on the HUD, as a street total. A/D move it, R sends it.</summary>
+    /// <summary>Legacy preset total retained for compatibility; physical chip selection is primary.</summary>
     public int RaiseTotal { get; private set; }
 
     /// <summary>How far the cards are turned up, 0 at rest and 1 fully peeked.</summary>
@@ -153,6 +158,10 @@ public partial class PokerHand3DView : PokerHandView
             return;
 
         UpdatePeek((float)delta);
+        AdvanceCallHold((float)delta);
+        AdvanceAutomaticWager();
+        UpdateInteractionVisibility();
+        AdvanceCallLabelCycle((float)delta);
 
         // Read in _Process rather than _PhysicsProcess so the hand does not swim a frame behind the
         // RemoteTransform3D that drives the camera.
@@ -170,6 +179,28 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     // ---------------------------------------------------------------- the seam
+
+    /// <summary>
+    /// Emits the entire ordered local preview. Whole snapshots plus a per-turn revision make the
+    /// server channel idempotent and let every peer reconcile a missed selection without replaying
+    /// an unsafe client-authored delta.
+    /// </summary>
+    public void PublishPreparedWagerSnapshot()
+    {
+        if (Game?.SeatPresenter == null || Player == null)
+            return;
+
+        if (_publishedWagerTurn != Game.TurnToken)
+        {
+            _publishedWagerTurn = Game.TurnToken;
+            _publishedWagerRevision = 0;
+        }
+
+        _publishedWagerRevision++;
+        EmitSignal(PokerHandView.SignalName.PreparedWagerChanged,
+            Game.TurnToken, _publishedWagerRevision,
+            Game.SeatPresenter.PreparedWagerDenominations);
+    }
 
     public override void Refresh(int[] holeCards, IReadOnlyList<ActionOption> options, bool isYourTurn)
     {
@@ -197,6 +228,7 @@ public partial class PokerHand3DView : PokerHandView
         RebuildFan();
         RebuildPresets();
         PlayShowdownOnce();
+        SyncTableInteraction(hand, isYourTurn);
 
         Hud?.Refresh(_options, isYourTurn, RaiseTotal, _lookDone);
     }
@@ -224,9 +256,12 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void SetInteractive(bool interactive)
     {
+        _interactionEnabled = interactive;
+        UpdateInteractionVisibility();
         if (interactive)
             return;
 
+        CancelPreparedWager(immediate: true);
         Hud?.SetPanelVisible(false);
         _peek = 0.0f;
         ApplyFan();
@@ -253,6 +288,9 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void Clear()
     {
+        CancelPreparedWager(immediate: true);
+        SetCrosshairVisible(false);
+        SetGuideVisible(false);
         Game?.SeatPresenter?.ReleaseLocalCardsFromGrip();
         _fan.Clear();
         _fanTransferFrom.Clear();
@@ -439,6 +477,7 @@ public partial class PokerHand3DView : PokerHandView
         _cardTransfer = 1.0f;
         SetPeek(0.0f);
         _lookDone = true;
+        UpdateInteractionVisibility();
 
         // The panel is redrawn by state signals, and looking at your cards is not one — without this
         // it went on telling somebody already holding them to pick them up.

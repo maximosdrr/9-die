@@ -16,22 +16,42 @@ public partial class PokerChipVisual : Node3D
     private Material _runtimeMaterial;
     private Color _lastColour;
     private bool _hasColour;
+    private MeshInstance3D _generatedMesh;
+    private int _bodySurface = -1;
+    private int _denomination = int.MinValue;
 
     public void Configure(Color colour)
+        => Configure(0, colour);
+
+    public void Configure(int denomination, Color colour)
     {
-        Prepare();
+        Prepare(denomination);
         if (TintTarget == null || (_hasColour && _lastColour.IsEqualApprox(colour)))
             return;
 
         if (_runtimeMaterial == null)
         {
-            _runtimeMaterial = TintTarget.MaterialOverride?.Duplicate() as Material
+            var sourceMaterial = _bodySurface >= 0 && TintTarget is MeshInstance3D mesh
+                ? mesh.Mesh?.SurfaceGetMaterial(_bodySurface)
+                : TintTarget.MaterialOverride;
+            _runtimeMaterial = sourceMaterial?.Duplicate() as Material
                 ?? new StandardMaterial3D { Roughness = 0.55f };
-            TintTarget.MaterialOverride = _runtimeMaterial;
+
+            if (_bodySurface >= 0 && TintTarget is MeshInstance3D surfaceTarget)
+                surfaceTarget.SetSurfaceOverrideMaterial(_bodySurface, _runtimeMaterial);
+            else
+                TintTarget.MaterialOverride = _runtimeMaterial;
         }
 
         if (_runtimeMaterial is StandardMaterial3D standard)
+        {
             standard.AlbedoColor = colour;
+            // Clay/composite chips are semi-matte, but their bevel still catches a compact highlight.
+            // Keeping this on the per-chip body override preserves the baked numerals and edge art.
+            standard.Roughness = 0.38f;
+            standard.Metallic = 0.0f;
+            standard.MetallicSpecular = 0.52f;
+        }
         else if (_runtimeMaterial is ShaderMaterial shader)
             shader.SetShaderParameter(ShaderTintParameter, colour);
 
@@ -39,14 +59,46 @@ public partial class PokerChipVisual : Node3D
         _hasColour = true;
     }
 
-    private void Prepare()
+    private void Prepare(int denomination)
     {
-        if (_prepared)
+        if (_prepared && (_generatedMesh == null || _denomination == denomination))
             return;
 
-        _prepared = true;
-        if (!GenerateCurrentPlaceholderWhenEmpty || GetChildCount() > 0)
+        if (!_prepared)
+        {
+            _prepared = true;
+            if (!GenerateCurrentPlaceholderWhenEmpty || GetChildCount() > 0)
+                return;
+        }
+
+        if (_generatedMesh != null
+            && PokerChipAssetMeshes.TryGet(denomination, out var numbered, out var bodySurface))
+        {
+            ClearSurfaceOverrides(_generatedMesh);
+            _generatedMesh.Mesh = numbered;
+            _generatedMesh.Scale = new Vector3(1.0f, PokerChipAssetMeshes.HeightScale, 1.0f);
+            _bodySurface = bodySurface;
+            _denomination = denomination;
+            _runtimeMaterial = null;
+            _hasColour = false;
             return;
+        }
+
+        if (_generatedMesh == null
+            && PokerChipAssetMeshes.TryGet(denomination, out numbered, out bodySurface))
+        {
+            _generatedMesh = new MeshInstance3D
+            {
+                Name = "NumberedChip",
+                Mesh = numbered,
+                Scale = new Vector3(1.0f, PokerChipAssetMeshes.HeightScale, 1.0f),
+            };
+            AddChild(_generatedMesh);
+            TintTarget = _generatedMesh;
+            _bodySurface = bodySurface;
+            _denomination = denomination;
+            return;
+        }
 
         if (PokerChipMeshes.IsAvailable)
         {
@@ -66,6 +118,7 @@ public partial class PokerChipVisual : Node3D
             AddChild(rim);
             AddChild(body);
             TintTarget = body;
+            _denomination = denomination;
             return;
         }
 
@@ -76,7 +129,7 @@ public partial class PokerChipVisual : Node3D
             {
                 TopRadius = 0.020f,
                 BottomRadius = 0.020f,
-                Height = 0.0035f,
+                Height = PokerChipAssetMeshes.Thickness,
                 RadialSegments = 20,
                 Rings = 1,
             },
@@ -84,5 +137,13 @@ public partial class PokerChipVisual : Node3D
 
         AddChild(fallback);
         TintTarget = fallback;
+        _denomination = denomination;
+    }
+
+    private static void ClearSurfaceOverrides(MeshInstance3D mesh)
+    {
+        var surfaceCount = mesh.Mesh?.GetSurfaceCount() ?? 0;
+        for (var surface = 0; surface < surfaceCount; surface++)
+            mesh.SetSurfaceOverrideMaterial(surface, null);
     }
 }

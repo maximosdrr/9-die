@@ -29,6 +29,14 @@ public partial class SeatedTableController : GameController
     /// without changing physical sizes or any layout shared by every peer.
     /// </summary>
     [Export] public float SeatFov = 48.0f;
+
+    /// <summary>
+    /// Fine adjustment from the authored eye marker, in the seat's local axes. Positive Z moves the
+    /// camera back from the table and positive Y raises it. Kept per controller so poker can use a
+    /// more distant, elevated composition without changing domino's established camera.
+    /// </summary>
+    [Export] public Vector3 SeatViewOffset = Vector3.Zero;
+
     [Export] public float MouseSensitivity = 0.004f;
 
     /// <summary>How far the head turns to either side before a real person would move their body.</summary>
@@ -298,7 +306,9 @@ public partial class SeatedTableController : GameController
         // The eye point comes from the seat's own marker so an artist can raise or lower it per
         // chair without touching code.
         var eye = seat.GetNodeOrNull<Node3D>("SeatView");
-        LookRig.GlobalPosition = eye?.GlobalPosition ?? seat.GlobalPosition;
+        var eyeTransform = eye?.GlobalTransform ?? seat.GlobalTransform;
+        LookRig.GlobalPosition = eyeTransform.Origin
+                                 + eyeTransform.Basis.Orthonormalized() * SeatViewOffset;
         CacheStandExit(seat);
 
         _lookYaw = 0.0f;

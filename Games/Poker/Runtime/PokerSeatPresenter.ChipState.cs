@@ -24,10 +24,14 @@ public partial class PokerSeatPresenter : Node3D
         if (stack == null)
             return;
 
-        var turned = Basis.FromEuler(new Vector3(0.0f, PokerTableLayout.YawTowardCentre(facing), 0.0f));
+        // Denomination columns follow a player-relative diagonal, rather than the table radius.
+        // Keeping the aggregate pile's own basis authoritative also lets every departing/returning
+        // chip use the exact same source positions instead of an independently guessed orientation.
+        var turned = BankBasis(facing);
         var stackPlace = StackPlace(facing, spec);
 
         stack.Transform = new Transform3D(turned, new Vector3(stackPlace.X, 0.0f, stackPlace.Y));
+        stack.StackSpacing = Mathf.Max(BankColumnSpacing, stack.EffectiveDiameter + 0.004f);
         if (_bankRuns.TryGetValue(playerId, out var bank))
             stack.SetRuns(bank);
         else
@@ -40,6 +44,25 @@ public partial class PokerSeatPresenter : Node3D
         var across = new Vector2(-direction.Y, direction.X);
         return direction * Mathf.Max(spec.SeatBetRadius + 0.08f, spec.SeatStackRadius - StackInset)
             + across * StackSideOffset;
+    }
+
+    private void BankAxes(Vector2 facing, out Vector2 laneAxis, out Vector2 sideAxis)
+    {
+        var outward = facing.Normalized();
+        var playerLeft = new Vector2(-outward.Y, outward.X);
+        var angle = Mathf.DegToRad(BankLaneAngleDegrees);
+
+        // The lane turns toward the player's right. Its perpendicular remains useful to action-chip
+        // placement even though the value label now floats directly above the bank.
+        laneAxis = (outward * Mathf.Cos(angle) - playerLeft * Mathf.Sin(angle)).Normalized();
+        sideAxis = (outward * Mathf.Sin(angle) + playerLeft * Mathf.Cos(angle)).Normalized();
+    }
+
+    private Basis BankBasis(Vector2 facing)
+    {
+        BankAxes(facing, out var lane, out _);
+        var xAxis = new Vector3(lane.X, 0.0f, lane.Y).Normalized();
+        return new Basis(xAxis, Vector3.Up, xAxis.Cross(Vector3.Up).Normalized());
     }
 
     /// <summary>
@@ -78,7 +101,8 @@ public partial class PokerSeatPresenter : Node3D
 
             if (amount > 0)
                 _pendingChipActions.Enqueue(new PendingChipAction(
-                    playerId, amount, _game.Street, now));
+                    playerId, amount, _game.Street, now, _game.ActionSeq,
+                    _game.LastChipRuns));
             else
                 _displayStacks[playerId] = now;
         }
@@ -95,10 +119,16 @@ public partial class PokerSeatPresenter : Node3D
 
     private void SnapToAuthoritativeState(PokerLayoutSpec spec)
     {
+        RestorePreparedImmediately();
+        ClearReplicatedPreparedWagers();
+        if (_cardCleanupActive)
+            EndCardCleanup();
         LastRecoveryDiscardedAnimation = _presentationHand >= 0
             && (_pendingChipActions.Count > 0 || _collecting || _organizing || _collectionRequested
-                || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
-                    ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner)
+                || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
+                    ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
+                    ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
+                    ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
                 || ((_showdownPresenter?.Active ?? false) && !(_showdownPresenter?.ReadyForPayout ?? true)));
         _showdownPresenter?.Reset();
         _presentationHand = _game.HandNumber;
@@ -124,16 +154,19 @@ public partial class PokerSeatPresenter : Node3D
         foreach (var playerId in _game.SeatOrder)
         {
             _displayStacks[playerId] = _game.StackOf(playerId);
-            _bankRuns[playerId] = PokerChipStack.CreatePlayableBank(_game.StackOf(playerId));
+            var authoritativeBank = _game.ChipBankOf(playerId);
+            _bankRuns[playerId] = authoritativeBank.Count > 0
+                ? authoritativeBank.Select(run => new ChipRun(run.Denomination, run.Count)).ToList()
+                : PokerChipStack.CreatePlayableBank(_game.StackOf(playerId));
             var blind = _game.BetOf(playerId);
             if (blind > 0)
-                PlaceInitialBet(playerId, blind, spec);
+                PlaceInitialBet(playerId, _game.RoundChipsOf(playerId), blind, spec);
         }
 
         // PotInMiddle is already authoritative on a late join. Replaying historical calls would be
         // both impossible and visually misleading, so reconstruct the same denomination columns now.
         if (!_game.HandSettled && _game.PotInMiddle > 0)
-            PlaceOrganizedPotSnapshot(_game.PotInMiddle);
+            PlaceOrganizedPotSnapshot(_game.PotChipRuns, _game.PotInMiddle);
 
         if (_game.HandSettled)
             _showdownPresenter?.Reset(authoritativeSettled: true, hand: _game.HandNumber);
@@ -156,8 +189,10 @@ public partial class PokerSeatPresenter : Node3D
         && !_collecting
         && !_organizing
         && !_collectionRequested
-        && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
-            ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner)
+        && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
+            ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
+            ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
+            ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
         && _visibleStreet >= _requestedStreet
         && (BoardPresenter?.Settled ?? true);
 
@@ -172,6 +207,28 @@ public partial class PokerSeatPresenter : Node3D
     public IReadOnlyDictionary<ulong, Vector3> ActiveChipVisualPositions()
         => _chipAnimator?.ActiveVisualPositions()
             ?? new Dictionary<ulong, Vector3>();
+
+    public IReadOnlyDictionary<ulong, Vector3> ActiveBetVisualPositions(string playerId)
+    {
+        var positions = new Dictionary<ulong, Vector3>();
+        if (_chipAnimator == null || string.IsNullOrEmpty(playerId))
+            return positions;
+
+        foreach (var batch in _chipAnimator.Batches)
+        {
+            if (batch.PlayerId != playerId || batch.Phase is not
+                (ChipBatchPhase.ToBet or ChipBatchPhase.PushingBet
+                    or ChipBatchPhase.Landing or ChipBatchPhase.AtBet))
+                continue;
+
+            foreach (var child in batch.Pile.GetChildren())
+            {
+                if (child is Node3D { Visible: true } visual)
+                    positions[visual.GetInstanceId()] = batch.Pile.Transform * visual.Position;
+            }
+        }
+        return positions;
+    }
 
     /// <summary>Regression guard for the first rendered frame of a call or raise.</summary>
     public bool NewlyStartedBatchesAreAtTheirOrigin => _chipAnimator.Batches.All(batch =>
@@ -207,8 +264,26 @@ public partial class PokerSeatPresenter : Node3D
         return positions;
     }
 
-    public bool BetsAreVisuallyLoose => _chipAnimator.Batches.Any(batch =>
-        batch.Phase == ChipBatchPhase.AtBet && batch.Pile.Spread > 0.95f);
+    public bool BetsAreVisuallyLoose
+    {
+        get
+        {
+            var bets = _chipAnimator.Batches
+                .Where(batch => batch.Phase == ChipBatchPhase.AtBet).ToList();
+            if (bets.Any(batch => batch.Pile.Spread > 0.95f))
+                return true;
+
+            // Manually selected chips are already separate one-chip actors. Their root positions,
+            // rather than an internal pile spread, are what makes the committed wager look loose.
+            for (var left = 0; left < bets.Count; left++)
+            for (var right = left + 1; right < bets.Count; right++)
+            {
+                if (bets[left].Pile.Position.DistanceTo(bets[right].Pile.Position) > 0.003f)
+                    return true;
+            }
+            return false;
+        }
+    }
 
     public bool PotIsLooseWhileOrganizing => _chipAnimator.Batches.Any(batch =>
         batch.Phase == ChipBatchPhase.Organizing && batch.Progress < 0.25f
@@ -240,6 +315,11 @@ public partial class PokerSeatPresenter : Node3D
     public bool PayoutCompleted => _payoutSequencer?.Completed ?? false;
     public bool DealerChangeInProgress => _payoutSequencer?.DealerChangeInProgress ?? false;
     public bool DealerChangeCompleted => _payoutSequencer?.DealerChangeCompleted ?? false;
+    public bool WinnerOrganizationInProgress =>
+        _payoutSequencer?.WinnerOrganizationInProgress ?? false;
+    public bool PayoutHasLooseDelivery => _chipAnimator.Batches.Any(batch =>
+        batch.Phase == ChipBatchPhase.AtWinnerLoose
+        || (batch.Phase == ChipBatchPhase.OrganizingWinner && batch.StartSpread > 0.95f));
     public int ChipsDeliveredToWinners => _chipAnimator.Batches.Count(batch =>
         batch.Phase == ChipBatchPhase.AtWinner);
     public int PayoutRecipientCount => _chipAnimator.Batches
@@ -276,6 +356,16 @@ public partial class PokerSeatPresenter : Node3D
             ChipFlightSeconds, ChipFlightArc, ChipLandingSeconds,
             ChipCollectSeconds, ChipOrganizeSeconds, ChipPayoutSeconds,
             Profile.DealerChangeSeconds);
+
+        _chipSoundscape = GetNodeOrNull<PokerChipSoundscape>("ChipSoundscape");
+        if (_chipSoundscape == null)
+        {
+            _chipSoundscape = new PokerChipSoundscape { Name = "ChipSoundscape" };
+            AddChild(_chipSoundscape);
+        }
+        _chipSoundscape.Configure(_chipAnimator, ChipLandingSound,
+            ChipImpactVoiceLimit, singleImpactDb: ChipSingleImpactDb,
+            maximumImpactDb: ChipMaximumImpactDb);
     }
 
     private void BuildPresentationComponents()
@@ -298,7 +388,8 @@ public partial class PokerSeatPresenter : Node3D
             AddChild(_payoutSequencer);
         }
         _payoutSequencer.Configure(_chipAnimator, Profile, MaxAnimatedChipGroups,
-            AcquireBatch, NextChipSequence, TryPayoutSeatPlaces, WinnerStackOffset);
+            AcquireBatch, NextChipSequence, TryPayoutSeatPlaces, WinnerStackOffset,
+            WinnerLooseLandingInset);
         SignalUtil.ConnectGuarded(_payoutSequencer,
             PokerPayoutSequencer.SignalName.DealerChangeStarted,
             new Callable(this, MethodName.OnDealerChangeStarted));
@@ -328,6 +419,16 @@ public partial class PokerSeatPresenter : Node3D
     private int NextChipSequence() => _nextChipSequence++;
 
     private bool TryPayoutSeatPlaces(string playerId, out Basis basis, out Vector3 stack)
-        => TrySeatChipPlaces(playerId, BoardPresenter.Spec, out basis, out stack, out _);
+    {
+        if (!TrySeatChipPlaces(playerId, BoardPresenter.Spec, out _, out stack, out _))
+        {
+            basis = Basis.Identity;
+            return false;
+        }
+
+        basis = _stacks.TryGetValue(playerId, out var bankPile)
+            ? bankPile.Basis : Basis.Identity;
+        return true;
+    }
 
 }

@@ -2,11 +2,14 @@
 
 [ext_resource type="Script" path="res://Games/Poker/Components/Cards/Scripts/PokerCard.cs" id="1_pcard"]
 
-[node name="PokerCard" type="Node3D" node_paths=PackedStringArray("Face", "Back", "FaceLabel")]
+[node name="PokerCard" type="Node3D" node_paths=PackedStringArray("Face", "Back", "FaceLabel", "AssetVisual")]
 script = ExtResource("1_pcard")
 Face = NodePath("Face")
 Back = NodePath("Back")
 FaceLabel = NodePath("Face/FaceLabel")
+AssetVisual = NodePath("AssetVisual")
+
+[node name="AssetVisual" type="MeshInstance3D" parent="."]
 
 [node name="Face" type="MeshInstance3D" parent="."]
 

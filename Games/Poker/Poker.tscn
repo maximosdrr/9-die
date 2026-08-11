@@ -11,10 +11,12 @@
 [ext_resource type="Script" path="res://Games/Poker/Runtime/PokerSeatPresenter.cs" id="8_pseat"]
 [ext_resource type="Script" path="res://Games/Poker/Runtime/PokerChipPile.cs" id="9_ppile"]
 [ext_resource type="PackedScene" path="res://Games/Poker/GameController/PokerController.tscn" id="10_pctrl"]
-[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Strike.ogg" id="11_pknock"]
+[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Poker/knock-on-table.wav" id="11_pknock"]
 [ext_resource type="Resource" path="res://Games/Poker/PokerVisualAssets.tres" id="12_visuals"]
 [ext_resource type="Resource" path="res://Games/Poker/PokerPresentationProfile.tres" id="13_timing"]
 [ext_resource type="PackedScene" path="res://Shared/Table/Components/SeatAnchor.tscn" id="14_seat"]
+[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Poker/pokerchip-dropping.wav" id="15_pchips"]
+[ext_resource type="FontFile" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="16_chalk"]
 
 [node name="Poker" type="Node3D" unique_id=1876712086 node_paths=PackedStringArray("GameModeHandler", "Seats", "BoardPresenter", "SeatPresenter")]
 script = ExtResource("1_pgame")
@@ -48,7 +50,9 @@ CardScene = ExtResource("6_pcard")
 BoardPresenter = NodePath("../BoardHolder")
 Seats = NodePath("../Seats")
 PresentationProfile = ExtResource("13_timing")
+ChalkFont = ExtResource("16_chalk")
 KnockSound = ExtResource("11_pknock")
+ChipLandingSound = ExtResource("15_pchips")
 
 [node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
 script = ExtResource("5_panch")

@@ -4,6 +4,61 @@ using Godot.Collections;
 using Poker.Rules;
 
 /// <summary>
+/// A server-approved, reversible wager that is visible on the cloth but has not changed any poker
+/// balance yet. The ordered denominations are presentation identity: every peer can reproduce the
+/// same sequence of selected chips, while the authoritative ledger remains in PokerTurnResolver.
+/// </summary>
+public sealed class PokerPreparedWagerSnapshot
+{
+    private readonly List<int> _denominations;
+
+    public string PlayerId { get; }
+    public int TurnToken { get; }
+    public int Revision { get; }
+    public IReadOnlyList<int> Denominations => _denominations;
+    public int CommittedActionSeq { get; }
+    public bool IsCommitted => CommittedActionSeq >= 0;
+
+    public int Amount
+    {
+        get
+        {
+            var amount = 0;
+            foreach (var denomination in _denominations)
+                amount += denomination;
+            return amount;
+        }
+    }
+
+    public PokerPreparedWagerSnapshot(
+        string playerId, int turnToken, int revision,
+        IEnumerable<int> denominations, int committedActionSeq = -1)
+    {
+        PlayerId = playerId ?? "";
+        TurnToken = turnToken;
+        Revision = revision;
+        _denominations = denominations == null
+            ? new List<int>() : new List<int>(denominations);
+        CommittedActionSeq = committedActionSeq;
+    }
+
+    public bool SameAs(PokerPreparedWagerSnapshot other)
+    {
+        if (other == null || PlayerId != other.PlayerId || TurnToken != other.TurnToken
+            || Revision != other.Revision || CommittedActionSeq != other.CommittedActionSeq
+            || _denominations.Count != other._denominations.Count)
+            return false;
+
+        for (var index = 0; index < _denominations.Count; index++)
+        {
+            if (_denominations[index] != other._denominations[index])
+                return false;
+        }
+        return true;
+    }
+}
+
+/// <summary>
 /// Texas Hold'em for two to four players, played as a SESSION: hands run one after another with the
 /// button going round, and the match ends when one player holds every chip.
 ///
@@ -70,6 +125,16 @@ public partial class PokerGame : TableGame
     public readonly System.Collections.Generic.Dictionary<string, int> Stacks = new();
     public readonly System.Collections.Generic.Dictionary<string, int> BetThisRound = new();
     public readonly System.Collections.Generic.Dictionary<string, int> BetThisHand = new();
+    public readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> ChipBanks = new();
+    public readonly System.Collections.Generic.Dictionary<string, List<ChipRun>> RoundChipRuns = new();
+    public readonly List<ChipRun> PotChipRuns = new();
+    public readonly List<ChipRun> LastChipRuns = new();
+    /// <summary>
+    /// Server-approved chips currently staged by a player. This is public presentation state only;
+    /// Stacks, ChipBanks and the pot remain unchanged until the normal action RPC is accepted.
+    /// </summary>
+    public readonly System.Collections.Generic.Dictionary<string, PokerPreparedWagerSnapshot>
+        PreparedWagers = new();
     public readonly HashSet<string> Folded = new();
     public readonly HashSet<string> AllIn = new();
 
@@ -78,6 +143,12 @@ public partial class PokerGame : TableGame
 
     /// <summary>What each shown hand was, so the table can say why it won.</summary>
     public readonly System.Collections.Generic.Dictionary<string, HandCategory> ShowdownCategories = new();
+
+    public bool ShowdownWaiting;
+    public readonly HashSet<string> PendingShowdownReveals = new();
+    /// <summary>-1 during the initial grace period; otherwise visible seconds remaining.</summary>
+    public int ShowdownCountdown = -1;
+    public bool CardsCleaningUp;
 
     /// <summary>Who collected what from the hand that just finished.</summary>
     public readonly System.Collections.Generic.Dictionary<string, int> Winners = new();
@@ -128,6 +199,9 @@ public partial class PokerGame : TableGame
 
     [Signal]
     public delegate void LocalHandChangedEventHandler();
+
+    [Signal]
+    public delegate void PreparedWagersChangedEventHandler();
 
     public PokerTurnResolver Resolver =>
         _gameModeHandler?.CurrentGameMode?.TurnResolver as PokerTurnResolver;
@@ -188,6 +262,15 @@ public partial class PokerGame : TableGame
 
     public int BetOf(string playerId) => BetThisRound.GetValueOrDefault(playerId);
 
+    public IReadOnlyList<ChipRun> ChipBankOf(string playerId) =>
+        ChipBanks.TryGetValue(playerId, out var runs) ? runs : System.Array.Empty<ChipRun>();
+
+    public IReadOnlyList<ChipRun> RoundChipsOf(string playerId) =>
+        RoundChipRuns.TryGetValue(playerId, out var runs) ? runs : System.Array.Empty<ChipRun>();
+
+    public PokerPreparedWagerSnapshot PreparedWagerOf(string playerId) =>
+        playerId != null && PreparedWagers.TryGetValue(playerId, out var wager) ? wager : null;
+
     public bool HasFolded(string playerId) => Folded.Contains(playerId);
 
     public bool IsAllIn(string playerId) => AllIn.Contains(playerId);
@@ -217,6 +300,15 @@ public partial class PokerGame : TableGame
     /// that has already paid out.
     /// </summary>
     public bool HandSettled => Winners.Count > 0;
+
+    public bool LocalMustReveal
+    {
+        get
+        {
+            var playerId = Player == null ? null : (string)Player.Name;
+            return ShowdownWaiting && playerId != null && PendingShowdownReveals.Contains(playerId);
+        }
+    }
 
     public bool IsSessionOver => SeatOrder.Length > 0 && CountWithChips() <= 1;
 
@@ -261,11 +353,20 @@ public partial class PokerGame : TableGame
         Stacks.Clear();
         BetThisRound.Clear();
         BetThisHand.Clear();
+        ChipBanks.Clear();
+        RoundChipRuns.Clear();
+        PotChipRuns.Clear();
+        LastChipRuns.Clear();
+        PreparedWagers.Clear();
         Folded.Clear();
         AllIn.Clear();
         RevealedHoleCards.Clear();
         ShowdownCategories.Clear();
         Winners.Clear();
+        ShowdownWaiting = false;
+        PendingShowdownReveals.Clear();
+        ShowdownCountdown = -1;
+        CardsCleaningUp = false;
         CurrentBet = 0;
         MinRaiseIncrement = 0;
         ButtonSeat = 0;
@@ -298,6 +399,15 @@ public partial class PokerGame : TableGame
         ReadTable(context, "stack_players", "stacks", Stacks);
         ReadTable(context, "round_players", "round_bets", BetThisRound);
         ReadTable(context, "hand_players", "hand_bets", BetThisHand);
+        ReadRunTable(context, "chip_bank_players", "chip_bank_denominations", "chip_bank_counts",
+            ChipBanks);
+        ReadRunTable(context, "round_chip_players", "round_chip_denominations", "round_chip_counts",
+            RoundChipRuns);
+        ReadRuns(context, "pot_chip_denominations", "pot_chip_counts", PotChipRuns);
+        LastChipRuns.Clear();
+        if (context.TryGetValue("last_chip_denominations", out var lastChips))
+            LastChipRuns.AddRange(PokerChipStack.FromDenominations(lastChips.AsInt32Array()));
+        var preparedWagerChanged = ReadPreparedWager(context);
 
         ReadSet(context, "folded", Folded);
         ReadSet(context, "all_in", AllIn);
@@ -315,12 +425,58 @@ public partial class PokerGame : TableGame
         LastPlayer = context.TryGetValue("last_player", out var player) ? (string)player : "";
         LastAmount = context.TryGetValue("last_amount", out var amount) ? (int)amount : 0;
         ActionSeq = context.TryGetValue("action_seq", out var seq) ? (int)seq : 0;
+        ShowdownWaiting = context.TryGetValue("showdown_waiting", out var waiting) && (bool)waiting;
+        ReadSet(context, "showdown_pending", PendingShowdownReveals);
+        ShowdownCountdown = context.TryGetValue("showdown_countdown", out var countdown)
+            ? (int)countdown : -1;
+        CardsCleaningUp = context.TryGetValue("card_cleanup", out var cleanup) && (bool)cleanup;
 
         ReadReveals(context);
         ReadResult(context);
 
         BoardPresenter?.Sync(Board, PotInMiddle, HandNumber, Street);
+        if (preparedWagerChanged)
+            EmitSignal(SignalName.PreparedWagersChanged);
         EmitSignal(SignalName.HudStateUpdated);
+    }
+
+    private bool ReadPreparedWager(Dictionary context)
+    {
+        PokerPreparedWagerSnapshot next = null;
+        var playerId = context.TryGetValue("prepared_player", out var playerVariant)
+            ? (string)playerVariant : "";
+        if (!string.IsNullOrEmpty(playerId)
+            && context.TryGetValue("prepared_denominations", out var denominationsVariant))
+        {
+            next = new PokerPreparedWagerSnapshot(
+                playerId,
+                context.TryGetValue("prepared_turn_token", out var turnVariant)
+                    ? (int)turnVariant : 0,
+                context.TryGetValue("prepared_revision", out var revisionVariant)
+                    ? (int)revisionVariant : 0,
+                denominationsVariant.AsInt32Array(),
+                context.TryGetValue("prepared_committed_action_seq", out var committedVariant)
+                    ? (int)committedVariant : -1);
+        }
+
+        PokerPreparedWagerSnapshot previous = null;
+        if (PreparedWagers.Count == 1)
+        {
+            foreach (var entry in PreparedWagers)
+            {
+                previous = entry.Value;
+                break;
+            }
+        }
+
+        var changed = PreparedWagers.Count > 1
+                      || (previous == null) != (next == null)
+                      || (previous != null && !previous.SameAs(next));
+        PreparedWagers.Clear();
+        if (next != null)
+            PreparedWagers[next.PlayerId] = next;
+
+        return changed;
     }
 
     private static void ReadTable(
@@ -346,6 +502,39 @@ public partial class PokerGame : TableGame
 
         foreach (var playerId in context[key].AsStringArray())
             into.Add(playerId);
+    }
+
+    private static void ReadRunTable(
+        Dictionary context, string playersName, string denominationsName, string countsName,
+        System.Collections.Generic.Dictionary<string, List<ChipRun>> into)
+    {
+        into.Clear();
+        if (!context.ContainsKey(playersName) || !context.ContainsKey(denominationsName)
+            || !context.ContainsKey(countsName))
+            return;
+
+        var players = context[playersName].AsStringArray();
+        var denominations = context[denominationsName].AsInt32Array();
+        var counts = context[countsName].AsInt32Array();
+        var length = Mathf.Min(players.Length, Mathf.Min(denominations.Length, counts.Length));
+        for (var index = 0; index < length; index++)
+        {
+            if (!into.TryGetValue(players[index], out var runs))
+                runs = into[players[index]] = new List<ChipRun>();
+            runs.Add(new ChipRun(denominations[index], counts[index]));
+        }
+    }
+
+    private static void ReadRuns(
+        Dictionary context, string denominationsName, string countsName, List<ChipRun> into)
+    {
+        into.Clear();
+        if (!context.ContainsKey(denominationsName) || !context.ContainsKey(countsName))
+            return;
+        var denominations = context[denominationsName].AsInt32Array();
+        var counts = context[countsName].AsInt32Array();
+        for (var index = 0; index < Mathf.Min(denominations.Length, counts.Length); index++)
+            into.Add(new ChipRun(denominations[index], counts[index]));
     }
 
     /// <summary>
@@ -459,18 +648,71 @@ public partial class PokerGame : TableGame
 
     private void OnPlayerReclaimed(string oldPlayerId, string newPlayerId, Array turnOrder, Dictionary context)
     {
+        // BuildHandoffContext is captured immediately before TableGame replaces the disconnected id
+        // in TurnOrder. Its monetary snapshot is authoritative, but every player-keyed entry still
+        // names the old connection. Apply one remapped copy now so existing peers do not spend the
+        // rest of the turn showing an obsolete stack/bank (or a stale prepared wager) until somebody
+        // happens to act. The reconnecting peer also receives the resolver's targeted full snapshot.
+        var reclaimedContext = RemapReclaimedContext(context, oldPlayerId, newPlayerId);
+        var appliedPublicContext = reclaimedContext.ContainsKey("board")
+                                   && reclaimedContext.ContainsKey("seat_order");
+        if (appliedPublicContext)
+            ApplyPublicSnapshot(reclaimedContext);
+
         var newPlayer = PlayerRegistry.Instance.GetPlayerById(newPlayerId);
-        if (newPlayer == null)
-            return;
+        newPlayer?.GameHandler.EquipGameController(GameControllerScene, this, Camera);
 
-        newPlayer.GameHandler.EquipGameController(GameControllerScene, this, Camera);
-
-        EmitSignal(SignalName.HudStateUpdated);
+        if (!appliedPublicContext)
+            EmitSignal(SignalName.HudStateUpdated);
         // A reclaimed peer can arrive while this machine is halfway through chips, payout or showdown.
         // Rebuild from public state instead of attempting to resume a sequence with missing history.
         SeatPresenter?.SnapToAuthoritativeState();
+        SeatPresenter?.Refresh();
 
         if (Multiplayer.IsServer())
             Resolver?.ReissueStateTo(oldPlayerId, newPlayerId);
+    }
+
+    /// <summary>
+    /// Re-keys the public handoff snapshot captured immediately before TableGame replaces a reclaimed
+    /// peer id. Poker contexts are flat, so remapping scalar strings and packed string arrays covers
+    /// seats, stacks, bets, banks, reveals, awards and any active prepared-wager owner together.
+    /// </summary>
+    internal static Dictionary RemapReclaimedContext(
+        Dictionary context, string oldPlayerId, string newPlayerId)
+    {
+        var remapped = context?.Duplicate() ?? new Dictionary();
+        if (string.IsNullOrEmpty(oldPlayerId) || string.IsNullOrEmpty(newPlayerId)
+            || oldPlayerId == newPlayerId)
+            return remapped;
+
+        foreach (Variant key in remapped.Keys)
+        {
+            var value = remapped[key];
+            if (value.VariantType == Variant.Type.String)
+            {
+                if (value.AsString() == oldPlayerId)
+                    remapped[key] = newPlayerId;
+                continue;
+            }
+
+            if (value.VariantType != Variant.Type.PackedStringArray)
+                continue;
+
+            var players = value.AsStringArray();
+            var changed = false;
+            for (var index = 0; index < players.Length; index++)
+            {
+                if (players[index] != oldPlayerId)
+                    continue;
+                players[index] = newPlayerId;
+                changed = true;
+            }
+
+            if (changed)
+                remapped[key] = players;
+        }
+
+        return remapped;
     }
 }

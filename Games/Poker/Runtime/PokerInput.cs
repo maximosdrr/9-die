@@ -14,6 +14,7 @@ public static class PokerInput
     public const string Raise = "poker_raise";
     public const string Fold = "poker_fold";
     public const string AllIn = "poker_all_in";
+    public const string ShowdownReveal = "poker_showdown_reveal";
 
     /// <summary>Held, not pressed: the cards stay up only while the button is down.</summary>
     public const string Peek = "peek_cards";
@@ -26,4 +27,5 @@ public static class PokerInput
     public const string RaiseKey = "R";
     public const string FoldKey = "X";
     public const string AllInKey = "Z";
+    public const string ShowdownRevealKey = "S";
 }

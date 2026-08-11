@@ -50,6 +50,14 @@ public partial class SecretHandTurnResolver : TurnResolver
     [Signal]
     public delegate void ActionRejectedEventHandler(string reason);
 
+    /// <summary>
+    /// Correlates a refusal with the stamped turn that produced it. Existing games may keep using
+    /// ActionRejected; latency-sensitive controllers use this companion signal so an old packet can
+    /// never cancel input that belongs to a newer turn.
+    /// </summary>
+    [Signal]
+    public delegate void StampedActionRejectedEventHandler(int turnToken, string reason);
+
     public override void Setup(TableGame tableGame)
     {
         Table = tableGame;
@@ -189,7 +197,10 @@ public partial class SecretHandTurnResolver : TurnResolver
     protected void Reject(int requesterId, int turnToken, string reason)
     {
         if (requesterId == Multiplayer.GetUniqueId())
+        {
             EmitSignal(SignalName.ActionRejected, reason);
+            EmitSignal(SignalName.StampedActionRejected, turnToken, reason);
+        }
         else
             RpcId(requesterId, MethodName.ReceiveActionRejected, turnToken, reason);
     }
@@ -198,6 +209,7 @@ public partial class SecretHandTurnResolver : TurnResolver
     protected void ReceiveActionRejected(int turnToken, string reason)
     {
         EmitSignal(SignalName.ActionRejected, reason);
+        EmitSignal(SignalName.StampedActionRejected, turnToken, reason);
     }
 
     // ---------------------------------------------------------------- late joiners and reconnects

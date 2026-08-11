@@ -21,6 +21,7 @@ public partial class Player : CharacterBody3D
     [Export] public string Nickname = "";
     [ExportGroup("Replaceable character")]
     [Export] public AnimationPlayer SeatedGestureAnimator;
+    [Export] public SeatedGestureFallback SeatedGestureFallback;
 
     [ExportGroup("Scene References")]
     [Export] public HeadPivot HeadPivot;
@@ -166,7 +167,14 @@ public partial class Player : CharacterBody3D
     /// rig carries only Idle and Walk. The call sites are what matter now; the clips drop in later
     /// with no change here.
     /// </summary>
-    public void PlaySeatedGesture(string animationName)
+    public void PlaySeatedGesture(string animationName) =>
+        PlaySeatedGesture(animationName, GlobalPosition - GlobalBasis.Z);
+
+    /// <summary>
+    /// Plays an authored body clip, or a subtle visual-only fallback directed at the table while the
+    /// current character still lacks that clip. The fallback never moves the networked player body.
+    /// </summary>
+    public void PlaySeatedGesture(string animationName, Vector3 tableTarget)
     {
         if (!IsInSeatedGameMode || string.IsNullOrWhiteSpace(animationName))
             return;
@@ -176,7 +184,14 @@ public partial class Player : CharacterBody3D
         var animation = SeatedGestureAnimator
                         ?? GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer");
         if (animation != null && animation.HasAnimation(animationName))
+        {
             animation.Play(animationName);
+            if (animationName != PokerClips.BodyIdle && animation.HasAnimation(PokerClips.BodyIdle))
+                animation.Queue(PokerClips.BodyIdle);
+            return;
+        }
+
+        SeatedGestureFallback?.Play(animationName, tableTarget);
     }
 
 }

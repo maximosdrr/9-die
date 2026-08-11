@@ -50,8 +50,8 @@ public readonly struct PokerLayoutSpec
     /// <summary>
     /// Tuned for the same 0.64 m bar table the dominoes use, and for the same reason: a card big
     /// enough to read from a chair, on a table small enough that the chair is close to it. A real
-    /// card is 63 x 88 mm; these are 70 x 98, the largest that still leaves the five-card row clear
-    /// of every seat's own cards.
+    /// card is 63 x 88 mm; these are 76 x 106, large enough to read from the chair while still
+    /// leaving the five-card row clear of every seat's own cards.
     /// </summary>
     /// <summary>
     /// The radii read outward from the middle in the order a real table does: the bet is pushed
@@ -60,9 +60,9 @@ public readonly struct PokerLayoutSpec
     /// cards at 0.44, close enough that the chips landed on top of the cards.
     /// </summary>
     public static PokerLayoutSpec Default =>
-        new(0.070f, 0.098f, 0.0006f, 0.012f,
+        new(0.076f, 0.106f, 0.0006f, 0.020f,
             boardOffset: 0.0f, potRadius: 0.16f,
-            seatCardRadius: 0.40f, seatBetRadius: 0.25f, seatStackRadius: 0.54f);
+            seatCardRadius: 0.40f, seatBetRadius: 0.32f, seatStackRadius: 0.54f);
 
     /// <summary>Width of the whole five-card row.</summary>
     public float BoardWidth =>

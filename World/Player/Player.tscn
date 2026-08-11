@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dq4mwkkjaq18o"]
 
 [ext_resource type="Script" path="res://World/Player/Runtime/Player.cs" id="1_wlwl2"]
+[ext_resource type="Script" path="res://World/Player/Runtime/SeatedGestureFallback.cs" id="1_seated_fallback"]
 [ext_resource type="Script" path="res://World/Player/Runtime/HeadPivot.cs" id="2_bd6kk"]
 [ext_resource type="PackedScene" path="res://World/Player/Components/CharacterVisual.tscn" id="4_ejmv4"]
 [ext_resource type="Script" path="res://World/Player/Runtime/PlayerGameHandler.cs" id="5_llsyq"]
@@ -27,11 +28,12 @@ properties/2/path = NodePath(".:Nickname")
 properties/2/spawn = true
 properties/2/replication_mode = 0
 
-[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("SeatedGestureAnimator", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision") groups=["player"]]
+[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("SeatedGestureAnimator", "SeatedGestureFallback", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision") groups=["player"]]
 collision_layer = 2
 collision_mask = 15
 script = ExtResource("1_wlwl2")
 SeatedGestureAnimator = NodePath("FirstPerson/Model3D/AnimationPlayer")
+SeatedGestureFallback = NodePath("Runtime/SeatedGestureFallback")
 HeadPivot = NodePath("FirstPerson/HeadPivot")
 GameHandler = NodePath("Runtime/PlayerGameHandler")
 PlayerModel = NodePath("FirstPerson/Model3D")
@@ -59,6 +61,10 @@ transform = Transform3D(-1.5842189, 0, -2.1901567e-07, 0, 1.6967292, 0, 2.392104
 [node name="GameContextSlot" type="Node3D" parent="." unique_id=448513269]
 
 [node name="Runtime" type="Node" parent="." unique_id=1024639676]
+
+[node name="SeatedGestureFallback" type="Node" parent="Runtime" node_paths=PackedStringArray("VisualRoot")]
+script = ExtResource("1_seated_fallback")
+VisualRoot = NodePath("../../FirstPerson/Model3D")
 
 [node name="PlayerGameHandler" type="Node" parent="Runtime" unique_id=1368373490 node_paths=PackedStringArray("ContextSlot", "Player")]
 script = ExtResource("5_llsyq")

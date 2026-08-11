@@ -22,15 +22,22 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public PokerChipPile PotPile;
 
     [ExportGroup("Layout")]
-    [Export] public float CardWidth = 0.070f;
-    [Export] public float CardLength = 0.098f;
+    [Export] public float CardWidth = 0.076f;
+    [Export] public float CardLength = 0.106f;
     [Export] public float CardThickness = 0.0006f;
-    [Export] public float CardGap = 0.012f;
+    [Export] public float CardGap = 0.020f;
     [Export] public float BoardOffset = 0.0f;
     [Export] public float PotRadius = 0.16f;
     [Export] public float SeatCardRadius = 0.40f;
-    [Export] public float SeatBetRadius = 0.25f;
+    [Export] public float SeatBetRadius = 0.32f;
     [Export] public float SeatStackRadius = 0.54f;
+
+    /// <summary>
+    /// Only the five shared cards receive this readability scale. Hole cards and the camera-held
+    /// hand keep their natural size, so improving the board cannot crowd the bottom of the screen.
+    /// Positions still come from <see cref="Spec"/> and therefore remain deterministic on every peer.
+    /// </summary>
+    [Export(PropertyHint.Range, "1.0,1.25,0.01")] public float CommunityCardVisualScale = 1.20f;
 
     [ExportGroup("Deck")]
     /// <summary>
@@ -42,12 +49,16 @@ public partial class PokerBoardPresenter : Node3D
 
     /// <summary>How many cards are drawn in the stack. Enough to read as a deck, not 52.</summary>
     [Export] public int DeckDepth = 8;
+    [Export] public float ShuffleSplitDistance = 0.034f;
+    [Export] public float ShuffleLift = 0.014f;
+    [Export(PropertyHint.Range, "0,12,0.25")] public float ShuffleHalfYawDegrees = 5.0f;
 
     /// <summary>
-    /// Where thrown-away hands land, in the reader's own frame: the dealer's other side, opposite the
-    /// deck, so the discards never pile up on the cards still to come.
+    /// Where thrown-away hands land, in the reader's own frame. Keep the muck on the near half of
+    /// the table and slightly to the side: a folded pair should look like a short toss, while still
+    /// clearing the pot, the player's wager and the chalk controls.
     /// </summary>
-    [Export] public Vector3 MuckOffset = new(-0.30f, 0.0f, -0.16f);
+    [Export] public Vector3 MuckOffset = new(0.12f, 0.0f, 0.24f);
 
     [ExportGroup("Dealing")]
     /// <summary>Where a card slides in from. Zero means "from the deck", which is what it should be.</summary>
@@ -81,6 +92,10 @@ public partial class PokerBoardPresenter : Node3D
         public float Wait;
         public bool WantsFaceUp;
         public int ShownId = Poker.Rules.CardId.None;
+        public Transform3D CleanupFrom;
+        public float CleanupDelay;
+        public int CleanupSlot;
+        public bool CleanupFaceDown;
     }
 
     private readonly List<BoardCard> _cards = new();
@@ -91,6 +106,64 @@ public partial class PokerBoardPresenter : Node3D
     private PokerGame _game;
 
     private Node3D _deck;
+    private readonly List<PokerCard> _deckCards = new();
+    private readonly List<Transform3D> _deckCardRest = new();
+    private bool _cleaningUp;
+    private float _cleanupElapsed;
+    private float _returnSeconds;
+    private float _returnEnd;
+    private float _gatherHoldSeconds;
+    private float _shuffleSeconds;
+    private Transform3D _deckRest;
+    private bool _collectionFinished;
+    public bool CardCleanupActive => _cleaningUp;
+    public bool CardCollectionComplete => _collectionFinished;
+    private float ShuffleStart => _returnEnd + _gatherHoldSeconds;
+    public bool DeckGatherHoldInProgress => _cleaningUp
+        && _cleanupElapsed >= _returnEnd && _cleanupElapsed < ShuffleStart;
+    public bool DeckShuffleInProgress => _cleaningUp && _cleanupElapsed >= ShuffleStart;
+    public float DeckCardSpread
+    {
+        get
+        {
+            if (_deckCards.Count == 0)
+                return 0.0f;
+            var minimum = float.MaxValue;
+            var maximum = float.MinValue;
+            foreach (var card in _deckCards)
+            {
+                minimum = Mathf.Min(minimum, card.Position.X);
+                maximum = Mathf.Max(maximum, card.Position.X);
+            }
+            return maximum - minimum;
+        }
+    }
+    public int ReturningCardCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var card in _cards)
+            {
+                if (_cleaningUp && card.Node.Visible)
+                    count++;
+            }
+            return count;
+        }
+    }
+    public int VisibleCardCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var card in _cards)
+            {
+                if (card.Node.Visible)
+                    count++;
+            }
+            return count;
+        }
+    }
 
     /// <summary>How many community cards this peer is currently allowed to show.</summary>
     public int VisibleFaceUpCount => _faceUpCount;
@@ -111,21 +184,50 @@ public partial class PokerBoardPresenter : Node3D
     }
 
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
-    public Vector3 DeckPosition => new Basis(Vector3.Up, ReaderYaw()) * DeckOffset;
+    public Vector3 DeckPosition => ReaderBasis * DeckOffset;
+    public Basis DeckCardBasis => ReaderBasis * PokerCard.Orientation(true);
+    public float DeckTopHeight => Mathf.Max(1, DeckDepth) * Spec.CardThickness * 1.6f;
+
+    /// <summary>Successive collected cards land above, never through, the visible deck proxy.</summary>
+    public Vector3 CollectionTarget(int slot) => DeckPosition + Vector3.Up
+        * (DeckTopHeight + (Mathf.Max(0, slot) + 0.5f) * Spec.CardThickness * 1.7f);
 
     /// <summary>Where thrown-away hands lie, in this presenter's space.</summary>
-    public Vector3 MuckPosition => new Basis(Vector3.Up, ReaderYaw()) * MuckOffset;
+    public Vector3 MuckPosition => ReaderBasis * MuckOffset;
 
-    /// <summary>Where visually collected bets gather, in this presenter's local space.</summary>
+    /// <summary>
+    /// Direction from the table centre to this peer's chair. Board cards, deck, physical pot and the
+    /// local interaction guide all consume this exact value, so a different seat cannot produce a
+    /// slightly different version of the centre layout.
+    /// </summary>
+    public Vector2 ReaderFacing
+    {
+        get
+        {
+            var playerId = _game?.Player == null ? null : (string)_game.Player.Name;
+            var seat = playerId == null ? null : _game.SeatFor(playerId);
+            if (seat == null)
+                return Vector2.Down;
+
+            var toSeat = ToLocal(seat.GlobalPosition);
+            var facing = new Vector2(toSeat.X, toSeat.Z);
+            return facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
+        }
+    }
+
+    public Basis ReaderBasis =>
+        new(Vector3.Up, PokerTableLayout.YawTowardCentre(ReaderFacing));
+
+    /// <summary>
+    /// Where visually collected bets gather, in this presenter's local space. It is always directly
+    /// below the community row from the local player's view, at the position used before the new HUD.
+    /// </summary>
     public Vector3 PotPosition
     {
         get
         {
-            var spec = Spec;
-            var reader = new Basis(Vector3.Up, ReaderYaw());
-            // PotRadius is measured from the board centre and is deliberately independent of card
-            // length. The former hard-coded 7 cm margin left the chip faces visually under the board.
-            return reader * new Vector3(0.0f, 0.0f, spec.BoardOffset + spec.PotRadius);
+            var distance = Spec.BoardOffset + Spec.PotRadius;
+            return new Vector3(ReaderFacing.X * distance, 0.0f, ReaderFacing.Y * distance);
         }
     }
 
@@ -179,6 +281,8 @@ public partial class PokerBoardPresenter : Node3D
             card.Transform = new Transform3D(
                 new Basis(Vector3.Up, (i % 2 == 0 ? 1.0f : -1.0f) * 0.012f) * PokerCard.Orientation(true),
                 new Vector3(0.0f, (i + 0.5f) * spec.CardThickness * 1.6f, 0.0f));
+            _deckCards.Add(card);
+            _deckCardRest.Add(card.Transform);
         }
     }
 
@@ -187,7 +291,7 @@ public partial class PokerBoardPresenter : Node3D
         if (_deck == null)
             return;
 
-        _deck.Transform = new Transform3D(new Basis(Vector3.Up, ReaderYaw()), DeckPosition);
+        _deck.Transform = new Transform3D(ReaderBasis, DeckPosition);
     }
 
     /// <summary>
@@ -197,25 +301,22 @@ public partial class PokerBoardPresenter : Node3D
     /// peer builds its own table from the same public state — so each peer may as well turn them
     /// toward its own player rather than making three of the four crane.
     /// </summary>
-    private float ReaderYaw()
-    {
-        var playerId = _game?.Player == null ? null : (string)_game.Player.Name;
-        var seat = playerId == null ? null : _game.SeatFor(playerId);
-        if (seat == null)
-            return 0.0f;
-
-        var toSeat = ToLocal(seat.GlobalPosition);
-        var facing = new Vector2(toSeat.X, toSeat.Z);
-
-        return facing.LengthSquared() < 1e-6f
-            ? 0.0f
-            : PokerTableLayout.YawTowardCentre(facing.Normalized());
-    }
-
     /// <summary>One source for every measurement on this table.</summary>
     public PokerLayoutSpec Spec => new(
         CardWidth, CardLength, CardThickness, CardGap,
         BoardOffset, PotRadius, SeatCardRadius, SeatBetRadius, SeatStackRadius);
+
+    /// <summary>The board-only visual size; it never participates in rules or network state.</summary>
+    public PokerLayoutSpec CommunityCardSpec
+    {
+        get
+        {
+            var scale = Mathf.Clamp(CommunityCardVisualScale, 1.0f, 1.25f);
+            return new PokerLayoutSpec(
+                CardWidth * scale, CardLength * scale, CardThickness, CardGap,
+                BoardOffset, PotRadius, SeatCardRadius, SeatBetRadius, SeatStackRadius);
+        }
+    }
 
     /// <summary>True once every card has finished arriving and turning — what a test can wait on.</summary>
     public bool Settled
@@ -251,6 +352,12 @@ public partial class PokerBoardPresenter : Node3D
     /// </summary>
     public void Sync(IReadOnlyList<int> board, int potTotal, int handNumber, PokerStreet street)
     {
+        if (_game?.CardsCleaningUp == true)
+            return;
+
+        if (_cleaningUp)
+            EndCardCleanup();
+
         var shown = board?.Count ?? 0;
         var visibleShown = _presentationGateEnabled
             ? Mathf.Min(shown, _allowedFaceUpCount)
@@ -282,7 +389,7 @@ public partial class PokerBoardPresenter : Node3D
             {
                 card.ShownId = id;
                 if (Poker.Rules.CardId.IsValid(id))
-                    card.Node.Configure(id, Spec);
+                    card.Node.Configure(id, CommunityCardSpec);
             }
 
             var wantsFaceUp = index < visibleShown;
@@ -311,7 +418,7 @@ public partial class PokerBoardPresenter : Node3D
             return;
         }
 
-        var reader = new Basis(Vector3.Up, ReaderYaw());
+        var reader = ReaderBasis;
         var potPlace = PotPosition;
 
         PotPile.Transform = new Transform3D(reader, potPlace);
@@ -324,6 +431,12 @@ public partial class PokerBoardPresenter : Node3D
 
     public override void _Process(double delta)
     {
+        if (_cleaningUp)
+        {
+            AdvanceCardCleanup((float)delta);
+            return;
+        }
+
         var moved = false;
 
         foreach (var card in _cards)
@@ -351,6 +464,149 @@ public partial class PokerBoardPresenter : Node3D
 
         if (!HasPendingCardMotion())
             SetProcess(false);
+    }
+
+    public void BeginCardCleanup(
+        float returnSeconds, float stagger, float gatherHoldSeconds, float shuffleSeconds,
+        int totalCardSlots = 20, int startSlot = 0)
+    {
+        if (_cleaningUp)
+            return;
+
+        _cleaningUp = true;
+        _collectionFinished = false;
+        _cleanupElapsed = 0.0f;
+        _returnSeconds = Mathf.Max(0.01f, returnSeconds);
+        _returnEnd = _returnSeconds
+            + Mathf.Max(0, totalCardSlots - 1) * Mathf.Max(0.0f, stagger);
+        _gatherHoldSeconds = Mathf.Max(0.0f, gatherHoldSeconds);
+        _shuffleSeconds = Mathf.Max(0.0f, shuffleSeconds);
+        _deckRest = _deck?.Transform ?? Transform3D.Identity;
+        for (var index = 0; index < _deckCards.Count; index++)
+        {
+            if (index < _deckCardRest.Count)
+                _deckCardRest[index] = _deckCards[index].Transform;
+        }
+
+        var visibleIndex = 0;
+        foreach (var card in _cards)
+        {
+            card.CleanupFrom = card.Node.Transform;
+            card.CleanupDelay = (startSlot + visibleIndex) * Mathf.Max(0.0f, stagger);
+            card.CleanupSlot = startSlot + visibleIndex;
+            card.CleanupFaceDown = false;
+            if (card.Node.Visible)
+                visibleIndex++;
+        }
+
+        SetProcess(true);
+    }
+
+    private void AdvanceCardCleanup(float delta)
+    {
+        _cleanupElapsed += Mathf.Max(0.0f, delta);
+        var targetBasis = DeckCardBasis;
+        foreach (var card in _cards)
+        {
+            if (!card.Node.Visible)
+                continue;
+
+            var raw = (_cleanupElapsed - card.CleanupDelay) / _returnSeconds;
+            var t = Mathf.Clamp(raw, 0.0f, 1.0f);
+            if (t >= 1.0f && !card.CleanupFaceDown)
+            {
+                card.Node.Configure(0, CommunityCardSpec, faceDown: true);
+                card.CleanupFaceDown = true;
+            }
+
+            var target = CollectionTarget(card.CleanupSlot);
+            var position = PokerMotion.CardThrow(card.CleanupFrom.Origin, target, t, 0.040f,
+                PokerChipPile.Noise(card.CleanupSlot, 61) * 0.010f);
+            var basis = card.CleanupFrom.InterpolateWith(
+                new Transform3D(targetBasis, target), PokerMotion.Smooth(t)).Basis;
+            card.Node.Transform = new Transform3D(basis, position);
+        }
+
+        // Keep the complete pile visible for a short beat. This separates collecting from
+        // shuffling instead of making the last card vanish as the deck starts moving.
+        if (_cleanupElapsed >= ShuffleStart)
+        {
+            _collectionFinished = true;
+            foreach (var card in _cards)
+                card.Node.Visible = false;
+        }
+
+        if (_deck != null && _cleanupElapsed >= ShuffleStart && _shuffleSeconds > 0.0f)
+        {
+            var shuffle = Mathf.Clamp((_cleanupElapsed - ShuffleStart) / _shuffleSeconds, 0.0f, 1.0f);
+            AnimateDetailedShuffle(shuffle);
+        }
+
+        if (_cleanupElapsed >= ShuffleStart + _shuffleSeconds)
+            EndCardCleanup();
+    }
+
+    private void AnimateDetailedShuffle(float shuffle)
+    {
+        if (_deck == null || _deckCards.Count == 0)
+            return;
+
+        var halfCount = Mathf.Max(1, (_deckCards.Count + 1) / 2);
+        // Separate, briefly hold, interleave, then square the deck in distinct readable phases.
+        var split = Smooth(Mathf.Clamp(shuffle / 0.27f, 0.0f, 1.0f));
+        for (var index = 0; index < _deckCards.Count; index++)
+        {
+            var source = _deckCardRest[index];
+            var rightHalf = index >= halfCount;
+            var within = rightHalf ? index - halfCount : index;
+            var side = rightHalf ? 1.0f : -1.0f;
+            var merge = Smooth(Mathf.Clamp(
+                (shuffle - 0.35f - within * 0.040f) / 0.34f, 0.0f, 1.0f));
+            var layer = Mathf.Min(_deckCards.Count - 1, within * 2 + (rightHalf ? 1 : 0));
+            var target = new Transform3D(
+                new Basis(Vector3.Up, (layer % 2 == 0 ? 1.0f : -1.0f) * 0.012f)
+                * PokerCard.Orientation(true),
+                new Vector3(0.0f, (layer + 0.5f) * Spec.CardThickness * 1.6f, 0.0f));
+
+            var separated = source.Origin
+                + Vector3.Right * (side * ShuffleSplitDistance * split)
+                + Vector3.Back * ((within - (halfCount - 1) * 0.5f) * 0.0025f * split);
+            var position = separated.Lerp(target.Origin, merge);
+            position.Y += Mathf.Sin(merge * Mathf.Pi) * ShuffleLift;
+            var splitBasis = source.Basis * new Basis(Vector3.Up,
+                side * Mathf.DegToRad(ShuffleHalfYawDegrees) * split);
+            var basis = new Transform3D(splitBasis, separated)
+                .InterpolateWith(target, merge).Basis;
+            _deckCards[index].Transform = new Transform3D(basis, position);
+        }
+
+        // One soft lateral press replaces the former double-frequency tap, which read as a twitch.
+        var square = Mathf.Clamp((shuffle - 0.82f) / 0.18f, 0.0f, 1.0f);
+        var tap = Mathf.Sin(square * Mathf.Pi * 2.0f) * (1.0f - square) * 0.003f;
+        var across = ReaderBasis * Vector3.Right;
+        _deck.Transform = new Transform3D(_deckRest.Basis, _deckRest.Origin + across * tap);
+    }
+
+    private void EndCardCleanup()
+    {
+        _cleaningUp = false;
+        if (_deck != null)
+            _deck.Transform = _deckRest;
+        for (var index = 0; index < _deckCards.Count; index++)
+        {
+            var halfCount = Mathf.Max(1, (_deckCards.Count + 1) / 2);
+            var rightHalf = index >= halfCount;
+            var within = rightHalf ? index - halfCount : index;
+            var layer = Mathf.Min(_deckCards.Count - 1, within * 2 + (rightHalf ? 1 : 0));
+            var target = new Transform3D(
+                new Basis(Vector3.Up, (layer % 2 == 0 ? 1.0f : -1.0f) * 0.012f)
+                * PokerCard.Orientation(true),
+                new Vector3(0.0f, (layer + 0.5f) * Spec.CardThickness * 1.6f, 0.0f));
+            _deckCards[index].Transform = target;
+            if (index < _deckCardRest.Count)
+                _deckCardRest[index] = target;
+        }
+        SetProcess(false);
     }
 
     private bool HasPendingCardMotion()
@@ -389,7 +645,7 @@ public partial class PokerBoardPresenter : Node3D
     private void PlaceAll()
     {
         var spec = Spec;
-        var reader = new Basis(Vector3.Up, ReaderYaw());
+        var reader = ReaderBasis;
 
         for (var index = 0; index < _cards.Count; index++)
         {
@@ -438,17 +694,20 @@ public partial class PokerBoardPresenter : Node3D
             card.WantsFaceUp = false;
             card.ShownId = Poker.Rules.CardId.None;
             card.Wait = dealing ? index * DealStagger : 0.0f;
-            card.Node.Configure(0, Spec, faceDown: true);
+            card.Node.Configure(0, CommunityCardSpec, faceDown: true);
         }
     }
 
     public void Clear()
     {
+        if (_cleaningUp)
+            EndCardCleanup();
         foreach (var card in _cards)
             card.Node.Visible = false;
 
         _handNumber = -1;
         _faceUpCount = 0;
+        _collectionFinished = false;
         PotPile?.Clear();
     }
 

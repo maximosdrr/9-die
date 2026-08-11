@@ -26,23 +26,6 @@ public partial class PokerHandIdleState : State
         View?.PlayClip(ClipName);
     }
 
-    public override void HandleInput(InputEvent @event)
-    {
-        if (View == null || !PokerHand3DView.InputIsLive)
-            return;
-
-        var actionKey = @event.IsActionPressed(PokerInput.Call)
-                        || @event.IsActionPressed(PokerInput.Raise)
-                        || @event.IsActionPressed(PokerInput.Fold)
-                        || @event.IsActionPressed(PokerInput.AllIn);
-
-        if (!actionKey)
-            return;
-
-        View.ShowNotice("Não é a sua vez", 1.5f);
-        View.GetViewport().SetInputAsHandled();
-    }
-
     public override void Process(double delta)
     {
         if (View is { IsYourTurn: true, HasAnyAction: true })

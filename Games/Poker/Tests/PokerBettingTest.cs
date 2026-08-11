@@ -57,6 +57,13 @@ public partial class PokerBettingTest : Node
         Check("diante de uma aposta, passar some",
             facing.All(o => o.Kind != PokerActionKind.Check));
 
+        Check("passar com fichas provisórias devolve as fichas sem bloquear o turno",
+            PokerWagerInteraction.TryPrepareCheck(options, 5, out var returnSelected)
+            && returnSelected);
+        Check("quando ainda há call, passar mantém as fichas para completar o valor",
+            !PokerWagerInteraction.TryPrepareCheck(facing, 5, out var keepSelected)
+            && !keepSelected);
+
         var call = facing.First(o => o.Kind == PokerActionKind.Call);
         Check($"pagar leva ao total da aposta corrente ({call.MinTotal})", call.MinTotal == 60);
 
