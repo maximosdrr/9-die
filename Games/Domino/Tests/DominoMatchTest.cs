@@ -143,6 +143,19 @@ public partial class DominoMatchTest : Node
             return;
 
         var standExit = seat.GetNodeOrNull<Marker3D>("StandExit");
+        Check("a pose autoritativa sentada vem do assento atribuído",
+            controller.TryGetAuthoritativePose(
+                seated: true, out var seatedPosition, out var seatedYaw)
+            && seatedPosition.IsEqualApprox(seat.GlobalPosition)
+            && Mathf.IsZeroApprox(Mathf.AngleDifference(seatedYaw, seat.GlobalRotation.Y)));
+        Check("a pose autoritativa de saída permanece no cache confiável do assento",
+            standExit != null
+            && controller.TryGetAuthoritativePose(
+                seated: false, out var standingPosition, out var standingYaw)
+            && standingPosition.IsEqualApprox(standExit.GlobalPosition)
+            && Mathf.IsZeroApprox(Mathf.AngleDifference(
+                standingYaw, standExit.GlobalRotation.Y)));
+
         controller.GiveControl();
         player.TakeControl();
         Check("levantar restaura movimento, física e colisão do personagem",

@@ -680,6 +680,18 @@ public partial class PokerSceneLoadTest : Node
         AddChild(poker);
         AddChild(domino);
 
+        var sharedDefaults = new SeatedTableController();
+        Check("o poker herda o enquadramento padrão do controlador sentado",
+            Mathf.IsEqualApprox(poker.SeatFov, sharedDefaults.SeatFov)
+            && poker.SeatViewOffset.IsEqualApprox(sharedDefaults.SeatViewOffset)
+            && Mathf.IsEqualApprox(poker.RestPitchDeg, sharedDefaults.RestPitchDeg)
+            && Mathf.IsEqualApprox(poker.TopFov, sharedDefaults.TopFov)
+            && Mathf.IsEqualApprox(poker.TopHeight, sharedDefaults.TopHeight));
+        Check("o dominó preserva o enquadramento próprio definido em sua cena",
+            !Mathf.IsEqualApprox(domino.SeatFov, sharedDefaults.SeatFov)
+            && !Mathf.IsEqualApprox(domino.TopHeight, sharedDefaults.TopHeight));
+        sharedDefaults.Free();
+
         Check($"o FOV sentado preserva uma perspectiva natural ({poker.SeatFov}°)",
             poker.SeatFov >= 45.0f && poker.SeatFov < 75.0f);
 
