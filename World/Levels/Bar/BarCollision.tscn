@@ -1,0 +1,36 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="BoxShape3D" id="BoxShape_front_back"]
+size = Vector3(21.6, 4.5, 0.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape_sides"]
+size = Vector3(0.3, 4.5, 19.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape_lounge"]
+size = Vector3(3.4, 2.0, 4.8)
+
+[node name="BarCollision" type="Node3D"]
+
+[node name="RoomBoundary" type="StaticBody3D" parent="."]
+
+[node name="FrontWall" type="CollisionShape3D" parent="RoomBoundary"]
+position = Vector3(8.1, 2.25, 0.15)
+shape = SubResource("BoxShape_front_back")
+
+[node name="BackWall" type="CollisionShape3D" parent="RoomBoundary"]
+position = Vector3(8.1, 2.25, 19.4)
+shape = SubResource("BoxShape_front_back")
+
+[node name="LeftWall" type="CollisionShape3D" parent="RoomBoundary"]
+position = Vector3(-2.55, 2.25, 9.75)
+shape = SubResource("BoxShape_sides")
+
+[node name="RightWall" type="CollisionShape3D" parent="RoomBoundary"]
+position = Vector3(18.7, 2.25, 9.75)
+shape = SubResource("BoxShape_sides")
+
+[node name="FurnitureCollision" type="StaticBody3D" parent="."]
+
+[node name="RearLounge" type="CollisionShape3D" parent="FurnitureCollision"]
+position = Vector3(14.8, 1.0, 13.0)
+shape = SubResource("BoxShape_lounge")

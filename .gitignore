@@ -11,3 +11,13 @@ bin/
 obj/
 *.sln.orig
 *.tmp_proj
+
+# Godot editor atomic-save leftovers (e.g. Prototype.tscn12345.tmp)
+*.tscn*.tmp
+
+# Native plugin/editor atomic-save leftovers
+*~RF*.TMP
+/addons/godotsteam/win64/~libgodotsteam*.dll
+
+# Local release exports
+outputs/

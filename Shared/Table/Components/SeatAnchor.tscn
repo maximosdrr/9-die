@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[node name="SeatAnchor" type="Marker3D"]
+
+[node name="SeatView" type="Node3D" parent="."]
+
+[node name="StandExit" type="Marker3D" parent="."]

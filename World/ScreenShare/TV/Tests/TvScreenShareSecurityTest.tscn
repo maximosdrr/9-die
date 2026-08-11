@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://World/ScreenShare/TV/Tests/TvScreenShareSecurityTest.cs" id="1_tv_security"]
+
+[node name="TvScreenShareSecurityTest" type="Node"]
+script = ExtResource("1_tv_security")

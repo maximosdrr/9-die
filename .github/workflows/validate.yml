@@ -1,0 +1,119 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/**
+      - bughunt/**
+      - codex/**
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  game:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout with game assets
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Download Godot Mono
+        id: godot
+        shell: pwsh
+        run: |
+          $version = "4.7.1"
+          $archive = Join-Path $env:RUNNER_TEMP "godot-mono.zip"
+          $destination = Join-Path $env:RUNNER_TEMP "godot-mono"
+          $url = "https://github.com/godotengine/godot/releases/download/$version-stable/Godot_v$version-stable_mono_win64.zip"
+
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+
+          $console = Get-ChildItem -LiteralPath $destination -Recurse -File `
+            -Filter "Godot*_console.exe" | Select-Object -First 1
+          if ($null -eq $console) {
+            throw "Godot Mono console executable was not found in the official archive."
+          }
+
+          # Portable mode keeps editor data and export templates inside this CI installation.
+          New-Item -Path (Join-Path $console.Directory.FullName "_sc_") `
+            -ItemType File -Force | Out-Null
+
+          $templatePackage = Join-Path $env:RUNNER_TEMP "godot-mono-templates.tpz"
+          $templateZip = Join-Path $env:RUNNER_TEMP "godot-mono-templates.zip"
+          $templateExtract = Join-Path $env:RUNNER_TEMP "godot-mono-templates"
+          $templateUrl = "https://github.com/godotengine/godot/releases/download/$version-stable/Godot_v$version-stable_mono_export_templates.tpz"
+          Invoke-WebRequest -Uri $templateUrl -OutFile $templatePackage
+          Copy-Item -LiteralPath $templatePackage -Destination $templateZip
+          Expand-Archive -LiteralPath $templateZip -DestinationPath $templateExtract
+
+          $releaseTemplate = Get-ChildItem -LiteralPath $templateExtract -Recurse -File `
+            -Filter "windows_release_x86_64.exe" | Select-Object -First 1
+          if ($null -eq $releaseTemplate) {
+            throw "Windows Mono export template was not found in the official package."
+          }
+
+          $templateDestination = Join-Path $console.Directory.FullName `
+            "editor_data/export_templates/$version.stable.mono"
+          New-Item -Path $templateDestination -ItemType Directory -Force | Out-Null
+          Get-ChildItem -LiteralPath $releaseTemplate.Directory.FullName -File |
+            Copy-Item -Destination $templateDestination -Force
+
+          "bin=$($console.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Build, import and run all tests
+        shell: pwsh
+        run: ./tools/run-tests.ps1 -GodotBin '${{ steps.godot.outputs.bin }}'
+
+      - name: Verify C# formatting
+        shell: pwsh
+        run: dotnet format 9Die.sln --verify-no-changes --no-restore --verbosity minimal
+
+      - name: Verify Release build
+        shell: pwsh
+        run: dotnet build 9Die.sln --configuration Release --no-restore --verbosity minimal
+
+      - name: Export and smoke-test the Release package
+        shell: pwsh
+        run: |
+          $exportDirectory = Join-Path $PWD "outputs/ci"
+          $executable = Join-Path $exportDirectory "9die.exe"
+          New-Item -Path $exportDirectory -ItemType Directory -Force | Out-Null
+
+          $exportOutput = @(
+            & '${{ steps.godot.outputs.bin }}' --headless --path . `
+              --export-release "Windows Desktop" $executable 2>&1
+          )
+          $exportExitCode = $LASTEXITCODE
+          $exportOutput | Write-Host
+          $exportErrors = @($exportOutput | Select-String -Pattern '(?i)(?:SCRIPT ERROR:|ERROR:)')
+          if ($exportExitCode -ne 0 `
+              -or $exportErrors.Count -gt 0 `
+              -or -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+            throw "Release export failed with exit code $exportExitCode and $($exportErrors.Count) engine error(s)."
+          }
+
+          # The exported Windows binary uses the GUI subsystem, so PowerShell's call operator does
+          # not reliably wait or populate LASTEXITCODE. Start-Process gives us a real exit status.
+          $smokeLog = Join-Path $exportDirectory "smoke.log"
+          $smokeArguments = "--headless --quit-after 60 --log-file `"$smokeLog`""
+          $smokeProcess = Start-Process -FilePath $executable `
+            -ArgumentList $smokeArguments -PassThru -Wait -WindowStyle Hidden
+          $smokeOutput = @(Get-Content -LiteralPath $smokeLog)
+          $smokeOutput | Write-Host
+          if ($smokeProcess.ExitCode -ne 0 -or ($smokeOutput -match '(?i)(?:SCRIPT ERROR:|ERROR:)')) {
+            throw "Exported game smoke test failed with exit code $($smokeProcess.ExitCode)."
+          }

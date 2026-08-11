@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Games/Poker/Components/Cards/Scripts/PokerCard.cs" id="1_pcard"]
+
+[node name="PokerCard" type="Node3D" node_paths=PackedStringArray("Face", "Back", "FaceLabel", "AssetVisual")]
+script = ExtResource("1_pcard")
+Face = NodePath("Face")
+Back = NodePath("Back")
+FaceLabel = NodePath("Face/FaceLabel")
+AssetVisual = NodePath("AssetVisual")
+
+[node name="AssetVisual" type="MeshInstance3D" parent="."]
+
+[node name="Face" type="MeshInstance3D" parent="."]
+
+[node name="FaceLabel" type="Label3D" parent="Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.001)
+visible = false
+pixel_size = 0.0004
+billboard = 0
+shaded = false
+double_sided = false
+font_size = 48
+outline_size = 0
+
+[node name="Back" type="MeshInstance3D" parent="."]

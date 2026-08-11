@@ -1,0 +1,106 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://App/UI/Menus/LobbyBrowserView.cs" id="1_view"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/lineedit_normal.tres" id="2_lenorm"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/lineedit_focus.tres" id="3_lefocus"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_primary_focus.tres" id="4_focus"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_secondary_normal.tres" id="5_normal"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_secondary_hover.tres" id="6_hover"]
+[ext_resource type="StyleBox" path="res://App/UI/Theme/Styles/button_secondary_pressed.tres" id="7_pressed"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_buttons"]
+
+[node name="BrowseScreen" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_view")
+
+[node name="BrowseMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 80
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 80
+theme_override_constants/margin_bottom = 40
+
+[node name="BrowseBox" type="VBoxContainer" parent="BrowseMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="HeaderRow" type="HBoxContainer" parent="BrowseMargin/BrowseBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BackButton" type="Button" parent="BrowseMargin/BrowseBox/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/normal = ExtResource("5_normal")
+theme_override_styles/hover = ExtResource("6_hover")
+theme_override_styles/pressed = ExtResource("7_pressed")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_buttons")
+theme_override_styles/focus = ExtResource("4_focus")
+theme_override_colors/font_color = Color(0.207843, 0.721569, 0.878431, 1)
+theme_override_colors/font_hover_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_colors/font_pressed_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 18
+text = "← Voltar"
+
+[node name="BrowseTitle" type="Label" parent="BrowseMargin/BrowseBox/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 30
+text = "Salas Abertas"
+
+[node name="RefreshButton" type="Button" parent="BrowseMargin/BrowseBox/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/normal = ExtResource("5_normal")
+theme_override_styles/hover = ExtResource("6_hover")
+theme_override_styles/pressed = ExtResource("7_pressed")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_buttons")
+theme_override_styles/focus = ExtResource("4_focus")
+theme_override_colors/font_color = Color(0.207843, 0.721569, 0.878431, 1)
+theme_override_colors/font_hover_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_colors/font_pressed_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_font_sizes/font_size = 18
+text = "Atualizar"
+
+[node name="SearchEdit" type="LineEdit" parent="BrowseMargin/BrowseBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/normal = ExtResource("2_lenorm")
+theme_override_styles/focus = ExtResource("3_lefocus")
+theme_override_colors/font_color = Color(0.933333, 0.956863, 0.984314, 1)
+theme_override_colors/font_placeholder_color = Color(0.678431, 0.752941, 0.839216, 0.6)
+theme_override_colors/caret_color = Color(1, 0.823529, 0.247059, 1)
+theme_override_font_sizes/font_size = 18
+placeholder_text = "Buscar por nome da sala..."
+
+[node name="ScrollContainer" type="ScrollContainer" parent="BrowseMargin/BrowseBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LobbyList" type="VBoxContainer" parent="BrowseMargin/BrowseBox/ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NoMatchLabel" type="Label" parent="BrowseMargin/BrowseBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.678431, 0.752941, 0.839216, 1)
+theme_override_font_sizes/font_size = 15
+text = "Nenhuma sala encontrada."
+horizontal_alignment = 1
