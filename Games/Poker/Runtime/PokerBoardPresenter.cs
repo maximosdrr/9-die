@@ -54,10 +54,11 @@ public partial class PokerBoardPresenter : Node3D
     [Export(PropertyHint.Range, "0,12,0.25")] public float ShuffleHalfYawDegrees = 5.0f;
 
     /// <summary>
-    /// Where thrown-away hands land, in the reader's own frame: the dealer's other side, opposite the
-    /// deck, so the discards never pile up on the cards still to come.
+    /// Where thrown-away hands land, in the reader's own frame. Keep the muck on the near half of
+    /// the table and slightly to the side: a folded pair should look like a short toss, while still
+    /// clearing the pot, the player's wager and the chalk controls.
     /// </summary>
-    [Export] public Vector3 MuckOffset = new(-0.30f, 0.0f, -0.16f);
+    [Export] public Vector3 MuckOffset = new(0.12f, 0.0f, 0.24f);
 
     [ExportGroup("Dealing")]
     /// <summary>Where a card slides in from. Zero means "from the deck", which is what it should be.</summary>

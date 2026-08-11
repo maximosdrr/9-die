@@ -497,6 +497,15 @@ public partial class PokerMatchTest : Node
         Check($"e elas param no descarte, longe do assento ({worst * 100.0f:F1} cm do ponto)",
             worst < 0.10f);
 
+        var muckOnTable = new Vector2(muck.X, muck.Z);
+        var towardPlayer = muckOnTable.Dot(board.ReaderFacing);
+        var acrossPlayer = Mathf.Abs(muckOnTable.Cross(board.ReaderFacing));
+        Check("o descarte fica perto do jogador, sem cruzar a mesa",
+            towardPlayer > 0.18f
+            && muckOnTable.Length() < board.Spec.SeatBetRadius);
+        Check("e permanece ao lado do pote e dos controles",
+            acrossPlayer > board.Spec.CardWidth);
+
         Check("e ficam viradas para baixo", thrown.All(card => card.IsFaceDown));
 
         // The hand in front of the eye has to let go at the same moment, or the player is left
