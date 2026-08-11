@@ -6,6 +6,8 @@ using Poker.Rules;
 /// <summary>Crosshair-driven, table-space poker decisions.</summary>
 public partial class PokerHand3DView : PokerHandView
 {
+    public const string ConfirmBetLabelText = "APOSTAR";
+
     [ExportGroup("Table interaction")]
     [Export] public AimCrosshair Crosshair;
 
@@ -16,12 +18,13 @@ public partial class PokerHand3DView : PokerHandView
     [Export] public float ActionZoneRadius = 0.115f;
 
     /// <summary>
-    /// CONFIRMAR APOSTA sits behind the prepared chips, independently from PASSAR/DESISTIR.
+    /// APOSTAR sits behind the prepared chips, independently from PASSAR/DESISTIR.
     /// The centre matches the default betting line; the outward half-ring opens toward the pot.
     /// </summary>
     [Export] public float ConfirmZoneCenterRadius = 0.320f;
     [Export] public float ConfirmZoneInnerRadius = 0.070f;
     [Export] public float ConfirmZoneOuterRadius = 0.110f;
+    [Export(PropertyHint.Range, "0.08,0.24,0.01")] public float ConfirmLabelSpanPi = 0.13f;
     /// <summary>Straight chalk shortcut beside the denomination bank.</summary>
     [Export] public float CallZoneLength = 0.205f;
     [Export] public float CallZoneWidth = 0.032f;
@@ -33,6 +36,8 @@ public partial class PokerHand3DView : PokerHandView
     [Export] public float CallZoneHitPadding = 0.010f;
     [Export(PropertyHint.Range, "0,1,0.01")] public float CallHoverOpacity = 0.34f;
     [Export(PropertyHint.Range, "0.15,0.6,0.01")] public float CallClickMaxSeconds = 0.35f;
+    [Export(PropertyHint.Range, "1,4,0.1")] public float CallLabelCycleSeconds = 2.0f;
+    [Export(PropertyHint.Range, "0.1,0.5,0.01")] public float CallLabelFadeSeconds = 0.24f;
     [Export(PropertyHint.Range, "1,4,0.1")] public float AllInHoldSeconds = 2.0f;
     [Export(PropertyHint.Range, "0,1,0.01")] public float AllInHoldOpacity = 0.58f;
     [Export] public Color AllInHoldColor = new(0.30f, 0.88f, 0.45f, 0.86f);
@@ -63,6 +68,7 @@ public partial class PokerHand3DView : PokerHandView
     private bool _callHoldActive;
     private float _callHoldElapsed;
     private int _callHoldTurn = -1;
+    private float _callHoverElapsed;
     private PokerGesture _queuedTableGesture;
     private int _interactionHand = -1;
     private Vector2 _guideFacing;
@@ -159,6 +165,43 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public static bool IsQuickCallRelease(float heldSeconds, float maxClickSeconds) =>
         heldSeconds >= 0.0f && heldSeconds <= Mathf.Max(0.0f, maxClickSeconds);
+
+    /// <summary>Alternates one short word at a time while the crosshair remains on CALL.</summary>
+    public static string CallLabelForHover(float elapsed, float cycleSeconds)
+    {
+        var interval = Mathf.Max(0.1f, cycleSeconds);
+        var index = Mathf.FloorToInt(Mathf.Max(0.0f, elapsed) / interval);
+        return index % 2 == 0 ? "CALL" : "ALL-IN";
+    }
+
+    /// <summary>Fades out before each word swap and back in afterwards, producing a soft blink.</summary>
+    public static float CallLabelOpacityForHover(
+        float elapsed, float cycleSeconds, float fadeSeconds)
+    {
+        elapsed = Mathf.Max(0.0f, elapsed);
+        var interval = Mathf.Max(0.1f, cycleSeconds);
+        var fade = Mathf.Clamp(fadeSeconds, 0.01f, interval * 0.45f);
+        // The first word starts readable. Subsequent swaps pass through zero opacity so no frame
+        // ever contains CALL and ALL-IN at the same time.
+        if (elapsed < interval - fade)
+            return 1.0f;
+
+        var phase = Mathf.PosMod(elapsed, interval);
+        if (phase > interval - fade)
+            return 1.0f - PokerMotion.Smooth((phase - (interval - fade)) / fade);
+        if (phase < fade)
+            return PokerMotion.Smooth(phase / fade);
+        return 1.0f;
+    }
+
+    public void AdvanceCallLabelCycle(float delta)
+    {
+        if (_callHoldActive || _hoveredZone != InteractionZone.Call)
+            return;
+
+        _callHoverElapsed += Mathf.Max(0.0f, delta);
+        UpdateCallHoldVisual();
+    }
 
     private PokerGesture BeginCallHold()
     {
@@ -387,7 +430,7 @@ public partial class PokerHand3DView : PokerHandView
             PokerWagerProblem.NoChipsSelected =>
                 HasAction(PokerActionKind.Check)
                     ? "Use PASSAR para encerrar sem apostar"
-                    : "Selecione fichas antes de usar CONFIRMAR APOSTA",
+                    : "Selecione fichas antes de usar APOSTAR",
             PokerWagerProblem.BelowMinimum =>
                 $"A aposta mínima exige {Mathf.Max(0, required)} fichas",
             PokerWagerProblem.AboveMaximum =>
@@ -541,6 +584,7 @@ public partial class PokerHand3DView : PokerHandView
         if (_hoveredZone == zone)
             return;
 
+        _callHoverElapsed = 0.0f;
         _hoveredZone = zone;
         foreach (var entry in _zoneFillMaterials)
         {
@@ -580,15 +624,18 @@ public partial class PokerHand3DView : PokerHandView
         if (!_zoneLabels.TryGetValue(InteractionZone.Call, out var labels))
             return;
 
-        var remaining = Mathf.Max(0.0f, AllInHoldSeconds - _callHoldElapsed);
         var text = _callHoldActive
-            ? $"ALL-IN {remaining:0.0}s"
-            : HasAction(PokerActionKind.Raise)
-                ? HasAction(PokerActionKind.Call) ? "CALL · SEGURE ALL-IN" : "SEGURE · ALL-IN"
+            ? "ALL-IN"
+            : _hoveredZone == InteractionZone.Call
+                ? CallLabelForHover(_callHoverElapsed, CallLabelCycleSeconds)
                 : "CALL";
+        var hoverOpacity = _hoveredZone == InteractionZone.Call
+            ? CallLabelOpacityForHover(
+                _callHoverElapsed, CallLabelCycleSeconds, CallLabelFadeSeconds)
+            : ChalkGuideColor.A;
         var colour = _callHoldActive
             ? AllInHoldColor with { A = 1.0f }
-            : ChalkGuideColor with { A = _hoveredZone == InteractionZone.Call ? 1.0f : ChalkGuideColor.A };
+            : ChalkGuideColor with { A = hoverOpacity };
         foreach (var label in labels)
         {
             label.Text = text;
@@ -672,14 +719,14 @@ public partial class PokerHand3DView : PokerHandView
         AddChalkLabel(InteractionZone.Fold, "Fold", "DESISTIR",
             SemicirclePoint(actionCentre, inward, across, actionLabelRadius, -Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
-        AddCurvedChalkLabel(InteractionZone.ConfirmBet, "CONFIRMAR APOSTA",
+        AddCurvedChalkLabel(InteractionZone.ConfirmBet, ConfirmBetLabelText,
             confirmCentre, confirmOutward, across,
             (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
-            Mathf.Pi * 0.34f, Mathf.RoundToInt(ChalkGuideFontSize * 0.60f),
+            Mathf.Pi * ConfirmLabelSpanPi, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f),
             reverseGlyphUp: true);
         if (hasCallFrame)
             AddAlignedChalkLabel(InteractionZone.Call, "Call", "CALL", callCentre,
-                callAlong, -callAcross, Mathf.RoundToInt(ChalkGuideFontSize * 0.58f));
+                callAlong, -callAcross, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
         UpdateCallHoldVisual();
     }
 

@@ -31,7 +31,7 @@ public partial class PokerHud : CanvasLayer
         if (HintsLabel != null)
         {
             HintsLabel.Text = "Segure o botão direito para olhar suas cartas"
-                              + " · clique nas fichas e depois em CONFIRMAR APOSTA"
+                              + " · clique nas fichas e depois em APOSTAR"
                               + " · clique CALL para pagar ou segure para ALL-IN"
                               + "\nMire e clique em PASSAR/DESISTIR"
                               + " · T vista de cima · E levantar · Q (segurar) sair";

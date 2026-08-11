@@ -238,14 +238,23 @@ public partial class PokerSeatPresenter : Node3D
             return;
 
         var facing = BoardPresenter.ReaderFacing.Normalized();
-        var across = new Vector2(-facing.Y, facing.X);
         var boardPlace = BoardPresenter.PotPosition
                          + new Vector3(facing.X, 0.0f, facing.Y) * PotValueLabelOffset;
         var place = ToLocal(BoardPresenter.ToGlobal(boardPlace));
         _potValueLabel.Text = $"POTE {_game.PotTotal}";
-        _potValueLabel.Transform = TableLabelTransform(
-            new Vector2(place.X, place.Z), across, -facing);
+        // Use the exact basis already proven by PASSAR/DESISTIR. Building it from ad-hoc right/up
+        // axes produced a mirrored plane whose apparent rotation changed with the chair.
+        var boardBasis = ReaderTableLabelBasis(facing);
+        var localBasis = GlobalTransform.Basis.Inverse()
+                         * BoardPresenter.GlobalTransform.Basis * boardBasis;
+        _potValueLabel.Transform = new Transform3D(
+            localBasis, new Vector3(place.X, 0.0042f, place.Z));
     }
+
+    public static Basis ReaderTableLabelBasis(Vector2 facing) =>
+        Basis.FromEuler(new Vector3(
+            0.0f, PokerTableLayout.YawTowardCentre(facing.Normalized()), 0.0f))
+        * new Basis(Vector3.Right, -Mathf.Pi * 0.5f);
 
     /// <summary>
     /// Puts a physical count beside every denomination bank. The baseline follows the same diagonal

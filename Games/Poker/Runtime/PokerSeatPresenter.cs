@@ -41,8 +41,8 @@ public partial class PokerSeatPresenter : Node3D
     [ExportGroup("Chalk values")]
     [Export] public Font ChalkFont;
     [Export] public Color ChalkValueColor = new(0.95f, 0.93f, 0.86f, 0.86f);
-    [Export(PropertyHint.Range, "36,72,2")] public int ChalkValueFontSize = 52;
-    [Export] public float ChalkValuePixelSize = 0.00018f;
+    [Export(PropertyHint.Range, "36,80,2")] public int ChalkValueFontSize = 64;
+    [Export] public float ChalkValuePixelSize = 0.00022f;
     /// <summary>Moves POTE from the physical pile toward this peer's chair.</summary>
     [Export] public float PotValueLabelOffset = 0.068f;
     /// <summary>Places FICHAS opposite the CALL plate, parallel to the denomination lane.</summary>

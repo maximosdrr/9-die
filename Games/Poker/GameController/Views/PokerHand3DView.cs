@@ -161,6 +161,7 @@ public partial class PokerHand3DView : PokerHandView
         AdvanceCallHold((float)delta);
         AdvanceAutomaticCall();
         UpdateInteractionVisibility();
+        AdvanceCallLabelCycle((float)delta);
 
         // Read in _Process rather than _PhysicsProcess so the hand does not swim a frame behind the
         // RemoteTransform3D that drives the camera.

@@ -101,8 +101,8 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter is { BoardPresenter: not null, Seats: not null, CardScene: not null });
         Check("pote e bancos recebem valores físicos com a mesma tipografia de giz",
             seatPresenter is { ChalkFont: not null,
-                ChalkValueFontSize: >= 46 and <= 60,
-                ChalkValuePixelSize: >= 0.00015f and <= 0.00022f,
+                ChalkValueFontSize: >= 62 and <= 70,
+                ChalkValuePixelSize: >= 0.00021f and <= 0.00025f,
                 PotValueLabelOffset: >= 0.055f and <= 0.080f,
                 StackValueLabelSideOffset: >= 0.045f and <= 0.065f });
         Check("o servidor e a apresentacao usam o mesmo perfil temporal",
@@ -708,7 +708,8 @@ public partial class PokerSceneLoadTest : Node
                 ActionZoneRadius: >= 0.10f and <= 0.13f,
                 ConfirmZoneCenterRadius: >= 0.30f and <= 0.34f,
                 ConfirmZoneInnerRadius: >= 0.06f and <= 0.08f,
-                ConfirmZoneOuterRadius: >= 0.10f and <= 0.12f }
+                ConfirmZoneOuterRadius: >= 0.10f and <= 0.12f,
+                ConfirmLabelSpanPi: >= 0.10f and <= 0.16f }
             && hand.ConfirmZoneOuterRadius > hand.ConfirmZoneInnerRadius
             && Mathf.IsEqualApprox(
                 hand.ConfirmZoneCenterRadius, PokerLayoutSpec.Default.SeatBetRadius)
@@ -723,6 +724,8 @@ public partial class PokerSceneLoadTest : Node
                 CallZoneHitPadding: >= 0.008f and <= 0.012f,
                 CallHoverOpacity: >= 0.30f and <= 0.38f,
                 CallClickMaxSeconds: >= 0.30f and <= 0.40f,
+                CallLabelCycleSeconds: >= 1.9f and <= 2.1f,
+                CallLabelFadeSeconds: >= 0.18f and <= 0.32f,
                 AllInHoldSeconds: >= 1.9f and <= 2.1f,
                 AllInHoldOpacity: > 0.4f and <= 0.7f }
             && hand.CallZoneSideOffset
@@ -731,7 +734,18 @@ public partial class PokerSceneLoadTest : Node
             && typeof(PokerSeatPresenter).GetMethod("TryPrepareAutomaticWager") != null
             && typeof(PokerHand3DView).GetMethod("TryConsumeTableGesture") != null
             && typeof(PokerHand3DView).GetMethod("HandleTableRelease") != null
-            && typeof(PokerHand3DView).GetMethod("AdvanceCallHold") != null);
+            && typeof(PokerHand3DView).GetMethod("AdvanceCallHold") != null
+            && typeof(PokerHand3DView).GetMethod("AdvanceCallLabelCycle") != null);
+        Check("o CALL alterna com ALL-IN sem juntar os dois textos",
+            PokerHand3DView.CallLabelForHover(0.0f, 2.0f) == "CALL"
+            && PokerHand3DView.CallLabelForHover(1.99f, 2.0f) == "CALL"
+            && PokerHand3DView.CallLabelForHover(2.0f, 2.0f) == "ALL-IN"
+            && PokerHand3DView.CallLabelForHover(3.99f, 2.0f) == "ALL-IN"
+            && PokerHand3DView.CallLabelForHover(4.0f, 2.0f) == "CALL"
+            && PokerHand3DView.CallLabelOpacityForHover(0.0f, 2.0f, 0.24f) > 0.99f
+            && PokerHand3DView.CallLabelOpacityForHover(2.0f, 2.0f, 0.24f) < 0.01f);
+        Check("a confirmação curta e legível agora se chama APOSTAR",
+            PokerHand3DView.ConfirmBetLabelText == "APOSTAR");
         Check("CALL só aceita uma liberação realmente rápida",
             PokerHand3DView.IsQuickCallRelease(0.12f, hand?.CallClickMaxSeconds ?? 0.0f)
             && PokerHand3DView.IsQuickCallRelease(0.35f, hand?.CallClickMaxSeconds ?? 0.0f)

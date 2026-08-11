@@ -267,10 +267,14 @@ public partial class PokerMatchTest : Node
 
         var presenter = game.SeatPresenter;
         var localId = game.Player == null ? "" : (string)game.Player.Name;
+        var potFacing = game.BoardPresenter.ReaderFacing.Normalized();
+        var expectedPotBasis = PokerSeatPresenter.ReaderTableLabelBasis(potFacing);
         Check("o valor do pote está escrito no feltro, não no canto da tela",
             presenter?.PotValueLabel is { Visible: true } potLabel
             && potLabel.Text == $"POTE {game.PotTotal}"
-            && potLabel.Font == presenter.ChalkFont);
+            && potLabel.Font == presenter.ChalkFont
+            && potLabel.Basis.X.Dot(expectedPotBasis.X) > 0.99f
+            && potLabel.Basis.Y.Dot(expectedPotBasis.Y) > 0.99f);
         Check("o saldo acompanha o banco físico e sua orientação",
             presenter?.StackValueLabelOf(localId) is { Visible: true } stackLabel
             && stackLabel.Text == $"FICHAS {game.StackOf(localId)}"
