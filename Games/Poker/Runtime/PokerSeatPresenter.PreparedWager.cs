@@ -145,6 +145,53 @@ public partial class PokerSeatPresenter : Node3D
     }
 
     /// <summary>
+    /// Selects from the real 3D chip positions under the camera-centre ray. This remains correct
+    /// when the presenter, table height, bank angle or stack offsets are edited in the scene.
+    /// </summary>
+    public bool TrySelectPreparedChipAtRay(
+        string playerId, Vector3 rayOrigin, Vector3 rayDirection, out int denomination)
+    {
+        denomination = 0;
+        if (_preparedSubmitted || !IsLocalWagerPlayer(playerId)
+            || !_stacks.TryGetValue(playerId, out var bankPile)
+            || !_bankRuns.TryGetValue(playerId, out var bank) || bank.Count == 0
+            || !ValidAimRay(rayOrigin, rayDirection))
+            return false;
+
+        rayDirection = rayDirection.Normalized();
+        var pickRadius = Mathf.Max(
+            PreparedChipPickRadius, bankPile.EffectiveDiameter * 0.75f);
+        var lane = -1;
+        var nearestRayDistance = float.MaxValue;
+        var nearestDepth = float.MaxValue;
+
+        for (var index = 0; index < bank.Count; index++)
+        {
+            if (bank[index].Count <= 0)
+                continue;
+
+            var x = LaneOffset(index, bank.Count, bankPile.StackSpacing);
+            var topCentre = bankPile.ToGlobal(new Vector3(
+                x,
+                (bank[index].Count - 0.5f) * bankPile.EffectiveThickness,
+                0.0f));
+            if (!TryRayDistance(rayOrigin, rayDirection, topCentre,
+                    out var rayDistance, out var depth)
+                || rayDistance > pickRadius
+                || rayDistance > nearestRayDistance + 0.0001f
+                || (Mathf.IsEqualApprox(rayDistance, nearestRayDistance)
+                    && depth >= nearestDepth))
+                continue;
+
+            lane = index;
+            nearestRayDistance = rayDistance;
+            nearestDepth = depth;
+        }
+
+        return lane >= 0 && TrySelectPreparedLane(playerId, lane, out denomination);
+    }
+
+    /// <summary>
     /// Builds an exact physical call from the same stable bank used by manual selection. It creates
     /// the ordinary prepared actors one by one, so replication, sound and the later push all reuse
     /// the established path instead of inventing a shortcut-only visual.
@@ -260,6 +307,49 @@ public partial class PokerSeatPresenter : Node3D
             selected = chip;
             highest = height;
             nearest = distance;
+        }
+
+        if (selected == null)
+            return false;
+
+        denomination = selected.Denomination;
+        BeginPreparedReturn(selected);
+        return true;
+    }
+
+    /// <summary>Returns the staged chip whose actual rendered centre is nearest the aim ray.</summary>
+    public bool TryReturnPreparedChipAtRay(
+        string playerId, Vector3 rayOrigin, Vector3 rayDirection, out int denomination)
+    {
+        denomination = 0;
+        if (_preparedSubmitted || !IsLocalWagerPlayer(playerId)
+            || playerId != _preparedPlayerId || !ValidAimRay(rayOrigin, rayDirection))
+            return false;
+
+        rayDirection = rayDirection.Normalized();
+        PreparedChip selected = null;
+        var nearestRayDistance = float.MaxValue;
+        var nearestDepth = float.MaxValue;
+        for (var index = _preparedChips.Count - 1; index >= 0; index--)
+        {
+            var chip = _preparedChips[index];
+            if (!chip.Included || !IsInstanceValid(chip.Pile))
+                continue;
+
+            var centre = PreparedChipWorldCentre(chip.Pile);
+            var radius = Mathf.Max(
+                PreparedChipPickRadius, chip.Pile.EffectiveDiameter * 0.75f);
+            if (!TryRayDistance(rayOrigin, rayDirection, centre,
+                    out var rayDistance, out var depth)
+                || rayDistance > radius
+                || rayDistance > nearestRayDistance + 0.0001f
+                || (Mathf.IsEqualApprox(rayDistance, nearestRayDistance)
+                    && depth >= nearestDepth))
+                continue;
+
+            selected = chip;
+            nearestRayDistance = rayDistance;
+            nearestDepth = depth;
         }
 
         if (selected == null)
@@ -407,7 +497,7 @@ public partial class PokerSeatPresenter : Node3D
         // thickness, so the result is compact without ever occupying the same volume.
         betSlot = StablePreparedBaseBetSlot(playerId)
                   + _preparedChips.Count(chip => chip.Included);
-        target = bet + basis * PokerChipContactLayout.RootOffset(
+        target = PreparedBetPlace(playerId, bet) + basis * PokerChipContactLayout.RootOffset(
             betSlot, bankPile.EffectiveDiameter, bankPile.EffectiveThickness);
         return true;
     }
@@ -434,7 +524,8 @@ public partial class PokerSeatPresenter : Node3D
         var slot = StablePreparedBaseBetSlot(_preparedPlayerId);
         foreach (var chip in _preparedChips.Where(chip => chip.Included))
         {
-            var target = bet + basis * PokerChipContactLayout.RootOffset(
+            var target = PreparedBetPlace(_preparedPlayerId, bet)
+                         + basis * PokerChipContactLayout.RootOffset(
                 slot, bankPile.EffectiveDiameter, bankPile.EffectiveThickness);
             if (chip.BetSlot != slot || chip.To.DistanceTo(target) > 0.0001f)
             {
@@ -542,6 +633,56 @@ public partial class PokerSeatPresenter : Node3D
         var world = BoardPresenter.ToGlobal(new Vector3(boardAim.X, 0.0f, boardAim.Y));
         var local = ToLocal(world);
         return new Vector2(local.X, local.Z);
+    }
+
+    /// <summary>
+    /// Tentative chips stop just before the committed bet on their path from the bank to the centre.
+    /// PreparedWagerForwardInset is therefore a real editor control, and confirming the wager has a
+    /// visible short push into the betting row.
+    /// </summary>
+    private Vector3 PreparedBetPlace(string playerId, Vector3 committedBet)
+    {
+        var seat = SeatNodeFor(playerId);
+        if (seat == null)
+            return committedBet;
+
+        var seatLocal = ToLocal(seat.GlobalPosition);
+        var outward = new Vector2(seatLocal.X, seatLocal.Z);
+        if (outward.LengthSquared() < 1e-6f)
+            return committedBet;
+
+        outward = outward.Normalized();
+        return committedBet + new Vector3(outward.X, 0.0f, outward.Y)
+            * Mathf.Max(0.0f, PreparedWagerForwardInset);
+    }
+
+    private static Vector3 PreparedChipWorldCentre(PokerChipPile pile)
+    {
+        foreach (var child in pile.GetChildren())
+        {
+            if (child is Node3D { Visible: true } visual)
+                return visual.GlobalPosition;
+        }
+
+        return pile.ToGlobal(Vector3.Up * pile.EffectiveThickness * 0.5f);
+    }
+
+    private static bool ValidAimRay(Vector3 origin, Vector3 direction) =>
+        origin.IsFinite() && direction.IsFinite() && direction.LengthSquared() > 1e-6f;
+
+    private static bool TryRayDistance(
+        Vector3 origin, Vector3 direction, Vector3 point,
+        out float distance, out float depth)
+    {
+        depth = (point - origin).Dot(direction);
+        if (depth <= 0.0f)
+        {
+            distance = float.MaxValue;
+            return false;
+        }
+
+        distance = point.DistanceTo(origin + direction * depth);
+        return float.IsFinite(distance);
     }
 
     private static float LaneOffset(int lane, int laneCount, float spacing) =>

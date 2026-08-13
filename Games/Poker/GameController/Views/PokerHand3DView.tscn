@@ -178,7 +178,7 @@ _data = {
 &"HandThrowChips": SubResource("Animation_chips")
 }
 
-[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "Hud", "MessageLabel", "AnimationPlayer", "Crosshair")]
+[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "Hud", "AnimationPlayer", "Crosshair")]
 script = ExtResource("1_pview")
 HandRig = NodePath("HandRig")
 CardHandPose = NodePath("HandRig/Hand/CardHandPose")
@@ -187,7 +187,6 @@ CardScene = ExtResource("2_pcard")
 CardHandVisualMount = NodePath("HandRig/Hand/CardHandPose/VisualMount")
 ChipHandVisualMount = NodePath("HandRig/LeftHand/VisualMount")
 Hud = NodePath("PokerHud")
-MessageLabel = NodePath("MessageLabel")
 AnimationPlayer = NodePath("HandRig/AnimationPlayer")
 Crosshair = NodePath("AimHud/Crosshair")
 ChalkFont = ExtResource("9_chalk")
@@ -211,14 +210,6 @@ ChalkHoverShader = ExtResource("10_chalk_hover")
 libraries = {
 &"": SubResource("AnimationLibrary_hand")
 }
-
-[node name="MessageLabel" type="Label3D" parent="."]
-visible = false
-billboard = 1
-pixel_size = 0.0005
-font_size = 56
-outline_size = 14
-modulate = Color(1, 0.85, 0.55, 1)
 
 [node name="PokerHud" parent="." instance=ExtResource("3_phud")]
 

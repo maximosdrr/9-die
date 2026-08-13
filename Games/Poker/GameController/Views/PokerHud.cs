@@ -12,6 +12,7 @@ public partial class PokerHud : CanvasLayer
 {
     [Export] public Control Root;
     [Export] public Label HintsLabel;
+    [Export] public Label NoticeLabel;
 
     [ExportGroup("Showdown announcement")]
     [Export] public Control ShowdownAnnouncement;
@@ -23,6 +24,21 @@ public partial class PokerHud : CanvasLayer
     private Tween _showdownTween;
     private bool _showdownWasActive;
     private int _announcedShowdownHand = -1;
+
+    public void ShowNotice(string text)
+    {
+        if (NoticeLabel == null)
+            return;
+
+        NoticeLabel.Text = text ?? "";
+        NoticeLabel.Visible = !string.IsNullOrWhiteSpace(text);
+    }
+
+    public void HideNotice()
+    {
+        if (NoticeLabel != null)
+            NoticeLabel.Visible = false;
+    }
 
     public override void _Ready()
     {
@@ -58,6 +74,8 @@ public partial class PokerHud : CanvasLayer
     {
         if (Root != null)
             Root.Visible = visible;
+        if (!visible)
+            HideNotice();
     }
 
     public void Refresh(

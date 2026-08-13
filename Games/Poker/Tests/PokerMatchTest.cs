@@ -394,10 +394,14 @@ public partial class PokerMatchTest : Node
 
         var bankBefore = presenter.StackChipPositions(playerId);
         var top = bankBefore.Values.FirstOrDefault();
+        var topWorld = presenter.ToGlobal(top);
+        var selectionRayOrigin = topWorld + new Vector3(0.12f, 0.35f, -0.18f);
+        var selectionRayDirection = selectionRayOrigin.DirectionTo(topWorld);
         var value = 0;
         var selected = bankBefore.Count > 0
-            && presenter.TrySelectPreparedChip(playerId, new Vector2(top.X, top.Z), out value);
-        Check("clicar numa coluna retira uma ficha real e prepara seu valor",
+            && presenter.TrySelectPreparedChipAtRay(
+                playerId, selectionRayOrigin, selectionRayDirection, out value);
+        Check("o raio 3D na coluna visual retira a ficha real e prepara seu valor",
             selected && value > 0 && presenter.PreparedWagerAmount == value
             && presenter.PreparedWagerChipCount == 1);
 
@@ -417,12 +421,22 @@ public partial class PokerMatchTest : Node
         var betPlace = PokerTableLayout.SeatSpot(facing, game.BoardPresenter.Spec.SeatBetRadius);
         var distanceToCommittedBet = prepared.Count == 0
             ? float.MaxValue : prepared[0].DistanceTo(betPlace);
-        Check($"a ficha selecionada se junta ao blind/aposta ({distanceToCommittedBet * 100.0f:F1} cm)",
-            distanceToCommittedBet < 0.05f);
+        var stagedOutward = prepared.Count == 0
+            ? float.MinValue : (prepared[0] - betPlace).Dot(facing);
+        Check($"a ficha selecionada usa a área Stage antes da aposta "
+              + $"({distanceToCommittedBet * 100.0f:F1} cm de avanço)",
+            stagedOutward > 0.0f
+            && Mathf.Abs(distanceToCommittedBet - presenter.PreparedWagerForwardInset) < 0.012f);
+        var preparedWorld = prepared.Count == 0
+            ? Vector3.Zero
+            : presenter.ToGlobal(new Vector3(prepared[0].X, 0.0f, prepared[0].Y));
+        var returnRayOrigin = preparedWorld + new Vector3(-0.14f, 0.32f, -0.16f);
+        var returnRayDirection = returnRayOrigin.DirectionTo(preparedWorld);
         var returnedValue = 0;
         var returned = prepared.Count == 1
-            && presenter.TryReturnPreparedChip(playerId, prepared[0], out returnedValue);
-        Check("clicar na ficha preparada inicia a devolucao para a coluna original",
+            && presenter.TryReturnPreparedChipAtRay(
+                playerId, returnRayOrigin, returnRayDirection, out returnedValue);
+        Check("o raio 3D na ficha preparada inicia a devolucao para a coluna original",
             returned && returnedValue == value && presenter.PreparedWagerAmount == 0);
 
         for (var frame = 0; frame < 30; frame++)

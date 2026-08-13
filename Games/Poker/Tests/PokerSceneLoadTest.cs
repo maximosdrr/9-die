@@ -102,12 +102,38 @@ public partial class PokerSceneLoadTest : Node
                 CommunityCardsAnchor: not null,
                 ActionGuideAnchor: not null,
                 PreviewCamera: not null,
-                FirstPersonHandsPreview: not null
+                FirstPersonHandsPreview: not null,
+                FirstPersonCardsPose: not null,
+                FirstPersonCard0Pose: not null,
+                FirstPersonCard1Pose: not null
             });
         Check("baralho e comunitárias usam os marcadores editáveis",
             game.BoardPresenter?.DeckAnchor == game.ExperienceAuthoring?.DeckAnchor
             && game.BoardPresenter?.CommunityCardsAnchor
                == game.ExperienceAuthoring?.CommunityCardsAnchor);
+        if (game.ExperienceAuthoring != null)
+        {
+            var previewHand = GD.Load<PackedScene>(
+                    "res://Games/Poker/GameController/Views/PokerHand3DView.tscn")
+                ?.Instantiate<PokerHand3DView>();
+            game.ExperienceAuthoring.ApplyTo(previewHand);
+            // The runtime cache is captured in _Ready before preview-only nodes are queued for
+            // removal; ApplyTo is the public contract being verified here.
+            Check("o marcador visual transfere posição e rotação ao controller em primeira pessoa",
+                previewHand != null
+                && previewHand.HandPose.Origin.IsFinite()
+                && previewHand.HandPose.Basis.GetRotationQuaternion().IsFinite()
+                && !previewHand.HandPose.Basis.IsEqualApprox(Basis.Identity));
+            Check("o marcador das cartas transfere posição e rotação independentemente",
+                previewHand != null
+                && previewHand.CardsInHandPose.Origin.IsFinite()
+                && previewHand.CardsInHandPose.Basis.GetRotationQuaternion().IsFinite()
+                && !previewHand.CardsInHandPose.Basis.IsEqualApprox(Basis.Identity)
+                && previewHand.Card0InHandPose.Origin.IsFinite()
+                && previewHand.Card1InHandPose.Origin.IsFinite()
+                && !previewHand.Card0InHandPose.IsEqualApprox(previewHand.Card1InHandPose));
+            previewHand?.Free();
+        }
         if (game.ExperienceAuthoring != null && game.BoardPresenter != null)
         {
             var canonical = new Vector2(0.0f,
@@ -119,6 +145,46 @@ public partial class PokerSceneLoadTest : Node
                 game.BoardPresenter, Vector2.Down, new Vector2(onBoard.X, onBoard.Z));
             Check("o clique acompanha a posição visual do arco",
                 remapped.DistanceTo(canonical) < 0.0001f);
+
+            var boardSeat0 = game.BoardPresenter.CommunityCardsTransformFor(Vector2.Down);
+            var boardSeat1 = game.BoardPresenter.CommunityCardsTransformFor(Vector2.Right);
+            var seatTurn = new Basis(Vector3.Up,
+                PokerTableLayout.YawTowardCentre(Vector2.Right)
+                - PokerTableLayout.YawTowardCentre(Vector2.Down));
+            Check("as cartas comunitarias acompanham o mesmo lado de leitura do HUD",
+                boardSeat1.Origin.DistanceTo(seatTurn * boardSeat0.Origin) < 0.0001f
+                && boardSeat1.Basis.X.Dot((seatTurn * boardSeat0.Basis).X) > 0.9999f
+                && boardSeat1.Basis.Z.Dot((seatTurn * boardSeat0.Basis).Z) > 0.9999f);
+
+            var guidePlane = new Node3D { TopLevel = true };
+            var aimCamera = new Camera3D();
+            AddChild(guidePlane);
+            AddChild(aimCamera);
+            aimCamera.Current = true;
+            guidePlane.GlobalTransform = game.BoardPresenter.GlobalTransform * frame;
+            var checkCentre = new Vector3(
+                game.ExperienceAuthoring.ActionZoneRadius * 0.45f,
+                0.0f,
+                -game.ExperienceAuthoring.InteractionZoneCenterRadius
+                + game.ExperienceAuthoring.ActionZoneRadius * 0.45f);
+            var checkWorld = guidePlane.ToGlobal(checkCentre);
+            var seatEye = game.Seats.GetChild(0)?.GetNodeOrNull<Node3D>("SeatView");
+            aimCamera.GlobalPosition = seatEye?.GlobalPosition
+                                       ?? checkWorld + new Vector3(0.0f, 0.5f, -0.5f);
+            aimCamera.LookAt(checkWorld, Vector3.Up);
+            aimCamera.ForceUpdateTransform();
+            guidePlane.ForceUpdateTransform();
+
+            var visibleRect = aimCamera.GetViewport().GetVisibleRect();
+            Check("o raio usa sempre o centro exato da viewport da câmera",
+                AimPlane.ScreenCentre(aimCamera).IsEqualApprox(
+                    visibleRect.Position + visibleRect.Size * 0.5f));
+            var guideScreenPoint = aimCamera.UnprojectPosition(checkWorld);
+            Check("o hover intersecta o mesmo plano elevado que desenha PASSAR/DESISTIR",
+                AimPlane.TryAimAt(aimCamera, guidePlane, guideScreenPoint, out var guideHit)
+                && guideHit.DistanceTo(new Vector2(checkCentre.X, checkCentre.Z)) < 0.0001f);
+            aimCamera.QueueFree();
+            guidePlane.QueueFree();
         }
 
         var seatPresenter = game.GetNodeOrNull<PokerSeatPresenter>("SeatPresenter");
@@ -531,7 +597,10 @@ public partial class PokerSceneLoadTest : Node
             machine.CheckForMultiplayerAuthorityOnStateHandleInput);
 
         Check("a view tem HUD, aviso e rig de mão",
-            view.Hud != null && view.MessageLabel != null && view.HandRig != null);
+            view.Hud?.NoticeLabel != null && view.HandRig != null
+            && view.Hud.NoticeLabel.HorizontalAlignment == HorizontalAlignment.Center
+            && view.Hud.NoticeLabel.VerticalAlignment == VerticalAlignment.Center
+            && view.Hud.Layer > 3);
         Check("as duas malhas de mão têm encaixes independentes",
             view.CardHandVisualMount != null && view.ChipHandVisualMount != null);
         Check("os placeholders geométricos das mãos foram removidos",
@@ -591,7 +660,8 @@ public partial class PokerSceneLoadTest : Node
         Check($"o giro do pescoço é limitado ({controller.MaxYawDeg}°)",
             controller.MaxYawDeg is > 0.0f and <= 180.0f);
         Check($"a inclinação é limitada ({controller.MinPitchDeg}° a {controller.MaxPitchDeg}°)",
-            controller.MinPitchDeg < controller.MaxPitchDeg
+            Mathf.IsEqualApprox(controller.MinPitchDeg, -65.0f)
+            && controller.MinPitchDeg < controller.MaxPitchDeg
             && controller.RestPitchDeg >= controller.MinPitchDeg
             && controller.RestPitchDeg <= controller.MaxPitchDeg);
         Check($"a câmera sentada não soma um deslocamento ao ponto dos olhos "
@@ -662,8 +732,7 @@ public partial class PokerSceneLoadTest : Node
 
                 for (var card = 0; card < PokerDeal.HoleCardCount; card++)
                 {
-                    var slot = HandFan.SlotTransform(
-                        card, HandFan.NaturalCentre(PokerDeal.HoleCardCount), false, fan);
+                    var slot = view.HeldCardPoseAt(card, peek);
 
                     // A card is width on its own X and length on its own Z — see PokerCard.Apply.
                     for (var corner = 0; corner < 4; corner++)
@@ -673,7 +742,7 @@ public partial class PokerSceneLoadTest : Node
                             0.0f,
                             (corner < 2 ? -0.5f : 0.5f) * spec.CardLength);
 
-                        var inHand = view.HandOffset + slot * local;
+                        var inHand = view.HandPose * slot * local;
                         var worldY = eyeY + (camera * inHand).Y;
                         var clearance = worldY - clothY;
 
@@ -714,6 +783,8 @@ public partial class PokerSceneLoadTest : Node
         Check("o poker herda o enquadramento padrão do controlador sentado",
             Mathf.IsEqualApprox(poker.SeatFov, sharedDefaults.SeatFov)
             && poker.SeatViewOffset.IsEqualApprox(sharedDefaults.SeatViewOffset)
+            && Mathf.IsEqualApprox(poker.MinPitchDeg, -65.0f)
+            && Mathf.IsEqualApprox(poker.MinPitchDeg, sharedDefaults.MinPitchDeg)
             && Mathf.IsEqualApprox(poker.RestPitchDeg, sharedDefaults.RestPitchDeg)
             && Mathf.IsEqualApprox(poker.TopFov, sharedDefaults.TopFov)
             && Mathf.IsEqualApprox(poker.TopHeight, sharedDefaults.TopHeight));
@@ -867,6 +938,15 @@ public partial class PokerSceneLoadTest : Node
             && PokerHand3DView.SectorProgressUv(20, 20, true) == Vector2.One);
         Check("a confirmação curta e legível agora se chama APOSTAR",
             PokerHand3DView.ConfirmBetLabelText == "APOSTAR");
+        Check("o texto curvo das acoes corre da esquerda para a direita",
+            PokerHand3DView.CurvedLabelAngle(0, 4, 0.4f) < 0.0f
+            && PokerHand3DView.CurvedLabelAngle(3, 4, 0.4f) > 0.0f);
+        var curvedCentreBasis = PokerHand3DView.CurvedLabelBasis(
+            Vector2.Down, Vector2.Right, 0.0f);
+        Check("as letras curvas acompanham a orientacao legivel do HUD",
+            curvedCentreBasis.X.Dot(Vector3.Right) > 0.999f
+            && curvedCentreBasis.Y.Dot(Vector3.Back) > 0.999f
+            && curvedCentreBasis.Z.Dot(Vector3.Down) > 0.999f);
         Check("CALL só aceita uma liberação realmente rápida",
             PokerHand3DView.IsQuickCallRelease(0.12f, hand?.CallClickMaxSeconds ?? 0.0f)
             && PokerHand3DView.IsQuickCallRelease(0.35f, hand?.CallClickMaxSeconds ?? 0.0f)
@@ -898,7 +978,7 @@ public partial class PokerSceneLoadTest : Node
         AddChild(hud);
 
         Check("a HUD encontra os avisos e dicas que ainda vivem na tela",
-            hud.Root != null && hud.HintsLabel != null
+            hud.Root != null && hud.HintsLabel != null && hud.NoticeLabel != null
             && hud.ShowdownAnnouncement != null && hud.ShowdownTitle != null
             && hud.ShowdownPrompt != null && hud.ShowdownBell?.Stream != null);
         Check("o aviso de showdown usa a tipografia de giz",

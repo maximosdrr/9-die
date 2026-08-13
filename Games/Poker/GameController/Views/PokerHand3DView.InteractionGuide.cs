@@ -10,13 +10,9 @@ public partial class PokerHand3DView
 {
     private InteractionZone ZoneAt(Vector2 aim)
     {
-        if (!TrySeatAxes(out var facing, out var across))
-            return InteractionZone.None;
-
-        aim = Game.ExperienceAuthoring?.ActionGuideAimPoint(
-            Game.BoardPresenter, facing, aim) ?? aim;
-        facing = Vector2.Down;
-        across = Vector2.Right;
+        // AimPlane already returned coordinates in the guide's own visual frame.
+        var facing = Vector2.Down;
+        var across = Vector2.Right;
 
         // One U-shaped control owns every wager. Its meaning comes from the physical state: CALL or
         // AUTO with no staged chips, APOSTAR after a custom selection, and ALL-IN while held.
@@ -53,10 +49,14 @@ public partial class PokerHand3DView
         if (Game?.BoardPresenter == null || Player == null)
             return false;
 
-        if (Game.SeatFor((string)Player.Name) == null)
+        var playerId = (string)Player.Name;
+        if (Game.SeatFor(playerId) == null)
             return false;
 
-        facing = Game.BoardPresenter.ReaderFacing;
+        // Use the player that owns this camera, not a replicated PokerGame.Player reference that
+        // can still be null/stale on a client while its controller is already active.
+        Game.BoardPresenter.SetReaderPlayer(playerId);
+        facing = Game.BoardPresenter.ReaderFacingFor(playerId);
         if (facing.LengthSquared() < 1e-6f)
             return false;
 
@@ -123,7 +123,7 @@ public partial class PokerHand3DView
             return;
         }
 
-        var zone = TryAimPoint(out var aim) ? ZoneAt(aim) : InteractionZone.None;
+        var zone = TryActionGuideAimPoint(out var aim) ? ZoneAt(aim) : InteractionZone.None;
         SetHoveredZone(zone);
     }
 
@@ -204,9 +204,18 @@ public partial class PokerHand3DView
         if (Game?.BoardPresenter == null || !TrySeatAxes(out var facing, out var across))
             return;
 
+        var authored = Game.ExperienceAuthoring?.ActionGuideTransformFor(
+            Game.BoardPresenter, facing) ?? Transform3D.Identity;
+        var desiredGlobalTransform = Game.BoardPresenter.GlobalTransform * authored;
+
         if (IsInstanceValid(_interactionGuide)
             && _guideFacing.DistanceSquaredTo(facing) < 1e-8f)
+        {
+            // Markers and table dimensions are editor-owned. Keep the interaction plane attached
+            // even when its geometry does not need rebuilding.
+            _interactionGuide.GlobalTransform = desiredGlobalTransform;
             return;
+        }
 
         if (!IsInstanceValid(_interactionGuide))
         {
@@ -222,9 +231,7 @@ public partial class PokerHand3DView
             }
         }
 
-        var authored = Game.ExperienceAuthoring?.ActionGuideTransformFor(
-            Game.BoardPresenter, facing) ?? Transform3D.Identity;
-        _interactionGuide.GlobalTransform = Game.BoardPresenter.GlobalTransform * authored;
+        _interactionGuide.GlobalTransform = desiredGlobalTransform;
         _guideFacing = facing;
         _hoveredZone = InteractionZone.None;
         _zoneFillMaterials.Clear();
@@ -275,8 +282,7 @@ public partial class PokerHand3DView
         SetCurvedChalkLabel(InteractionZone.ConfirmBet, CurrentWagerButtonLabel(),
             confirmCentre, confirmOutward, across,
             (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
-            Mathf.Pi * ConfirmLabelSpanPi, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f),
-            reverseGlyphUp: true);
+            Mathf.Pi * ConfirmLabelSpanPi, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
         UpdateCallHoldVisual();
     }
 
@@ -372,7 +378,7 @@ public partial class PokerHand3DView
             facing * ConfirmZoneCenterRadius, facing, across,
             (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
             Mathf.Pi * ConfirmLabelSpanPi * lengthScale,
-            Mathf.RoundToInt(ChalkGuideFontSize * 0.82f), reverseGlyphUp: true);
+            Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
 
         if (!_zoneLabels.TryGetValue(InteractionZone.ConfirmBet, out var labels))
             return;
@@ -390,7 +396,7 @@ public partial class PokerHand3DView
     /// </summary>
     private void SetCurvedChalkLabel(
         InteractionZone zone, string text, Vector2 centre, Vector2 inward, Vector2 across,
-        float radius, float spanAngle, int fontSize, bool reverseGlyphUp = false)
+        float radius, float spanAngle, int fontSize)
     {
         if (string.IsNullOrEmpty(text))
             return;
@@ -404,23 +410,15 @@ public partial class PokerHand3DView
         var glyph = 0;
         for (var index = 0; index < text.Length; index++)
         {
-            var angle = text.Length <= 1
-                ? 0.0f
-                : Mathf.Lerp(spanAngle, -spanAngle, index / (float)(text.Length - 1));
+            // The first glyph starts on the reader's left. The complete guide transform then
+            // carries this canonical Seat0 layout to the current player's chair.
+            var angle = CurvedLabelAngle(index, text.Length, spanAngle);
             if (text[index] == ' ')
                 continue;
 
             var point = SemicirclePoint(centre, inward, across, radius, angle);
-            var outward = inward * Mathf.Cos(angle) + across * Mathf.Sin(angle);
-            // The word is laid left-to-right while angles run from +span to -span.
-            var right = inward * Mathf.Sin(angle) - across * Mathf.Cos(angle);
-            var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
-            var up3 = new Vector3(outward.X, 0.0f, outward.Y).Normalized();
-            if (reverseGlyphUp)
-                up3 = -up3;
-            var normal3 = right3.Cross(up3).Normalized();
             var transform = new Transform3D(
-                new Basis(right3, up3, normal3),
+                CurvedLabelBasis(inward, across, angle),
                 new Vector3(point.X, 0.004f, point.Y));
             Label3D label;
             if (glyph >= labels.Count)
@@ -463,6 +461,29 @@ public partial class PokerHand3DView
             NoDepthTest = false,
             Transform = transform,
         };
+
+    /// <summary>
+    /// Generates the curved word in the same left-to-right order seen by the seated reader. Kept
+    /// public for a scene check because reversing either endpoint silently spells AUTO as OTUA.
+    /// </summary>
+    public static float CurvedLabelAngle(int index, int textLength, float spanAngle) =>
+        textLength <= 1
+            ? 0.0f
+            : Mathf.Lerp(-spanAngle, spanAngle, index / (float)(textLength - 1));
+
+    /// <summary>
+    /// Gives every curved glyph the same readable table orientation as the other action labels.
+    /// The action-guide root supplies the per-seat rotation, so this basis remains canonical.
+    /// </summary>
+    public static Basis CurvedLabelBasis(Vector2 inward, Vector2 across, float angle)
+    {
+        var outward = inward * Mathf.Cos(angle) + across * Mathf.Sin(angle);
+        var tangent = across * Mathf.Cos(angle) - inward * Mathf.Sin(angle);
+        var right3 = new Vector3(tangent.X, 0.0f, tangent.Y).Normalized();
+        var up3 = new Vector3(-outward.X, 0.0f, -outward.Y).Normalized();
+        var normal3 = right3.Cross(up3).Normalized();
+        return new Basis(right3, up3, normal3);
+    }
 
     private void AddZoneLabel(InteractionZone zone, Label3D label)
     {

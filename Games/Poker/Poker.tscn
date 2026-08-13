@@ -80,15 +80,18 @@ ChalkFont = ExtResource("16_chalk")
 KnockSound = ExtResource("11_pknock")
 ChipLandingSound = ExtResource("15_pchips")
 
-[node name="ExperienceAuthoring" type="Node3D" parent="." unique_id=1650322614 node_paths=PackedStringArray("DeckAnchor", "CommunityCardsAnchor", "ActionGuideAnchor", "Seats", "PreviewCamera", "FirstPersonHandsPreview")]
-editor_description = "Selecione este nó para configurar a experiência do poker no Inspector. Mova os três marcadores em PhysicalLayout; escolha o assento de preview e ajuste FOV, câmera, mãos e arco aqui. O jogo consome estes mesmos valores."
+[node name="ExperienceAuthoring" type="Node3D" parent="." unique_id=1650322614 node_paths=PackedStringArray("DeckAnchor", "CommunityCardsAnchor", "ActionGuideAnchor", "Seats", "PreviewCamera", "FirstPersonHandsPreview", "FirstPersonCardsPose", "FirstPersonCard0Pose", "FirstPersonCard1Pose")]
+editor_description = "Edite o próprio FirstPersonHandsPreview para posicionar/rotacionar os braços. Em FirstPersonCardsPose, Card0Pose e Card1Pose controlam cada carta separadamente. O jogo usa exatamente esses transforms."
 script = ExtResource("17_experience")
 DeckAnchor = NodePath("PhysicalLayout/DeckAnchor")
 CommunityCardsAnchor = NodePath("PhysicalLayout/CommunityCardsAnchor")
 ActionGuideAnchor = NodePath("PhysicalLayout/ActionGuideAnchor")
 Seats = NodePath("../Seats")
 PreviewCamera = NodePath("FirstPersonPreview/PreviewCamera")
-FirstPersonHandsPreview = NodePath("FirstPersonPreview/FirstPersonHandsPreview")
+FirstPersonHandsPreview = NodePath("FirstPersonPreview/PreviewCamera/FirstPersonHandsPreview")
+FirstPersonCardsPose = NodePath("FirstPersonPreview/PreviewCamera/FirstPersonHandsPreview/CardGrip/FirstPersonCardsPose")
+FirstPersonCard0Pose = NodePath("FirstPersonPreview/PreviewCamera/FirstPersonHandsPreview/CardGrip/FirstPersonCardsPose/Card0Pose")
+FirstPersonCard1Pose = NodePath("FirstPersonPreview/PreviewCamera/FirstPersonHandsPreview/CardGrip/FirstPersonCardsPose/Card1Pose")
 PreviewCardScene = ExtResource("6_pcard")
 PreviewChalkFont = ExtResource("16_chalk")
 PreviewChalkShader = ExtResource("19_chalk_shader")
@@ -109,7 +112,6 @@ editor_description = "Origem visual e interativa do arco de PASSAR/DESISTIR/APOS
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
 
 [node name="FirstPersonPreview" type="Node3D" parent="ExperienceAuthoring" unique_id=1295369842]
-visible = false
 
 [node name="PreviewCamera" type="Camera3D" parent="ExperienceAuthoring/FirstPersonPreview" unique_id=1270905767]
 editor_description = "Selecione esta câmera e ative Preview na viewport 3D para enxergar exatamente a experiência em primeira pessoa."
@@ -117,10 +119,12 @@ transform = Transform3D(-1, 0, 0, 0, 0.81915206, 0.57357645, 0, 0.57357645, -0.8
 current = true
 fov = 55.0
 
-[node name="FirstPersonHandsPreview" parent="ExperienceAuthoring/FirstPersonPreview" unique_id=1455137628 instance=ExtResource("18_fp_hands")]
-transform = Transform3D(0.8844207, 0.06984509, -0.46150085, -0.34401718, 0.7651797, -0.5441994, 0.31536087, 0.6400652, 0.7006172, -0.04991733, 0.90557057, -0.3527519)
+[node name="FirstPersonHandsPreview" parent="ExperienceAuthoring/FirstPersonPreview/PreviewCamera" unique_id=1455137628 instance=ExtResource("18_fp_hands")]
+editor_description = "CONTROLADOR EDITÁVEL: mova e rotacione ESTE nó. A transformação relativa à PreviewCamera é usada exatamente igual no jogo."
+transform = Transform3D(0.9359432, 0.012776952, -0.35212132, -0.064018585, 0.9890386, -0.13424802, 0.34653082, 0.14820698, 0.92624176, 0, 0.026712358, -0.13478458)
 
 [node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
+visible = false
 script = ExtResource("5_panch")
 Chairs = [NodePath("../TableFixture/WoodenChair_006"), NodePath("../TableFixture/WoodenChair_007"), NodePath("../TableFixture/WoodenChair_008"), NodePath("../TableFixture/WoodenChair_009")]
 

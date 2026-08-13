@@ -118,6 +118,7 @@ public partial class PokerBoardPresenter : Node3D
     private float _shuffleSeconds;
     private Transform3D _deckRest;
     private bool _collectionFinished;
+    private string _readerPlayerId = "";
     public bool CardCleanupActive => _cleaningUp;
     public bool CardCollectionComplete => _collectionFinished;
     private float ShuffleStart => _returnEnd + _gatherHoldSeconds;
@@ -211,23 +212,65 @@ public partial class PokerBoardPresenter : Node3D
     {
         get
         {
-            var playerId = _game?.Player == null ? null : (string)_game.Player.Name;
-            var seat = playerId == null ? null : _game.SeatFor(playerId);
-            if (seat == null)
-                return Vector2.Down;
-
-            var toSeat = ToLocal(seat.GlobalPosition);
-            var facing = new Vector2(toSeat.X, toSeat.Z);
-            return facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
+            var playerId = !string.IsNullOrEmpty(_readerPlayerId)
+                ? _readerPlayerId
+                : GodotObject.IsInstanceValid(_game?.Player)
+                    ? (string)_game.Player.Name
+                    : "";
+            return ReaderFacingFor(playerId);
         }
+    }
+
+    /// <summary>
+    /// Resolves a reader from the stable seat assignment. The first-person controller supplies its
+    /// own player id, so a client does not briefly inherit Seat0 while PokerGame.Player is waiting
+    /// for a replicated Player node.
+    /// </summary>
+    public Vector2 ReaderFacingFor(string playerId)
+    {
+        var seat = string.IsNullOrEmpty(playerId) ? null : _game?.SeatFor(playerId);
+        if (seat == null)
+            return Vector2.Down;
+
+        var toSeat = ToLocal(seat.GlobalPosition);
+        var facing = new Vector2(toSeat.X, toSeat.Z);
+        return facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
+    }
+
+    /// <summary>Chooses the player whose local camera reads this peer's table presentation.</summary>
+    public void SetReaderPlayer(string playerId)
+    {
+        if (string.IsNullOrEmpty(playerId) || _readerPlayerId == playerId)
+            return;
+
+        _readerPlayerId = playerId;
+        PlaceDeck();
+        PlaceAll();
+        if (PotPile != null)
+            PotPile.Transform = new Transform3D(ReaderBasis, PotPosition);
     }
 
     public Basis ReaderBasis =>
         new(Vector3.Up, PokerTableLayout.YawTowardCentre(ReaderFacing));
 
-    private Transform3D CommunityCardsFrame => CommunityCardsAnchor != null
-        ? GlobalTransform.AffineInverse() * CommunityCardsAnchor.GlobalTransform
-        : new Transform3D(ReaderBasis, Vector3.Zero);
+    private Transform3D CommunityCardsFrame => CommunityCardsTransformFor(ReaderFacing);
+
+    /// <summary>
+    /// The community marker is authored from Seat0. Every peer rotates that authored frame to its
+    /// own reader, keeping the five faces upright from every chair without networked transforms.
+    /// </summary>
+    public Transform3D CommunityCardsTransformFor(Vector2 facing)
+    {
+        if (CommunityCardsAnchor == null)
+        {
+            return new Transform3D(
+                new Basis(Vector3.Up, PokerTableLayout.YawTowardCentre(facing)), Vector3.Zero);
+        }
+
+        var canonical = GlobalTransform.AffineInverse()
+                        * CommunityCardsAnchor.GlobalTransform;
+        return PokerTableLayout.ReaderAlignedFrame(canonical, facing, Vector2.Down);
+    }
 
     /// <summary>
     /// Where visually collected bets gather, in this presenter's local space. It is always directly

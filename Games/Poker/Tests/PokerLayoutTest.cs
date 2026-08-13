@@ -25,6 +25,7 @@ public partial class PokerLayoutTest : Node
 
         TestBoardRow();
         TestSeatSpots();
+        TestReaderAlignedFrames();
         TestNothingOverlaps();
         TestEverythingFitsTheTable();
         TestSceneMatchesTheLayout();
@@ -104,6 +105,30 @@ public partial class PokerLayoutTest : Node
                 bet.Length() < stack.Length());
             Check("tudo de um assento fica na mesma linha radial",
                 Mathf.Abs(bet.Normalized().Dot(facing.Normalized()) - 1.0f) < 0.001f);
+        }
+    }
+
+    private void TestReaderAlignedFrames()
+    {
+        var authored = new Transform3D(
+            new Basis(Vector3.Up, Mathf.Pi),
+            new Vector3(0.12f, 0.004f, -0.21f));
+        var canonical = PokerTableLayout.ReaderAlignedFrame(
+            authored, Vector2.Down, Vector2.Down);
+        Check("o marcador do Seat0 permanece exatamente onde foi editado",
+            canonical.IsEqualApprox(authored));
+
+        foreach (var facing in Facings())
+        {
+            var aligned = PokerTableLayout.ReaderAlignedFrame(
+                authored, facing, Vector2.Down);
+            var expectedTurn = new Basis(Vector3.Up,
+                PokerTableLayout.YawTowardCentre(facing)
+                - PokerTableLayout.YawTowardCentre(Vector2.Down));
+            Check($"cartas e HUD giram o frame completo para o leitor {facing}",
+                aligned.Origin.DistanceTo(expectedTurn * authored.Origin) < 0.0001f
+                && aligned.Basis.X.Dot((expectedTurn * authored.Basis).X) > 0.9999f
+                && aligned.Basis.Z.Dot((expectedTurn * authored.Basis).Z) > 0.9999f);
         }
     }
 

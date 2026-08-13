@@ -25,13 +25,13 @@ public static class AimPlane
     {
         surfaceLocal = Vector2.Zero;
 
-        if (camera == null || surface == null || !camera.IsInsideTree() || !surface.IsInsideTree())
+        if (surface == null || !surface.IsInsideTree()
+            || !TryScreenRay(camera, screenPoint, out var rayOrigin, out var rayDirection))
             return false;
 
         var plane = new Plane(surface.GlobalBasis.Y.Normalized(), surface.GlobalPosition);
 
-        var hit = plane.IntersectsRay(
-            camera.ProjectRayOrigin(screenPoint), camera.ProjectRayNormal(screenPoint));
+        var hit = plane.IntersectsRay(rayOrigin, rayDirection);
 
         if (hit == null)
             return false;
@@ -41,8 +41,36 @@ public static class AimPlane
         return true;
     }
 
-    private static Vector2 ScreenCentre(Camera3D camera) =>
-        camera != null && camera.IsInsideTree()
-            ? camera.GetViewport().GetVisibleRect().Size * 0.5f
-            : Vector2.Zero;
+    /// <summary>The world-space ray passing through the exact centre of the camera image.</summary>
+    public static bool TryCentreRay(
+        Camera3D camera, out Vector3 rayOrigin, out Vector3 rayDirection) =>
+        TryScreenRay(camera, ScreenCentre(camera), out rayOrigin, out rayDirection);
+
+    public static bool TryScreenRay(
+        Camera3D camera, Vector2 screenPoint, out Vector3 rayOrigin, out Vector3 rayDirection)
+    {
+        rayOrigin = Vector3.Zero;
+        rayDirection = Vector3.Zero;
+        if (camera == null || !camera.IsInsideTree())
+            return false;
+
+        rayOrigin = camera.ProjectRayOrigin(screenPoint);
+        rayDirection = camera.ProjectRayNormal(screenPoint).Normalized();
+        return rayOrigin.IsFinite() && rayDirection.IsFinite()
+               && rayDirection.LengthSquared() > 0.999f;
+    }
+
+    /// <summary>
+    /// Centre of the rectangle actually rendered by this camera. Keeping the rectangle origin is
+    /// important for embedded/sub-viewports: half of the size alone is only correct when it starts
+    /// at (0, 0).
+    /// </summary>
+    public static Vector2 ScreenCentre(Camera3D camera)
+    {
+        if (camera == null || !camera.IsInsideTree())
+            return Vector2.Zero;
+
+        var visible = camera.GetViewport().GetVisibleRect();
+        return visible.Position + visible.Size * 0.5f;
+    }
 }

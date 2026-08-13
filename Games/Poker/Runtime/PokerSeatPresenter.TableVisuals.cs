@@ -442,14 +442,14 @@ public partial class PokerSeatPresenter : Node3D
     /// </summary>
     private float ReaderYaw(Vector2 fallbackFacing)
     {
-        var playerId = _game.Player == null ? null : (string)_game.Player.Name;
-        var seat = playerId == null ? null : SeatNodeFor(playerId);
-
-        if (seat == null)
+        if (BoardPresenter == null)
             return PokerTableLayout.YawTowardCentre(fallbackFacing);
 
-        var toSeat = ToLocal(seat.GlobalPosition);
-        var reader = new Vector2(toSeat.X, toSeat.Z);
+        var boardFacing = BoardPresenter.ReaderFacing;
+        var worldFacing = BoardPresenter.GlobalTransform.Basis
+                          * new Vector3(boardFacing.X, 0.0f, boardFacing.Y);
+        var localFacing = GlobalTransform.Basis.Inverse() * worldFacing;
+        var reader = new Vector2(localFacing.X, localFacing.Z);
 
         return reader.LengthSquared() < 1e-6f
             ? PokerTableLayout.YawTowardCentre(fallbackFacing)

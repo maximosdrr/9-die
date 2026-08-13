@@ -60,7 +60,7 @@ public partial class PokerExperienceAuthoring : Node3D
             deck.GlobalTransform = DeckAnchor.GlobalTransform;
         if (CommunityCardsAnchor != null
             && _generatedPreview.GetNodeOrNull<Node3D>("CommunityCardsPreview") is { } board)
-            board.GlobalTransform = CommunityCardsAnchor.GlobalTransform;
+            board.GlobalTransform = PreviewCommunityCardsGlobalTransform();
         if (ActionGuideAnchor != null
             && _generatedPreview.GetNodeOrNull<Node3D>("ActionGuidePreview") is { } actions)
             actions.GlobalTransform = PreviewActionGuideGlobalTransform();
@@ -73,7 +73,7 @@ public partial class PokerExperienceAuthoring : Node3D
 
         var root = new Node3D { Name = "CommunityCardsPreview" };
         _generatedPreview.AddChild(root);
-        root.GlobalTransform = CommunityCardsAnchor.GlobalTransform;
+        root.GlobalTransform = PreviewCommunityCardsGlobalTransform();
         var step = PreviewCardWidth + PreviewCardGap;
         for (var index = 0; index < PokerDeal.BoardCount; index++)
         {
@@ -151,14 +151,11 @@ public partial class PokerExperienceAuthoring : Node3D
     {
         var root = new Node3D { Name = "FirstPersonCardsPreview", TopLevel = true };
         _generatedPreview.AddChild(root);
-        var spec = new HandFanSpec(HeldCardsFanStepDeg, HeldCardsFanRadius, 0.0f,
-            RestCardsTiltDeg, HandFan.LongAxisUpFromMinusZ);
         for (var index = 0; index < PokerDeal.HoleCardCount; index++)
         {
             var card = NewPreviewCard($"HeldCard{index}", faceDown: false);
             root.AddChild(card);
-            card.Transform = HandFan.SlotTransform(
-                index, HandFan.NaturalCentre(PokerDeal.HoleCardCount), false, spec);
+            card.Transform = index == 0 ? Card0Pose : Card1Pose;
         }
     }
 
@@ -169,7 +166,11 @@ public partial class PokerExperienceAuthoring : Node3D
         if (_generatedPreview.GetNodeOrNull<Node3D>("FirstPersonCardsPreview") is { } cards)
         {
             cards.Visible = ShowFirstPersonHands;
-            cards.GlobalTransform = gripTransform;
+            cards.GlobalTransform = gripTransform * CardsPose;
+            if (cards.GetNodeOrNull<Node3D>("HeldCard0") is { } card0)
+                card0.Transform = Card0Pose;
+            if (cards.GetNodeOrNull<Node3D>("HeldCard1") is { } card1)
+                card1.Transform = Card1Pose;
         }
     }
 
@@ -184,19 +185,36 @@ public partial class PokerExperienceAuthoring : Node3D
     private Transform3D PreviewActionGuideGlobalTransform()
     {
         var board = GetParent()?.GetNodeOrNull<Node3D>("BoardHolder");
+        if (board == null)
+            return ActionGuideAnchor?.GlobalTransform ?? Transform3D.Identity;
+
+        return board.GlobalTransform
+               * ActionGuideTransformFor(board, PreviewReaderFacing(board));
+    }
+
+    private Transform3D PreviewCommunityCardsGlobalTransform()
+    {
+        var board = GetParent()?.GetNodeOrNull<Node3D>("BoardHolder");
+        if (board == null || CommunityCardsAnchor == null)
+            return CommunityCardsAnchor?.GlobalTransform ?? Transform3D.Identity;
+
+        var canonical = board.GlobalTransform.AffineInverse()
+                        * CommunityCardsAnchor.GlobalTransform;
+        return board.GlobalTransform * PokerTableLayout.ReaderAlignedFrame(
+            canonical, PreviewReaderFacing(board), Vector2.Down);
+    }
+
+    private Vector2 PreviewReaderFacing(Node3D board)
+    {
         if (board == null || Seats == null || PreviewSeat >= Seats.GetChildCount()
             || Seats.GetChild(PreviewSeat) is not Node3D seat)
         {
-            return ActionGuideAnchor?.GlobalTransform ?? Transform3D.Identity;
+            return Vector2.Down;
         }
 
         var seatInBoard = board.ToLocal(seat.GlobalPosition);
         var facing = new Vector2(seatInBoard.X, seatInBoard.Z);
-        if (facing.LengthSquared() < 1e-6f)
-            facing = Vector2.Down;
-        else
-            facing = facing.Normalized();
-        return board.GlobalTransform * ActionGuideTransformFor(board, facing);
+        return facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
     }
 
     private void AddPreviewArc(
@@ -286,18 +304,11 @@ public partial class PokerExperienceAuthoring : Node3D
         var glyph = 0;
         for (var index = 0; index < text.Length; index++)
         {
-            var angle = text.Length <= 1
-                ? 0.0f
-                : Mathf.Lerp(spanAngle, -spanAngle, index / (float)(text.Length - 1));
+            var angle = PokerHand3DView.CurvedLabelAngle(index, text.Length, spanAngle);
             if (text[index] == ' ')
                 continue;
 
             var point = PreviewArcPoint(centre, Vector2.Down, Vector2.Right, radius, angle);
-            var outward = Vector2.Down * Mathf.Cos(angle) + Vector2.Right * Mathf.Sin(angle);
-            var right = Vector2.Down * Mathf.Sin(angle) - Vector2.Right * Mathf.Cos(angle);
-            var right3 = new Vector3(right.X, 0.0f, right.Y).Normalized();
-            var up3 = -new Vector3(outward.X, 0.0f, outward.Y).Normalized();
-            var normal3 = right3.Cross(up3).Normalized();
             var label = new Label3D
             {
                 Name = $"WagerGlyph{glyph}",
@@ -308,7 +319,8 @@ public partial class PokerExperienceAuthoring : Node3D
                 OutlineSize = 2,
                 Modulate = new Color(0.95f, 0.93f, 0.86f, 0.78f),
                 Transform = new Transform3D(
-                    new Basis(right3, up3, normal3),
+                    PokerHand3DView.CurvedLabelBasis(
+                        Vector2.Down, Vector2.Right, angle),
                     new Vector3(point.X, 0.004f, point.Y)),
             };
             owner.AddChild(label);

@@ -115,6 +115,22 @@ public static class PokerTableLayout
     public static float YawTowardCentre(Vector2 facing) => Mathf.Atan2(facing.X, facing.Y);
 
     /// <summary>
+    /// Rotates a frame authored for one chair into the frame of the player reading the table.
+    /// The complete transform is rotated, rather than only its basis, so an artist may move the
+    /// canonical marker away from the table centre without losing the per-seat placement.
+    /// </summary>
+    public static Transform3D ReaderAlignedFrame(
+        Transform3D canonicalFrame, Vector2 facing, Vector2 canonicalFacing)
+    {
+        facing = facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
+        canonicalFacing = canonicalFacing.LengthSquared() < 1e-6f
+            ? Vector2.Down : canonicalFacing.Normalized();
+        var turn = new Basis(Vector3.Up,
+            YawTowardCentre(facing) - YawTowardCentre(canonicalFacing));
+        return new Transform3D(turn, Vector3.Zero) * canonicalFrame;
+    }
+
+    /// <summary>
     /// Furthest a seat's own things reach from the middle — used to check they clear the community
     /// row and still fit on the table.
     /// </summary>

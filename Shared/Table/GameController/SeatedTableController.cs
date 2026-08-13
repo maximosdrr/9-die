@@ -41,7 +41,7 @@ public partial class SeatedTableController : GameController
     /// <summary>How far the head turns to either side before a real person would move their body.</summary>
     [Export] public float MaxYawDeg = 100.0f;
 
-    [Export] public float MinPitchDeg = -50.0f;
+    [Export] public float MinPitchDeg = -65.0f;
     [Export] public float MaxPitchDeg = 25.0f;
 
     /// <summary>Where the head rests: tilted down at the table, which is what the player wants to see.</summary>

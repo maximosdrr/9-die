@@ -12,19 +12,21 @@ public partial class PlayerFirstPersonVisualCheck : Node3D
         var camera = new Camera3D { Current = true, Fov = 55.0f };
         AddChild(camera);
 
+        var poker = GD.Load<PackedScene>("res://Games/Poker/Poker.tscn").Instantiate();
+        var authoring = poker.GetNode<PokerExperienceAuthoring>("ExperienceAuthoring");
+        var authoredHandPose = authoring.FirstPersonHandsPreview.Transform;
+        var authoredCardsPose = authoring.FirstPersonCardsPose.Transform;
+        poker.Free();
+
         var hands = GD.Load<PackedScene>(
                 "res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn")
             .Instantiate<PlayerFirstPersonHands>();
         AddChild(hands);
+        hands.Transform = authoredHandPose;
         hands.Animator.Play(CharacterVisual.Clips.IdleSitHoldingCards);
         hands.Animator.Seek(1.0, update: true);
         hands.UpdateCardGrip();
-
-        var target = new Transform3D(Basis.Identity, new Vector3(0.05f, -0.09f, -0.39f));
-        var correction = target * hands.CardGrip.GlobalTransform.AffineInverse();
-        hands.GlobalTransform = correction * hands.GlobalTransform;
-        hands.UpdateCardGrip();
-        AddCards(hands.CardGrip);
+        AddCards(hands.CardGrip, authoredCardsPose);
 
         var felt = new MeshInstance3D
         {
@@ -70,7 +72,7 @@ public partial class PlayerFirstPersonVisualCheck : Node3D
         GetTree().Quit(0);
     }
 
-    private static void AddCards(Node3D grip)
+    private static void AddCards(Node3D grip, Transform3D cardsPose)
     {
         var scene = GD.Load<PackedScene>("res://Games/Poker/Components/Cards/PokerCard.tscn");
         var spec = PokerLayoutSpec.Default;
@@ -83,7 +85,7 @@ public partial class PlayerFirstPersonVisualCheck : Node3D
             card.Configure(Poker.Rules.CardId.From(
                 index == 0 ? Poker.Rules.CardId.Queen : Poker.Rules.CardId.Jack,
                 index == 0 ? Poker.Rules.CardId.Hearts : Poker.Rules.CardId.Clubs), spec);
-            card.Transform = HandFan.SlotTransform(
+            card.Transform = cardsPose * HandFan.SlotTransform(
                 index, HandFan.NaturalCentre(2), false, fanSpec);
         }
     }

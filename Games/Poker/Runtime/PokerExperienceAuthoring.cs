@@ -18,7 +18,9 @@ public partial class PokerExperienceAuthoring : Node3D
     [Export] public Node3D Seats;
     [Export] public Camera3D PreviewCamera;
     [Export] public Node3D FirstPersonHandsPreview;
-    [Export] public Vector3 FirstPersonHandOffset = new(0.045f, -0.05f, -0.22f);
+    [Export] public Marker3D FirstPersonCardsPose;
+    [Export] public Marker3D FirstPersonCard0Pose;
+    [Export] public Marker3D FirstPersonCard1Pose;
     [Export(PropertyHint.Range, "-30,100,1")] public float RestCardsTiltDeg = 0.0f;
     [Export(PropertyHint.Range, "-30,100,1")] public float PeekCardsTiltDeg = -18.0f;
     [Export(PropertyHint.Range, "4,18,0.5")] public float HeldCardsFanStepDeg = 11.0f;
@@ -35,7 +37,8 @@ public partial class PokerExperienceAuthoring : Node3D
         }
     }
 
-    [Export] public bool EnablePreviewCamera
+    [Export]
+    public bool EnablePreviewCamera
     {
         get => _enablePreviewCamera;
         set
@@ -45,7 +48,8 @@ public partial class PokerExperienceAuthoring : Node3D
         }
     }
 
-    [Export] public bool ShowFirstPersonHands
+    [Export]
+    public bool ShowFirstPersonHands
     {
         get => _showFirstPersonHands;
         set
@@ -71,7 +75,7 @@ public partial class PokerExperienceAuthoring : Node3D
     [Export] public Vector3 SeatViewOffset = Vector3.Zero;
     [Export(PropertyHint.Range, "-80,20,1")] public float RestPitchDeg = -35.0f;
     [Export(PropertyHint.Range, "20,140,1")] public float MaximumYawDeg = 100.0f;
-    [Export(PropertyHint.Range, "-89,0,1")] public float MinimumPitchDeg = -50.0f;
+    [Export(PropertyHint.Range, "-89,0,1")] public float MinimumPitchDeg = -65.0f;
     [Export(PropertyHint.Range, "0,89,1")] public float MaximumPitchDeg = 25.0f;
     [Export] public float MouseSensitivity = 0.004f;
     [Export] public string SeatedAnimationName = CharacterVisual.Clips.Sit;
@@ -115,6 +119,15 @@ public partial class PokerExperienceAuthoring : Node3D
     private bool _showFirstPersonHands = true;
     private ulong _previewShapeSignature;
     private bool _previewRebuildQueued;
+    private Transform3D _runtimeFirstPersonControllerPose = DefaultFirstPersonControllerPose;
+    private Transform3D _runtimeFirstPersonCardsPose = DefaultFirstPersonCardsPose;
+    private Transform3D _runtimeFirstPersonCard0Pose;
+    private Transform3D _runtimeFirstPersonCard1Pose;
+
+    private static readonly Transform3D DefaultFirstPersonControllerPose = new(
+        Basis.Identity, new Vector3(0.045f, -0.05f, -0.22f));
+    private static readonly Transform3D DefaultFirstPersonCardsPose = new(
+        new Basis(Vector3.Up, Mathf.Pi), Vector3.Zero);
 
     public override void _Ready()
     {
@@ -125,7 +138,19 @@ public partial class PokerExperienceAuthoring : Node3D
             CallDeferred(MethodName.UpdateEditorPreview);
         }
         else
+        {
+            // Controllers are equipped after the editor-only preview is removed. Cache the exact
+            // artist-authored marker pose so runtime receives the same position and rotation.
+            _runtimeFirstPersonControllerPose =
+                FirstPersonHandsPreview?.Transform ?? DefaultFirstPersonControllerPose;
+            _runtimeFirstPersonCardsPose =
+                FirstPersonCardsPose?.Transform ?? DefaultFirstPersonCardsPose;
+            _runtimeFirstPersonCard0Pose =
+                FirstPersonCard0Pose?.Transform ?? DefaultIndividualCardPose(0);
+            _runtimeFirstPersonCard1Pose =
+                FirstPersonCard1Pose?.Transform ?? DefaultIndividualCardPose(1);
             DisableEditorOnlyNodes();
+        }
     }
 
     public override void _Process(double delta)
@@ -144,12 +169,10 @@ public partial class PokerExperienceAuthoring : Node3D
             return Transform3D.Identity;
 
         var anchorInBoard = board.GlobalTransform.AffineInverse() * ActionGuideAnchor.GlobalTransform;
-        var canonicalYaw = Poker.Rules.PokerTableLayout.YawTowardCentre(Vector2.Down);
-        var seatTurn = new Basis(Vector3.Up,
-            Poker.Rules.PokerTableLayout.YawTowardCentre(facing) - canonicalYaw);
         // The marker is authored from Seat0. Rotate that whole authored frame to the current seat;
         // guide geometry itself stays canonical, which also makes its hit regions follow exactly.
-        return new Transform3D(seatTurn, Vector3.Zero) * anchorInBoard;
+        return Poker.Rules.PokerTableLayout.ReaderAlignedFrame(
+            anchorInBoard, facing, Vector2.Down);
     }
 
     public Vector2 ActionGuideAimPoint(Node3D board, Vector2 facing, Vector2 boardAim)
@@ -190,7 +213,10 @@ public partial class PokerExperienceAuthoring : Node3D
         if (handView == null)
             return;
 
-        handView.HandOffset = FirstPersonHandOffset;
+        handView.HandPose = ControllerPose;
+        handView.CardsInHandPose = CardsPose;
+        handView.Card0InHandPose = Card0Pose;
+        handView.Card1InHandPose = Card1Pose;
         handView.RestTiltDeg = RestCardsTiltDeg;
         handView.PeekTiltDeg = PeekCardsTiltDeg;
         handView.FanStepDeg = HeldCardsFanStepDeg;
@@ -293,21 +319,12 @@ public partial class PokerExperienceAuthoring : Node3D
             animator.Seek(1.0, update: true);
         }
 
-        var desiredGrip = cameraTransform.TranslatedLocal(FirstPersonHandOffset);
         var skeleton = FirstPersonHandsPreview.FindChild("Skeleton3D", true, false) as Skeleton3D;
         var grip = FirstPersonHandsPreview.GetNodeOrNull<Node3D>("CardGrip");
         if (skeleton != null && grip != null)
-        {
             CharacterVisual.UpdateAuthoredCardGrip(skeleton, grip);
-            var correction = desiredGrip * grip.GlobalTransform.AffineInverse();
-            FirstPersonHandsPreview.GlobalTransform = correction
-                                                     * FirstPersonHandsPreview.GlobalTransform;
-            CharacterVisual.UpdateAuthoredCardGrip(skeleton, grip);
-        }
-        else
-            FirstPersonHandsPreview.GlobalTransform = desiredGrip;
 
-        UpdateFirstPersonCardsPreview(desiredGrip);
+        UpdateFirstPersonCardsPreview(grip?.GlobalTransform ?? FirstPersonHandsPreview.GlobalTransform);
     }
 
     private void DisableEditorOnlyNodes()
@@ -324,4 +341,25 @@ public partial class PokerExperienceAuthoring : Node3D
             FirstPersonHandsPreview.QueueFree();
         }
     }
+
+    private Transform3D ControllerPose => Engine.IsEditorHint()
+        ? FirstPersonHandsPreview?.Transform ?? DefaultFirstPersonControllerPose
+        : _runtimeFirstPersonControllerPose;
+
+    private Transform3D CardsPose => Engine.IsEditorHint()
+        ? FirstPersonCardsPose?.Transform ?? DefaultFirstPersonCardsPose
+        : _runtimeFirstPersonCardsPose;
+
+    private Transform3D Card0Pose => Engine.IsEditorHint()
+        ? FirstPersonCard0Pose?.Transform ?? DefaultIndividualCardPose(0)
+        : _runtimeFirstPersonCard0Pose;
+
+    private Transform3D Card1Pose => Engine.IsEditorHint()
+        ? FirstPersonCard1Pose?.Transform ?? DefaultIndividualCardPose(1)
+        : _runtimeFirstPersonCard1Pose;
+
+    private Transform3D DefaultIndividualCardPose(int index) => HandFan.SlotTransform(
+        index, HandFan.NaturalCentre(Poker.Rules.PokerDeal.HoleCardCount), false,
+        new HandFanSpec(HeldCardsFanStepDeg, HeldCardsFanRadius, 0.0f,
+            RestCardsTiltDeg, HandFan.LongAxisUpFromMinusZ));
 }

@@ -4,11 +4,12 @@
 [ext_resource type="FontFile" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="2_chalk"]
 [ext_resource type="AudioStream" path="res://Assets/SoundEffects/Poker/bell_sound.mp3" id="3_bell"]
 
-[node name="PokerHud" type="CanvasLayer" node_paths=PackedStringArray("Root", "HintsLabel", "ShowdownAnnouncement", "ShowdownTitle", "ShowdownPrompt", "ShowdownBell")]
-layer = 2
+[node name="PokerHud" type="CanvasLayer" node_paths=PackedStringArray("Root", "HintsLabel", "NoticeLabel", "ShowdownAnnouncement", "ShowdownTitle", "ShowdownPrompt", "ShowdownBell")]
+layer = 20
 script = ExtResource("1_phud")
 Root = NodePath("Root")
 HintsLabel = NodePath("Root/Hints/HintsLabel")
+NoticeLabel = NodePath("NoticeLabel")
 ShowdownAnnouncement = NodePath("Root/ShowdownAnnouncement")
 ShowdownTitle = NodePath("Root/ShowdownAnnouncement/Content/ShowdownTitle")
 ShowdownPrompt = NodePath("Root/ShowdownAnnouncement/Content/ShowdownPrompt")
@@ -99,6 +100,31 @@ mouse_filter = 2
 theme_type_variation = &"HudLabelSmall"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="NoticeLabel" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -480.0
+offset_top = -70.0
+offset_right = 480.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.55, 1)
+theme_override_colors/font_outline_color = Color(0.08, 0.035, 0.015, 0.98)
+theme_override_constants/outline_size = 14
+theme_override_fonts/font = ExtResource("2_chalk")
+theme_override_font_sizes/font_size = 42
+text = "AVISO"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
 
 [node name="ShowdownBell" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("3_bell")

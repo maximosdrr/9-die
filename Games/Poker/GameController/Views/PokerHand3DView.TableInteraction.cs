@@ -73,6 +73,18 @@ public partial class PokerHand3DView : PokerHandView
     public bool TryAimPoint(out Vector2 tableLocal) =>
         AimPlane.TryAim(Game?.Camera, Game?.BoardPresenter, out tableLocal);
 
+    /// <summary>
+    /// Aim on the actual plane that draws PASSAR/DESISTIR/APOSTAR. The guide can sit above the
+    /// board plane, so reusing the board hit creates a perspective offset after table edits.
+    /// </summary>
+    private bool TryActionGuideAimPoint(out Vector2 guideLocal)
+    {
+        guideLocal = Vector2.Zero;
+        EnsureInteractionGuide();
+        return IsInstanceValid(_interactionGuide)
+               && AimPlane.TryAim(Game?.Camera, _interactionGuide, out guideLocal);
+    }
+
     public void SetCrosshairVisible(bool visible)
     {
         if (Crosshair != null)
@@ -94,7 +106,7 @@ public partial class PokerHand3DView : PokerHandView
             return PokerGesture.None;
         }
 
-        if (!TryAimPoint(out var aim))
+        if (!AimPlane.TryCentreRay(Game?.Camera, out var rayOrigin, out var rayDirection))
             return PokerGesture.None;
 
         var presenter = Game?.SeatPresenter;
@@ -102,26 +114,32 @@ public partial class PokerHand3DView : PokerHandView
         if (presenter == null || string.IsNullOrEmpty(playerId))
             return PokerGesture.None;
 
-        var aimedZone = ZoneAt(aim);
+        var aimedZone = TryActionGuideAimPoint(out var guideAim)
+            ? ZoneAt(guideAim)
+            : InteractionZone.None;
+
+        // Physical chips take precedence even when their edited layout crosses a projected button.
+        // In particular, staged chips sit close to the wager arc and must always remain reversible.
+        if (presenter.TryReturnPreparedChipAtRay(
+                playerId, rayOrigin, rayDirection, out _))
+        {
+            PublishPreparedWagerSnapshot();
+            RefreshPhysicalHud();
+            return PokerGesture.None;
+        }
+
+        if (presenter.TrySelectPreparedChipAtRay(
+                playerId, rayOrigin, rayDirection, out _))
+        {
+            PublishPreparedWagerSnapshot();
+            RefreshPhysicalHud();
+            return PokerGesture.None;
+        }
+
         // The unified wager arc owns press/release so a short click and an all-in hold can never
-        // fire together. Chips remain independently reversible everywhere outside that arc.
+        // fire together. It is considered only after both kinds of physical chip target.
         if (aimedZone == InteractionZone.ConfirmBet)
             return BeginCallHold();
-
-        // Physical chips take precedence if one happens to cross the projected button silhouette.
-        if (presenter.TryReturnPreparedChip(playerId, aim, out _))
-        {
-            PublishPreparedWagerSnapshot();
-            RefreshPhysicalHud();
-            return PokerGesture.None;
-        }
-
-        if (presenter.TrySelectPreparedChip(playerId, aim, out _))
-        {
-            PublishPreparedWagerSnapshot();
-            RefreshPhysicalHud();
-            return PokerGesture.None;
-        }
 
         return aimedZone switch
         {

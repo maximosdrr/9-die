@@ -30,25 +30,29 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>The corner panel. Everything the player reads in words lives there.</summary>
     [Export] public PokerHud Hud;
 
-    /// <summary>Refusals and hints, in front of the eye rather than on the table.</summary>
-    [Export] public Label3D MessageLabel;
-
-    [Export] public Vector3 MessageOffset = new(0.0f, -0.05f, -0.55f);
-
     /// <summary>Optional. Each state plays its clip here when a real rig is wired up.</summary>
     [Export] public AnimationPlayer AnimationPlayer;
 
     [ExportGroup("Hand")]
     /// <summary>
-    /// Where the hand sits relative to the eye. Kept SHORT on purpose: this vector's length is how
-    /// far the hand can swing below eye level as the head tilts down, and the tabletop is only
-    /// 0.412 m below the eye. PokerSceneLoadTest sweeps the whole pitch range and fails if the cards
-    /// can reach the cloth.
+    /// Complete controller pose relative to the camera. It comes from the editable
+    /// FirstPersonControllerPose marker in Poker.tscn, including position and rotation.
     /// </summary>
-    // The poker camera uses a tighter 42° lens. Moving the camera-attached hand back by the same
-    // optical ratio keeps it from growing over the table while the world view loses wide-angle
-    // distortion.
-    [Export] public Vector3 HandOffset = new(0.045f, -0.05f, -0.22f);
+    [Export]
+    public Transform3D HandPose = new(
+        Basis.Identity, new Vector3(0.045f, -0.05f, -0.22f));
+    [Export]
+    public Transform3D CardsInHandPose = new(
+        new Basis(Vector3.Up, Mathf.Pi), Vector3.Zero);
+    /// <summary>Final resting transform of each real card, relative to CardsInHandPose.</summary>
+    [Export] public Transform3D Card0InHandPose = Transform3D.Identity;
+    [Export] public Transform3D Card1InHandPose = Transform3D.Identity;
+
+    public Vector3 HandOffset
+    {
+        get => HandPose.Origin;
+        set => HandPose = new Transform3D(HandPose.Basis, value);
+    }
 
     [Export] public float FanStepDeg = 11.0f;
     [Export] public float FanRadius = 0.40f;
@@ -146,15 +150,18 @@ public partial class PokerHand3DView : PokerHandView
     {
         base.Setup(game, player);
 
+        if (game?.BoardPresenter != null && GodotObject.IsInstanceValid(player))
+        {
+            game.BoardPresenter.SetReaderPlayer((string)player.Name);
+            // A controller can be reclaimed after the deal has already settled. Refresh the stable
+            // table visuals now as well, rather than waiting for another poker-state mutation.
+            game.SeatPresenter?.Refresh();
+        }
+
         if (HandRig != null)
             HandRig.TopLevel = true;
 
         InstallVisualAssets(game?.VisualAssets);
-
-        // The imported rig is authored around the character root. Align its exported grip with the
-        // existing camera-space card slots; this keeps the real table cards and the real fingers
-        // together without baking game camera offsets back into Blender.
-        AlignImportedCardGrip();
 
         Hud?.Setup(game, player);
     }
@@ -173,18 +180,18 @@ public partial class PokerHand3DView : PokerHandView
         // Read in _Process rather than _PhysicsProcess so the hand does not swim a frame behind the
         // RemoteTransform3D that drives the camera.
         if (HandRig != null)
-            HandRig.GlobalTransform = Game.Camera.GlobalTransform.TranslatedLocal(HandOffset);
+            HandRig.GlobalTransform = Game.Camera.GlobalTransform * HandPose;
 
         FollowImportedCardGrip();
 
-        if (MessageLabel == null || _messageSeconds <= 0.0f)
+        if (_messageSeconds <= 0.0f)
             return;
 
         _messageSeconds -= (float)delta;
-        MessageLabel.GlobalTransform = Game.Camera.GlobalTransform.TranslatedLocal(MessageOffset);
-
         if (_messageSeconds <= 0.0f)
-            MessageLabel.Hide();
+        {
+            Hud?.HideNotice();
+        }
     }
 
     // ---------------------------------------------------------------- the seam
@@ -285,11 +292,7 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void ShowNotice(string text, float seconds = 2.5f)
     {
-        if (MessageLabel == null)
-            return;
-
-        MessageLabel.Text = text;
-        MessageLabel.Show();
+        Hud?.ShowNotice(text);
         _messageSeconds = seconds;
     }
 
@@ -548,6 +551,22 @@ public partial class PokerHand3DView : PokerHandView
         new(FanStepDeg, FanRadius, SelectedLift,
             Mathf.Lerp(RestTiltDeg, PeekTiltDeg, peek), HandFan.LongAxisUpFromMinusZ);
 
+    /// <summary>
+    /// Exact artist-authored card pose with only the temporary peek lean added. This keeps each
+    /// card independently editable without losing the right-button look animation.
+    /// </summary>
+    public Transform3D HeldCardPoseAt(int index, float peek)
+    {
+        var authored = index == 0 ? Card0InHandPose : Card1InHandPose;
+        var tiltDelta = Mathf.DegToRad(
+            Mathf.Lerp(RestTiltDeg, PeekTiltDeg, Mathf.Clamp(peek, 0.0f, 1.0f))
+            - RestTiltDeg);
+        var leaned = new Transform3D(
+            Basis.FromEuler(new Vector3(tiltDelta, 0.0f, 0.0f)) * authored.Basis,
+            authored.Origin);
+        return CardsInHandPose * leaned;
+    }
+
     // ---------------------------------------------------------------- drawing
 
     private void RebuildFan()
@@ -633,34 +652,15 @@ public partial class PokerHand3DView : PokerHandView
 
     private void ApplyFan()
     {
-        var spec = FanSpec;
-        var centre = HandFan.NaturalCentre(_holeCards.Length);
-
         for (var i = 0; i < _fan.Count && i < _holeCards.Length; i++)
         {
             if (!IsInstanceValid(_fan[i]))
                 continue;
-            var target = HandFan.SlotTransform(i, centre, false, spec);
+            var target = HeldCardPoseAt(i, _peek);
             _fan[i].Transform = _cardTransfer < 1.0f && i < _fanTransferFrom.Count
                 ? _fanTransferFrom[i].InterpolateWith(target, PokerMotion.Smooth(_cardTransfer))
                 : target;
         }
-    }
-
-    private void AlignImportedCardGrip()
-    {
-        if (_cardHandVisual is not PlayerFirstPersonHands hands
-            || CardSlots == null
-            || hands.CardGrip == null)
-        {
-            return;
-        }
-
-        hands.UpdateCardGrip();
-
-        var correction = CardSlots.GlobalTransform
-                         * hands.CardGrip.GlobalTransform.AffineInverse();
-        hands.GlobalTransform = correction * hands.GlobalTransform;
     }
 
     private void FollowImportedCardGrip()

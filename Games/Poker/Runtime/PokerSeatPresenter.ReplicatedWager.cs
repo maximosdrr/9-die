@@ -201,7 +201,7 @@ public partial class PokerSeatPresenter : Node3D
         var x = LaneOffset(lane, bank.Count, bankPile.StackSpacing);
         var source = stack + bankPile.Basis * new Vector3(
             x, bank[lane].Count * bankPile.EffectiveThickness, 0.0f);
-        var target = bet + basis * PokerChipContactLayout.RootOffset(
+        var target = PreparedBetPlace(playerId, bet) + basis * PokerChipContactLayout.RootOffset(
             betSlot, bankPile.EffectiveDiameter, bankPile.EffectiveThickness);
         var motionSeed = denomination * 17 + lane * 31 + betSlot * 53;
         var restBasis = basis
@@ -231,7 +231,7 @@ public partial class PokerSeatPresenter : Node3D
                 out var basis, out _, out var bet))
             return;
 
-        var target = bet + basis * PokerChipContactLayout.RootOffset(
+        var target = PreparedBetPlace(playerId, bet) + basis * PokerChipContactLayout.RootOffset(
             betSlot, bankPile.EffectiveDiameter, bankPile.EffectiveThickness);
         var needsMotion = chip.Returning || chip.BetSlot != betSlot
                           || chip.To.DistanceTo(target) > 0.0001f;
