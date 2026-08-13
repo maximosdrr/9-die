@@ -72,5 +72,8 @@ public partial class HeadPivot : Node3D
         var rot = Rotation;
         rot.X = Mathf.Clamp(rot.X, Mathf.DegToRad(MinPitch), Mathf.DegToRad(MaxPitch));
         Rotation = rot;
+
+        if (PlayerBody is Player player)
+            player.SetCameraLook(0.0f, rot.X);
     }
 }

@@ -7,6 +7,7 @@ using Godot;
 /// </summary>
 public partial class Player : CharacterBody3D
 {
+    private const int MovementModeChannel = 5;
     internal const int MovementModeRequestsPerSecond = 4;
     internal const int MaximumTrackedMovementModePeers = 16;
 
@@ -56,6 +57,7 @@ public partial class Player : CharacterBody3D
         _snapshotPosition = GlobalPosition;
         _snapshotYaw = GlobalRotation.Y;
         SetPhysicsProcess(true);
+        SetProcess(false);
     }
 
     public override void _PhysicsProcess(double delta)
@@ -226,6 +228,13 @@ public partial class Player : CharacterBody3D
             || !PlayerMovementProtocol.IsValidSnapshot(position, yaw, velocity))
             return;
 
+        // Seating uses its own reliable message and a finite arrival transition. An older walking
+        // snapshot may still be in the unreliable channel when that message arrives; accepting it
+        // here would put the avatar back where F was pressed and physics is disabled while seated,
+        // so there would be no later interpolation pass to correct it.
+        if (IsInSeatedGameMode)
+            return;
+
         if (IsMultiplayerAuthority())
         {
             ReconcilePrediction(acknowledgedSequence, position, yaw, velocity);
@@ -294,24 +303,74 @@ public partial class Player : CharacterBody3D
             || !controller.TryGetAuthoritativePose(!walking, out var position, out var yaw))
             return false;
 
-        ApplyServerMovementMode(walking, position, yaw);
+        ApplyServerMovementMode(walking, position, yaw,
+            walking ? 0.0f : controller.SeatApproachDurationTo(position));
         return true;
     }
 
-    internal void ApplyServerMovementMode(bool walking, Vector3 position, float yaw)
+    internal void ApplyServerMovementMode(
+        bool walking, Vector3 position, float yaw, float transitionSeconds = 0.0f)
     {
         if (!Multiplayer.IsServer()
             || !PlayerMovementProtocol.IsValidSnapshot(position, yaw, Vector3.Zero))
             return;
 
+        _serverInput ??= new PlayerMovementInputGuard(Id, MaxInputPacketsPerSecond);
+        _serverInput.Stop(Time.GetTicksMsec());
+
+        // Unit/scene tests do not own a transport and should remain deterministic. A real host,
+        // including a listen server, presents the same short approach as every connected client.
+        var duration = Multiplayer.MultiplayerPeer == null
+            ? 0.0f
+            : Mathf.Max(0.0f, transitionSeconds);
+        ApplyAuthoritativeMovementMode(walking, position, yaw, duration);
+
+        foreach (var peerId in Multiplayer.GetPeers())
+        {
+            RpcId(peerId, MethodName.ReceiveMovementModeFromServer,
+                walking, position, yaw, duration);
+        }
+
+        if (duration <= 0.0f)
+            BroadcastAuthoritativeSnapshot();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
+        TransferMode = MultiplayerPeer.TransferModeEnum.Reliable,
+        TransferChannel = MovementModeChannel)]
+    private void ReceiveMovementModeFromServer(
+        bool walking, Vector3 position, float yaw, float transitionSeconds)
+    {
+        if (Multiplayer.IsServer()
+            || Multiplayer.GetRemoteSenderId() != PlayerMovementProtocol.ServerPeerId
+            || !PlayerMovementProtocol.IsValidSnapshot(position, yaw, Vector3.Zero)
+            || !float.IsFinite(transitionSeconds)
+            || transitionSeconds < 0.0f
+            || transitionSeconds > SeatedTableController.MaximumAllowedSeatApproachSeconds)
+        {
+            return;
+        }
+
+        ApplyAuthoritativeMovementMode(walking, position, yaw, transitionSeconds);
+    }
+
+    private void ApplyAuthoritativeMovementMode(
+        bool walking, Vector3 position, float yaw, float transitionSeconds)
+    {
         IsInSeatedGameMode = !walking;
         CurrentControlState = walking ? ControllerStatesEnum.Player : ControllerStatesEnum.Game;
         SetPhysicsProcess(walking);
         BodyCollision ??= GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
         BodyCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, !walking);
-        _serverInput ??= new PlayerMovementInputGuard(Id, MaxInputPacketsPerSecond);
-        _serverInput.Stop(Time.GetTicksMsec());
-        SetVisualPose(position, yaw, Vector3.Zero);
-        BroadcastAuthoritativeSnapshot();
+        Velocity = Vector3.Zero;
+
+        _predictionSamples.Clear();
+        _predictionCorrection.Clear();
+        _snapshotPosition = position;
+        _snapshotYaw = Mathf.Wrap(yaw, -Mathf.Pi, Mathf.Pi);
+        _snapshotVelocity = Vector3.Zero;
+        _hasSnapshot = true;
+
+        BeginMovementModeTransition(position, yaw, transitionSeconds);
     }
 }

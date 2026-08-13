@@ -39,16 +39,20 @@ script = ExtResource("9_danch")
 Chairs = [NodePath("../TableFixture/WoodenChair_004"), NodePath("../TableFixture/WoodenChair_005"), NodePath("../TableFixture/WoodenChair_006"), NodePath("../TableFixture/WoodenChair_007")]
 
 [node name="Seat0" type="Marker3D" parent="Seats" unique_id=1281192429 instance=ExtResource("10_seat")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.9, -0.65)
+transform = Transform3D(0.80348897, 0, -0.5953196, 0, 1, 0, 0.5953196, 0, 0.80348897, -0.6382677, 0, 0.861455)
+PreviewAnimation = "IdleSit"
 
 [node name="Seat1" type="Marker3D" parent="Seats" unique_id=1544177101 instance=ExtResource("10_seat")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.65, 0.9, 0)
+transform = Transform3D(-0.8415076, 0, 0.54024523, 0, 1, 0, -0.54024523, 0, -0.8415076, 0.58510953, 0, -0.91139004)
+PreviewAnimation = "IdleSit"
 
 [node name="Seat2" type="Marker3D" parent="Seats" unique_id=1395997321 instance=ExtResource("10_seat")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.65)
+transform = Transform3D(0.6485974, 0, 0.76113164, 0, 1, 0, -0.76113164, 0, 0.6485974, 0.84323573, 0, 0.71856236)
+PreviewAnimation = "IdleSit"
 
 [node name="Seat3" type="Marker3D" parent="Seats" unique_id=1003789680 instance=ExtResource("10_seat")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.65, 0.9, 0)
+transform = Transform3D(-0.63227147, 0, -0.7747469, 0, 1, 0, 0.7747469, 0, -0.63227147, -0.8412694, 0, -0.6865605)
+PreviewAnimation = "IdleSit"
 
 [node name="GameModeHandler" type="Node" parent="." unique_id=1559205914 node_paths=PackedStringArray("CurrentGameMode")]
 script = ExtResource("5_gmhand")
@@ -59,3 +63,9 @@ script = ExtResource("6_gmode")
 
 [node name="Resolver" type="Node" parent="GameModeHandler/DoubleSix" unique_id=883018564]
 script = ExtResource("7_dresol")
+
+[editable path="TableFixture"]
+[editable path="Seats/Seat0"]
+[editable path="Seats/Seat1"]
+[editable path="Seats/Seat2"]
+[editable path="Seats/Seat3"]

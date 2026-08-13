@@ -32,6 +32,11 @@ public partial class PokerSeatPresenter : Node3D
             for (var index = 0; index < hand.Cards.Length; index++)
             {
                 var card = hand.Cards[index];
+                if (!IsInstanceValid(card))
+                {
+                    hand.CleanupActive[index] = false;
+                    continue;
+                }
                 var animate = card.Visible;
 
                 // Opponents normally hold anonymous cards outside this presenter's tree view. Give
@@ -76,6 +81,11 @@ public partial class PokerSeatPresenter : Node3D
                     continue;
 
                 var card = hand.Cards[index];
+                if (!IsInstanceValid(card))
+                {
+                    hand.CleanupActive[index] = false;
+                    continue;
+                }
                 var delay = hand.CleanupSlot[index] * Mathf.Max(0.0f, Profile.CardReturnStagger);
                 var t = Mathf.Clamp((_cardCleanupElapsed - delay) / duration, 0.0f, 1.0f);
                 if (t >= 1.0f && !hand.CleanupFaceDown[index])
@@ -111,7 +121,7 @@ public partial class PokerSeatPresenter : Node3D
         {
             for (var index = 0; index < hand.Cards.Length; index++)
             {
-                if (hand.CleanupActive[index])
+                if (hand.CleanupActive[index] && IsInstanceValid(hand.Cards[index]))
                     hand.Cards[index].Visible = false;
                 hand.CleanupActive[index] = false;
                 hand.CleanupFaceDown[index] = false;

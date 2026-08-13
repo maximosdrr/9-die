@@ -40,24 +40,20 @@ transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 1
 script = ExtResource("5_7vxer")
 InitialState = "GAME_WAITING_START"
 AuthorityStateSynchronizer = NodePath("AuthorityStateSynchronizer")
-metadata/_custom_type_script = "uid://c4pej4f3ph1k7"
 
 [node name="Waiting" type="Node" parent="StateMachine" node_paths=PackedStringArray("TableInfluence", "StartGameUI")]
 script = ExtResource("6_njalx")
 TableInfluence = NodePath("../../TableInfluence")
 StartGameUI = NodePath("../../UI/PoolStartGameUI")
-metadata/_custom_type_script = "uid://dq0i14kh66qsi"
 
 [node name="Starting" type="Node" parent="StateMachine" node_paths=PackedStringArray("StartGameTimer", "StartGameUI")]
 script = ExtResource("7_hu1vg")
 StartGameTimer = NodePath("../../Timers/StartGameTimer")
 StartGameUI = NodePath("../../UI/PoolStartGameUI")
-metadata/_custom_type_script = "uid://dlox0xg6s8lr7"
 
 [node name="Started" type="Node" parent="StateMachine" node_paths=PackedStringArray("Table")]
 script = ExtResource("7_dge2g")
 Table = NodePath("../..")
-metadata/_custom_type_script = "uid://ci7kc3583eis2"
 
 [node name="Finished" type="Node" parent="StateMachine" node_paths=PackedStringArray("StartGameUI", "ReturnTimer")]
 script = ExtResource("9_gmfin")
@@ -67,7 +63,6 @@ metadata/_custom_type_script = "uid://dvlfoopdta03f"
 
 [node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine"]
 script = ExtResource("7_r1yk8")
-metadata/_custom_type_script = "uid://b5ic2cn2b3ipw"
 
 [node name="Timers" type="Node" parent="."]
 

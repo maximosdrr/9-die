@@ -22,10 +22,23 @@ public partial class PlayerStrike : State
         var requested = metadata != null && metadata.TryGetValue("animation", out var animation)
             ? animation.AsString()
             : "";
+        var preparation = metadata != null && metadata.TryGetValue("preparation", out var prep)
+            ? prep.AsString()
+            : "";
+        var idle = metadata != null && metadata.TryGetValue("idle", out var queuedIdle)
+            ? queuedIdle.AsString()
+            : CharacterVisual.Clips.Idle;
         var clip = !string.IsNullOrWhiteSpace(requested) && AnimationPlayer.HasAnimation(requested)
             ? requested
-            : "Idle";
+            : idle;
 
         AnimationPlayer.Play(clip);
+        if (!string.IsNullOrWhiteSpace(preparation)
+            && AnimationPlayer.HasAnimation(preparation))
+        {
+            AnimationPlayer.Queue(preparation);
+        }
+        if (idle != clip && AnimationPlayer.HasAnimation(idle))
+            AnimationPlayer.Queue(idle);
     }
 }

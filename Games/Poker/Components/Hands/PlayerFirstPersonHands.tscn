@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Games/Poker/Runtime/PlayerFirstPersonHands.cs" id="1_hands"]
+[ext_resource type="PackedScene" path="res://Assets/Characters/Player/PlayerFirstPerson.glb" id="2_rig"]
+
+[node name="PlayerFirstPersonHands" type="Node3D" node_paths=PackedStringArray("Animator", "ImportedRig", "Skeleton", "CardGrip", "AuthoredCardGripMarker")]
+script = ExtResource("1_hands")
+Animator = NodePath("PlayerFirstPerson/AnimationPlayer")
+IdleClip = "IdleSitHoldingCards"
+ImportedRig = NodePath("PlayerFirstPerson")
+Skeleton = NodePath("PlayerFirstPerson/FP_Armature/Skeleton3D")
+CardGrip = NodePath("CardGrip")
+AuthoredCardGripMarker = NodePath("PlayerFirstPerson/FP_Armature/Skeleton3D/CC_Base_L_Hand/CardGripMarker")
+
+[node name="CardGrip" type="Node3D" parent="."]
+top_level = true
+
+[node name="PlayerFirstPerson" parent="." instance=ExtResource("2_rig")]
+transform = Transform3D(-0.72, 0, 0, 0, 0.72, 0, 0, 0, -0.72, 0, -1.13, 0.18)

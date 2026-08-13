@@ -36,6 +36,7 @@ public partial class PokerHandVisual : Node3D
             return 0.0f;
 
         Animator.Play(clip);
+        Animator.Advance(0.0);
         return (float)(Animator.GetAnimation(clip)?.Length ?? 0.0);
     }
 }

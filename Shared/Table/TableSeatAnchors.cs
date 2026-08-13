@@ -13,25 +13,50 @@ using Godot;
 /// away to undo the work that made it readable. A seated player leans in, so the eye is offset
 /// toward the table while the body stays on the chair, where the sitting animation will need it.
 /// </summary>
+[Tool]
 [GlobalClass]
 public partial class TableSeatAnchors : Node3D
 {
     /// <summary>In seating order. Each one claims the seat marker at the same index.</summary>
     [Export] public Godot.Collections.Array<Node3D> Chairs = new();
 
-    [ExportGroup("Body placement")]
+    [ExportGroup("Automatic alignment (optional)")]
     /// <summary>
-    /// Fine adjustment of the character root in the chair's local axes. It stays at floor height
-    /// while the temporary standing idle is in use; the future seated animation can be aligned by
-    /// editing this one value in the inspector.
+    /// Off by default: Seat0..Seat3 are authored directly in the 3D editor and are never
+    /// overwritten at runtime. Turn this on only to calculate a starting layout from the chairs.
     /// </summary>
-    [Export] public Vector3 BodyOffset = Vector3.Zero;
+    [Export] public bool AlignSeatsFromChairs;
+
+    /// <summary>
+    /// One-shot editor button. Enable it to copy the chair-derived transforms into Seat0..Seat3;
+    /// it switches itself off immediately so subsequent manual edits remain authoritative.
+    /// </summary>
+    [Export]
+    public bool AlignNow
+    {
+        get => false;
+        set
+        {
+            if (!value || !Engine.IsEditorHint() || !IsInsideTree())
+                return;
+
+            AlignSeatsToChairs();
+            UpdateConfigurationWarnings();
+        }
+    }
+
+    [ExportGroup("Automatic defaults")]
+    /// <summary>
+    /// Fine adjustment of the character root in the final seat axes. Positive local Z moves the
+    /// body into the back of the chair, regardless of how the imported chair mesh was rotated.
+    /// </summary>
+    [Export] public Vector3 BodyOffset = new(0.0f, 0.0f, 0.06f);
 
     /// <summary>Eye height above the character root while seated.</summary>
-    [Export] public float EyeHeight = 1.13f;
+    [Export] public float EyeHeight = 1.02f;
 
     /// <summary>How far the player leans in over the table from the chair.</summary>
-    [Export] public float EyeLean = 0.30f;
+    [Export] public float EyeLean = 0.135f;
 
     /// <summary>
     /// Used when a seat has no hand-placed StandExit child. Positive local Z is behind the chair,
@@ -53,9 +78,12 @@ public partial class TableSeatAnchors : Node3D
 
     public override void _Ready()
     {
-        AlignSeatsToChairs();
+        // Manual marker transforms are the production source of truth. Automatic alignment is an
+        // explicit opt-in for old scenes or for producing a first draft before visual adjustment.
+        if (AlignSeatsFromChairs)
+            AlignSeatsToChairs();
 
-        if (BuildChairColliders)
+        if (!Engine.IsEditorHint() && BuildChairColliders)
             GiveChairsColliders();
     }
 
@@ -93,11 +121,10 @@ public partial class TableSeatAnchors : Node3D
         toTable = toTable.Normalized();
 
         var yaw = Mathf.Atan2(-toTable.X, -toTable.Z);
-        var seatPosition = chairTransform.Origin
-            + chairTransform.Basis.Orthonormalized() * BodyOffset;
+        var seatBasis = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
+        var seatPosition = chairTransform.Origin + seatBasis * BodyOffset;
 
-        marker.GlobalTransform = new Transform3D(
-            Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f)), seatPosition);
+        marker.GlobalTransform = new Transform3D(seatBasis, seatPosition);
 
         // The eye rides forward of the body — the lean — and above it.
         var eye = marker.GetNodeOrNull<Node3D>("SeatView");

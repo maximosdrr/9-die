@@ -23,6 +23,8 @@ public partial class PlayerMovementSecurityTest : Node
         TestNativeWindowHandleConversion();
         TestCameraMountLifecycle();
         TestRpcContract();
+        TestSeatApproachTransition();
+        TestCameraLookContract();
         TestMovementModeRateLimiter();
         TestProfileValidation();
         TestProfileRpcContract();
@@ -270,6 +272,14 @@ public partial class PlayerMovementSecurityTest : Node
             && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable);
         Check("o pedido de assento não transporta coordenadas",
             parameters is { Length: 1 } && parameters[0].ParameterType == typeof(bool));
+
+        var modeSnapshot = typeof(Player).GetMethod("ReceiveMovementModeFromServer",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var modeSnapshotRpc = modeSnapshot?.GetCustomAttribute<RpcAttribute>();
+        Check("a posição final da cadeira chega de forma confiável em host e clientes",
+            modeSnapshotRpc != null
+            && modeSnapshotRpc.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable
+            && modeSnapshotRpc.Mode == MultiplayerApi.RpcMode.AnyPeer);
     }
 
     private void TestMovementModeRateLimiter()
@@ -295,6 +305,100 @@ public partial class PlayerMovementSecurityTest : Node
 
         Check("tabela de rate limit de movimento permanece limitada",
             player.TrackedMovementModePeerCount <= Player.MaximumTrackedMovementModePeers);
+        player.Free();
+    }
+
+    private void TestSeatApproachTransition()
+    {
+        var player = GD.Load<PackedScene>("res://World/Player/Player.tscn")
+            .Instantiate<Player>();
+        player.Position = Vector3.Zero;
+        player.Rotation = Vector3.Zero;
+        AddChild(player);
+        var target = new Vector3(0.8f, 0.0f, -0.4f);
+        player.BeginMovementModeTransition(target, 1.2f, 0.5f);
+        player._Process(0.1);
+
+        var movedWithoutTeleporting = player.Position.DistanceTo(Vector3.Zero) > 0.01f
+            && player.Position.DistanceTo(target) > 0.01f;
+        for (var frame = 0; frame < 5; frame++)
+            player._Process(0.1);
+
+        Check("host e cliente percorrem a aproximação antes de sentar",
+            movedWithoutTeleporting
+            && player.Position.DistanceTo(target) < 0.001f
+            && Mathf.Abs(Mathf.AngleDifference(player.Rotation.Y, 1.2f)) < 0.001f
+            && !player.MovementModeTransitionActive);
+        RemoveChild(player);
+        player.Free();
+    }
+
+    private void TestCameraLookContract()
+    {
+        foreach (var methodName in new[] { "SubmitCameraLook", "ReceiveCameraLook" })
+        {
+            var method = typeof(Player).GetMethod(methodName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var rpc = method?.GetCustomAttribute<RpcAttribute>();
+            Check($"{methodName} replica o pescoço sem congestionar movimento",
+                rpc != null
+                && rpc.Mode == MultiplayerApi.RpcMode.AnyPeer
+                && !rpc.CallLocal
+                && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.UnreliableOrdered
+                && rpc.TransferChannel == 4);
+        }
+
+        var visualScene = GD.Load<PackedScene>(
+            "res://World/Player/Components/CharacterVisual.tscn");
+        var visual = visualScene?.Instantiate<CharacterVisual>();
+        if (visual != null)
+            AddChild(visual);
+
+        visual?.SetCameraLook(Mathf.Pi, -Mathf.Pi);
+        Check("o movimento do pescoço usa um osso real e limites humanos",
+            visual?.NeckModifier?.BoneName == "CC_Base_NeckTwist02"
+            && visual.Skeleton.FindBone(visual.NeckModifier.BoneName) >= 0
+            && visual.MaximumNeckYawDegrees is > 0.0f and <= 90.0f
+            && visual.MinimumNeckPitchDegrees >= -60.0f
+            && visual.MaximumNeckPitchDegrees <= 60.0f);
+        Check("a inclinação vertical da câmera é convertida para o eixo do rig",
+            CameraNeckModifier.RigPitchFromCamera(-0.35f) > 0.0f
+            && CameraNeckModifier.RigPitchFromCamera(0.35f) < 0.0f);
+
+        visual?.QueueFree();
+
+        var playerScene = GD.Load<PackedScene>("res://World/Player/Player.tscn");
+        var eyePlayer = playerScene?.Instantiate<Player>();
+        if (eyePlayer != null)
+            AddChild(eyePlayer);
+        eyePlayer?.CharacterVisual?.Animator?.Play(CharacterVisual.Clips.Idle);
+        eyePlayer?.CharacterVisual?.Animator?.Seek(0.1, update: true);
+        var skeleton = eyePlayer?.CharacterVisual?.Skeleton;
+        var leftEye = skeleton?.FindBone("CC_Base_L_Eye") ?? -1;
+        var rightEye = skeleton?.FindBone("CC_Base_R_Eye") ?? -1;
+        var eyeCentre = leftEye >= 0 && rightEye >= 0
+            ? (skeleton.GlobalTransform * skeleton.GetBoneGlobalPose(leftEye)).Origin
+              .Lerp((skeleton.GlobalTransform * skeleton.GetBoneGlobalPose(rightEye)).Origin, 0.5f)
+            : Vector3.Inf;
+        Check("a câmera livre nasce entre os olhos do personagem",
+            eyePlayer?.HeadPivot != null
+            && eyePlayer.HeadPivot.GlobalPosition.DistanceTo(eyeCentre) < 0.02f);
+        eyePlayer?.QueueFree();
+
+        var player = new Player();
+        var acceptedWindow = true;
+        for (var request = 0; request < Player.CameraLookRequestsPerSecond; request++)
+            acceptedWindow &= player.TryConsumeCameraLookRequest(7, 100);
+        Check("a rotação remota do pescoço possui orçamento por peer",
+            acceptedWindow && !player.TryConsumeCameraLookRequest(7, 100));
+        for (var peer = 1_000;
+             peer < 1_000 + Player.MaximumTrackedCameraLookPeers * 2;
+             peer++)
+        {
+            player.TryConsumeCameraLookRequest(peer, 1_100);
+        }
+        Check("a tabela de rotação do pescoço permanece limitada",
+            player.TrackedCameraLookPeerCount <= Player.MaximumTrackedCameraLookPeers);
         player.Free();
     }
 
@@ -377,7 +481,7 @@ public partial class PlayerMovementSecurityTest : Node
             && player.StateMachine != null
             && player.BodyCollision != null);
         Check("o componente visual mantém o AnimationPlayer esperado",
-            player?.GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer") != null
+            player?.CharacterVisual?.Animator != null
             && player.SeatedGestureAnimator != null);
         Check("UI local não faz parte do avatar replicado",
             player?.FindChild("PlayerHud", recursive: true, owned: false) == null

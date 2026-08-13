@@ -6,6 +6,9 @@
 [node name="PokerController" type="Node3D" unique_id=2147368170 node_paths=PackedStringArray("LookRig", "LookPitch", "RemoteSeat", "TopRig", "RemoteTop")]
 script = ExtResource("1_pctrl")
 HandViewScene = ExtResource("2_phview")
+SeatedAnimationName = "Sit"
+SeatedPreparationAnimationName = "SitHoldingCards"
+SeatedIdleAnimationName = "IdleSitHoldingCards"
 LookRig = NodePath("LookRig")
 LookPitch = NodePath("LookRig/LookPitch")
 RemoteSeat = NodePath("LookRig/LookPitch/RemoteSeat")

@@ -17,7 +17,8 @@ MaxYawDeg = 100.0
 MinPitchDeg = -70.0
 MaxPitchDeg = 25.0
 RestPitchDeg = -32.0
-SeatedAnimationName = "SitForAGame"
+SeatedAnimationName = "Sit"
+SeatedIdleAnimationName = "IdleSit"
 TopFov = 55.0
 TopHeight = 0.66
 

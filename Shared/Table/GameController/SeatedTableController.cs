@@ -31,18 +31,17 @@ public partial class SeatedTableController : GameController
     [Export] public float SeatFov = 55.0f;
 
     /// <summary>
-    /// Fine adjustment from the authored eye marker, in the seat's local axes. Positive Z moves the
-    /// camera back from the table and positive Y raises it. Kept per controller so poker can use a
-    /// more distant, elevated composition without changing domino's established camera.
+    /// Fine adjustment from the anatomical eye marker, in the seat's local axes. It normally stays
+    /// at zero; the marker itself is measured from the seated character's eye bones.
     /// </summary>
-    [Export] public Vector3 SeatViewOffset = new(0.0f, 0.3f, 0.18f);
+    [Export] public Vector3 SeatViewOffset = Vector3.Zero;
 
     [Export] public float MouseSensitivity = 0.004f;
 
     /// <summary>How far the head turns to either side before a real person would move their body.</summary>
     [Export] public float MaxYawDeg = 100.0f;
 
-    [Export] public float MinPitchDeg = -70.0f;
+    [Export] public float MinPitchDeg = -50.0f;
     [Export] public float MaxPitchDeg = 25.0f;
 
     /// <summary>Where the head rests: tilted down at the table, which is what the player wants to see.</summary>
@@ -52,7 +51,16 @@ public partial class SeatedTableController : GameController
     /// Animation requested while seated. PlayerStrike falls back to Idle until this clip is added to
     /// the character, so adding the future animation needs no controller rewrite.
     /// </summary>
-    [Export] public string SeatedAnimationName = "SitForAGame";
+    [Export] public string SeatedAnimationName = CharacterVisual.Clips.Sit;
+
+    /// <summary>Optional transition between sitting down and the seated loop.</summary>
+    [Export] public string SeatedPreparationAnimationName = "";
+
+    /// <summary>Loop queued after the sit transition.</summary>
+    [Export] public string SeatedIdleAnimationName = CharacterVisual.Clips.IdleSit;
+
+    protected virtual string SeatedPreparationClip => SeatedPreparationAnimationName;
+    protected virtual string SeatedIdleClip => SeatedIdleAnimationName;
 
     [ExportGroup("Top view")]
     [Export] public float TopFov = 52.0f;
@@ -72,6 +80,15 @@ public partial class SeatedTableController : GameController
     [ExportGroup("Leaving")]
     /// <summary>Held, not tapped: getting up mid-match forfeits, so it must not be a slip.</summary>
     [Export] public float LeaveHoldSeconds = 1.0f;
+
+    [ExportGroup("Seat arrival")]
+    /// <summary>World-space speed of the short, collision-free approach to the assigned chair.</summary>
+    [Export] public float SeatApproachSpeed = 1.8f;
+    [Export] public float MinimumSeatApproachSeconds = 0.25f;
+    [Export] public float MaximumSeatApproachSeconds = 2.5f;
+    [Export] public float SeatArrivalTolerance = 0.025f;
+
+    internal const float MaximumAllowedSeatApproachSeconds = 5.0f;
 
     public Player Player;
     public GlobalCamera Camera;
@@ -100,6 +117,9 @@ public partial class SeatedTableController : GameController
     private Vector3 _cachedStandPosition;
     private float _cachedStandYaw;
     private bool _hasCachedStandExit;
+    private bool _waitingForSeatArrival;
+    private Vector3 _seatTargetPosition;
+    private float _seatTargetYaw;
 
     /// <summary>Whether the player is currently in their chair rather than walking.</summary>
     protected bool Seated { get; private set; }
@@ -164,11 +184,12 @@ public partial class SeatedTableController : GameController
             // removal releases occupancy before mode handlers run, but the server still needs this
             // trusted marker to move the old body clear before restoring its collider.
             CacheStandExit(assignedSeat);
-            Player.EnterSeatedGameMode();
+            PrepareSeatArrival(assignedSeat);
             if (Multiplayer.IsServer()
                 && TryGetAuthoritativePose(seated: true, out var position, out var yaw))
             {
-                Player.ApplyServerMovementMode(walking: false, position, yaw);
+                Player.ApplyServerMovementMode(
+                    walking: false, position, yaw, SeatApproachDurationTo(position));
             }
         }
 
@@ -183,7 +204,7 @@ public partial class SeatedTableController : GameController
 
     public override void _ExitTree()
     {
-        if (Seated && IsMultiplayerAuthority())
+        if ((Seated || _waitingForSeatArrival) && IsMultiplayerAuthority())
             MoveToStandExit();
         else if (Multiplayer.IsServer() && IsInstanceValid(Player)
             && TryGetAuthoritativePose(seated: false, out var position, out var yaw))
@@ -195,11 +216,17 @@ public partial class SeatedTableController : GameController
             Camera?.ResetFov();
 
         if (IsInstanceValid(Player))
+        {
+            Player.CancelMovementModeTransition();
             Player.ExitSeatedGameMode();
+        }
     }
 
     public override void _Process(double delta)
     {
+        if (_waitingForSeatArrival)
+            TryFinishSeatArrival();
+
         if (!Seated || !IsMultiplayerAuthority())
             return;
 
@@ -264,15 +291,13 @@ public partial class SeatedTableController : GameController
 
         Player.EnterSeatedGameMode();
         TakeSeat();
-        HandView?.SetInteractive(true);
         CanTakeControl = true;
         RefreshView();
     }
 
     /// <summary>
-    /// Sits the player down and builds both camera rigs around the seat. The owner applies the pose
-    /// immediately for presentation; Player asks the server to resolve and publish the same assigned
-    /// marker from authoritative match state.
+    /// Starts the short approach and builds both camera rigs around the server-assigned seat. The
+    /// body does not begin the sit clip until it has actually reached that marker.
     /// </summary>
     private void TakeSeat()
     {
@@ -296,16 +321,10 @@ public partial class SeatedTableController : GameController
         // would leave the camera rigs inside a hidden subtree. Nothing here is visible anyway.
         Show();
 
-        Player.GlobalPosition = seat.GlobalPosition;
-        // Yaw only: a seat marker tilted to frame the camera must not tip the player over.
-        _seatYaw = seat.GlobalRotation.Y;
-        Player.GlobalRotation = new Vector3(0.0f, _seatYaw, 0.0f);
-        Player.Velocity = Vector3.Zero;
-        Player.ResetPhysicsInterpolation();
+        PrepareSeatArrival(seat);
         Player.RequestAuthoritativeMovementMode(walking: false);
 
         Player.GiveControl();
-        Player.EnterGameControllerMode(SeatedAnimationName);
 
         // The eye point comes from the seat's own marker so an artist can raise or lower it per
         // chair without touching code.
@@ -326,9 +345,68 @@ public partial class SeatedTableController : GameController
 
         PlaceTopRig();
 
-        Seated = true;
         _inTopView = false;
         _leaveHeld = 0.0f;
+        TryFinishSeatArrival();
+    }
+
+    private void PrepareSeatArrival(Marker3D seat)
+    {
+        _seatTargetPosition = seat.GlobalPosition;
+        _seatTargetYaw = seat.GlobalRotation.Y;
+        _seatYaw = _seatTargetYaw;
+        _waitingForSeatArrival = true;
+        Seated = false;
+
+        Player.EnterSeatedGameMode();
+        Player.Velocity = Vector3.Zero;
+        if (Player.GlobalPosition.DistanceTo(_seatTargetPosition) > SeatArrivalTolerance)
+            Player.CharacterVisual?.Play(CharacterVisual.Clips.Walk, 0.12);
+
+        // Remote copies normally do no controller work. They process only while approaching so the
+        // same server marker, not the place where their owner pressed F, controls their final pose.
+        SetProcess(true);
+    }
+
+    internal float SeatApproachDurationTo(Vector3 targetPosition)
+    {
+        var distance = Player == null ? 0.0f : Player.GlobalPosition.DistanceTo(targetPosition);
+        if (distance <= Mathf.Max(0.001f, SeatArrivalTolerance))
+            return 0.0f;
+
+        var seconds = distance / Mathf.Max(0.1f, SeatApproachSpeed);
+        return Mathf.Clamp(seconds,
+            Mathf.Max(0.0f, MinimumSeatApproachSeconds),
+            Mathf.Min(MaximumAllowedSeatApproachSeconds,
+                Mathf.Max(MinimumSeatApproachSeconds, MaximumSeatApproachSeconds)));
+    }
+
+    private void TryFinishSeatArrival()
+    {
+        if (!_waitingForSeatArrival
+            || Player.MovementModeTransitionActive
+            || Player.GlobalPosition.DistanceTo(_seatTargetPosition) > SeatArrivalTolerance
+            || Mathf.Abs(Mathf.AngleDifference(Player.GlobalRotation.Y, _seatTargetYaw)) > 0.02f)
+        {
+            return;
+        }
+
+        _waitingForSeatArrival = false;
+        Seated = true;
+        Player.GlobalPosition = _seatTargetPosition;
+        Player.GlobalRotation = new Vector3(0.0f, _seatTargetYaw, 0.0f);
+        Player.Velocity = Vector3.Zero;
+        Player.ResetPhysicsInterpolation();
+
+        if (!IsMultiplayerAuthority())
+        {
+            SetProcess(false);
+            return;
+        }
+
+        Player.EnterSeatedAnimation(
+            SeatedAnimationName, SeatedPreparationClip, SeatedIdleClip);
+        HandView?.SetInteractive(true);
         SetProcessUnhandledInput(true);
         SetProcess(true);
         ShowSeatView();
@@ -358,6 +436,7 @@ public partial class SeatedTableController : GameController
     {
         LookRig.GlobalRotation = new Vector3(0.0f, _seatYaw + _lookYaw, 0.0f);
         LookPitch.Rotation = new Vector3(_lookPitch2, 0.0f, 0.0f);
+        Player?.SetCameraLook(_lookYaw, _lookPitch2);
     }
 
     private void ShowSeatView()
@@ -382,9 +461,15 @@ public partial class SeatedTableController : GameController
         _topPan = Vector2.Zero;
 
         if (_inTopView)
+        {
+            Player?.ResetCameraLook();
             ShowTopView();
+        }
         else
+        {
+            ApplyLookRotation();
             ShowSeatView();
+        }
 
         HandView?.SetTopViewActive(_inTopView);
     }
@@ -471,6 +556,10 @@ public partial class SeatedTableController : GameController
 
         if (!IsMultiplayerAuthority())
         {
+            _waitingForSeatArrival = false;
+            Seated = false;
+            SetProcess(false);
+            Player.CancelMovementModeTransition();
             if (Multiplayer.IsServer()
                 && TryGetAuthoritativePose(seated: false, out var position, out var yaw))
             {
@@ -480,15 +569,17 @@ public partial class SeatedTableController : GameController
             return;
         }
 
-        if (Seated)
+        if (Seated || _waitingForSeatArrival)
             MoveToStandExit();
 
         Seated = false;
+        _waitingForSeatArrival = false;
         SetProcessUnhandledInput(false);
         SetProcess(false);
 
         HandView?.SetInteractive(false);
         Camera?.ResetFov();
+        Player.ResetCameraLook();
         Player.ExitGameControllerMode();
         Player.ExitSeatedGameMode();
     }
@@ -505,6 +596,7 @@ public partial class SeatedTableController : GameController
         if (!_hasCachedStandExit)
             return;
 
+        Player.CancelMovementModeTransition();
         Player.GlobalPosition = _cachedStandPosition;
         Player.GlobalRotation = new Vector3(0.0f, _cachedStandYaw, 0.0f);
         Player.Velocity = Vector3.Zero;

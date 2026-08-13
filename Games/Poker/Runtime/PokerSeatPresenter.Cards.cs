@@ -61,12 +61,12 @@ public partial class PokerSeatPresenter : Node3D
 
         if (revealed != null && !hand.Revealed)
         {
-            var wasHeldLocally = hand.InFirstPerson;
+            var wasHeld = CardsAreInGrip(hand);
             ReleaseCardsFromGrip(hand);
             // Both local and remote pairs travel back to the cloth. Until a third-person rig exposes
             // a real card-release marker, remote cards start at a stable estimate in front of that
             // player's hands. Snapping them straight to the table made every opponent reveal flick.
-            if (!wasHeldLocally)
+            if (!wasHeld)
             {
                 for (var i = 0; i < hand.Cards.Length; i++)
                     hand.ReleasedFrom[i] = EstimatedHeldCardTransform(facing, i, spec);
@@ -106,21 +106,54 @@ public partial class PokerSeatPresenter : Node3D
     private SeatHand EnsureHand(string playerId)
     {
         if (_holeCards.TryGetValue(playerId, out var existing))
-            return existing;
+            return RepairDisposedCards(existing) ? existing : null;
 
         var hand = new SeatHand();
-        for (var i = 0; i < hand.Cards.Length; i++)
-        {
-            var card = _game?.CreateCard(CardScene);
-            if (card == null)
-                return null;
-
-            AddChild(card);
-            hand.Cards[i] = card;
-        }
+        if (!RepairDisposedCards(hand))
+            return null;
 
         _holeCards[playerId] = hand;
         return hand;
+    }
+
+    /// <summary>
+    /// Hole cards are deliberately reparented into first- and third-person hand rigs. If one of
+    /// those replaceable rigs is freed, Godot disposes its children while this presenter's stable
+    /// seat dictionary still contains their C# wrappers. Repair the pair before any property is
+    /// touched, and bring a surviving half back under this stable owner as well.
+    /// </summary>
+    private bool RepairDisposedCards(SeatHand hand)
+    {
+        var repaired = false;
+        for (var i = 0; i < hand.Cards.Length; i++)
+        {
+            if (IsInstanceValid(hand.Cards[i]))
+                continue;
+
+            var card = _game?.CreateCard(CardScene);
+            if (card == null)
+                return false;
+
+            AddChild(card);
+            hand.Cards[i] = card;
+            hand.Dealt[i] = 1.0f;
+            hand.Wait[i] = 0.0f;
+            hand.ReleasedFrom[i] = Transform3D.Identity;
+            hand.CleanupActive[i] = false;
+            hand.CleanupFaceDown[i] = false;
+            repaired = true;
+        }
+
+        if (!repaired)
+            return true;
+
+        foreach (var card in hand.Cards)
+        {
+            if (IsInstanceValid(card) && card.GetParent() != this)
+                card.Reparent(this, keepGlobalTransform: true);
+        }
+        hand.InFirstPerson = false;
+        return true;
     }
 
     /// <summary>
@@ -141,7 +174,7 @@ public partial class PokerSeatPresenter : Node3D
         {
             foreach (var card in hand.Cards)
             {
-                if (card == null || card.GetParent() == grip)
+                if (!IsInstanceValid(card) || card.GetParent() == grip)
                     continue;
 
                 card.Reparent(grip, keepGlobalTransform: true);
@@ -152,6 +185,50 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         return hand.Cards;
+    }
+
+    /// <summary>
+    /// Reparents each opponent's public face-down pair into the card marker authored with the body
+    /// pose. The local player's real faces stay exclusively in their first-person grip.
+    /// </summary>
+    private void AttachOpponentCardsToCharacter(string playerId, SeatHand hand)
+    {
+        var localPlayerId = _game?.Player == null ? null : (string)_game.Player.Name;
+        if (playerId == localPlayerId
+            || PlayerRegistry.Instance == null
+            || !PlayerRegistry.Instance.TryGetPlayerById(playerId, out var player)
+            || player.CharacterVisual?.CardGrip == null)
+        {
+            return;
+        }
+
+        var grip = player.CharacterVisual.CardGrip;
+        for (var i = 0; i < hand.Cards.Length; i++)
+        {
+            var card = hand.Cards[i];
+            if (!IsInstanceValid(card))
+                continue;
+
+            if (card.GetParent() != grip)
+                card.Reparent(grip, keepGlobalTransform: false);
+
+            var spec = _game.BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
+            if (card.CardId != 0 || !card.IsFaceDown)
+                card.Configure(0, spec, faceDown: true);
+
+            card.Transform = HeldCardTransform(i, spec);
+            card.Visible = true;
+        }
+    }
+
+    private static Transform3D HeldCardTransform(int index, PokerLayoutSpec spec)
+    {
+        var lateral = (index - (PokerDeal.HoleCardCount - 1) * 0.5f)
+                      * spec.CardWidth * 0.42f;
+        var fan = Mathf.DegToRad(index == 0 ? -7.0f : 7.0f);
+        return new Transform3D(
+            new Basis(Vector3.Forward, fan) * HandFan.LongAxisUpFromMinusZ,
+            new Vector3(lateral, index * spec.CardThickness * 1.5f, 0.0f));
     }
 
     /// <summary>Returns held card nodes to the table while preserving their exact world transforms.</summary>
@@ -166,13 +243,13 @@ public partial class PokerSeatPresenter : Node3D
 
     private void ReleaseCardsFromGrip(SeatHand hand)
     {
-        if (!hand.InFirstPerson)
+        if (!CardsAreInGrip(hand))
             return;
 
         for (var i = 0; i < hand.Cards.Length; i++)
         {
             var card = hand.Cards[i];
-            if (card == null)
+            if (!IsInstanceValid(card))
                 continue;
 
             if (card.GetParent() != this)
@@ -182,6 +259,20 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         hand.InFirstPerson = false;
+    }
+
+    private bool CardsAreInGrip(SeatHand hand)
+    {
+        if (hand.InFirstPerson)
+            return true;
+
+        foreach (var card in hand.Cards)
+        {
+            if (IsInstanceValid(card) && card.GetParent() != this)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -201,7 +292,10 @@ public partial class PokerSeatPresenter : Node3D
         if ((_showdownPresenter?.Active ?? false) && shown)
         {
             foreach (var source in hand.Cards)
-                source.Visible = false;
+            {
+                if (IsInstanceValid(source))
+                    source.Visible = false;
+            }
             return;
         }
 
@@ -215,9 +309,20 @@ public partial class PokerSeatPresenter : Node3D
         if (hand.InFirstPerson)
             return;
 
+        if (taken && !shown && !hand.Folded)
+        {
+            AttachOpponentCardsToCharacter(playerId, hand);
+            return;
+        }
+
         for (var i = 0; i < hand.Cards.Length; i++)
         {
             var card = hand.Cards[i];
+            if (!IsInstanceValid(card))
+                continue;
+
+            if (card.GetParent() != this)
+                card.Reparent(this, keepGlobalTransform: true);
             var seat = Mathf.Max(System.Array.IndexOf(_game.SeatOrder, playerId), 0);
             var motionSeed = seat * PokerDeal.HoleCardCount + i;
             var target = shown
@@ -350,6 +455,8 @@ public partial class PokerSeatPresenter : Node3D
         for (var i = 0; i < hand.Cards.Length; i++)
         {
             var card = hand.Cards[i];
+            if (!IsInstanceValid(card))
+                continue;
             card.Visible = true;
 
             var slot = seat * hand.Cards.Length + i;

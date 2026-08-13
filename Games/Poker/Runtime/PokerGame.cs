@@ -93,6 +93,9 @@ public partial class PokerGame : TableGame
     /// </summary>
     [Export] public PokerSeatPresenter SeatPresenter;
 
+    /// <summary>Editor-authored physical layout and camera profile shared with local controllers.</summary>
+    [Export] public PokerExperienceAuthoring ExperienceAuthoring;
+
     [ExportGroup("Stakes")]
     [Export] public int StartingStack = 500;
     [Export] public int SmallBlind = 5;

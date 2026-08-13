@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://Games/Poker/GameController/Views/PokerHand3DView.cs" id="1_pview"]
 [ext_resource type="PackedScene" path="res://Games/Poker/Components/Cards/PokerCard.tscn" id="2_pcard"]
@@ -10,19 +10,6 @@
 [ext_resource type="Script" path="res://Shared/Utilities/UI/AimCrosshair.cs" id="8_cross"]
 [ext_resource type="FontFile" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="9_chalk"]
 [ext_resource type="Shader" path="res://Games/Poker/GameController/Views/PokerChalkHover.gdshader" id="10_chalk_hover"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
-albedo_color = Color(0.62, 0.47, 0.38, 1)
-roughness = 0.95
-
-[sub_resource type="BoxMesh" id="BoxMesh_palm"]
-size = Vector3(0.1, 0.024, 0.086)
-
-[sub_resource type="BoxMesh" id="BoxMesh_finger"]
-size = Vector3(0.019, 0.017, 0.062)
-
-[sub_resource type="BoxMesh" id="BoxMesh_thumb"]
-size = Vector3(0.05, 0.019, 0.024)
 
 [sub_resource type="Animation" id="Animation_idle"]
 resource_name = "HandIdle"
@@ -191,7 +178,7 @@ _data = {
 &"HandThrowChips": SubResource("Animation_chips")
 }
 
-[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "CardHandPlaceholder", "ChipHandPlaceholder", "Hud", "MessageLabel", "AnimationPlayer", "Crosshair")]
+[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "Hud", "MessageLabel", "AnimationPlayer", "Crosshair")]
 script = ExtResource("1_pview")
 HandRig = NodePath("HandRig")
 CardHandPose = NodePath("HandRig/Hand/CardHandPose")
@@ -199,8 +186,6 @@ CardSlots = NodePath("HandRig/Hand/CardSlots")
 CardScene = ExtResource("2_pcard")
 CardHandVisualMount = NodePath("HandRig/Hand/CardHandPose/VisualMount")
 ChipHandVisualMount = NodePath("HandRig/LeftHand/VisualMount")
-CardHandPlaceholder = NodePath("HandRig/Hand/CardHandPose/Mesh")
-ChipHandPlaceholder = NodePath("HandRig/LeftHand/Mesh")
 Hud = NodePath("PokerHud")
 MessageLabel = NodePath("MessageLabel")
 AnimationPlayer = NodePath("HandRig/AnimationPlayer")
@@ -218,73 +203,9 @@ ChalkHoverShader = ExtResource("10_chalk_hover")
 
 [node name="VisualMount" type="Node3D" parent="HandRig/Hand/CardHandPose"]
 
-[node name="Mesh" type="Node3D" parent="HandRig/Hand/CardHandPose"]
-transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0.004, -0.056, 0.024)
-
-[node name="Palm" type="MeshInstance3D" parent="HandRig/Hand/CardHandPose/Mesh"]
-mesh = SubResource("BoxMesh_palm")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger0" type="MeshInstance3D" parent="HandRig/Hand/CardHandPose/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.035, 0.002, -0.06)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger1" type="MeshInstance3D" parent="HandRig/Hand/CardHandPose/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0.003, -0.063)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger2" type="MeshInstance3D" parent="HandRig/Hand/CardHandPose/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.011, 0.002, -0.061)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger3" type="MeshInstance3D" parent="HandRig/Hand/CardHandPose/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.034, 0, -0.057)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Thumb" type="MeshInstance3D" parent="HandRig/Hand/CardHandPose/Mesh"]
-transform = Transform3D(0.94, 0, -0.34, 0, 1, 0, 0.34, 0, 0.94, -0.06, 0.009, -0.022)
-mesh = SubResource("BoxMesh_thumb")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
 [node name="LeftHand" type="Node3D" parent="HandRig"]
 
 [node name="VisualMount" type="Node3D" parent="HandRig/LeftHand"]
-
-[node name="Mesh" type="Node3D" parent="HandRig/LeftHand"]
-transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, -0.132, -0.072, 0.01)
-
-[node name="Palm" type="MeshInstance3D" parent="HandRig/LeftHand/Mesh"]
-mesh = SubResource("BoxMesh_palm")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger0" type="MeshInstance3D" parent="HandRig/LeftHand/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.035, 0.002, -0.06)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger1" type="MeshInstance3D" parent="HandRig/LeftHand/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012, 0.003, -0.063)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger2" type="MeshInstance3D" parent="HandRig/LeftHand/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.011, 0.002, -0.061)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Finger3" type="MeshInstance3D" parent="HandRig/LeftHand/Mesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.034, 0, -0.057)
-mesh = SubResource("BoxMesh_finger")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
-
-[node name="Thumb" type="MeshInstance3D" parent="HandRig/LeftHand/Mesh"]
-transform = Transform3D(0.94, 0, 0.34, 0, 1, 0, -0.34, 0, 0.94, 0.06, 0.009, -0.022)
-mesh = SubResource("BoxMesh_thumb")
-surface_material_override/0 = SubResource("StandardMaterial3D_skin")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="HandRig"]
 libraries = {

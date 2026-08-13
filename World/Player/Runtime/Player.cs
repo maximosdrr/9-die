@@ -19,6 +19,7 @@ public partial class Player : CharacterBody3D
     public int Id = 1;
     [Export] public string Nickname = "";
     [ExportGroup("Replaceable character")]
+    [Export] public CharacterVisual CharacterVisual;
     [Export] public AnimationPlayer SeatedGestureAnimator;
     [Export] public SeatedGestureFallback SeatedGestureFallback;
 
@@ -55,12 +56,17 @@ public partial class Player : CharacterBody3D
         if (!IsMultiplayerAuthority())
             return;
 
+        CharacterVisual?.SetLocalFirstPersonBody(true);
+        if (Camera != null)
+            Camera.CullMask &= ~(1u << 1);
+
         AttachLocalPresentation();
         TakeControl();
     }
 
     public override void _ExitTree()
     {
+        ClearCameraLookRequests();
         if (!IsInstanceValid(LocalPresentation))
             return;
 
@@ -141,7 +147,9 @@ public partial class Player : CharacterBody3D
 
     public void EnterGameControllerMode(string animationName = "")
     {
-        PlayerModel.Hide();
+        // The local camera uses its dedicated forearms, but the body remains alive so every other
+        // peer sees this avatar sitting. Geometry layers prevent the local camera from rendering it.
+        PlayerModel.Show();
         var metadata = new Dictionary();
         if (!string.IsNullOrWhiteSpace(animationName))
             metadata["animation"] = animationName;
@@ -153,6 +161,29 @@ public partial class Player : CharacterBody3D
     {
         PlayerModel.Show();
         StateMachine.ChangeState(StatesRef.PlayerIdle, new Dictionary());
+    }
+
+    public void EnterSeatedAnimation(string transition, string preparation, string idle)
+    {
+        PlayerModel.Show();
+
+        // Keep the replicated state semantically seated even though CharacterVisual owns the
+        // transition queue. Remote peers receive the same state and never fall back to walking.
+        var metadata = new Dictionary
+        {
+            ["animation"] = transition,
+            ["preparation"] = preparation,
+            ["idle"] = idle,
+        };
+        StateMachine.ChangeState(StatesRef.PlayerStrike, metadata);
+        CharacterVisual?.PlaySequence(transition, preparation, idle);
+    }
+
+    public void EnterPokerCardPose()
+    {
+        CharacterVisual?.PlaySequence(
+            CharacterVisual.Clips.SitHoldingCards,
+            CharacterVisual.Clips.IdleSitHoldingCards);
     }
 
     /// <summary>
@@ -181,12 +212,16 @@ public partial class Player : CharacterBody3D
         // Exported first, so replacing the character only requires reconnecting one field. The
         // fallback keeps every existing Player scene working until that asset arrives.
         var animation = SeatedGestureAnimator
-                        ?? GetNodeOrNull<AnimationPlayer>("FirstPerson/Model3D/AnimationPlayer");
+                        ?? GetNodeOrNull<AnimationPlayer>(
+                            "FirstPerson/Model3D/PlayerCharacter/AnimationPlayer");
         if (animation != null && animation.HasAnimation(animationName))
         {
             animation.Play(animationName);
-            if (animationName != PokerClips.BodyIdle && animation.HasAnimation(PokerClips.BodyIdle))
+            if (animationName != PokerClips.BodyIdle
+                && animation.HasAnimation(PokerClips.BodyIdle))
+            {
                 animation.Queue(PokerClips.BodyIdle);
+            }
             return;
         }
 

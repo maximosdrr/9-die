@@ -28,11 +28,12 @@ properties/2/path = NodePath(".:Nickname")
 properties/2/spawn = true
 properties/2/replication_mode = 0
 
-[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("SeatedGestureAnimator", "SeatedGestureFallback", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision") groups=["player"]]
+[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("CharacterVisual", "SeatedGestureAnimator", "SeatedGestureFallback", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision") groups=["player"]]
 collision_layer = 2
 collision_mask = 15
 script = ExtResource("1_wlwl2")
-SeatedGestureAnimator = NodePath("FirstPerson/Model3D/AnimationPlayer")
+CharacterVisual = NodePath("FirstPerson/Model3D")
+SeatedGestureAnimator = NodePath("FirstPerson/Model3D/PlayerCharacter/AnimationPlayer")
 SeatedGestureFallback = NodePath("Runtime/SeatedGestureFallback")
 HeadPivot = NodePath("FirstPerson/HeadPivot")
 GameHandler = NodePath("Runtime/PlayerGameHandler")
@@ -48,7 +49,7 @@ shape = SubResource("CapsuleShape3D_qhdlv")
 [node name="FirstPerson" type="Node3D" parent="." unique_id=779977182]
 
 [node name="HeadPivot" type="Node3D" parent="FirstPerson" unique_id=928062161 node_paths=PackedStringArray("CameraMount")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4081178, -0.343)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.017, 1.413, -0.083)
 script = ExtResource("2_bd6kk")
 CameraMount = NodePath("RemoteFPS")
 
@@ -57,8 +58,7 @@ update_position = false
 update_rotation = false
 update_scale = false
 
-[node name="Model3D" type="Node3D" parent="FirstPerson" unique_id=2051382016 instance=ExtResource("4_ejmv4")]
-transform = Transform3D(-1.5842189, 0, -2.1901567e-07, 0, 1.6967292, 0, 2.392104e-07, 0, -1.4504752, 0, 0, 0)
+[node name="Model3D" parent="FirstPerson" unique_id=2051382016 instance=ExtResource("4_ejmv4")]
 
 [node name="GameContextSlot" type="Node3D" parent="." unique_id=448513269]
 
@@ -87,15 +87,15 @@ AuthorityStateSynchronizer = NodePath("AuthorityStateSynchronizer")
 
 [node name="PlayerWalking" type="Node" parent="StateMachine" unique_id=263482104 node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("25_4ndi6")
-AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/PlayerCharacter/AnimationPlayer")
 
 [node name="PlayerIdle" type="Node" parent="StateMachine" unique_id=1236598483 node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("24_4ndi6")
-AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/PlayerCharacter/AnimationPlayer")
 
 [node name="PlayerStrike" type="Node" parent="StateMachine" unique_id=178732828 node_paths=PackedStringArray("AnimationPlayer")]
 script = ExtResource("12_1luhw")
-AnimationPlayer = NodePath("../../FirstPerson/Model3D/AnimationPlayer")
+AnimationPlayer = NodePath("../../FirstPerson/Model3D/PlayerCharacter/AnimationPlayer")
 
 [node name="AuthorityStateSynchronizer" type="Node" parent="StateMachine" unique_id=442105977]
 script = ExtResource("26_5rlu4")

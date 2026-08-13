@@ -43,6 +43,8 @@ public partial class PokerController : SeatedTableController
 			return false;
 		}
 
+		Game.ExperienceAuthoring?.ApplyTo(this);
+
 		SignalUtil.ConnectGuarded(Game, TableGame.SignalName.TurnChanged, new Callable(this, MethodName.OnTurnChanged));
 		SignalUtil.ConnectGuarded(Game, TableGame.SignalName.TurnExtended, new Callable(this, MethodName.OnTurnExtended));
 		SignalUtil.ConnectGuarded(Game, PokerGame.SignalName.HudStateUpdated, new Callable(this, MethodName.OnStateUpdated));
@@ -61,6 +63,10 @@ public partial class PokerController : SeatedTableController
 		return true;
 	}
 
+	protected override string SeatedPreparationClip => SeatedPreparationAnimationName;
+
+	protected override string SeatedIdleClip => SeatedIdleAnimationName;
+
 	protected override void OnHandViewSpawned(SeatedHandView view)
 	{
 		_handView = view as PokerHandView;
@@ -71,6 +77,7 @@ public partial class PokerController : SeatedTableController
 		}
 
 		_handView.Setup(Game, Player);
+		Game.ExperienceAuthoring?.ApplyTo(_handView as PokerHand3DView);
 		_handView.ActionRequested += OnActionRequested;
 		_handView.PreparedWagerChanged += OnPreparedWagerChanged;
 	}

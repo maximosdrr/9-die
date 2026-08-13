@@ -26,8 +26,6 @@ public partial class PokerHand3DView : PokerHandView
     [Export] public PackedScene CardScene;
     [Export] public Node3D CardHandVisualMount;
     [Export] public Node3D ChipHandVisualMount;
-    [Export] public Node3D CardHandPlaceholder;
-    [Export] public Node3D ChipHandPlaceholder;
 
     /// <summary>The corner panel. Everything the player reads in words lives there.</summary>
     [Export] public PokerHud Hud;
@@ -50,7 +48,7 @@ public partial class PokerHand3DView : PokerHandView
     // The poker camera uses a tighter 42° lens. Moving the camera-attached hand back by the same
     // optical ratio keeps it from growing over the table while the world view loses wide-angle
     // distortion.
-    [Export] public Vector3 HandOffset = new(0.05f, -0.09f, -0.39f);
+    [Export] public Vector3 HandOffset = new(0.045f, -0.05f, -0.22f);
 
     [Export] public float FanStepDeg = 11.0f;
     [Export] public float FanRadius = 0.40f;
@@ -58,10 +56,10 @@ public partial class PokerHand3DView : PokerHandView
 
     [ExportGroup("Peek")]
     /// <summary>
-    /// Resting lean. At +90 the cards lie flat with their faces toward the floor — held, but not
-    /// showing. This is the pose the table sees.
+    /// Resting lean. Zero keeps the real cards upright in the exact gap authored around the red
+    /// Blender placeholder; positive values lower them away from the player's eyes.
     /// </summary>
-    [Export] public float RestTiltDeg = 90.0f;
+    [Export] public float RestTiltDeg = 0.0f;
 
     /// <summary>Lean while peeking: turned up so the faces point back at the player's own eye.</summary>
     [Export] public float PeekTiltDeg = -18.0f;
@@ -132,6 +130,10 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void _Ready()
     {
+        // Imported hand animation and its scale-free grip update before this view moves the rig and
+        // attaches the actual PokerCard nodes for the rendered frame.
+        ProcessPriority = 200;
+
         // A hand only exists for the peer holding it.
         if (IsMultiplayerAuthority())
             return;
@@ -148,6 +150,11 @@ public partial class PokerHand3DView : PokerHandView
             HandRig.TopLevel = true;
 
         InstallVisualAssets(game?.VisualAssets);
+
+        // The imported rig is authored around the character root. Align its exported grip with the
+        // existing camera-space card slots; this keeps the real table cards and the real fingers
+        // together without baking game camera offsets back into Blender.
+        AlignImportedCardGrip();
 
         Hud?.Setup(game, player);
     }
@@ -167,6 +174,8 @@ public partial class PokerHand3DView : PokerHandView
         // RemoteTransform3D that drives the camera.
         if (HandRig != null)
             HandRig.GlobalTransform = Game.Camera.GlobalTransform.TranslatedLocal(HandOffset);
+
+        FollowImportedCardGrip();
 
         if (MessageLabel == null || _messageSeconds <= 0.0f)
             return;
@@ -550,7 +559,7 @@ public partial class PokerHand3DView : PokerHandView
         // hand. Drop only our references; never hide somebody else's representation.
         for (var i = _fan.Count - 1; i >= 0; i--)
         {
-            if (_fan[i] != null && _fan[i].GetParent() == CardSlots)
+            if (IsInstanceValid(_fan[i]) && _fan[i].GetParent() == CardSlots)
                 continue;
 
             _fan.RemoveAt(i);
@@ -571,6 +580,8 @@ public partial class PokerHand3DView : PokerHandView
         for (var i = 0; i < _fan.Count; i++)
         {
             var card = _fan[i];
+            if (!IsInstanceValid(card))
+                continue;
             if (i >= _holeCards.Length || laidDown)
             {
                 // SeatPresenter owns the transition out. It may happen later in this frame, so leave
@@ -596,15 +607,28 @@ public partial class PokerHand3DView : PokerHandView
         if (cards == null)
             return;
 
+        // The physical deal can finish one presentation frame before the controller's next HUD
+        // refresh. The game already owns this peer's private hand, so use it at the transfer seam
+        // instead of showing the public face-down placeholder for a frame (or a whole idle).
+        if (_holeCards.Length != PokerDeal.HoleCardCount
+            && Game?.LocalHoleCards is { Length: PokerDeal.HoleCardCount } localCards)
+        {
+            _holeCards = localCards;
+        }
+
         foreach (var card in cards)
         {
-            if (card == null || card.GetParent() != CardSlots)
+            if (!IsInstanceValid(card) || card.GetParent() != CardSlots)
                 continue;
 
             card.Visible = true;
             _fan.Add(card);
             _fanTransferFrom.Add(card.Transform);
         }
+
+        var spec = Game?.BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
+        for (var index = 0; index < _fan.Count && index < _holeCards.Length; index++)
+            _fan[index].Configure(_holeCards[index], spec);
     }
 
     private void ApplyFan()
@@ -614,10 +638,38 @@ public partial class PokerHand3DView : PokerHandView
 
         for (var i = 0; i < _fan.Count && i < _holeCards.Length; i++)
         {
+            if (!IsInstanceValid(_fan[i]))
+                continue;
             var target = HandFan.SlotTransform(i, centre, false, spec);
             _fan[i].Transform = _cardTransfer < 1.0f && i < _fanTransferFrom.Count
                 ? _fanTransferFrom[i].InterpolateWith(target, PokerMotion.Smooth(_cardTransfer))
                 : target;
+        }
+    }
+
+    private void AlignImportedCardGrip()
+    {
+        if (_cardHandVisual is not PlayerFirstPersonHands hands
+            || CardSlots == null
+            || hands.CardGrip == null)
+        {
+            return;
+        }
+
+        hands.UpdateCardGrip();
+
+        var correction = CardSlots.GlobalTransform
+                         * hands.CardGrip.GlobalTransform.AffineInverse();
+        hands.GlobalTransform = correction * hands.GlobalTransform;
+    }
+
+    private void FollowImportedCardGrip()
+    {
+        if (_cardHandVisual is PlayerFirstPersonHands { CardGrip: not null } hands
+            && CardSlots != null)
+        {
+            hands.UpdateCardGrip();
+            CardSlots.GlobalTransform = hands.CardGrip.GlobalTransform;
         }
     }
 
@@ -662,10 +714,10 @@ public partial class PokerHand3DView : PokerHandView
     private void InstallVisualAssets(PokerVisualAssets assets)
     {
         _cardHandVisual = InstallHandVisual(
-            assets?.CardHandScene, CardHandVisualMount, CardHandPlaceholder,
+            assets?.CardHandScene, CardHandVisualMount,
             assets?.CardHandTransform ?? Transform3D.Identity);
         _chipHandVisual = InstallHandVisual(
-            assets?.ChipHandScene, ChipHandVisualMount, ChipHandPlaceholder,
+            assets?.ChipHandScene, ChipHandVisualMount,
             assets?.ChipHandTransform ?? Transform3D.Identity);
 
         _cardHandVisual?.Play(PokerGesture.None);
@@ -673,19 +725,14 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     private static PokerHandVisual InstallHandVisual(
-        PackedScene scene, Node3D mount, Node3D placeholder, Transform3D localTransform)
+        PackedScene scene, Node3D mount, Transform3D localTransform)
     {
         if (scene == null || mount == null || scene.Instantiate() is not Node3D visual)
-        {
-            if (placeholder != null)
-                placeholder.Visible = true;
             return null;
-        }
 
+        visual.SetMultiplayerAuthority(mount.GetMultiplayerAuthority());
         mount.AddChild(visual);
         visual.Transform = localTransform;
-        if (placeholder != null)
-            placeholder.Visible = false;
 
         return visual as PokerHandVisual;
     }

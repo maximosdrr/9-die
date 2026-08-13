@@ -1,40 +1,66 @@
 [gd_scene format=3 uid="uid://b7jrgdqobxylj"]
 
-[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerGame.cs" id="1_pgame"]
-[ext_resource type="Script" path="res://Shared/Table/GameMode/GameModeHandler.cs" id="2_gmhand"]
-[ext_resource type="Script" path="res://Shared/Table/GameMode/GameMode.cs" id="3_gmode"]
+[ext_resource type="Script" uid="uid://bsfpk3x033l2o" path="res://Games/Poker/Runtime/PokerGame.cs" id="1_pgame"]
+[ext_resource type="Script" uid="uid://cf4mbqi8yhg51" path="res://Shared/Table/GameMode/GameModeHandler.cs" id="2_gmhand"]
+[ext_resource type="Script" uid="uid://cbbgxnphhve44" path="res://Shared/Table/GameMode/GameMode.cs" id="3_gmode"]
 [ext_resource type="PackedScene" path="res://Games/Poker/Components/Table/PokerTableFixture.tscn" id="4_o27t8"]
-[ext_resource type="Script" path="res://Games/Poker/GameModes/PokerTurnResolver.cs" id="4_presol"]
-[ext_resource type="Script" path="res://Shared/Table/TableSeatAnchors.cs" id="5_panch"]
+[ext_resource type="Script" uid="uid://cbda1je040ksm" path="res://Games/Poker/GameModes/PokerTurnResolver.cs" id="4_presol"]
+[ext_resource type="Script" uid="uid://b34a4by8ha7ex" path="res://Shared/Table/TableSeatAnchors.cs" id="5_panch"]
 [ext_resource type="PackedScene" path="res://Games/Poker/Components/Cards/PokerCard.tscn" id="6_pcard"]
-[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerBoardPresenter.cs" id="7_pboard"]
-[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerSeatPresenter.cs" id="8_pseat"]
-[ext_resource type="Script" path="res://Games/Poker/Runtime/PokerChipPile.cs" id="9_ppile"]
-[ext_resource type="PackedScene" path="res://Games/Poker/GameController/PokerController.tscn" id="10_pctrl"]
-[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Poker/knock-on-table.wav" id="11_pknock"]
+[ext_resource type="Script" uid="uid://dpgtcnwe6hnar" path="res://Games/Poker/Runtime/PokerBoardPresenter.cs" id="7_pboard"]
+[ext_resource type="Script" uid="uid://cv3sq73yb7y0u" path="res://Games/Poker/Runtime/PokerSeatPresenter.cs" id="8_pseat"]
+[ext_resource type="Script" uid="uid://hgv5ik8lqfaf" path="res://Games/Poker/Runtime/PokerChipPile.cs" id="9_ppile"]
+[ext_resource type="PackedScene" uid="uid://duwkas5qd58ln" path="res://Games/Poker/GameController/PokerController.tscn" id="10_pctrl"]
+[ext_resource type="AudioStream" uid="uid://dvm40s8c2qiq4" path="res://Assets/SoundEffects/Poker/knock-on-table.wav" id="11_pknock"]
 [ext_resource type="Resource" path="res://Games/Poker/PokerVisualAssets.tres" id="12_visuals"]
 [ext_resource type="Resource" path="res://Games/Poker/PokerPresentationProfile.tres" id="13_timing"]
 [ext_resource type="PackedScene" path="res://Shared/Table/Components/SeatAnchor.tscn" id="14_seat"]
-[ext_resource type="AudioStream" path="res://Assets/SoundEffects/Poker/pokerchip-dropping.wav" id="15_pchips"]
-[ext_resource type="FontFile" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="16_chalk"]
+[ext_resource type="AudioStream" uid="uid://dmhk4ed3hv4kv" path="res://Assets/SoundEffects/Poker/pokerchip-dropping.wav" id="15_pchips"]
+[ext_resource type="FontFile" uid="uid://c7nnovw7jb0ux" path="res://Assets/Fonts/Knewave/Knewave-Regular.ttf" id="16_chalk"]
+[ext_resource type="Script" uid="uid://p68xb7eeqnhg" path="res://Games/Poker/Runtime/PokerExperienceAuthoring.cs" id="17_experience"]
+[ext_resource type="PackedScene" path="res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn" id="18_fp_hands"]
+[ext_resource type="Shader" uid="uid://cew5gmsfk772l" path="res://Games/Poker/GameController/Views/PokerChalkHover.gdshader" id="19_chalk_shader"]
 
-[node name="Poker" type="Node3D" unique_id=1876712086 node_paths=PackedStringArray("GameModeHandler", "Seats", "BoardPresenter", "SeatPresenter")]
+[sub_resource type="Resource" id="Resource_paosu"]
+
+[node name="Poker" type="Node3D" unique_id=1876712086 node_paths=PackedStringArray("Seats", "BoardPresenter", "SeatPresenter", "ExperienceAuthoring", "GameModeHandler")]
 script = ExtResource("1_pgame")
-GameModeHandler = NodePath("GameModeHandler")
 GameControllerScene = ExtResource("10_pctrl")
 Seats = NodePath("Seats")
 VisualAssets = ExtResource("12_visuals")
 BoardPresenter = NodePath("BoardHolder")
 SeatPresenter = NodePath("SeatPresenter")
+ExperienceAuthoring = NodePath("ExperienceAuthoring")
 AllowSoloDebug = true
+GameModeHandler = NodePath("GameModeHandler")
 
-[node name="TableFixture" type="Node3D" parent="." unique_id=386107593 instance=ExtResource("4_o27t8")]
+[node name="TableFixture" parent="." unique_id=386107593 instance=ExtResource("4_o27t8")]
 
-[node name="BoardHolder" type="Node3D" parent="." unique_id=1078020313 node_paths=PackedStringArray("PotPile")]
+[node name="PokerTableModel" parent="TableFixture" index="0" unique_id=629546210]
+transform = Transform3D(1, 0, 0, 0, 1.0874784, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="CollisionShape3D" parent="TableFixture/PokerTableModel" index="0" unique_id=1684537669]
+visible = false
+
+[node name="WoodenChair_006" parent="TableFixture" index="1" unique_id=1435791484]
+transform = Transform3D(1.0734347, 0, 0, 0, 0.9279754, 0, 0, 0, 1.0734347, 0, 0, -0.89415085)
+
+[node name="WoodenChair_007" parent="TableFixture" index="2" unique_id=2080594552]
+transform = Transform3D(0, 0, -1.0734347, 0, 0.9279754, 0, 1.0734347, 0, 0, 0.9038358, 0, -0.07656211)
+
+[node name="WoodenChair_008" parent="TableFixture" index="3" unique_id=790023071]
+transform = Transform3D(-1.0708708, 0, 0.07414831, 0, 0.92797536, 0, -0.07414831, 0, -1.0708708, -0.0017373088, 0, 0.90413916)
+
+[node name="WoodenChair_009" parent="TableFixture" index="4" unique_id=2052824362]
+transform = Transform3D(0, 0, 1.0734347, 0, 0.9279754, 0, -1.0734347, 0, 0, -0.91625583, 0, 0.09952116)
+
+[node name="BoardHolder" type="Node3D" parent="." unique_id=1078020313 node_paths=PackedStringArray("PotPile", "DeckAnchor", "CommunityCardsAnchor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
 script = ExtResource("7_pboard")
 CardScene = ExtResource("6_pcard")
 PotPile = NodePath("PotPile")
+DeckAnchor = NodePath("../ExperienceAuthoring/PhysicalLayout/DeckAnchor")
+CommunityCardsAnchor = NodePath("../ExperienceAuthoring/PhysicalLayout/CommunityCardsAnchor")
 
 [node name="PotPile" type="Node3D" parent="BoardHolder" unique_id=302199022]
 script = ExtResource("9_ppile")
@@ -43,32 +69,96 @@ TiltDegrees = 9.0
 SettleSeconds = 0.26
 SettleHeight = 0.02
 
-[node name="SeatPresenter" type="Node3D" parent="." unique_id=637816955 node_paths=PackedStringArray("BoardPresenter", "Seats")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
+[node name="SeatPresenter" type="Node3D" parent="." unique_id=637816955 node_paths=PackedStringArray("BoardPresenterNode", "Seats")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
 script = ExtResource("8_pseat")
 CardScene = ExtResource("6_pcard")
-BoardPresenter = NodePath("../BoardHolder")
+BoardPresenterNode = NodePath("../BoardHolder")
 Seats = NodePath("../Seats")
-PresentationProfile = ExtResource("13_timing")
+PresentationProfileResource = SubResource("Resource_paosu")
 ChalkFont = ExtResource("16_chalk")
 KnockSound = ExtResource("11_pknock")
 ChipLandingSound = ExtResource("15_pchips")
+
+[node name="ExperienceAuthoring" type="Node3D" parent="." unique_id=1650322614 node_paths=PackedStringArray("DeckAnchor", "CommunityCardsAnchor", "ActionGuideAnchor", "Seats", "PreviewCamera", "FirstPersonHandsPreview")]
+editor_description = "Selecione este nó para configurar a experiência do poker no Inspector. Mova os três marcadores em PhysicalLayout; escolha o assento de preview e ajuste FOV, câmera, mãos e arco aqui. O jogo consome estes mesmos valores."
+script = ExtResource("17_experience")
+DeckAnchor = NodePath("PhysicalLayout/DeckAnchor")
+CommunityCardsAnchor = NodePath("PhysicalLayout/CommunityCardsAnchor")
+ActionGuideAnchor = NodePath("PhysicalLayout/ActionGuideAnchor")
+Seats = NodePath("../Seats")
+PreviewCamera = NodePath("FirstPersonPreview/PreviewCamera")
+FirstPersonHandsPreview = NodePath("FirstPersonPreview/FirstPersonHandsPreview")
+PreviewCardScene = ExtResource("6_pcard")
+PreviewChalkFont = ExtResource("16_chalk")
+PreviewChalkShader = ExtResource("19_chalk_shader")
+
+[node name="PhysicalLayout" type="Node3D" parent="ExperienceAuthoring" unique_id=1449429865]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.062038064, 0)
+
+[node name="DeckAnchor" type="Marker3D" parent="ExperienceAuthoring/PhysicalLayout" unique_id=1727364517]
+editor_description = "Posição e rotação reais do baralho. O preview escuro e o baralho do jogo seguem este marcador."
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.3, 0.718, 0.15)
+
+[node name="CommunityCardsAnchor" type="Marker3D" parent="ExperienceAuthoring/PhysicalLayout" unique_id=1305138611]
+editor_description = "Centro e orientação da fileira das cinco cartas comunitárias."
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.718, 0)
+
+[node name="ActionGuideAnchor" type="Marker3D" parent="ExperienceAuthoring/PhysicalLayout" unique_id=769636949]
+editor_description = "Origem visual e interativa do arco de PASSAR/DESISTIR/APOSTAR para o Seat0. O sistema o gira automaticamente para os demais assentos."
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
+
+[node name="FirstPersonPreview" type="Node3D" parent="ExperienceAuthoring" unique_id=1295369842]
+visible = false
+
+[node name="PreviewCamera" type="Camera3D" parent="ExperienceAuthoring/FirstPersonPreview" unique_id=1270905767]
+editor_description = "Selecione esta câmera e ative Preview na viewport 3D para enxergar exatamente a experiência em primeira pessoa."
+transform = Transform3D(-1, 0, 0, 0, 0.81915206, 0.57357645, 0, 0.57357645, -0.81915206, 0, 1.15, -0.7299838)
+current = true
+fov = 55.0
+
+[node name="FirstPersonHandsPreview" parent="ExperienceAuthoring/FirstPersonPreview" unique_id=1455137628 instance=ExtResource("18_fp_hands")]
+transform = Transform3D(0.8844207, 0.06984509, -0.46150085, -0.34401718, 0.7651797, -0.5441994, 0.31536087, 0.6400652, 0.7006172, -0.04991733, 0.90557057, -0.3527519)
 
 [node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
 script = ExtResource("5_panch")
 Chairs = [NodePath("../TableFixture/WoodenChair_006"), NodePath("../TableFixture/WoodenChair_007"), NodePath("../TableFixture/WoodenChair_008"), NodePath("../TableFixture/WoodenChair_009")]
 
-[node name="Seat0" type="Marker3D" parent="Seats" unique_id=1088163110 instance=ExtResource("14_seat")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -1.03)
+[node name="Seat0" parent="Seats" unique_id=1088163110 instance=ExtResource("14_seat")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.13, -0.8649838)
 
-[node name="Seat1" type="Marker3D" parent="Seats" unique_id=932488307 instance=ExtResource("14_seat")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.03, 0, 0)
+[node name="SeatView" parent="Seats/Seat0" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
 
-[node name="Seat2" type="Marker3D" parent="Seats" unique_id=1206343072 instance=ExtResource("14_seat")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.03)
+[node name="StandExit" parent="Seats/Seat0" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.55)
 
-[node name="Seat3" type="Marker3D" parent="Seats" unique_id=1647890397 instance=ExtResource("14_seat")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.03, 0, 0)
+[node name="Seat1" parent="Seats" unique_id=932488307 instance=ExtResource("14_seat")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.8752154, 0.13, -0.077)
+
+[node name="SeatView" parent="Seats/Seat1" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
+
+[node name="StandExit" parent="Seats/Seat1" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.55)
+
+[node name="Seat2" parent="Seats" unique_id=1206343072 instance=ExtResource("14_seat")]
+transform = Transform3D(0.9976114, 0, -0.069075756, 0, 1, 0, 0.069075756, 0, 0.9976114, 0.002, 0.13, 0.8616373)
+
+[node name="SeatView" parent="Seats/Seat2" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
+
+[node name="StandExit" parent="Seats/Seat2" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.55)
+
+[node name="Seat3" parent="Seats" unique_id=1647890397 instance=ExtResource("14_seat")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.8758281, 0.13, 0.1)
+
+[node name="SeatView" parent="Seats/Seat3" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
+
+[node name="StandExit" parent="Seats/Seat3" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.55)
 
 [node name="GameModeHandler" type="Node" parent="." unique_id=1733713250 node_paths=PackedStringArray("CurrentGameMode")]
 script = ExtResource("2_gmhand")
@@ -80,3 +170,9 @@ script = ExtResource("3_gmode")
 [node name="Resolver" type="Node" parent="GameModeHandler/TexasHoldem" unique_id=1752055218]
 script = ExtResource("4_presol")
 PresentationProfile = ExtResource("13_timing")
+
+[editable path="TableFixture"]
+[editable path="Seats/Seat0"]
+[editable path="Seats/Seat1"]
+[editable path="Seats/Seat2"]
+[editable path="Seats/Seat3"]

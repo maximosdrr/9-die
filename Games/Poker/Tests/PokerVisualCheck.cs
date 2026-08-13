@@ -171,7 +171,7 @@ public partial class PokerVisualCheck : Node3D
         var eye = seat?.GetNodeOrNull<Node3D>("SeatView") ?? seat;
         var eyeTransform = eye?.GlobalTransform ?? Transform3D.Identity;
         var eyeBasis = eyeTransform.Basis.Orthonormalized();
-        var offset = controller?.SeatViewOffset ?? new Vector3(0.0f, 0.15f, 0.18f);
+        var offset = controller?.SeatViewOffset ?? Vector3.Zero;
         var pitch = controller?.RestPitchDeg ?? -35.0f;
 
         var camera = new Camera3D
@@ -246,9 +246,9 @@ public partial class PokerVisualCheck : Node3D
             player.Name = id;
             player.Id = int.Parse(id);
             container.AddChild(player);
-            // The visual harness inspects the cloth, not seated character art. Keeping the bodies visible
-            // puts the local torso directly between its fixed diagnostic camera and the showdown rows.
-            player.Visible = false;
+            // Opt-in body capture validates the real chair/character proportions without changing
+            // the established cloth-only regression image.
+            player.Visible = OS.GetEnvironment("POKER_CAPTURE_PLAYERS") == "1";
             players[id] = player;
         }
 

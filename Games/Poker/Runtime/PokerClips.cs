@@ -53,8 +53,8 @@ public static class PokerClips
 
     // ---------------------------------------------------------------- third person
 
-    /// <summary>What a seated body falls back to. The only clip the character rig actually has.</summary>
-    public const string BodyIdle = "Idle";
+    /// <summary>Breathing loop after the arms have reached the card-holding pose.</summary>
+    public const string BodyIdle = CharacterVisual.Clips.IdleSitHoldingCards;
 
     public const string BodyPickUpCards = "SitPickUpCards";
     public const string BodyThrowChips = "SitThrowChips";

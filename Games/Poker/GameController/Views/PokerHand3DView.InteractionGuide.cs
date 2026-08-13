@@ -13,6 +13,11 @@ public partial class PokerHand3DView
         if (!TrySeatAxes(out var facing, out var across))
             return InteractionZone.None;
 
+        aim = Game.ExperienceAuthoring?.ActionGuideAimPoint(
+            Game.BoardPresenter, facing, aim) ?? aim;
+        facing = Vector2.Down;
+        across = Vector2.Right;
+
         // One U-shaped control owns every wager. Its meaning comes from the physical state: CALL or
         // AUTO with no staged chips, APOSTAR after a custom selection, and ALL-IN while held.
         var confirmCentre = facing * ConfirmZoneCenterRadius;
@@ -84,7 +89,9 @@ public partial class PokerHand3DView
 
     private void UpdateInteractionVisibility()
     {
-        var visible = _interactionEnabled && IsYourTurn && HasPickedUpCards;
+        // Show the controls as soon as it is this player's turn. Input remains locked until the
+        // opening card-look finishes, but the player can already see where the available actions are.
+        var visible = _interactionEnabled && IsYourTurn;
         SetCrosshairVisible(visible);
         SetGuideVisible(visible);
         if (visible)
@@ -215,12 +222,18 @@ public partial class PokerHand3DView
             }
         }
 
-        _interactionGuide.GlobalTransform = Game.BoardPresenter.GlobalTransform;
+        var authored = Game.ExperienceAuthoring?.ActionGuideTransformFor(
+            Game.BoardPresenter, facing) ?? Transform3D.Identity;
+        _interactionGuide.GlobalTransform = Game.BoardPresenter.GlobalTransform * authored;
         _guideFacing = facing;
         _hoveredZone = InteractionZone.None;
         _zoneFillMaterials.Clear();
         _zoneLabels.Clear();
 
+        // Geometry is authored once from Seat0; ActionGuideTransformFor rotates the entire guide
+        // frame to the local player's chair.
+        facing = Vector2.Down;
+        across = Vector2.Right;
         var yaw = PokerTableLayout.YawTowardCentre(facing);
         var labelBasis = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
         var actionCentre = facing * InteractionZoneCenterRadius;
@@ -348,9 +361,11 @@ public partial class PokerHand3DView
 
     private void UpdateUnifiedWagerLabel(string text, Color colour)
     {
-        if (!IsInstanceValid(_interactionGuide)
-            || !TrySeatAxes(out var facing, out var across))
+        if (!IsInstanceValid(_interactionGuide))
             return;
+
+        var facing = Vector2.Down;
+        var across = Vector2.Right;
 
         var lengthScale = Mathf.Clamp(text.Length / (float)ConfirmBetLabelText.Length, 0.55f, 1.85f);
         SetCurvedChalkLabel(InteractionZone.ConfirmBet, text,
@@ -507,4 +522,3 @@ public partial class PokerHand3DView
         mesh.SurfaceAddVertex(new Vector3(point.X, 0.0f, point.Y));
     }
 }
-

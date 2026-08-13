@@ -17,6 +17,7 @@ using ChipBatchPhase = PokerChipAnimator.Phase;
 /// The inspector contract and lifecycle live here. Responsibility-named partials beside this file
 /// own cards, chip state, chip motion and the remaining table visuals.
 /// </remarks>
+[Tool]
 [GlobalClass]
 public partial class PokerSeatPresenter : Node3D
 {
@@ -27,9 +28,90 @@ public partial class PokerSeatPresenter : Node3D
     public const string InterruptedPresentationPolicy = "SnapToAuthoritativeState";
 
     [Export] public PackedScene CardScene;
-    [Export] public PokerBoardPresenter BoardPresenter;
+    /// <summary>
+    /// Reload-safe serialized boundary. While C# assemblies reload in the editor, Godot exposes
+    /// this scripted node as its native Node3D base; the typed API is resolved at runtime below.
+    /// </summary>
+    [Export] public Node3D BoardPresenterNode;
     [Export] public Node3D Seats;
-    [Export] public PokerPresentationProfile PresentationProfile;
+    /// <summary>Reload-safe serialized boundary for the scripted presentation resource.</summary>
+    [Export(PropertyHint.ResourceType, "PokerPresentationProfile")]
+    public Resource PresentationProfileResource;
+
+    public PokerBoardPresenter BoardPresenter
+    {
+        get => BoardPresenterNode as PokerBoardPresenter;
+        set => BoardPresenterNode = value;
+    }
+
+    public PokerPresentationProfile PresentationProfile
+    {
+        get => PresentationProfileResource as PokerPresentationProfile;
+        set => PresentationProfileResource = value;
+    }
+
+    [ExportGroup("Editor preview")]
+    /// <summary>
+    /// Draws the seat-owned poker props without starting a match. This is editor-only: preview
+    /// nodes are children of the presenter but are never saved and never exist in a running game.
+    /// </summary>
+    [Export] public bool ShowEditorPreview
+    {
+        get => _showEditorPreview;
+        set
+        {
+            _showEditorPreview = value;
+            QueueEditorPreviewRefresh();
+        }
+    }
+
+    [Export(PropertyHint.Range, "0,4,1")]
+    public int EditorPreviewOccupiedSeats
+    {
+        get => _editorPreviewOccupiedSeats;
+        set
+        {
+            _editorPreviewOccupiedSeats = Mathf.Clamp(value, 0, 4);
+            QueueEditorPreviewRefresh();
+        }
+    }
+
+    [Export] public bool EditorPreviewHeldCards
+    {
+        get => _editorPreviewHeldCards;
+        set
+        {
+            _editorPreviewHeldCards = value;
+            QueueEditorPreviewRefresh();
+        }
+    }
+
+    [Export] public bool EditorPreviewChips
+    {
+        get => _editorPreviewChips;
+        set
+        {
+            _editorPreviewChips = value;
+            QueueEditorPreviewRefresh();
+        }
+    }
+
+    [Export]
+    public bool RefreshEditorPreview
+    {
+        get => false;
+        set
+        {
+            if (value)
+                QueueEditorPreviewRefresh();
+        }
+    }
+
+    private bool _showEditorPreview = true;
+    private int _editorPreviewOccupiedSeats = 4;
+    private bool _editorPreviewHeldCards = true;
+    private bool _editorPreviewChips = true;
+    private Node3D _editorPreview;
 
     [ExportGroup("Labels")]
     [Export] public float NameHeight = 0.16f;
@@ -311,6 +393,13 @@ public partial class PokerSeatPresenter : Node3D
 
     public override void _Ready()
     {
+        if (Engine.IsEditorHint())
+        {
+            SetProcess(ShowEditorPreview && EditorPreviewHeldCards);
+            CallDeferred(MethodName.RebuildEditorPreview);
+            return;
+        }
+
         _game = GetParent<PokerGame>();
         if (_game == null)
             return;
@@ -324,6 +413,12 @@ public partial class PokerSeatPresenter : Node3D
 
     public override void _ExitTree()
     {
+        if (Engine.IsEditorHint())
+        {
+            ClearEditorPreview();
+            return;
+        }
+
         if (_game == null)
             return;
 
@@ -379,6 +474,12 @@ public partial class PokerSeatPresenter : Node3D
     // responsibility-named partial file beside this one.
     public override void _Process(double delta)
     {
+        if (Engine.IsEditorHint())
+        {
+            UpdateEditorPreviewHeldCards();
+            return;
+        }
+
         if (_game == null)
             return;
 

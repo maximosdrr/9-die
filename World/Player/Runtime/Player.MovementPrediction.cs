@@ -44,6 +44,80 @@ internal sealed class PlayerPredictionCorrection
 /// </summary>
 public partial class Player : CharacterBody3D
 {
+    private bool _movementModeTransitionActive;
+    private Vector3 _movementModeStartPosition;
+    private Vector3 _movementModeTargetPosition;
+    private float _movementModeStartYaw;
+    private float _movementModeTargetYaw;
+    private float _movementModeTransitionElapsed;
+    private float _movementModeTransitionDuration;
+
+    internal bool MovementModeTransitionActive => _movementModeTransitionActive;
+
+    public override void _Process(double delta)
+    {
+        if (!_movementModeTransitionActive)
+            return;
+
+        _movementModeTransitionElapsed += Mathf.Clamp((float)delta, 0.0f, 0.1f);
+        var linear = Mathf.Clamp(
+            _movementModeTransitionElapsed / Mathf.Max(0.001f, _movementModeTransitionDuration),
+            0.0f, 1.0f);
+        var smooth = linear * linear * (3.0f - 2.0f * linear);
+
+        GlobalPosition = _movementModeStartPosition.Lerp(_movementModeTargetPosition, smooth);
+        GlobalRotation = new Vector3(0.0f,
+            Mathf.LerpAngle(_movementModeStartYaw, _movementModeTargetYaw, smooth), 0.0f);
+        Velocity = Vector3.Zero;
+
+        if (linear < 1.0f)
+            return;
+
+        _movementModeTransitionActive = false;
+        SetVisualPose(_movementModeTargetPosition, _movementModeTargetYaw, Vector3.Zero);
+        SetProcess(false);
+
+        if (Multiplayer.IsServer())
+            BroadcastAuthoritativeSnapshot();
+    }
+
+    internal void BeginMovementModeTransition(Vector3 position, float yaw, float duration)
+    {
+        yaw = Mathf.Wrap(yaw, -Mathf.Pi, Mathf.Pi);
+
+        // Setup and the owning client's request can resolve the same seat in quick succession on a
+        // listen server. Do not restart an approach that is already travelling to that exact marker.
+        if (_movementModeTransitionActive
+            && _movementModeTargetPosition.DistanceSquaredTo(position) < 0.000001f
+            && Mathf.Abs(Mathf.AngleDifference(_movementModeTargetYaw, yaw)) < 0.001f)
+        {
+            return;
+        }
+
+        if (duration <= 0.0f || GlobalPosition.DistanceSquaredTo(position) < 0.000001f)
+        {
+            _movementModeTransitionActive = false;
+            SetProcess(false);
+            SetVisualPose(position, yaw, Vector3.Zero);
+            return;
+        }
+
+        _movementModeStartPosition = GlobalPosition;
+        _movementModeTargetPosition = position;
+        _movementModeStartYaw = GlobalRotation.Y;
+        _movementModeTargetYaw = yaw;
+        _movementModeTransitionElapsed = 0.0f;
+        _movementModeTransitionDuration = duration;
+        _movementModeTransitionActive = true;
+        SetProcess(true);
+    }
+
+    internal void CancelMovementModeTransition()
+    {
+        _movementModeTransitionActive = false;
+        SetProcess(false);
+    }
+
     private void RememberPrediction(int sequence)
     {
         _predictionSamples.Add(new PredictionSample(sequence, GlobalPosition));

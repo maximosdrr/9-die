@@ -88,7 +88,10 @@ public partial class PokerSeatPresenter : Node3D
             if (!_holeCards.TryGetValue(playerId, out var hand))
                 continue;
             foreach (var source in hand.Cards)
-                source.Visible = false;
+            {
+                if (IsInstanceValid(source))
+                    source.Visible = false;
+            }
         }
     }
 
@@ -168,7 +171,7 @@ public partial class PokerSeatPresenter : Node3D
         {
             foreach (var card in hand.Cards)
             {
-                if (card != null && card.CardId == cardId)
+                if (IsInstanceValid(card) && card.CardId == cardId)
                     return GlobalTransform.AffineInverse() * card.GlobalTransform;
             }
         }
@@ -468,7 +471,10 @@ public partial class PokerSeatPresenter : Node3D
         Drop(_holeCards, seen, hand =>
         {
             foreach (var card in hand.Cards)
-                card?.QueueFree();
+            {
+                if (IsInstanceValid(card))
+                    card.QueueFree();
+            }
         });
 
         Drop(_stacks, seen, pile => pile.QueueFree());

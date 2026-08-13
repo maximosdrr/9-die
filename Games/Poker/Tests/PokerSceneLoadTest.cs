@@ -95,6 +95,31 @@ public partial class PokerSceneLoadTest : Node
             game.BoardPresenter?.PotPile?.ChipScene == game.VisualAssets?.ChipScene);
         Check("o apresentador da mesa sabe desenhar cartas",
             game.BoardPresenter != null && game.BoardPresenter.CardScene != null);
+        Check("a cena expõe a bancada visual do poker",
+            game.ExperienceAuthoring is
+            {
+                DeckAnchor: not null,
+                CommunityCardsAnchor: not null,
+                ActionGuideAnchor: not null,
+                PreviewCamera: not null,
+                FirstPersonHandsPreview: not null
+            });
+        Check("baralho e comunitárias usam os marcadores editáveis",
+            game.BoardPresenter?.DeckAnchor == game.ExperienceAuthoring?.DeckAnchor
+            && game.BoardPresenter?.CommunityCardsAnchor
+               == game.ExperienceAuthoring?.CommunityCardsAnchor);
+        if (game.ExperienceAuthoring != null && game.BoardPresenter != null)
+        {
+            var canonical = new Vector2(0.0f,
+                -game.ExperienceAuthoring.InteractionZoneCenterRadius);
+            var frame = game.ExperienceAuthoring.ActionGuideTransformFor(
+                game.BoardPresenter, Vector2.Down);
+            var onBoard = frame * new Vector3(canonical.X, 0.0f, canonical.Y);
+            var remapped = game.ExperienceAuthoring.ActionGuideAimPoint(
+                game.BoardPresenter, Vector2.Down, new Vector2(onBoard.X, onBoard.Z));
+            Check("o clique acompanha a posição visual do arco",
+                remapped.DistanceTo(canonical) < 0.0001f);
+        }
 
         var seatPresenter = game.GetNodeOrNull<PokerSeatPresenter>("SeatPresenter");
         Check("a mesa tem o apresentador de assentos", seatPresenter != null);
@@ -288,10 +313,12 @@ public partial class PokerSceneLoadTest : Node
             worstEyeOverTable = Mathf.Max(worstEyeOverTable, eye.GlobalPosition.Y);
         }
 
-        Check($"todo assento cai na sua cadeira (pior desvio {worstOffChair * 1000.0f:F0} mm)",
-            worstOffChair < 0.05f);
-        Check($"o olho se inclina sobre a mesa ({closestEye:F2} m do centro, {worstEyeOverTable:F2} m de altura)",
-            closestEye < 0.80f && worstEyeOverTable is > 1.0f and < 1.3f);
+        Check($"todo corpo recua para dentro da cadeira ({worstOffChair * 1000.0f:F0} mm)",
+            worstOffChair is >= 0.045f and <= 0.075f);
+        Check($"o ponto de vista coincide com os olhos do rig sentado "
+              + $"({closestEye:F2} m do centro, {worstEyeOverTable:F2} m de altura)",
+            closestEye is > 0.90f and < 1.05f
+            && worstEyeOverTable is > 1.00f and < 1.05f);
     }
 
     private void TestRpcModes()
@@ -506,8 +533,10 @@ public partial class PokerSceneLoadTest : Node
         Check("a view tem HUD, aviso e rig de mão",
             view.Hud != null && view.MessageLabel != null && view.HandRig != null);
         Check("as duas malhas de mão têm encaixes independentes",
-            view.CardHandVisualMount != null && view.ChipHandVisualMount != null
-            && view.CardHandPlaceholder != null && view.ChipHandPlaceholder != null);
+            view.CardHandVisualMount != null && view.ChipHandVisualMount != null);
+        Check("os placeholders geométricos das mãos foram removidos",
+            view.GetNodeOrNull<Node3D>("HandRig/Hand/CardHandPose/Mesh") == null
+            && view.GetNodeOrNull<Node3D>("HandRig/LeftHand/Mesh") == null);
 
         // The rig is the swap point for the animated hand: when it arrives, the AnimationPlayer is
         // assigned here and nothing else in the feature moves.
@@ -565,8 +594,9 @@ public partial class PokerSceneLoadTest : Node
             controller.MinPitchDeg < controller.MaxPitchDeg
             && controller.RestPitchDeg >= controller.MinPitchDeg
             && controller.RestPitchDeg <= controller.MaxPitchDeg);
-        Check($"a câmera sentada recua e sobe a partir da cadeira ({controller.SeatViewOffset})",
-            controller.SeatViewOffset.Z >= 0.15f && controller.SeatViewOffset.Y >= 0.10f);
+        Check($"a câmera sentada não soma um deslocamento ao ponto dos olhos "
+              + $"({controller.SeatViewOffset})",
+            controller.SeatViewOffset.IsZeroApprox());
         Check($"a câmera sentada olha a mesa de um ângulo mais alto ({controller.RestPitchDeg}°)",
             controller.RestPitchDeg <= -34.0f);
         Check($"a vista superior se aproxima da área de jogo ({controller.TopHeight:F2} m)",

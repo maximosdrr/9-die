@@ -20,6 +20,8 @@ public partial class PokerBoardPresenter : Node3D
 {
     [Export] public PackedScene CardScene;
     [Export] public PokerChipPile PotPile;
+    [Export] public Node3D DeckAnchor;
+    [Export] public Node3D CommunityCardsAnchor;
 
     [ExportGroup("Layout")]
     [Export] public float CardWidth = 0.076f;
@@ -184,8 +186,13 @@ public partial class PokerBoardPresenter : Node3D
     }
 
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
-    public Vector3 DeckPosition => ReaderBasis * DeckOffset;
-    public Basis DeckCardBasis => ReaderBasis * PokerCard.Orientation(true);
+    public Vector3 DeckPosition => DeckAnchor != null
+        ? ToLocal(DeckAnchor.GlobalPosition)
+        : ReaderBasis * DeckOffset;
+    public Basis DeckBasis => DeckAnchor != null
+        ? GlobalTransform.Basis.Inverse() * DeckAnchor.GlobalTransform.Basis
+        : ReaderBasis;
+    public Basis DeckCardBasis => DeckBasis * PokerCard.Orientation(true);
     public float DeckTopHeight => Mathf.Max(1, DeckDepth) * Spec.CardThickness * 1.6f;
 
     /// <summary>Successive collected cards land above, never through, the visible deck proxy.</summary>
@@ -217,6 +224,10 @@ public partial class PokerBoardPresenter : Node3D
 
     public Basis ReaderBasis =>
         new(Vector3.Up, PokerTableLayout.YawTowardCentre(ReaderFacing));
+
+    private Transform3D CommunityCardsFrame => CommunityCardsAnchor != null
+        ? GlobalTransform.AffineInverse() * CommunityCardsAnchor.GlobalTransform
+        : new Transform3D(ReaderBasis, Vector3.Zero);
 
     /// <summary>
     /// Where visually collected bets gather, in this presenter's local space. It is always directly
@@ -291,7 +302,7 @@ public partial class PokerBoardPresenter : Node3D
         if (_deck == null)
             return;
 
-        _deck.Transform = new Transform3D(ReaderBasis, DeckPosition);
+        _deck.Transform = new Transform3D(DeckBasis, DeckPosition);
     }
 
     /// <summary>
@@ -646,6 +657,7 @@ public partial class PokerBoardPresenter : Node3D
     {
         var spec = Spec;
         var reader = ReaderBasis;
+        var boardFrame = CommunityCardsFrame;
 
         for (var index = 0; index < _cards.Count; index++)
         {
@@ -658,7 +670,7 @@ public partial class PokerBoardPresenter : Node3D
             // The ROW is turned as well as the cards. Turning only the cards left the row running
             // along the table's own X, so a player sitting on that axis saw five cards receding into
             // the distance instead of laid out across their view.
-            var seated = reader * new Vector3(place.X, spec.CardThickness * 0.5f, place.Y);
+            var seated = boardFrame * new Vector3(place.X, spec.CardThickness * 0.5f, place.Y);
 
             var from = DealOrigin.IsZeroApprox() ? DeckPosition : reader * DealOrigin;
             var sideways = PokerChipPile.Noise(index, 10) * 0.009f;
@@ -674,7 +686,8 @@ public partial class PokerBoardPresenter : Node3D
             var airborne = 1.0f - PokerMotion.Smooth(card.Dealt);
             var dealBasis = new Basis(Vector3.Up, PokerChipPile.Noise(index, 11) * 0.18f * airborne)
                             * new Basis(Vector3.Forward, PokerChipPile.Noise(index, 12) * 0.09f * airborne);
-            card.Node.Transform = new Transform3D(reader * dealBasis * new Basis(Vector3.Back, turn), position);
+            card.Node.Transform = new Transform3D(
+                boardFrame.Basis * dealBasis * new Basis(Vector3.Back, turn), position);
         }
     }
 

@@ -546,6 +546,29 @@ public partial class PokerMatchTest : Node
 
         Check($"e a mão de quem desistiu fica vazia ({held} cartas)", held == 0);
 
+        // Cards move below replaceable first-/third-person rigs. Freeing one simulates such a rig
+        // being swapped while the stable seat presenter still has its C# wrapper. Refresh must
+        // replace the disposed native object before touching Visible, Transform or its parent.
+        var disposedCardWasRecovered = thrown.Count > 0;
+        if (thrown.Count > 0)
+        {
+            thrown[0].Free();
+            try
+            {
+                presenter.Refresh();
+                disposedCardWasRecovered = presenter.GetChildren()
+                    .OfType<PokerCard>()
+                    .Count(card => IsInstanceValid(card) && card.Visible)
+                    == PokerDeal.HoleCardCount;
+            }
+            catch (System.ObjectDisposedException)
+            {
+                disposedCardWasRecovered = false;
+            }
+        }
+        Check("um rig removido não deixa uma PokerCard descartada no apresentador",
+            disposedCardWasRecovered);
+
         // Put it back: the next context from the server rebuilds this set anyway, and nothing after
         // this point should inherit a fold that never happened.
         game.Folded.Remove(me);
