@@ -105,6 +105,56 @@ public partial class PokerCard : Node3D
             AssetVisual.Transparency = transparency;
     }
 
+    /// <summary>
+    /// Projection range of the geometry that is actually visible. Placement code uses this instead
+    /// of the PokerCard root because imported assets may have a different origin, scale or physical
+    /// thickness from the layout specification.
+    /// </summary>
+    public bool TryGetVisibleProjectionRange(
+        Vector3 worldAxis,
+        out float minimum,
+        out float maximum)
+    {
+        minimum = float.PositiveInfinity;
+        maximum = float.NegativeInfinity;
+        if (worldAxis.IsZeroApprox())
+            return false;
+
+        var axis = worldAxis.Normalized();
+        var found = false;
+        AccumulateProjection(AssetVisual, axis, ref minimum, ref maximum, ref found);
+        AccumulateProjection(Face, axis, ref minimum, ref maximum, ref found);
+        AccumulateProjection(Back, axis, ref minimum, ref maximum, ref found);
+        return found;
+    }
+
+    private static void AccumulateProjection(
+        MeshInstance3D visual,
+        Vector3 axis,
+        ref float minimum,
+        ref float maximum,
+        ref bool found)
+    {
+        if (!GodotObject.IsInstanceValid(visual) || !visual.Visible || visual.Mesh == null)
+            return;
+
+        var bounds = visual.Mesh.GetAabb();
+        var end = bounds.End;
+        for (var x = 0; x < 2; x++)
+        for (var y = 0; y < 2; y++)
+        for (var z = 0; z < 2; z++)
+        {
+            var corner = new Vector3(
+                x == 0 ? bounds.Position.X : end.X,
+                y == 0 ? bounds.Position.Y : end.Y,
+                z == 0 ? bounds.Position.Z : end.Z);
+            var projection = (visual.GlobalTransform * corner).Dot(axis);
+            minimum = Mathf.Min(minimum, projection);
+            maximum = Mathf.Max(maximum, projection);
+            found = true;
+        }
+    }
+
     private bool ConfigureImportedMesh(int cardId, PokerLayoutSpec spec)
     {
         if (AssetVisual == null

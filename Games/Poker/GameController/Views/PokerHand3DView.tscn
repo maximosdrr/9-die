@@ -178,11 +178,12 @@ _data = {
 &"HandThrowChips": SubResource("Animation_chips")
 }
 
-[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardHandVisualMount", "ChipHandVisualMount", "Hud", "AnimationPlayer", "Crosshair")]
+[node name="PokerHand3DView" type="Node3D" node_paths=PackedStringArray("HandRig", "CardHandPose", "CardSlots", "CardDownAnchor", "CardHandVisualMount", "ChipHandVisualMount", "Hud", "AnimationPlayer", "Crosshair")]
 script = ExtResource("1_pview")
 HandRig = NodePath("HandRig")
 CardHandPose = NodePath("HandRig/Hand/CardHandPose")
 CardSlots = NodePath("HandRig/Hand/CardSlots")
+CardDownAnchor = NodePath("HandRig/CardDownAnchor")
 CardScene = ExtResource("2_pcard")
 CardHandVisualMount = NodePath("HandRig/Hand/VisualMount")
 ChipHandVisualMount = NodePath("HandRig/LeftHand/VisualMount")
@@ -193,6 +194,9 @@ ChalkFont = ExtResource("9_chalk")
 ChalkHoverShader = ExtResource("10_chalk_hover")
 
 [node name="HandRig" type="Node3D" parent="."]
+
+[node name="CardDownAnchor" type="Marker3D" parent="HandRig"]
+editor_description = "Repouso estavel das cartas sobre a mesa. Na transformacao identidade, o jogo o posiciona automaticamente sob a mao; mova este marcador para substituir essa posicao."
 
 [node name="Hand" type="Node3D" parent="HandRig"]
 

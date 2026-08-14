@@ -71,6 +71,19 @@ public partial class PlayerFirstPersonHands : PokerHandVisual
         UpdateCardGrip();
     }
 
+    /// <summary>
+    /// Releases the gameplay card root from the animated hand. The expected-node guard prevents a
+    /// stale view from detaching a replacement that was installed later in the same frame.
+    /// </summary>
+    public void UnbindCardSlots(Node3D expectedCardSlots = null)
+    {
+        if (expectedCardSlots == null || _cardSlotsFollower == expectedCardSlots)
+            _cardSlotsFollower = null;
+    }
+
+    public bool IsFollowingCardSlots(Node3D cardSlots) =>
+        GodotObject.IsInstanceValid(cardSlots) && _cardSlotsFollower == cardSlots;
+
     private void OnSkeletonUpdated() => UpdateCardGrip();
 
     /// <summary>Applies one reusable camera policy to each arm independently.</summary>

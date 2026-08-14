@@ -2,6 +2,12 @@ using System.Collections.Generic;
 using Godot;
 using Poker.Rules;
 
+public enum PokerCardAttachmentMode
+{
+    FollowHand,
+    TableRest,
+}
+
 /// <summary>
 /// The player's two cards held in front of the camera, the table-space interaction and the small
 /// status HUD.
@@ -24,6 +30,7 @@ public partial class PokerHand3DView : PokerHandView
     [Export] public Node3D HandRig;
     [Export] public Node3D CardHandPose;
     [Export] public Node3D CardSlots;
+    [Export] public Node3D CardDownAnchor;
     [Export] public PackedScene CardScene;
     [Export] public Node3D CardHandVisualMount;
     [Export] public Node3D ChipHandVisualMount;
@@ -72,6 +79,17 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>How fast the cards turn over, in responses per second.</summary>
     [Export] public float PeekSpeed = 14.0f;
 
+    [ExportGroup("Cards on table")]
+    /// <summary>Short handoff between the stable felt anchor and the animated left-hand grip.</summary>
+    [Export] public float CardAttachmentBlendSeconds = 0.18f;
+
+    /// <summary>
+    /// Tiny gap between visible card geometry and the physical tabletop. The visual wooden mesh is
+    /// about 0.2 mm above its collider, so 0.35 mm clears both without reading as floating.
+    /// </summary>
+    [Export(PropertyHint.Range, "0.0001,0.002,0.00005")]
+    public float CardTableClearance = 0.00035f;
+
     [ExportGroup("Taking the cards up")]
     /// <summary>Beat before reaching down, so the deal is seen to finish before it is disturbed.</summary>
     [Export] public float PickUpDelay = 0.35f;
@@ -105,6 +123,7 @@ public partial class PokerHand3DView : PokerHandView
     private float _pickUpAnimationSeconds;
     private bool _openingLookPoseStarted;
     private bool _openingDownPoseStarted;
+    private bool _openingTableRestStarted;
     private bool _voluntaryLookPose;
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
@@ -114,6 +133,11 @@ public partial class PokerHand3DView : PokerHandView
         = FirstPersonHandCameraMode.Locked;
     private FirstPersonHandCameraMode _rightHandCameraMode
         = FirstPersonHandCameraMode.Locked;
+    private PokerCardAttachmentMode _cardAttachmentMode
+        = PokerCardAttachmentMode.FollowHand;
+    private float _cardAttachmentBlend = 1.0f;
+    private Transform3D _cardAttachmentBlendFrom = Transform3D.Identity;
+    private bool _cardDownAnchorReady;
     private int _publishedWagerTurn = -1;
     private int _publishedWagerRevision;
 
@@ -133,6 +157,7 @@ public partial class PokerHand3DView : PokerHandView
 
     public FirstPersonHandCameraMode LeftHandCameraMode => _leftHandCameraMode;
     public FirstPersonHandCameraMode RightHandCameraMode => _rightHandCameraMode;
+    public PokerCardAttachmentMode CardAttachmentMode => _cardAttachmentMode;
 
     /// <summary>
     /// Whether the opening look is over and this player may act.
@@ -155,6 +180,10 @@ public partial class PokerHand3DView : PokerHandView
         // Imported hand animation and its scale-free grip update before this view moves the rig and
         // attaches the actual PokerCard nodes for the rendered frame.
         ProcessPriority = 200;
+        if (CardSlots != null)
+            CardSlots.TopLevel = true;
+        _cardDownAnchorReady = CardDownAnchor != null
+                               && !CardDownAnchor.Transform.IsEqualApprox(Transform3D.Identity);
 
         // A hand only exists for the peer holding it.
         if (IsMultiplayerAuthority())
@@ -188,6 +217,8 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void _ExitTree()
     {
+        if (_cardHandVisual is PlayerFirstPersonHands hands)
+            hands.UnbindCardSlots(CardSlots);
         SetHandCameraModes(
             FirstPersonHandCameraMode.Locked,
             FirstPersonHandCameraMode.Locked,
@@ -228,7 +259,7 @@ public partial class PokerHand3DView : PokerHandView
                 _rightHandCameraMode);
         }
 
-        FollowImportedCardGrip();
+        FollowImportedCardGrip((float)delta);
 
         if (_messageSeconds <= 0.0f)
             return;
@@ -274,6 +305,7 @@ public partial class PokerHand3DView : PokerHandView
         var hand = Game?.HandNumber ?? 0;
         if (hand != _lastHand)
         {
+            SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
             SetVoluntaryLookPose(false);
             SetHandCameraModes(
                 FirstPersonHandCameraMode.Locked,
@@ -289,6 +321,7 @@ public partial class PokerHand3DView : PokerHandView
             _pickUpAnimationSeconds = 0.0f;
             _openingLookPoseStarted = false;
             _openingDownPoseStarted = false;
+            _openingTableRestStarted = false;
             _cardTransfer = 1.0f;
             _peek = 0.0f;
 
@@ -571,6 +604,14 @@ public partial class PokerHand3DView : PokerHandView
             PlayCardPose(PokerClips.Idle);
         }
         SetPeek(0.0f);
+        if (!_openingTableRestStarted)
+        {
+            _openingTableRestStarted = true;
+            SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
+        }
+        if (_cardAttachmentBlend < 1.0f)
+            return;
+
         _lookDone = true;
         UpdateInteractionVisibility();
 
@@ -581,6 +622,7 @@ public partial class PokerHand3DView : PokerHandView
 
     private void TransferCardsToHand()
     {
+        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
         _cardsTransferred = true;
         if (Game != null)
             Game.LocalPickedUpCards = true;
@@ -614,6 +656,8 @@ public partial class PokerHand3DView : PokerHandView
             moved = wants;
 
         SetPeek(moved);
+        if (!wantsLook && Mathf.IsZeroApprox(moved))
+            SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
     }
 
     private void SetPeek(float value)
@@ -631,6 +675,8 @@ public partial class PokerHand3DView : PokerHandView
             return;
 
         _voluntaryLookPose = raised;
+        if (raised)
+            SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
         // Cards are authored on the left hand. While voluntarily looking, only that arm follows
         // the camera; the supporting/right hand remains exactly on the table.
         SetHandCameraModes(
@@ -804,16 +850,231 @@ public partial class PokerHand3DView : PokerHandView
         }
     }
 
-    private void FollowImportedCardGrip()
+    private void FollowImportedCardGrip(float delta)
     {
         if (_cardHandVisual is PlayerFirstPersonHands { CardGrip: not null } hands
             && CardSlots != null)
         {
-            // Bind once conceptually (the method is idempotent) instead of copying the transform
-            // only during _Process. PlayerFirstPersonHands also refreshes this follower from
-            // SkeletonUpdated, after the per-arm camera modifier has produced the rendered pose.
-            hands.BindCardSlots(CardSlots);
+            if (_cardAttachmentMode == PokerCardAttachmentMode.FollowHand)
+            {
+                if (_cardAttachmentBlend < 1.0f)
+                {
+                    hands.UnbindCardSlots(CardSlots);
+                    AdvanceCardAttachmentBlend(
+                        hands.CardGrip.GlobalTransform, (float)delta);
+                    if (_cardAttachmentBlend >= 1.0f)
+                        hands.BindCardSlots(CardSlots);
+                }
+                else
+                {
+                    // Bind once conceptually (the method is idempotent) instead of copying the
+                    // transform only during _Process. PlayerFirstPersonHands also refreshes this
+                    // follower from SkeletonUpdated, after the per-arm camera modifier has produced
+                    // the rendered pose.
+                    hands.BindCardSlots(CardSlots);
+                }
+            }
+            else
+            {
+                hands.UnbindCardSlots(CardSlots);
+                PlaceCardsAtTableRest(hands, (float)delta);
+            }
         }
+    }
+
+    /// <summary>
+    /// One attachment policy for the same physical pair. Pick-up and looking use the animated
+    /// left-hand grip; the lowered idle uses a stable marker in the chair frame, so breathing can
+    /// move over the cards without making the cards slide across the felt.
+    /// </summary>
+    private void SetCardAttachmentMode(PokerCardAttachmentMode mode)
+    {
+        if (_cardAttachmentMode == mode)
+            return;
+
+        _cardAttachmentMode = mode;
+        if (_cardHandVisual is not PlayerFirstPersonHands hands || CardSlots == null)
+            return;
+
+        _cardAttachmentBlendFrom = CardSlots.GlobalTransform;
+        _cardAttachmentBlend = 0.0f;
+        hands.UnbindCardSlots(CardSlots);
+        if (mode == PokerCardAttachmentMode.TableRest)
+        {
+            ApplyFan();
+            PlaceCardsAtTableRest(hands, 0.0f);
+        }
+    }
+
+    private void PlaceCardsAtTableRest(PlayerFirstPersonHands hands, float delta)
+    {
+        if (CardSlots == null || CardDownAnchor == null || hands?.CardGrip == null)
+            return;
+
+        if (!_cardDownAnchorReady)
+            InitializeAutomaticCardDownAnchor(hands);
+
+        if (!_cardDownAnchorReady)
+            return;
+
+        FlattenCardDownAnchorToCurrentSurface();
+
+        if (_cardAttachmentBlend < 1.0f)
+            AdvanceCardAttachmentBlend(CardDownAnchor.GlobalTransform, delta);
+        else
+            CardSlots.GlobalTransform = CardDownAnchor.GlobalTransform;
+
+        if (_cardAttachmentBlend >= 1.0f)
+            AlignRestingCardsToTable();
+    }
+
+    private void AdvanceCardAttachmentBlend(Transform3D target, float delta)
+    {
+        var seconds = Mathf.Max(CardAttachmentBlendSeconds, 0.0f);
+        _cardAttachmentBlend = seconds <= 0.0f
+            ? 1.0f
+            : Mathf.Min(1.0f, _cardAttachmentBlend + Mathf.Max(delta, 0.0f) / seconds);
+        CardSlots.GlobalTransform = _cardAttachmentBlendFrom.InterpolateWith(
+            target, Smooth(_cardAttachmentBlend));
+    }
+
+    private void AlignRestingCardsToTable()
+    {
+        var board = Game?.BoardPresenter;
+        if (board == null)
+            return;
+
+        var thickness = Mathf.Max(board.Spec.CardThickness, 0.0002f);
+        var layerSpacing = Mathf.Max(thickness * 1.2f, 0.0008f);
+        var rootAligned = false;
+        for (var index = 0; index < _fan.Count; index++)
+        {
+            var card = _fan[index];
+            // Fold, reveal and cleanup reparent these same physical nodes back to the presenter.
+            // A stale fan reference must never pull a released card back onto this resting plane.
+            if (!IsInstanceValid(card) || card.GetParent() != CardSlots)
+                continue;
+
+            board.TryGetTableSurface(
+                card.GlobalPosition, out var surfacePoint, out var tableNormal);
+            var surfaceProjection = surfacePoint.Dot(tableNormal);
+            var targetBottom = surfaceProjection
+                               + Mathf.Max(CardTableClearance, 0.0f)
+                               + index * layerSpacing;
+            var currentBottom = card.TryGetVisibleProjectionRange(
+                tableNormal, out var visibleBottom, out _)
+                ? visibleBottom
+                : card.GlobalPosition.Dot(tableNormal) - thickness * 0.5f;
+            var correction = tableNormal * (targetBottom - currentBottom);
+
+            if (!rootAligned)
+            {
+                // Move the stable root with the first card. Besides keeping it tangent now, this
+                // means the next look transition begins at the real tabletop instead of at the old
+                // BoardHolder height.
+                var anchorTransform = CardDownAnchor.GlobalTransform;
+                anchorTransform.Origin += correction;
+                CardDownAnchor.GlobalTransform = anchorTransform;
+
+                var slotsTransform = CardSlots.GlobalTransform;
+                slotsTransform.Origin += correction;
+                CardSlots.GlobalTransform = slotsTransform;
+                rootAligned = true;
+            }
+            else
+            {
+                var transform = card.GlobalTransform;
+                transform.Origin += correction;
+                card.GlobalTransform = transform;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Keeps the authored horizontal direction but takes pitch/roll from the live tabletop. This is
+    /// evaluated while resting, so later edits to table height, scale or rotation are inherited
+    /// without making the breathing hand drag the cards.
+    /// </summary>
+    private void FlattenCardDownAnchorToCurrentSurface()
+    {
+        var board = Game?.BoardPresenter;
+        if (board == null || CardDownAnchor == null)
+            return;
+
+        var localCard = HeldCardPoseAt(0, 0.0f);
+        var currentCard = CardDownAnchor.GlobalTransform * localCard;
+        board.TryGetTableSurface(
+            currentCard.Origin, out _, out var tableNormal);
+        var rootBasis = FlatRootBasis(
+            localCard, currentCard, tableNormal, board.GlobalBasis.Orthonormalized());
+        CardDownAnchor.GlobalTransform = new Transform3D(
+            rootBasis,
+            currentCard.Origin - rootBasis * localCard.Origin);
+    }
+
+    /// <summary>
+    /// With an untouched CardDownAnchor, derive a useful default directly below the authored hand.
+    /// Card +Y is its printed face, so pointing it into the cloth leaves the back visible and makes
+    /// both cards perfectly parallel to the real table plane. Moving CardDownAnchor in the scene
+    /// opts into that authored position instead.
+    /// </summary>
+    private void InitializeAutomaticCardDownAnchor(PlayerFirstPersonHands hands)
+    {
+        if (CardDownAnchor == null || hands?.CardGrip == null)
+            return;
+
+        hands.UpdateCardGrip();
+        var localCard = HeldCardPoseAt(0, 0.0f);
+        var currentCard = hands.CardGrip.GlobalTransform * localCard;
+        var board = Game?.BoardPresenter;
+        var tableBasis = board?.GlobalBasis.Orthonormalized() ?? Basis.Identity;
+        var tablePoint = board?.GlobalPosition ?? Vector3.Zero;
+        var tableNormal = tableBasis.Y.Normalized();
+        board?.TryGetTableSurface(currentCard.Origin, out tablePoint, out tableNormal);
+        var rootBasis = FlatRootBasis(localCard, currentCard, tableNormal, tableBasis);
+
+        var cardCentre = currentCard.Origin;
+        if (board != null)
+        {
+            var height = (cardCentre - tablePoint).Dot(tableNormal);
+            var cardHalfThickness = Mathf.Max(
+                board.Spec.CardThickness, 0.0002f) * 0.5f;
+            cardCentre += tableNormal * (
+                cardHalfThickness + Mathf.Max(CardTableClearance, 0.0f) - height);
+        }
+
+        CardDownAnchor.GlobalTransform = new Transform3D(
+            rootBasis,
+            cardCentre - rootBasis * localCard.Origin);
+        _cardDownAnchorReady = true;
+    }
+
+    private Basis FlatRootBasis(
+        Transform3D localCard,
+        Transform3D currentCard,
+        Vector3 tableNormal,
+        Basis tableBasis)
+    {
+        if (tableNormal.IsZeroApprox())
+            tableNormal = Vector3.Up;
+        tableNormal = tableNormal.Normalized();
+
+        var longAxis = currentCard.Basis.Z;
+        longAxis -= tableNormal * longAxis.Dot(tableNormal);
+        if (longAxis.LengthSquared() < 1e-6f)
+        {
+            longAxis = HandRig?.GlobalBasis.Z ?? Vector3.Back;
+            longAxis -= tableNormal * longAxis.Dot(tableNormal);
+        }
+        if (longAxis.LengthSquared() < 1e-6f)
+            longAxis = tableBasis.Z;
+        longAxis = longAxis.Normalized();
+
+        var faceIntoTable = -tableNormal;
+        var widthAxis = faceIntoTable.Cross(longAxis).Normalized();
+        longAxis = widthAxis.Cross(faceIntoTable).Normalized();
+        var flatCardBasis = new Basis(widthAxis, faceIntoTable, longAxis);
+        return (flatCardBasis * localCard.Basis.Inverse()).Orthonormalized();
     }
 
     private void SetHandVisible(bool visible)

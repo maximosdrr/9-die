@@ -158,6 +158,19 @@ public partial class PokerSceneLoadTest : Node
             game.BoardPresenter?.DeckAnchor == game.ExperienceAuthoring?.DeckAnchor
             && game.BoardPresenter?.CommunityCardsAnchor
                == game.ExperienceAuthoring?.CommunityCardsAnchor);
+        var tableSurfacePoint = Vector3.Zero;
+        var tableSurfaceNormal = Vector3.Up;
+        var hasLiveSurface = game.BoardPresenter != null
+                             && game.BoardPresenter.TryGetTableSurface(
+                                 game.BoardPresenter.GlobalPosition,
+                                 out tableSurfacePoint,
+                                 out tableSurfaceNormal);
+        Check("o repouso das cartas usa a superficie fisica escalavel da mesa",
+            hasLiveSurface
+            && game.BoardPresenter.TableSurfaceCollider != null
+            && game.BoardPresenter.TableSurfaceMesh != null
+            && tableSurfaceNormal.Dot(Vector3.Up) > 0.999f
+            && tableSurfacePoint.Y > game.BoardPresenter.GlobalPosition.Y + 0.05f);
         if (game.ExperienceAuthoring != null)
         {
             var previewHand = GD.Load<PackedScene>(
@@ -298,7 +311,7 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter is
             {
                 BetSideOffset: >= 0.0f and <= 0.01f,
-                StackSideOffset: >= 0.22f and <= 0.23f,
+                StackSideOffset: >= 0.29f and <= 0.31f,
                 StackInset: >= 0.10f and <= 0.13f,
                 BankColumnSpacing: >= 0.044f,
                 BankLaneAngleDegrees: >= 50.0f and <= 60.0f
@@ -656,6 +669,10 @@ public partial class PokerSceneLoadTest : Node
             && view.Hud.Layer > 3);
         Check("as duas malhas de mão têm encaixes independentes",
             view.CardHandVisualMount != null && view.ChipHandVisualMount != null);
+        Check("as cartas abaixadas tem um marcador estavel separado da mao",
+            view.CardDownAnchor != null
+            && view.CardDownAnchor.GetParent() == view.HandRig
+            && view.CardSlots?.TopLevel == true);
         Check("os placeholders geométricos das mãos foram removidos",
             view.GetNodeOrNull<Node3D>("HandRig/Hand/CardHandPose/Mesh") == null
             && view.GetNodeOrNull<Node3D>("HandRig/LeftHand/Mesh") == null);
@@ -931,7 +948,9 @@ public partial class PokerSceneLoadTest : Node
             ? 1.13f + controller.SeatViewOffset.Y
             : (eye.GlobalTransform.Origin
                + eye.GlobalTransform.Basis.Orthonormalized() * controller.SeatViewOffset).Y;
-        var clothY = game.BoardPresenter.GlobalPosition.Y;
+        game.BoardPresenter.TryGetTableSurface(
+            game.BoardPresenter.GlobalPosition, out var clothPoint, out _);
+        var clothY = clothPoint.Y;
         var spec = game.BoardPresenter.Spec;
 
         var worstClearance = float.MaxValue;

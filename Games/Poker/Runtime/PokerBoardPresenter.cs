@@ -23,6 +23,19 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public Node3D DeckAnchor;
     [Export] public Node3D CommunityCardsAnchor;
 
+    [ExportGroup("Table surface")]
+    /// <summary>
+    /// Physical source of truth for the felt plane. Unlike this presenter's layout origin, the
+    /// collider inherits every translation, rotation and scale applied to the actual table model.
+    /// </summary>
+    [Export] public CollisionShape3D TableSurfaceCollider;
+
+    /// <summary>
+    /// Visual fallback for tables whose collision shape is temporarily unavailable in an editor
+    /// preview. Its highest point along local +Y is treated as the playable surface.
+    /// </summary>
+    [Export] public MeshInstance3D TableSurfaceMesh;
+
     [ExportGroup("Layout")]
     [Export] public float CardWidth = 0.076f;
     [Export] public float CardLength = 0.106f;
@@ -33,6 +46,101 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public float SeatCardRadius = 0.40f;
     [Export] public float SeatBetRadius = 0.32f;
     [Export] public float SeatStackRadius = 0.54f;
+
+    /// <summary>
+    /// Finds the real world-space felt plane near a point on the table. The layout root is only a
+    /// coordinate frame and must not be used as a height reference: artists are free to resize the
+    /// table without moving that root.
+    /// </summary>
+    public bool TryGetTableSurface(
+        Vector3 nearWorldPosition,
+        out Vector3 surfacePoint,
+        out Vector3 surfaceNormal)
+    {
+        if (TryGetColliderTop(out var topPoint, out surfaceNormal))
+        {
+            surfacePoint = ProjectPointToPlane(nearWorldPosition, topPoint, surfaceNormal);
+            return true;
+        }
+
+        if (TryGetMeshTop(nearWorldPosition, out surfacePoint, out surfaceNormal))
+            return true;
+
+        surfaceNormal = GlobalBasis.Y.Normalized();
+        if (surfaceNormal.IsZeroApprox())
+            surfaceNormal = Vector3.Up;
+        surfacePoint = ProjectPointToPlane(nearWorldPosition, GlobalPosition, surfaceNormal);
+        return false;
+    }
+
+    private bool TryGetColliderTop(out Vector3 topPoint, out Vector3 normal)
+    {
+        topPoint = Vector3.Zero;
+        normal = Vector3.Up;
+        if (!GodotObject.IsInstanceValid(TableSurfaceCollider)
+            || TableSurfaceCollider.Shape == null)
+            return false;
+
+        var halfHeight = TableSurfaceCollider.Shape switch
+        {
+            CylinderShape3D cylinder => cylinder.Height * 0.5f,
+            BoxShape3D box => box.Size.Y * 0.5f,
+            CapsuleShape3D capsule => capsule.Height * 0.5f,
+            SphereShape3D sphere => sphere.Radius,
+            _ => -1.0f,
+        };
+        if (halfHeight < 0.0f)
+            return false;
+
+        normal = (TableSurfaceCollider.GlobalBasis.Inverse().Transposed()
+                  * Vector3.Up).Normalized();
+        if (normal.IsZeroApprox())
+            normal = Vector3.Up;
+        topPoint = TableSurfaceCollider.GlobalTransform
+                   * new Vector3(0.0f, halfHeight, 0.0f);
+        return true;
+    }
+
+    private bool TryGetMeshTop(
+        Vector3 nearWorldPosition,
+        out Vector3 surfacePoint,
+        out Vector3 normal)
+    {
+        surfacePoint = Vector3.Zero;
+        normal = Vector3.Up;
+        if (!GodotObject.IsInstanceValid(TableSurfaceMesh) || TableSurfaceMesh.Mesh == null)
+            return false;
+
+        normal = (TableSurfaceMesh.GlobalBasis.Inverse().Transposed()
+                  * Vector3.Up).Normalized();
+        if (normal.IsZeroApprox())
+            normal = Vector3.Up;
+
+        var bounds = TableSurfaceMesh.Mesh.GetAabb();
+        var end = bounds.End;
+        var topProjection = float.NegativeInfinity;
+        for (var x = 0; x < 2; x++)
+        for (var y = 0; y < 2; y++)
+        for (var z = 0; z < 2; z++)
+        {
+            var corner = new Vector3(
+                x == 0 ? bounds.Position.X : end.X,
+                y == 0 ? bounds.Position.Y : end.Y,
+                z == 0 ? bounds.Position.Z : end.Z);
+            var projection = (TableSurfaceMesh.GlobalTransform * corner).Dot(normal);
+            topProjection = Mathf.Max(topProjection, projection);
+        }
+
+        surfacePoint = nearWorldPosition
+                       + normal * (topProjection - nearWorldPosition.Dot(normal));
+        return float.IsFinite(topProjection);
+    }
+
+    private static Vector3 ProjectPointToPlane(
+        Vector3 point,
+        Vector3 pointOnPlane,
+        Vector3 normal) =>
+        point + normal * (pointOnPlane - point).Dot(normal);
 
     /// <summary>
     /// Only the five shared cards receive this readability scale. Hole cards and the camera-held

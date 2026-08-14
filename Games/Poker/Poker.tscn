@@ -54,13 +54,15 @@ transform = Transform3D(-1.0708708, 0, 0.07414831, 0, 0.92797536, 0, -0.07414831
 [node name="WoodenChair_009" parent="TableFixture" index="4" unique_id=2052824362]
 transform = Transform3D(0, 0, 1.0734347, 0, 0.9279754, 0, -1.0734347, 0, 0, -0.91625583, 0, 0.09952116)
 
-[node name="BoardHolder" type="Node3D" parent="." unique_id=1078020313 node_paths=PackedStringArray("PotPile", "DeckAnchor", "CommunityCardsAnchor")]
+[node name="BoardHolder" type="Node3D" parent="." unique_id=1078020313 node_paths=PackedStringArray("PotPile", "DeckAnchor", "CommunityCardsAnchor", "TableSurfaceCollider", "TableSurfaceMesh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
 script = ExtResource("7_pboard")
 CardScene = ExtResource("6_pcard")
 PotPile = NodePath("PotPile")
 DeckAnchor = NodePath("../ExperienceAuthoring/PhysicalLayout/DeckAnchor")
 CommunityCardsAnchor = NodePath("../ExperienceAuthoring/PhysicalLayout/CommunityCardsAnchor")
+TableSurfaceCollider = NodePath("../TableFixture/PokerTableModel/CollisionShape3D")
+TableSurfaceMesh = NodePath("../TableFixture/PokerTableModel/RoundedTable_001")
 
 [node name="PotPile" type="Node3D" parent="BoardHolder" unique_id=302199022]
 script = ExtResource("9_ppile")

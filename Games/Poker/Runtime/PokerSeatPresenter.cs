@@ -240,7 +240,7 @@ public partial class PokerSeatPresenter : Node3D
 
     /// <summary>Moves the bank inward and sideways so it is visible beside, not behind, the cards.</summary>
     [Export] public float StackInset = 0.115f;
-    [Export] public float StackSideOffset = 0.225f;
+    [Export] public float StackSideOffset = 0.30f;
     /// <summary>
     /// A committed bet stays directly in front of its owner, between their cards and the centre.
     /// The larger radial distance now provides the clearance; a lateral offset would collide with

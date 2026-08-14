@@ -356,8 +356,8 @@ public partial class PokerMatchTest : Node
         Check($"e voltam abaixadas ao terminar (espiada {view.PeekAmount:F2})",
             view.PeekAmount < 0.05f);
 
-        var heldCards = view.GetNode<Node3D>("HandRig/Hand/CardSlots").GetChildren()
-            .OfType<PokerCard>().ToList();
+        var cardSlots = view.GetNode<Node3D>("HandRig/Hand/CardSlots");
+        var heldCards = cardSlots.GetChildren().OfType<PokerCard>().ToList();
         _heldCardIds.Clear();
         foreach (var card in heldCards)
             _heldCardIds.Add(card.GetInstanceId());
@@ -368,6 +368,113 @@ public partial class PokerMatchTest : Node
             + $"{string.Join(",", game.LocalHoleCards)})",
             heldCards.Select(card => card.CardId).OrderBy(id => id)
                 .SequenceEqual(game.LocalHoleCards.OrderBy(id => id)));
+
+        game.BoardPresenter.TryGetTableSurface(
+            cardSlots.GlobalPosition, out var tablePoint, out var tableNormal);
+        var cardsAreFlatAndFaceDown = heldCards.All(card =>
+            card.GlobalBasis.Y.Normalized().Dot(-tableNormal) > 0.999f);
+        var visibleClearances = heldCards
+            .Where(card => card.TryGetVisibleProjectionRange(
+                tableNormal, out _, out _))
+            .Select(card =>
+            {
+                card.TryGetVisibleProjectionRange(
+                    tableNormal, out var bottom, out _);
+                game.BoardPresenter.TryGetTableSurface(
+                    card.GlobalPosition, out var cardSurface, out var cardNormal);
+                return bottom - cardSurface.Dot(cardNormal);
+            })
+            .ToArray();
+        var lowestCardClearance = visibleClearances.Length == 0
+            ? float.PositiveInfinity
+            : visibleClearances.Min();
+        var stableCardsBefore = cardSlots.GlobalTransform;
+        var firstPersonHands = view.CardHandVisualMount?.GetChildren()
+            .OfType<PlayerFirstPersonHands>().FirstOrDefault();
+        var wasDetachedAtRest = firstPersonHands != null
+                                && !firstPersonHands.IsFollowingCardSlots(cardSlots);
+        var leftHandBone = firstPersonHands?.Skeleton?.FindBone("CC_Base_L_Hand") ?? -1;
+        var leftHandPose = leftHandBone >= 0
+            ? firstPersonHands.Skeleton.GetBoneGlobalPose(leftHandBone)
+            : Transform3D.Identity;
+        if (leftHandBone >= 0)
+        {
+            var breathingPose = leftHandPose;
+            breathingPose.Origin += new Vector3(0.08f, 0.06f, -0.04f);
+            firstPersonHands.Skeleton.SetBoneGlobalPose(leftHandBone, breathingPose);
+            firstPersonHands.Skeleton.EmitSignal(Skeleton3D.SignalName.SkeletonUpdated);
+        }
+        var stableCardsAfterBreath = cardSlots.GlobalTransform;
+        if (leftHandBone >= 0)
+        {
+            firstPersonHands.Skeleton.SetBoneGlobalPose(leftHandBone, leftHandPose);
+            firstPersonHands.Skeleton.EmitSignal(Skeleton3D.SignalName.SkeletonUpdated);
+        }
+        Check($"as cartas abaixadas repousam tangentes ao tampo real e com as costas para cima "
+              + $"({lowestCardClearance * 1000.0f:F2} mm)",
+            view.CardAttachmentMode == PokerCardAttachmentMode.TableRest
+            && cardsAreFlatAndFaceDown
+            && Mathf.Abs(lowestCardClearance - view.CardTableClearance) < 0.00012f);
+        Check("a respiracao da mao nao arrasta as cartas sobre a mesa",
+            wasDetachedAtRest
+            && stableCardsAfterBreath.IsEqualApprox(stableCardsBefore)
+            && view.CardDownAnchor.GlobalTransform.IsEqualApprox(stableCardsBefore));
+
+        // This is the artist workflow that exposed the bug: changing the table model's height must
+        // move the cards by the same amount without touching BoardHolder or hand-authored poses.
+        var tableModel = game.BoardPresenter.TableSurfaceCollider?.GetParentOrNull<Node3D>();
+        var followsRescaledSurface = tableModel != null && visibleClearances.Length > 0;
+        if (followsRescaledSurface)
+        {
+            var originalScale = tableModel.Scale;
+            var originalSurfaceProjection = tablePoint.Dot(tableNormal);
+            tableModel.Scale = new Vector3(
+                originalScale.X, originalScale.Y * 1.04f, originalScale.Z);
+            tableModel.ForceUpdateTransform();
+            view._Process(1.0 / 60.0);
+
+            game.BoardPresenter.TryGetTableSurface(
+                cardSlots.GlobalPosition, out var raisedSurface, out var raisedNormal);
+            var raisedClearance = float.PositiveInfinity;
+            foreach (var card in heldCards)
+            {
+                if (card.TryGetVisibleProjectionRange(
+                        raisedNormal, out var raisedBottom, out _))
+                {
+                    raisedClearance = Mathf.Min(
+                        raisedClearance,
+                        raisedBottom - raisedSurface.Dot(raisedNormal));
+                }
+            }
+            followsRescaledSurface = raisedSurface.Dot(raisedNormal)
+                                     > originalSurfaceProjection + 0.02f
+                                     && Mathf.Abs(
+                                         raisedClearance - view.CardTableClearance) < 0.00012f;
+
+            tableModel.Scale = originalScale;
+            tableModel.ForceUpdateTransform();
+            view._Process(1.0 / 60.0);
+        }
+        Check("as cartas acompanham uma mudanca posterior na altura/escala da mesa",
+            followsRescaledSurface);
+
+        var releasedCardIsUntouched = heldCards.Count > 0;
+        if (heldCards.Count > 0)
+        {
+            var released = heldCards[0];
+            var originalLocal = released.Transform;
+            var releaseOwner = new Node3D { Name = "ReleasedCardTestOwner" };
+            view.AddChild(releaseOwner);
+            released.Reparent(releaseOwner, keepGlobalTransform: true);
+            var releasedBefore = released.GlobalTransform;
+            view._Process(1.0 / 60.0);
+            releasedCardIsUntouched = released.GlobalTransform.IsEqualApprox(releasedBefore);
+            released.Reparent(cardSlots, keepGlobalTransform: false);
+            released.Transform = originalLocal;
+            releaseOwner.QueueFree();
+        }
+        Check("o repouso nao interfere em carta liberada para fold ou showdown",
+            releasedCardIsUntouched);
 
         // The presenter has to stop drawing the pair once it is in hand, which needs no signal —
         // this is the check that catches it silently leaving them on the cloth.
