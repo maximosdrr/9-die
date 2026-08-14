@@ -117,7 +117,7 @@ public partial class PokerSeatPresenter : Node3D
 
             if (grip != null)
             {
-                card.GlobalTransform = grip.GlobalTransform * HeldCardTransform(index, spec);
+                card.GlobalTransform = grip.GlobalTransform * OpponentHeldCardTransform(index, spec);
                 continue;
             }
 
@@ -142,7 +142,8 @@ public partial class PokerSeatPresenter : Node3D
                 owned: false) as Node3D;
             var grip = character?.FindChild("CardGrip", recursive: true, owned: false) as Node3D;
             if (grip != null)
-                held.Card.GlobalTransform = grip.GlobalTransform * HeldCardTransform(held.Index, spec);
+                held.Card.GlobalTransform = grip.GlobalTransform
+                                            * OpponentHeldCardTransform(held.Index, spec);
         }
     }
 

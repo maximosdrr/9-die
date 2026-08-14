@@ -95,11 +95,7 @@ public partial class PlayerCharacterVisualCheck : Node3D
                 index == 0 ? Poker.Rules.CardId.Ace : Poker.Rules.CardId.King,
                 index == 0 ? Poker.Rules.CardId.Spades : Poker.Rules.CardId.Hearts), spec);
 
-            var lateral = (index - 0.5f) * spec.CardWidth * 0.42f;
-            var fan = Mathf.DegToRad(index == 0 ? -7.0f : 7.0f);
-            card.Transform = new Transform3D(
-                new Basis(Vector3.Forward, fan) * HandFan.LongAxisUpFromMinusZ,
-                new Vector3(lateral, index * spec.CardThickness * 1.5f, 0.0f));
+            card.Transform = PokerSeatPresenter.OpponentHeldCardTransform(index, spec);
         }
     }
 

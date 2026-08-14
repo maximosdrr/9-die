@@ -332,12 +332,12 @@ public partial class SceneLoadTest : Node
             && updateRpc.TransferChannel == BallPlacementManager.PreviewTransferChannel);
 
         var requiredChannelCount = BallPlacementManager.PreviewTransferChannel + 1;
-        Check("ENet reserva todos os cinco canais usados pelo jogo",
+        Check("ENet reserva ao menos os cinco canais necessarios ao preview",
             ProjectSettings.GetSetting("network/max_channels", 0).AsInt32()
-                == requiredChannelCount);
-        Check("Steam peer reserva todos os cinco canais usados pelo jogo",
+                >= requiredChannelCount);
+        Check("Steam peer reserva ao menos os cinco canais necessarios ao preview",
             ProjectSettings.GetSetting("steam/multiplayer_peer/max_channels", 0).AsInt32()
-                == requiredChannelCount);
+                >= requiredChannelCount);
     }
 
     private void TestPushOutControlsLoad(PackedScene hudScene)

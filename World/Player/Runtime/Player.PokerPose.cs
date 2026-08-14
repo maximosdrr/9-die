@@ -3,7 +3,10 @@ using Godot;
 /// <summary>Replicates the two stable poker card poses used by right-button peeking.</summary>
 public partial class Player : CharacterBody3D
 {
-    private const int PokerPoseChannel = 6;
+    // Godot reserves multiple ENet channels behind transfer channel zero. A logical channel six
+    // therefore needs network/max_channels (and Steam's equivalent) to reserve at least six
+    // application channels; see the matching project settings and contract test.
+    internal const int PokerPoseTransferChannel = 6;
     private const int PokerPoseRequestsPerSecond = 8;
     private bool _pokerCardsRaised;
     private readonly PeerRequestRateLimiter _pokerPoseRequestLimiter = new(
@@ -29,7 +32,7 @@ public partial class Player : CharacterBody3D
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
         TransferMode = MultiplayerPeer.TransferModeEnum.Reliable,
-        TransferChannel = PokerPoseChannel)]
+        TransferChannel = PokerPoseTransferChannel)]
     private void SubmitPokerCardLook(bool raised)
     {
         var senderId = Multiplayer.GetRemoteSenderId();
@@ -61,7 +64,7 @@ public partial class Player : CharacterBody3D
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false,
         TransferMode = MultiplayerPeer.TransferModeEnum.Reliable,
-        TransferChannel = PokerPoseChannel)]
+        TransferChannel = PokerPoseTransferChannel)]
     private void ReceivePokerCardLook(bool raised)
     {
         if (Multiplayer.IsServer()

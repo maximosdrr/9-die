@@ -36,6 +36,7 @@ public partial class PokerSceneLoadTest : Node
         TestHud();
         TestGestureVocabulary();
         TestBoardDealAndFlip();
+        TestOpponentHeldCards();
         TestRuntimeResourceManifest();
         TestChipPack();
         TestCardAtlas();
@@ -51,6 +52,52 @@ public partial class PokerSceneLoadTest : Node
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         GetTree().Quit(_failed > 0 ? 1 : 0);
+    }
+
+    private void TestOpponentHeldCards()
+    {
+        var spec = PokerLayoutSpec.Default;
+        var first = PokerSeatPresenter.OpponentHeldCardTransform(0, spec);
+        var second = PokerSeatPresenter.OpponentHeldCardTransform(1, spec);
+
+        // PokerCard's local +Y is its printed face. In the grip, -Z points toward the owner and
+        // +Z toward the room, so the face must point -Z and leave the back visible to observers.
+        var firstFaceNormal = (first.Basis * Vector3.Up).Normalized();
+        var secondFaceNormal = (second.Basis * Vector3.Up).Normalized();
+        Check("as cartas 3P escondem as faces dos outros jogadores",
+            firstFaceNormal.Dot(Vector3.Forward) > 0.999f
+            && secondFaceNormal.Dot(Vector3.Forward) > 0.999f);
+
+        var depthSeparation = Mathf.Abs((second.Origin - first.Origin).Z);
+        Check("as cartas 3P têm camadas determinísticas sem z-fighting",
+            depthSeparation >= Mathf.Max(spec.CardThickness * 2.0f, 0.0015f) - 0.00001f
+            && Mathf.IsZeroApprox(second.Origin.Y - first.Origin.Y));
+
+        var character = GD.Load<PackedScene>(
+                "res://World/Player/Components/CharacterVisual.tscn")
+            ?.Instantiate<CharacterVisual>();
+        if (character != null)
+            AddChild(character);
+
+        var exportedPlaceholderGeometry = character?.RigRoot?
+            .FindChildren("*", "GeometryInstance3D", recursive: true, owned: false)
+            .Any(node => node.Name.ToString().ToLowerInvariant().Contains("placeholder")) == true;
+        Check("o personagem 3P exporta só o marcador das cartas, sem placeholder visível",
+            character != null && !exportedPlaceholderGeometry);
+        var thirdPersonHand = character?.Skeleton?.FindBone("CC_Base_L_Hand") ?? -1;
+        var thirdPersonGripBefore = character?.CardGrip?.GlobalTransform
+                                    ?? Transform3D.Identity;
+        if (character?.Skeleton != null && thirdPersonHand >= 0)
+        {
+            var movedHand = character.Skeleton.GetBoneGlobalPose(thirdPersonHand);
+            movedHand.Origin += new Vector3(0.025f, 0.015f, -0.01f);
+            character.Skeleton.SetBoneGlobalPose(thirdPersonHand, movedHand);
+            character.Skeleton.EmitSignal(Skeleton3D.SignalName.SkeletonUpdated);
+        }
+        Check("as cartas 3P acompanham a pose final da mao animada",
+            character?.CardGrip != null
+            && !character.CardGrip.GlobalTransform.IsEqualApprox(thirdPersonGripBefore));
+        character?.QueueFree();
     }
 
     private void TestScenesLoad()
@@ -643,6 +690,78 @@ public partial class PokerSceneLoadTest : Node
             productionHands?.Animator != null
             && missingCoreClips.Count == 0
             && optionalGrossClips.Count == 0);
+
+        var liveHandCamera = new Node3D
+        {
+            Rotation = new Vector3(-0.12f, 0.25f, 0.0f),
+        };
+        AddChild(liveHandCamera);
+        var heldCardRoot = new Node3D { Name = "HeldCardRootFollower" };
+        AddChild(heldCardRoot);
+        productionHands?.BindCardSlots(heldCardRoot);
+        var heldCardRootBefore = heldCardRoot.GlobalTransform;
+        productionHands?.ConfigureHandCameraModes(
+            Transform3D.Identity,
+            liveHandCamera,
+            FirstPersonHandCameraMode.FollowCamera,
+            FirstPersonHandCameraMode.Locked);
+        Check("a trava de camera configura cada mao de forma independente",
+            productionHands?.CameraLock is
+            {
+                LeftMode: FirstPersonHandCameraMode.FollowCamera,
+                RightMode: FirstPersonHandCameraMode.Locked,
+            }
+            && productionHands.Skeleton?.FindBone("CC_Base_L_Upperarm") >= 0
+            && productionHands.Skeleton.FindBone("CC_Base_R_Upperarm") >= 0);
+        var leftHandBone = productionHands?.Skeleton?.FindBone("CC_Base_L_Hand") ?? -1;
+        var rightHandBone = productionHands?.Skeleton?.FindBone("CC_Base_R_Hand") ?? -1;
+        var leftBefore = leftHandBone >= 0
+            ? productionHands.Skeleton.GetBoneGlobalPose(leftHandBone)
+            : Transform3D.Identity;
+        var rightBefore = rightHandBone >= 0
+            ? productionHands.Skeleton.GetBoneGlobalPose(rightHandBone)
+            : Transform3D.Identity;
+        productionHands?.CameraLock?._ProcessModificationWithDelta(1.0);
+        // SkeletonUpdated is the production seam: it fires after every deferred modifier. Emit it
+        // explicitly here because this focused test invokes the modifier directly rather than
+        // advancing a rendered frame.
+        productionHands?.Skeleton?.EmitSignal(Skeleton3D.SignalName.SkeletonUpdated);
+        var leftAfter = leftHandBone >= 0
+            ? productionHands.Skeleton.GetBoneGlobalPose(leftHandBone)
+            : Transform3D.Identity;
+        var rightAfter = rightHandBone >= 0
+            ? productionHands.Skeleton.GetBoneGlobalPose(rightHandBone)
+            : Transform3D.Identity;
+        Check("seguir a camera move somente a mao autorizada",
+            leftHandBone >= 0
+            && rightHandBone >= 0
+            && !leftAfter.Basis.IsEqualApprox(leftBefore.Basis)
+            && rightAfter.Basis.IsEqualApprox(rightBefore.Basis));
+        Check("as cartas seguem a pose final da mao esquerda depois dos modifiers",
+            productionHands?.CardGrip != null
+            && heldCardRoot.GlobalTransform.IsEqualApprox(
+                productionHands.CardGrip.GlobalTransform)
+            && !heldCardRoot.GlobalTransform.IsEqualApprox(heldCardRootBefore));
+        productionHands?.LockBothHands(immediate: true);
+        Check("o inicio da cutscene zera imediatamente qualquer camera herdada",
+            productionHands?.CameraLock is
+            {
+                LeftMode: FirstPersonHandCameraMode.Locked,
+                RightMode: FirstPersonHandCameraMode.Locked,
+                LeftFollowWeight: 0.0f,
+                RightFollowWeight: 0.0f,
+            });
+        view.SetHandCameraModes(
+            FirstPersonHandCameraMode.FollowCamera,
+            FirstPersonHandCameraMode.Locked);
+        Check("a view expoe uma politica unica e reutilizavel para as duas maos",
+            view.LeftHandCameraMode == FirstPersonHandCameraMode.FollowCamera
+            && view.RightHandCameraMode == FirstPersonHandCameraMode.Locked);
+        view.SetHandCameraModes(
+            FirstPersonHandCameraMode.Locked,
+            FirstPersonHandCameraMode.Locked);
+        liveHandCamera.QueueFree();
+        heldCardRoot.QueueFree();
         Check("o gesto de fichas não é cortado pelo antigo limite de 0,35 s",
             view.PlayGesture(PokerGesture.ThrowChips) > 0.35f);
         Check("pegar as cartas acompanha o tempo completo de olhar e baixar",
@@ -678,6 +797,13 @@ public partial class PokerSceneLoadTest : Node
         Check("os dois rigs são independentes do corpo do jogador",
             controller.GetNode<Node3D>("LookRig").TopLevel
             && controller.GetNode<Node3D>("TopRig").TopLevel);
+
+        var stableHandsFrame = controller.StableSeatViewTransform;
+        controller.GetNode<Node3D>("LookRig").Rotation = new Vector3(0.0f, 0.7f, 0.0f);
+        controller.GetNode<Node3D>("LookRig/LookPitch").Rotation =
+            new Vector3(-0.4f, 0.0f, 0.0f);
+        Check("o frame travado das maos nao acompanha a rotacao livre da camera",
+            controller.StableSeatViewTransform.IsEqualApprox(stableHandsFrame));
 
         Check($"o giro do pescoço é limitado ({controller.MaxYawDeg}°)",
             controller.MaxYawDeg is > 0.0f and <= 180.0f);

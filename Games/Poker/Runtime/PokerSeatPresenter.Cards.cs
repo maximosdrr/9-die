@@ -234,7 +234,7 @@ public partial class PokerSeatPresenter : Node3D
                 card.Configure(0, spec, faceDown: true);
 
             card.Transform = hand.PickUpFrom[i].InterpolateWith(
-                HeldCardTransform(i, spec), transfer);
+                OpponentHeldCardTransform(i, spec), transfer);
             card.Visible = true;
         }
     }
@@ -254,14 +254,25 @@ public partial class PokerSeatPresenter : Node3D
         hand.PickUpAnimationSeconds = (float)Mathf.Max(duration, OpponentPickUpAnimationSeconds);
     }
 
-    private static Transform3D HeldCardTransform(int index, PokerLayoutSpec spec)
+    /// <summary>
+    /// Public third-person pose for a face-down card in the authored left-hand grip.
+    ///
+    /// <see cref="HandFan.LongAxisUpFromMinusZ"/> points PokerCard's face toward the room. Rotate
+    /// around the card's own long axis so the face points back at its owner while keeping the card
+    /// upright. The tiny depth layer is deliberate: fanning only in X/Y leaves the two physical
+    /// meshes intersecting and makes their backs flicker as the animated hand moves.
+    /// </summary>
+    internal static Transform3D OpponentHeldCardTransform(int index, PokerLayoutSpec spec)
     {
         var lateral = (index - (PokerDeal.HoleCardCount - 1) * 0.5f)
                       * spec.CardWidth * 0.42f;
         var fan = Mathf.DegToRad(index == 0 ? -7.0f : 7.0f);
+        var faceAwayFromObservers = HandFan.LongAxisUpFromMinusZ
+                                    * new Basis(Vector3.Back, Mathf.Pi);
+        var depthLayer = index * Mathf.Max(spec.CardThickness * 2.0f, 0.0015f);
         return new Transform3D(
-            new Basis(Vector3.Forward, fan) * HandFan.LongAxisUpFromMinusZ,
-            new Vector3(lateral, index * spec.CardThickness * 1.5f, 0.0f));
+            new Basis(Vector3.Forward, fan) * faceAwayFromObservers,
+            new Vector3(lateral, 0.0f, depthLayer));
     }
 
     /// <summary>Returns held card nodes to the table while preserving their exact world transforms.</summary>

@@ -70,8 +70,9 @@ public partial class CharacterVisual : Node3D
     {
         ApplyCharacterScale();
 
-        // AnimationPlayer and Skeleton3D update below this wrapper. Running late keeps the stable,
-        // metre-scale gameplay marker on the final hand pose for the current rendered frame.
+        // Running late provides a useful fallback before the skeleton's deferred update. The
+        // authoritative attachment refresh is SkeletonUpdated below, after animation and every
+        // SkeletonModifier3D have produced the pose that is actually rendered.
         ProcessPriority = 100;
 
         if (Animator != null)
@@ -83,7 +84,16 @@ public partial class CharacterVisual : Node3D
             SetLoop(Clips.IdleHoldingCardsDown);
         }
 
+        if (Skeleton != null)
+            Skeleton.SkeletonUpdated += OnSkeletonUpdated;
+
         UpdateCardGrip();
+    }
+
+    public override void _ExitTree()
+    {
+        if (GodotObject.IsInstanceValid(Skeleton))
+            Skeleton.SkeletonUpdated -= OnSkeletonUpdated;
     }
 
     private void ApplyCharacterScale()
@@ -216,6 +226,8 @@ public partial class CharacterVisual : Node3D
     {
         UpdateAuthoredCardGrip(Skeleton, CardGrip, AuthoredCardGripMarker);
     }
+
+    private void OnSkeletonUpdated() => UpdateCardGrip();
 
     public static void UpdateAuthoredCardGrip(
         Skeleton3D skeleton,

@@ -415,8 +415,30 @@ public partial class PlayerMovementSecurityTest : Node
                 && rpc.Mode == MultiplayerApi.RpcMode.AnyPeer
                 && !rpc.CallLocal
                 && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable
-                && rpc.TransferChannel == 6);
+                && rpc.TransferChannel == Player.PokerPoseTransferChannel);
         }
+
+        Check("ENet reserva o canal exclusivo da pose de poker",
+            ProjectSettings.GetSetting("network/max_channels", 0).AsInt32()
+                >= Player.PokerPoseTransferChannel);
+        Check("Steam reserva o canal exclusivo da pose de poker",
+            ProjectSettings.GetSetting("steam/multiplayer_peer/max_channels", 0).AsInt32()
+                >= Player.PokerPoseTransferChannel);
+
+        var playerScene = GD.Load<PackedScene>("res://World/Player/Player.tscn");
+        var posePlayer = playerScene?.Instantiate<Player>();
+        if (posePlayer != null)
+            AddChild(posePlayer);
+        var applyPose = typeof(Player).GetMethod("ApplyPokerCardLook",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        applyPose?.Invoke(posePlayer, new object[] { true });
+        var raised = posePlayer?.CharacterVisual?.Animator?.CurrentAnimation;
+        applyPose?.Invoke(posePlayer, new object[] { false });
+        var lowered = posePlayer?.CharacterVisual?.Animator?.CurrentAnimation;
+        Check("a borda recebida realmente alterna a animacao 3P entre olhar e baixar",
+            raised == CharacterVisual.Clips.IdleSitHoldingCards
+            && lowered == CharacterVisual.Clips.IdleHoldingCardsDown);
+        posePlayer?.QueueFree();
     }
 
     private void TestProfileValidation()

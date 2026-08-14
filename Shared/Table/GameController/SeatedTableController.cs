@@ -126,6 +126,29 @@ public partial class SeatedTableController : GameController
 
     protected bool InTopView => _inTopView;
 
+    /// <summary>
+    /// Camera frame at the chair's authored resting look, without the player's current mouse yaw
+    /// or pitch. First-person objects that must stay on the table use this instead of following the
+    /// live camera.
+    /// </summary>
+    public Transform3D StableSeatViewTransform
+    {
+        get
+        {
+            if (!IsInstanceValid(LookRig))
+                return Transform3D.Identity;
+
+            var seatYaw = new Transform3D(
+                new Basis(Vector3.Up, _seatYaw), LookRig.GlobalPosition);
+            var restPitch = new Transform3D(
+                new Basis(Vector3.Right, Mathf.DegToRad(RestPitchDeg)), Vector3.Zero);
+            var remoteOffset = IsInstanceValid(RemoteSeat)
+                ? RemoteSeat.Transform
+                : Transform3D.Identity;
+            return seatYaw * restPitch * remoteOffset;
+        }
+    }
+
     // ---------------------------------------------------------------- what a subclass supplies
 
     /// <summary>The view being driven. Null until the owning peer spawns one.</summary>

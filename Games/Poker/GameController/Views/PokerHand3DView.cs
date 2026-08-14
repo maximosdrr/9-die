@@ -109,6 +109,11 @@ public partial class PokerHand3DView : PokerHandView
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
     private PokerHandVisual _chipHandVisual;
+    private SeatedTableController _seatController;
+    private FirstPersonHandCameraMode _leftHandCameraMode
+        = FirstPersonHandCameraMode.Locked;
+    private FirstPersonHandCameraMode _rightHandCameraMode
+        = FirstPersonHandCameraMode.Locked;
     private int _publishedWagerTurn = -1;
     private int _publishedWagerRevision;
 
@@ -125,6 +130,9 @@ public partial class PokerHand3DView : PokerHandView
 
     /// <summary>How far the cards are turned up, 0 at rest and 1 fully peeked.</summary>
     public float PeekAmount => _peek;
+
+    public FirstPersonHandCameraMode LeftHandCameraMode => _leftHandCameraMode;
+    public FirstPersonHandCameraMode RightHandCameraMode => _rightHandCameraMode;
 
     /// <summary>
     /// Whether the opening look is over and this player may act.
@@ -159,6 +167,7 @@ public partial class PokerHand3DView : PokerHandView
     public override void Setup(PokerGame game, Player player)
     {
         base.Setup(game, player);
+        _seatController = GetParentOrNull<SeatedTableController>();
         player?.SetFirstPersonVisualEnabled(false);
 
         if (game?.BoardPresenter != null && GodotObject.IsInstanceValid(player))
@@ -179,6 +188,10 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void _ExitTree()
     {
+        SetHandCameraModes(
+            FirstPersonHandCameraMode.Locked,
+            FirstPersonHandCameraMode.Locked,
+            immediate: true);
         if (IsMultiplayerAuthority() && GodotObject.IsInstanceValid(Player))
         {
             if (_voluntaryLookPose)
@@ -198,10 +211,22 @@ public partial class PokerHand3DView : PokerHandView
         UpdateInteractionVisibility();
         AdvanceCallLabelCycle((float)delta);
 
-        // Read in _Process rather than _PhysicsProcess so the hand does not swim a frame behind the
-        // RemoteTransform3D that drives the camera.
+        // The body and locked hands live in the chair's resting camera frame. Mouse input turns the
+        // real camera independently; the per-arm modifier below selectively layers that rotation
+        // only onto hands whose current policy is FollowCamera.
+        var lockedView = _seatController?.StableSeatViewTransform
+                         ?? Game.Camera.GlobalTransform;
         if (HandRig != null)
-            HandRig.GlobalTransform = Game.Camera.GlobalTransform * HandPose;
+            HandRig.GlobalTransform = lockedView * HandPose;
+
+        if (_cardHandVisual is PlayerFirstPersonHands hands)
+        {
+            hands.ConfigureHandCameraModes(
+                lockedView,
+                Game.Camera,
+                _leftHandCameraMode,
+                _rightHandCameraMode);
+        }
 
         FollowImportedCardGrip();
 
@@ -250,6 +275,10 @@ public partial class PokerHand3DView : PokerHandView
         if (hand != _lastHand)
         {
             SetVoluntaryLookPose(false);
+            SetHandCameraModes(
+                FirstPersonHandCameraMode.Locked,
+                FirstPersonHandCameraMode.Locked,
+                immediate: true);
             _fan.Clear();
             _fanTransferFrom.Clear();
             _lastHand = hand;
@@ -481,6 +510,12 @@ public partial class PokerHand3DView : PokerHandView
             _pickedUp = true;
             _pickUpElapsed = 0.0f;
 
+            // The complete reach-look-lower cutscene is authored against the table. Head/camera
+            // movement must not pull either arm away before it finishes.
+            SetHandCameraModes(
+                FirstPersonHandCameraMode.Locked,
+                FirstPersonHandCameraMode.Locked,
+                immediate: true);
             _pickUpAnimationSeconds = PlayGesture(PokerGesture.PickUpCards);
         }
 
@@ -596,8 +631,46 @@ public partial class PokerHand3DView : PokerHandView
             return;
 
         _voluntaryLookPose = raised;
+        // Cards are authored on the left hand. While voluntarily looking, only that arm follows
+        // the camera; the supporting/right hand remains exactly on the table.
+        SetHandCameraModes(
+            raised
+                ? FirstPersonHandCameraMode.FollowCamera
+                : FirstPersonHandCameraMode.Locked,
+            FirstPersonHandCameraMode.Locked);
         PlayCardPose(raised ? PokerClips.LookCards : PokerClips.Idle);
         Player?.SetPokerCardLook(raised);
+    }
+
+    /// <summary>
+    /// Central policy seam for every current and future first-person table gesture. Callers choose
+    /// each hand independently instead of reimplementing camera parenting at every animation site.
+    /// </summary>
+    public void SetHandCameraModes(
+        FirstPersonHandCameraMode leftMode,
+        FirstPersonHandCameraMode rightMode,
+        bool immediate = false)
+    {
+        _leftHandCameraMode = leftMode;
+        _rightHandCameraMode = rightMode;
+
+        if (_cardHandVisual is not PlayerFirstPersonHands hands)
+            return;
+
+        if (leftMode == FirstPersonHandCameraMode.Locked
+            && rightMode == FirstPersonHandCameraMode.Locked)
+        {
+            hands.LockBothHands(immediate);
+        }
+
+        if (GodotObject.IsInstanceValid(Game) && Game.Camera != null)
+        {
+            hands.ConfigureHandCameraModes(
+                _seatController?.StableSeatViewTransform ?? Game.Camera.GlobalTransform,
+                Game.Camera,
+                leftMode,
+                rightMode);
+        }
     }
 
     private float PlayCardPose(string clip) => _cardHandVisual?.PlayClip(clip) ?? 0.0f;
@@ -736,8 +809,10 @@ public partial class PokerHand3DView : PokerHandView
         if (_cardHandVisual is PlayerFirstPersonHands { CardGrip: not null } hands
             && CardSlots != null)
         {
-            hands.UpdateCardGrip();
-            CardSlots.GlobalTransform = hands.CardGrip.GlobalTransform;
+            // Bind once conceptually (the method is idempotent) instead of copying the transform
+            // only during _Process. PlayerFirstPersonHands also refreshes this follower from
+            // SkeletonUpdated, after the per-arm camera modifier has produced the rendered pose.
+            hands.BindCardSlots(CardSlots);
         }
     }
 

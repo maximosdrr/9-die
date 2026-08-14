@@ -25,6 +25,21 @@ regras e rede não deve apontar diretamente para uma malha importada.
 - O suporte do corpo é estável. Somente as cartas seguem o `CardGrip`; inclinar as cartas não move
   torso e pernas junto com o antigo ajuste de braços.
 
+### Trava individual das mãos
+
+`FirstPersonHandCameraLock` separa o movimento da câmera do movimento animado. A raiz do corpo fica
+no frame estável do assento e cada braço recebe um modo independente através de
+`PokerHand3DView.SetHandCameraModes(left, right)`:
+
+- `Locked`: mantém o braço no espaço da mesa, mas preserva normalmente a animação do Blender;
+- `FollowCamera`: adiciona a rotação da câmera somente ao braço escolhido;
+- `IdleHoldingCardsDown` e toda a cutscene `PickCards -> olhar -> baixar` usam `Locked/Locked`;
+- o olhar voluntário com botão direito usa `FollowCamera/Locked`, pois o `CardGrip` pertence à mão
+  esquerda.
+
+O retorno voluntário usa suavização para não estalar o ombro. O início de uma rodada força o lock
+imediatamente, impedindo que o movimento da câmera anterior contamine `PickCards`.
+
 ## Corpo em terceira pessoa
 
 - `PlayerCharacter.glb` mantém braço esquerdo, braço direito, cabeça, calça e torso separados.

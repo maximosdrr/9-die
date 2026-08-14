@@ -177,7 +177,7 @@ peek_cards={
 
 transport="enet"
 max_players=4
-max_channels=5
+max_channels=6
 port=7777
 default_host_address="127.0.0.1"
 game_id="9die"
@@ -201,4 +201,4 @@ textures/default_filters/texture_mipmap_bias=-0.25
 initialization/app_id=480
 initialization/embed_callbacks=false
 initialization/initialize_on_startup=false
-multiplayer_peer/max_channels=5
+multiplayer_peer/max_channels=6
