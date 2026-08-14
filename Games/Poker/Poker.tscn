@@ -89,6 +89,7 @@ ActionGuideAnchor = NodePath("PhysicalLayout/ActionGuideAnchor")
 Seats = NodePath("../Seats")
 PreviewCamera = NodePath("FirstPersonPreview/PreviewCamera")
 FirstPersonHandsPreview = NodePath("FirstPersonPreview/PreviewCamera/FirstPersonHandsPreview")
+SeatFov = 65.0
 PreviewCardScene = ExtResource("6_pcard")
 PreviewChalkFont = ExtResource("16_chalk")
 PreviewChalkShader = ExtResource("19_chalk_shader")
@@ -114,7 +115,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
 editor_description = "Selecione esta câmera e ative Preview na viewport 3D para enxergar exatamente a experiência em primeira pessoa."
 transform = Transform3D(-1, 0, 0, 0, 0.81915206, 0.57357645, 0, 0.57357645, -0.81915206, 0, 1.15, -0.7299838)
 current = true
-fov = 55.0
+fov = 65.0
 
 [node name="FirstPersonHandsPreview" parent="ExperienceAuthoring/FirstPersonPreview/PreviewCamera" unique_id=1455137628 instance=ExtResource("18_fp_hands")]
 editor_description = "CONTROLADOR EDITÁVEL: mova e rotacione ESTE nó. A transformação relativa à PreviewCamera é usada exatamente igual no jogo."
