@@ -29,6 +29,7 @@ public partial class PokerSeatPresenter : Node3D
             ReleaseCardsFromGrip(hand);
             hand.Hand = _game.HandNumber;
             hand.OnTable = 0.0f;
+            hand.PickUpAnimationSeconds = OpponentPickUpAnimationSeconds;
             hand.Revealed = false;
             hand.Folded = false;
             hand.Mucked = 0.0f;
@@ -44,6 +45,8 @@ public partial class PokerSeatPresenter : Node3D
                 hand.Dealt[i] = 0.0f;
                 hand.Wait[i] = (i * seats + dealPosition) * DealStagger;
                 hand.ReleasedFrom[i] = Transform3D.Identity;
+                hand.PickUpFrom[i] = Transform3D.Identity;
+                hand.PickUpAttached[i] = false;
                 hand.Cards[i].Configure(0, spec, faceDown: true);
             }
         }
@@ -139,6 +142,8 @@ public partial class PokerSeatPresenter : Node3D
             hand.Dealt[i] = 1.0f;
             hand.Wait[i] = 0.0f;
             hand.ReleasedFrom[i] = Transform3D.Identity;
+            hand.PickUpFrom[i] = Transform3D.Identity;
+            hand.PickUpAttached[i] = false;
             hand.CleanupActive[i] = false;
             hand.CleanupFaceDown[i] = false;
             repaired = true;
@@ -203,22 +208,50 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         var grip = player.CharacterVisual.CardGrip;
+        var duration = Mathf.Max(hand.PickUpAnimationSeconds, OpponentPickUpAnimationSeconds);
+        var contact = OpponentPickUpDelay
+                      + duration * Mathf.Clamp(OpponentPickUpContactFraction, 0.1f, 0.9f);
+        var transferDuration = Mathf.Max(
+            duration * (1.0f - Mathf.Clamp(OpponentPickUpContactFraction, 0.1f, 0.9f)),
+            0.01f);
+        var transfer = PokerMotion.Smooth(Mathf.Clamp(
+            (hand.OnTable - contact) / transferDuration, 0.0f, 1.0f));
         for (var i = 0; i < hand.Cards.Length; i++)
         {
             var card = hand.Cards[i];
             if (!IsInstanceValid(card))
                 continue;
 
-            if (card.GetParent() != grip)
-                card.Reparent(grip, keepGlobalTransform: false);
+            if (card.GetParent() != grip || !hand.PickUpAttached[i])
+            {
+                card.Reparent(grip, keepGlobalTransform: true);
+                hand.PickUpFrom[i] = card.Transform;
+                hand.PickUpAttached[i] = true;
+            }
 
             var spec = _game.BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
             if (card.CardId != 0 || !card.IsFaceDown)
                 card.Configure(0, spec, faceDown: true);
 
-            card.Transform = HeldCardTransform(i, spec);
+            card.Transform = hand.PickUpFrom[i].InterpolateWith(
+                HeldCardTransform(i, spec), transfer);
             card.Visible = true;
         }
+    }
+
+    private void StartOpponentCardPickup(string playerId, SeatHand hand)
+    {
+        var localPlayerId = _game?.Player == null ? null : (string)_game.Player.Name;
+        if (playerId == localPlayerId
+            || PlayerRegistry.Instance == null
+            || !PlayerRegistry.Instance.TryGetPlayerById(playerId, out var player))
+        {
+            return;
+        }
+
+        var duration = player.CharacterVisual?.PlayCardPickupSequence(OpponentPickUpLookSeconds)
+                       ?? 0.0;
+        hand.PickUpAnimationSeconds = (float)Mathf.Max(duration, OpponentPickUpAnimationSeconds);
     }
 
     private static Transform3D HeldCardTransform(int index, PokerLayoutSpec spec)
@@ -256,6 +289,7 @@ public partial class PokerSeatPresenter : Node3D
                 card.Reparent(this, keepGlobalTransform: true);
 
             hand.ReleasedFrom[i] = card.Transform;
+            hand.PickUpAttached[i] = false;
         }
 
         hand.InFirstPerson = false;
@@ -438,7 +472,9 @@ public partial class PokerSeatPresenter : Node3D
     private bool HasTakenCardsUp(string playerId, SeatHand hand) =>
         _game.Player != null && playerId == (string)_game.Player.Name
             ? _game.LocalPickedUpCards
-            : hand.OnTable > OpponentPickUpDelay;
+            : hand.OnTable > OpponentPickUpDelay
+                + Mathf.Max(hand.PickUpAnimationSeconds, OpponentPickUpAnimationSeconds)
+                    * Mathf.Clamp(OpponentPickUpContactFraction, 0.1f, 0.9f);
 
     /// <summary>
     /// The pair on its way into the muck, and lying in it afterwards.

@@ -19,7 +19,8 @@ public partial class PlayerIdle : State
 
     public override void Enter(Dictionary metadata)
     {
-        AnimationPlayer.Play("Idle");
+        AnimationPlayer.Play(CharacterVisual.Clips.Idle);
+        Player?.PlayFirstPersonAnimation(CharacterVisual.Clips.Idle);
     }
 
     public override void Process(double delta)

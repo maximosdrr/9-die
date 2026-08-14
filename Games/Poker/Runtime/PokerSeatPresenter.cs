@@ -163,7 +163,16 @@ public partial class PokerSeatPresenter : Node3D
     /// How long an opponent's pair sits on the cloth before they take it up. The local player's
     /// stays until they pick it up themselves.
     /// </summary>
-    [Export] public float OpponentPickUpDelay = 1.1f;
+    [Export] public float OpponentPickUpDelay = 0.35f;
+
+    /// <summary>Authored PickCards duration (50 frames at 30 FPS) before the pair reaches the grip.</summary>
+    [Export] public float OpponentPickUpAnimationSeconds = 1.666667f;
+
+    [Export(PropertyHint.Range, "0.1,0.9,0.01")]
+    public float OpponentPickUpContactFraction = 0.42f;
+
+    /// <summary>How long the raised-card idle remains visible before the body lowers its hands.</summary>
+    [Export] public float OpponentPickUpLookSeconds = 1.3f;
 
     [ExportGroup("Folding")]
     /// <summary>How long the thrown pair takes to reach the muck.</summary>
@@ -184,8 +193,11 @@ public partial class PokerSeatPresenter : Node3D
         public readonly PokerCard[] Cards = new PokerCard[PokerDeal.HoleCardCount];
         public readonly float[] Dealt = new float[PokerDeal.HoleCardCount];
         public readonly float[] Wait = new float[PokerDeal.HoleCardCount];
+        public readonly Transform3D[] PickUpFrom = new Transform3D[PokerDeal.HoleCardCount];
+        public readonly bool[] PickUpAttached = new bool[PokerDeal.HoleCardCount];
         public int Hand = -1;
         public float OnTable;
+        public float PickUpAnimationSeconds;
         public bool Revealed;
 
         /// <summary>Whether this pair has been thrown away.</summary>
@@ -555,7 +567,22 @@ public partial class PokerSeatPresenter : Node3D
             hand.OnTable += (float)delta;
 
             if (before <= OpponentPickUpDelay && hand.OnTable > OpponentPickUpDelay)
+            {
+                StartOpponentCardPickup(entry.Key, hand);
                 moved = true;
+            }
+
+            var contact = OpponentPickUpDelay + Mathf.Max(
+                hand.PickUpAnimationSeconds, OpponentPickUpAnimationSeconds)
+                * Mathf.Clamp(OpponentPickUpContactFraction, 0.1f, 0.9f);
+            var finish = OpponentPickUpDelay + Mathf.Max(
+                hand.PickUpAnimationSeconds, OpponentPickUpAnimationSeconds);
+            if ((before <= contact && hand.OnTable > contact)
+                || (hand.OnTable > contact && hand.OnTable < finish)
+                || (before < finish && hand.OnTable >= finish))
+            {
+                moved = true;
+            }
         }
 
         moved |= AdvanceChipPresentation((float)delta);

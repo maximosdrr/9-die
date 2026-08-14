@@ -32,11 +32,14 @@ public partial class Player : CharacterBody3D
 
     [ExportGroup("Local presentation")]
     [Export] public PackedScene LocalPresentationScene;
+    [Export] public PackedScene FirstPersonVisualScene;
+    [Export] public Node3D FirstPersonRoot;
 
     public RemoteTransform3D RemoteFps;
     public PlayerHud Hud;
     public TvShareButton TvShareButton;
     public LocalPlayerPresentation LocalPresentation { get; private set; }
+    public FirstPersonCharacterVisual FirstPersonVisual { get; private set; }
 
     public GlobalCamera Camera;
     public TvScreenShare TvScreen;
@@ -57,8 +60,12 @@ public partial class Player : CharacterBody3D
             return;
 
         CharacterVisual?.SetLocalFirstPersonBody(true);
+        AttachFirstPersonVisual();
         if (Camera != null)
+        {
             Camera.CullMask &= ~(1u << 1);
+            Camera.CullMask |= 1u << FirstPersonCharacterVisual.RenderLayerBit;
+        }
 
         AttachLocalPresentation();
         TakeControl();
@@ -67,6 +74,7 @@ public partial class Player : CharacterBody3D
     public override void _ExitTree()
     {
         ClearCameraLookRequests();
+        ClearPokerPoseRequests();
         if (!IsInstanceValid(LocalPresentation))
             return;
 
@@ -75,6 +83,17 @@ public partial class Player : CharacterBody3D
         LocalPresentation = null;
         Hud = null;
         TvShareButton = null;
+    }
+
+    private void AttachFirstPersonVisual()
+    {
+        if (FirstPersonVisualScene == null || !IsInstanceValid(FirstPersonRoot))
+            return;
+
+        FirstPersonVisual = FirstPersonVisualScene.Instantiate<FirstPersonCharacterVisual>();
+        FirstPersonVisual.Name = "LocalFirstPersonBody";
+        FirstPersonRoot.AddChild(FirstPersonVisual);
+        FirstPersonVisual.Visible = !IsInSeatedGameMode;
     }
 
     private void AttachLocalPresentation()
@@ -139,7 +158,16 @@ public partial class Player : CharacterBody3D
     /// <summary>Restores the walking collider when the seated controller is released.</summary>
     public void ExitSeatedGameMode()
     {
+        if (_pokerCardsRaised)
+        {
+            if (IsMultiplayerAuthority())
+                SetPokerCardLook(false);
+            else
+                ApplyPokerCardLook(false);
+        }
         IsInSeatedGameMode = false;
+        if (IsInstanceValid(FirstPersonVisual))
+            FirstPersonVisual.Visible = true;
         SetPhysicsProcess(true);
         BodyCollision ??= GetNodeOrNull<CollisionShape3D>("CollisionShape3D");
         BodyCollision?.SetDeferred(CollisionShape3D.PropertyName.Disabled, false);
@@ -183,8 +211,26 @@ public partial class Player : CharacterBody3D
     {
         CharacterVisual?.PlaySequence(
             CharacterVisual.Clips.SitHoldingCards,
-            CharacterVisual.Clips.IdleSitHoldingCards);
+            CharacterVisual.Clips.IdleHoldingCardsDown);
     }
+
+    public void PlayFirstPersonAnimation(string clip, double blend = 0.16) =>
+        FirstPersonVisual?.Play(clip, blend);
+
+    public void SetFirstPersonVisualEnabled(bool enabled)
+    {
+        if (IsInstanceValid(FirstPersonVisual))
+        {
+            FirstPersonVisual.Visible = enabled;
+            FirstPersonVisual.ProcessMode = enabled
+                ? ProcessModeEnum.Inherit
+                : ProcessModeEnum.Disabled;
+        }
+    }
+
+    public void PlayFirstPersonSequence(
+        string transition, string preparation, string idle, double blend = 0.18) =>
+        FirstPersonVisual?.PlaySequence(transition, preparation, idle, blend);
 
     /// <summary>
     /// Plays a one-shot on the SEATED body — what everyone else sees this player do at the table.
@@ -193,9 +239,8 @@ public partial class Player : CharacterBody3D
     /// already current, so a second gesture in the same seat would never replay. This drives the
     /// character's own AnimationPlayer directly and leaves the state alone.
     ///
-    /// Silently does nothing when the clip does not exist, which is every table gesture today — the
-    /// rig carries only Idle and Walk. The call sites are what matter now; the clips drop in later
-    /// with no change here.
+    /// Silently falls back when an optional table gesture has not been authored yet. The core poker
+    /// pickup and card idles are real clips; chip/check/fold/reveal can still use the fallback.
     /// </summary>
     public void PlaySeatedGesture(string animationName) =>
         PlaySeatedGesture(animationName, GlobalPosition - GlobalBasis.Z);

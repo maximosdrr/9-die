@@ -15,7 +15,8 @@ using Poker.Rules;
 /// the real gesture and the honest one — a card
 /// nobody is looking at should not be facing the room.
 ///
-/// Nothing here talks to the network. It emits one intent and the controller forwards it.
+/// Gameplay still emits intents through the controller. The only direct presentation relay is the
+/// raised/lowered card-pose edge, so other players can see a right-button peek on the seated body.
 /// </summary>
 [GlobalClass]
 public partial class PokerHand3DView : PokerHandView
@@ -78,6 +79,10 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>Lifting the pair off the cloth and turning it up.</summary>
     [Export] public float PickUpLiftSeconds = 0.55f;
 
+    /// <summary>Normalized point in PickCards where the fingers reach the pair on the felt.</summary>
+    [Export(PropertyHint.Range, "0.1,0.9,0.01")]
+    public float PickUpContactFraction = 0.42f;
+
     /// <summary>How long the player looks at them before lowering.</summary>
     [Export] public float PickUpLookSeconds = 1.3f;
 
@@ -94,8 +99,13 @@ public partial class PokerHand3DView : PokerHandView
     private PokerStreet _lastStreet = PokerStreet.Preflop;
     private int _lastHand = -1;
     private bool _pickedUp;
+    private bool _cardsTransferred;
     private bool _lookDone;
     private float _pickUpElapsed;
+    private float _pickUpAnimationSeconds;
+    private bool _openingLookPoseStarted;
+    private bool _openingDownPoseStarted;
+    private bool _voluntaryLookPose;
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
     private PokerHandVisual _chipHandVisual;
@@ -149,6 +159,7 @@ public partial class PokerHand3DView : PokerHandView
     public override void Setup(PokerGame game, Player player)
     {
         base.Setup(game, player);
+        player?.SetFirstPersonVisualEnabled(false);
 
         if (game?.BoardPresenter != null && GodotObject.IsInstanceValid(player))
         {
@@ -164,6 +175,16 @@ public partial class PokerHand3DView : PokerHandView
         InstallVisualAssets(game?.VisualAssets);
 
         Hud?.Setup(game, player);
+    }
+
+    public override void _ExitTree()
+    {
+        if (IsMultiplayerAuthority() && GodotObject.IsInstanceValid(Player))
+        {
+            if (_voluntaryLookPose)
+                Player?.SetPokerCardLook(false);
+            Player?.SetFirstPersonVisualEnabled(true);
+        }
     }
 
     public override void _Process(double delta)
@@ -228,14 +249,21 @@ public partial class PokerHand3DView : PokerHandView
         var hand = Game?.HandNumber ?? 0;
         if (hand != _lastHand)
         {
+            SetVoluntaryLookPose(false);
             _fan.Clear();
             _fanTransferFrom.Clear();
             _lastHand = hand;
             _pickedUp = false;
+            _cardsTransferred = false;
             _lookDone = false;
             _pickUpElapsed = 0.0f;
+            _pickUpAnimationSeconds = 0.0f;
+            _openingLookPoseStarted = false;
+            _openingDownPoseStarted = false;
             _cardTransfer = 1.0f;
             _peek = 0.0f;
+
+            PlayCardPose(PokerClips.Idle);
 
             if (Game != null)
                 Game.LocalPickedUpCards = false;
@@ -453,40 +481,60 @@ public partial class PokerHand3DView : PokerHandView
             _pickedUp = true;
             _pickUpElapsed = 0.0f;
 
-            if (Game != null)
-                Game.LocalPickedUpCards = true;
-
-            AttachTransferredCards(Game?.SeatPresenter?.TakeLocalCards(CardSlots));
-            // The table owns face-down placeholders until this peer picks them up. Once the same nodes
-            // reach the private grip, configure their real faces before the fan starts turning toward the
-            // eye; otherwise the placeholder's blank front is what the player sees for one whole hand.
-            RebuildFan();
-            _cardTransfer = 0.0f;
-            PlayGesture(PokerGesture.PickUpCards);
+            _pickUpAnimationSeconds = PlayGesture(PokerGesture.PickUpCards);
         }
 
-        var lift = Mathf.Max(PickUpLiftSeconds, 0.01f);
+        var lift = Mathf.Max(PickUpLiftSeconds, Mathf.Max(_pickUpAnimationSeconds, 0.01f));
         var look = Mathf.Max(PickUpLookSeconds, 0.0f);
         var settle = Mathf.Max(PickUpSettleSeconds, 0.01f);
+        var contact = lift * Mathf.Clamp(PickUpContactFraction, 0.1f, 0.9f);
+
+        if (!_cardsTransferred && _pickUpElapsed >= contact)
+            TransferCardsToHand();
 
         if (_pickUpElapsed < lift)
         {
             var lifting = Smooth(_pickUpElapsed / lift);
-            _cardTransfer = lifting;
+            if (_cardsTransferred)
+            {
+                _cardTransfer = Smooth(
+                    (_pickUpElapsed - contact) / Mathf.Max(lift - contact, 0.01f));
+            }
             SetPeek(lifting);
             ApplyFan();
         }
         else if (_pickUpElapsed < lift + look)
+        {
+            if (!_openingLookPoseStarted)
+            {
+                _openingLookPoseStarted = true;
+                PlayCardPose(PokerClips.LookCards);
+            }
             SetPeek(1.0f);
+        }
         else if (_pickUpElapsed < lift + look + settle)
+        {
+            if (!_openingDownPoseStarted)
+            {
+                _openingDownPoseStarted = true;
+                PlayCardPose(PokerClips.Idle);
+            }
             SetPeek(1.0f - Smooth((_pickUpElapsed - lift - look) / settle));
+        }
         else
             FinishPickUp();
     }
 
     private void FinishPickUp()
     {
+        if (!_cardsTransferred)
+            TransferCardsToHand();
         _cardTransfer = 1.0f;
+        if (!_openingDownPoseStarted)
+        {
+            _openingDownPoseStarted = true;
+            PlayCardPose(PokerClips.Idle);
+        }
         SetPeek(0.0f);
         _lookDone = true;
         UpdateInteractionVisibility();
@@ -494,6 +542,19 @@ public partial class PokerHand3DView : PokerHandView
         // The panel is redrawn by state signals, and looking at your cards is not one — without this
         // it went on telling somebody already holding them to pick them up.
         Hud?.Refresh(_options, IsYourTurn, RaiseTotal, true);
+    }
+
+    private void TransferCardsToHand()
+    {
+        _cardsTransferred = true;
+        if (Game != null)
+            Game.LocalPickedUpCards = true;
+
+        AttachTransferredCards(Game?.SeatPresenter?.TakeLocalCards(CardSlots));
+        // Configure the real faces at the exact handoff seam. Before contact the same physical nodes
+        // remain face down on the cloth; afterwards they interpolate into the authored grip.
+        RebuildFan();
+        _cardTransfer = 0.0f;
     }
 
     /// <summary>The voluntary look, once the opening one is done. Holding the button turns them up.</summary>
@@ -508,7 +569,9 @@ public partial class PokerHand3DView : PokerHandView
         // Deliberately NOT gated on the mouse being captured, unlike every action. That gate exists
         // so the click that recaptures the cursor after Escape cannot commit something; looking at
         // your own cards commits nothing.
-        var wants = Input.IsActionPressed(PokerInput.Peek) ? 1.0f : 0.0f;
+        var wantsLook = Input.IsActionPressed(PokerInput.Peek);
+        SetVoluntaryLookPose(wantsLook);
+        var wants = wantsLook ? 1.0f : 0.0f;
         var response = 1.0f - Mathf.Exp(-PeekSpeed * delta);
         var moved = Mathf.Lerp(_peek, wants, response);
 
@@ -524,15 +587,20 @@ public partial class PokerHand3DView : PokerHandView
             return;
 
         _peek = value;
-        if (CardHandPose != null)
-        {
-            // The replaceable hand gets a small pose correction while the independently fanned cards
-            // turn toward the eye. No track needs to reference the imported skeleton.
-            CardHandPose.Position = new Vector3(0.0f, 0.004f * _peek, -0.012f * _peek);
-            CardHandPose.Rotation = new Vector3(-0.10f * _peek, 0.0f, 0.0f);
-        }
         ApplyFan();
     }
+
+    private void SetVoluntaryLookPose(bool raised)
+    {
+        if (_voluntaryLookPose == raised)
+            return;
+
+        _voluntaryLookPose = raised;
+        PlayCardPose(raised ? PokerClips.LookCards : PokerClips.Idle);
+        Player?.SetPokerCardLook(raised);
+    }
+
+    private float PlayCardPose(string clip) => _cardHandVisual?.PlayClip(clip) ?? 0.0f;
 
     private static float Smooth(float t)
     {
@@ -683,7 +751,7 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     /// <summary>Plays a gross rig clip and returns its real duration.</summary>
-    public float PlayClip(string clipName)
+    private float PlayGrossClip(string clipName)
     {
         if (AnimationPlayer == null || string.IsNullOrWhiteSpace(clipName))
             return 0.0f;
@@ -697,13 +765,16 @@ public partial class PokerHand3DView : PokerHandView
         return 0.0f;
     }
 
+    public float PlayClip(string clipName) =>
+        Mathf.Max(PlayGrossClip(clipName), PlayCardPose(clipName));
+
     /// <summary>
     /// Plays the stable whole-hand motion and, when present, the custom rig's finger animation.
     /// The longest real clip controls the acting state, so no gesture is truncated by a magic timer.
     /// </summary>
     public float PlayGesture(PokerGesture gesture)
     {
-        var duration = PlayClip(PokerClips.FirstPerson(gesture));
+        var duration = PlayGrossClip(PokerClips.FirstPerson(gesture));
         var visual = gesture is PokerGesture.ThrowChips or PokerGesture.Knock
             ? _chipHandVisual
             : _cardHandVisual;

@@ -21,7 +21,9 @@ public partial class CharacterVisual : Node3D
         public const string Sit = "Sit";
         public const string IdleSit = "IdleSit";
         public const string SitHoldingCards = "SitHoldingCards";
+        public const string PickCards = "PickCards";
         public const string IdleSitHoldingCards = "IdleSitHoldingCards";
+        public const string IdleHoldingCardsDown = "IdleHoldingCardsDown";
     }
 
     [Export] public Node3D RigRoot;
@@ -32,6 +34,16 @@ public partial class CharacterVisual : Node3D
     [Export] public CameraNeckModifier NeckModifier;
 
     private float _characterScale = DefaultCharacterScale;
+    private CardSequenceStage _cardSequenceStage;
+    private double _cardSequenceRemaining;
+    private double _cardSequenceLookSeconds;
+
+    private enum CardSequenceStage
+    {
+        None,
+        PickingUp,
+        Looking,
+    }
 
     [ExportGroup("Visual size")]
     /// <summary>
@@ -68,6 +80,7 @@ public partial class CharacterVisual : Node3D
             SetLoop(Clips.Walk);
             SetLoop(Clips.IdleSit);
             SetLoop(Clips.IdleSitHoldingCards);
+            SetLoop(Clips.IdleHoldingCardsDown);
         }
 
         UpdateCardGrip();
@@ -87,7 +100,11 @@ public partial class CharacterVisual : Node3D
         RigRoot.Scale = sign * CharacterScale;
     }
 
-    public override void _Process(double delta) => UpdateCardGrip();
+    public override void _Process(double delta)
+    {
+        AdvanceCardSequence(delta);
+        UpdateCardGrip();
+    }
 
     public void SetCameraLook(float yawRadians, float pitchRadians)
     {
@@ -107,12 +124,60 @@ public partial class CharacterVisual : Node3D
 
     public void Play(string clip, double blend = 0.16, float speed = 1.0f)
     {
+        _cardSequenceStage = CardSequenceStage.None;
+        PlayInternal(clip, blend, speed);
+    }
+
+    private void PlayInternal(
+        string clip, double blend = 0.16, float speed = 1.0f, bool restart = false)
+    {
         if (!HasAnimation(clip))
             return;
-        if (Animator.CurrentAnimation == clip && Animator.IsPlaying())
+        if (!restart && Animator.CurrentAnimation == clip && Animator.IsPlaying())
             return;
 
         Animator.Play(clip, blend, speed);
+    }
+
+    /// <summary>
+    /// Runs the authored opening beat without queuing behind a looping look idle:
+    /// PickCards -> IdleSitHoldingCards -> IdleHoldingCardsDown.
+    /// </summary>
+    public double PlayCardPickupSequence(double lookSeconds, double blend = 0.18)
+    {
+        _cardSequenceLookSeconds = Mathf.Max(lookSeconds, 0.0);
+        if (!HasAnimation(Clips.PickCards))
+        {
+            Play(Clips.IdleHoldingCardsDown, blend);
+            return 0.0;
+        }
+
+        var pickUp = Animator.GetAnimation(Clips.PickCards)?.Length ?? 0.0;
+        _cardSequenceStage = CardSequenceStage.PickingUp;
+        _cardSequenceRemaining = Mathf.Max(pickUp, 0.01);
+        PlayInternal(Clips.PickCards, blend, restart: true);
+        return pickUp;
+    }
+
+    private void AdvanceCardSequence(double delta)
+    {
+        if (_cardSequenceStage == CardSequenceStage.None)
+            return;
+
+        _cardSequenceRemaining -= delta;
+        if (_cardSequenceRemaining > 0.0)
+            return;
+
+        if (_cardSequenceStage == CardSequenceStage.PickingUp)
+        {
+            _cardSequenceStage = CardSequenceStage.Looking;
+            _cardSequenceRemaining = Mathf.Max(_cardSequenceLookSeconds, 0.01);
+            PlayInternal(Clips.IdleSitHoldingCards, restart: true);
+            return;
+        }
+
+        _cardSequenceStage = CardSequenceStage.None;
+        PlayInternal(Clips.IdleHoldingCardsDown, restart: true);
     }
 
     public void PlaySequence(string transition, string idle, double blend = 0.18)
@@ -123,6 +188,7 @@ public partial class CharacterVisual : Node3D
     public void PlaySequence(
         string transition, string preparation, string idle, double blend = 0.18)
     {
+        _cardSequenceStage = CardSequenceStage.None;
         if (!HasAnimation(transition))
         {
             Play(idle, blend);

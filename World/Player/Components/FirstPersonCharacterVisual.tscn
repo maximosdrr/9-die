@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://World/Player/Components/FirstPersonCharacterVisual.cs" id="1_visual"]
+[ext_resource type="PackedScene" path="res://Assets/Characters/Player/PlayerFirstPerson.glb" id="2_character"]
+
+[node name="FirstPersonCharacterVisual" type="Node3D" node_paths=PackedStringArray("RigRoot", "Animator")]
+script = ExtResource("1_visual")
+RigRoot = NodePath("PlayerFirstPerson")
+Animator = NodePath("PlayerFirstPerson/AnimationPlayer")
+
+[node name="PlayerFirstPerson" parent="." instance=ExtResource("2_character")]
+transform = Transform3D(-0.64, 0, 0, 0, 0.64, 0, 0, 0, -0.64, 0, 0, 0)

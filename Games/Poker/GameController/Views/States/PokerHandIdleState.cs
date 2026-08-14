@@ -12,7 +12,7 @@ using Poker.Rules;
 [GlobalClass]
 public partial class PokerHandIdleState : State
 {
-    [Export] public string ClipName = PokerClips.Idle;
+    [Export] public string ClipName = PokerClips.GrossIdle;
 
     private PokerHand3DView View;
 

@@ -12,8 +12,9 @@ public partial class PokerHandVisual : Node3D
 {
     [Export] public AnimationPlayer Animator;
 
-    [ExportGroup("Optional finger clips")]
+    [ExportGroup("Animation clips")]
     [Export] public string IdleClip = "";
+    [Export] public string LookClip = "";
     [Export] public string PickUpClip = "";
     [Export] public string ChipsClip = "";
     [Export] public string KnockClip = "";
@@ -32,10 +33,15 @@ public partial class PokerHandVisual : Node3D
             _ => IdleClip,
         };
 
+        return PlayClip(clip);
+    }
+
+    public float PlayClip(string clip, double blend = 0.18)
+    {
         if (Animator == null || string.IsNullOrWhiteSpace(clip) || !Animator.HasAnimation(clip))
             return 0.0f;
 
-        Animator.Play(clip);
+        Animator.Play(clip, blend);
         Animator.Advance(0.0);
         return (float)(Animator.GetAnimation(clip)?.Length ?? 0.0);
     }

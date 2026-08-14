@@ -10,7 +10,7 @@ using Poker.Rules;
 [GlobalClass]
 public partial class PokerHandLookingState : State
 {
-    [Export] public string ClipName = PokerClips.Idle;
+    [Export] public string ClipName = PokerClips.GrossIdle;
 
     private PokerHand3DView View;
 

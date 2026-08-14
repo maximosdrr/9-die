@@ -79,8 +79,8 @@ public partial class PokerExperienceAuthoring : Node3D
     [Export(PropertyHint.Range, "0,89,1")] public float MaximumPitchDeg = 25.0f;
     [Export] public float MouseSensitivity = 0.004f;
     [Export] public string SeatedAnimationName = CharacterVisual.Clips.Sit;
-    [Export] public string SeatedPreparationAnimationName = CharacterVisual.Clips.SitHoldingCards;
-    [Export] public string SeatedIdleAnimationName = CharacterVisual.Clips.IdleSitHoldingCards;
+    [Export] public string SeatedPreparationAnimationName = "";
+    [Export] public string SeatedIdleAnimationName = CharacterVisual.Clips.IdleHoldingCardsDown;
 
     [ExportGroup("Top camera")]
     [Export(PropertyHint.Range, "30,100,1")] public float TopFov = 52.0f;
@@ -313,9 +313,9 @@ public partial class PokerExperienceAuthoring : Node3D
 
         var animator = FirstPersonHandsPreview.FindChild("AnimationPlayer", true, false)
             as AnimationPlayer;
-        if (animator?.HasAnimation(CharacterVisual.Clips.IdleSitHoldingCards) == true)
+        if (animator?.HasAnimation(CharacterVisual.Clips.IdleHoldingCardsDown) == true)
         {
-            animator.Play(CharacterVisual.Clips.IdleSitHoldingCards);
+            animator.Play(CharacterVisual.Clips.IdleHoldingCardsDown);
             animator.Seek(1.0, update: true);
         }
 

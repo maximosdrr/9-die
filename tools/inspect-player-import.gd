@@ -20,12 +20,13 @@ func _run() -> void:
 		var animator := instance.find_child("AnimationPlayer", true, false) as AnimationPlayer
 		var skeleton := instance.find_child("Skeleton3D", true, false) as Skeleton3D
 		if animator != null and skeleton != null:
-			for clip in ["Idle", "IdleSitHoldingCards"]:
+			for clip in ["Idle", "Walk", "IdleSit", "PickCards",
+				"IdleSitHoldingCards", "IdleHoldingCardsDown"]:
 				if not animator.has_animation(clip):
 					print("MISSING_OPTIONAL_CLIP=", clip)
 					continue
 				animator.play(clip)
-				animator.seek(1.0 if clip == "IdleSitHoldingCards" else 0.1, true)
+				animator.seek(0.5, true)
 				animator.advance(0.0)
 				var hand := skeleton.find_bone("CC_Base_L_Hand")
 				var right_hand := skeleton.find_bone("CC_Base_R_Hand")

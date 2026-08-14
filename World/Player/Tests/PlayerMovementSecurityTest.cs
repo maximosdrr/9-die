@@ -25,6 +25,7 @@ public partial class PlayerMovementSecurityTest : Node
         TestRpcContract();
         TestSeatApproachTransition();
         TestCameraLookContract();
+        TestPokerPoseRpcContract();
         TestMovementModeRateLimiter();
         TestProfileValidation();
         TestProfileRpcContract();
@@ -400,6 +401,22 @@ public partial class PlayerMovementSecurityTest : Node
         Check("a tabela de rotação do pescoço permanece limitada",
             player.TrackedCameraLookPeerCount <= Player.MaximumTrackedCameraLookPeers);
         player.Free();
+    }
+
+    private void TestPokerPoseRpcContract()
+    {
+        foreach (var methodName in new[] { "SubmitPokerCardLook", "ReceivePokerCardLook" })
+        {
+            var method = typeof(Player).GetMethod(methodName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var rpc = method?.GetCustomAttribute<RpcAttribute>();
+            Check($"{methodName} replica somente a borda visual do peek",
+                rpc != null
+                && rpc.Mode == MultiplayerApi.RpcMode.AnyPeer
+                && !rpc.CallLocal
+                && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable
+                && rpc.TransferChannel == 6);
+        }
     }
 
     private void TestProfileValidation()

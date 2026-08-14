@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://World/Player/Runtime/PlayerGameHandler.cs" id="5_llsyq"]
 [ext_resource type="Script" path="res://World/Player/Runtime/ControlSwitch.cs" id="6_4uqpi"]
 [ext_resource type="PackedScene" path="res://World/Player/Components/LocalPlayerPresentation.tscn" id="7_local"]
+[ext_resource type="PackedScene" path="res://World/Player/Components/FirstPersonCharacterVisual.tscn" id="8_fp_visual"]
 [ext_resource type="Script" path="res://World/Player/States/PlayerStrike.cs" id="12_1luhw"]
 [ext_resource type="Script" path="res://Shared/StateMachine/StateMachine.cs" id="23_cwv8h"]
 [ext_resource type="Script" path="res://World/Player/States/PlayerIdle.cs" id="24_4ndi6"]
@@ -28,7 +29,7 @@ properties/2/path = NodePath(".:Nickname")
 properties/2/spawn = true
 properties/2/replication_mode = 0
 
-[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("CharacterVisual", "SeatedGestureAnimator", "SeatedGestureFallback", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision") groups=["player"]]
+[node name="Player" type="CharacterBody3D" unique_id=1862542580 node_paths=PackedStringArray("CharacterVisual", "SeatedGestureAnimator", "SeatedGestureFallback", "HeadPivot", "GameHandler", "PlayerModel", "StateMachine", "BodyCollision", "FirstPersonRoot") groups=["player"]]
 collision_layer = 2
 collision_mask = 15
 script = ExtResource("1_wlwl2")
@@ -41,6 +42,8 @@ PlayerModel = NodePath("FirstPerson/Model3D")
 StateMachine = NodePath("StateMachine")
 BodyCollision = NodePath("CollisionShape3D")
 LocalPresentationScene = ExtResource("7_local")
+FirstPersonVisualScene = ExtResource("8_fp_visual")
+FirstPersonRoot = NodePath("FirstPerson")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=367739299]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.752433, 0)

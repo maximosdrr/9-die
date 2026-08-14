@@ -40,5 +40,7 @@ public partial class PlayerStrike : State
         }
         if (idle != clip && AnimationPlayer.HasAnimation(idle))
             AnimationPlayer.Queue(idle);
+
+        Player?.PlayFirstPersonSequence(clip, preparation, idle);
     }
 }

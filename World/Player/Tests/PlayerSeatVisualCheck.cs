@@ -23,7 +23,7 @@ public partial class PlayerSeatVisualCheck : Node3D
             .Instantiate<CharacterVisual>();
         poker.AddChild(character);
         character.GlobalTransform = seat.GlobalTransform;
-        character.Play(CharacterVisual.Clips.IdleSitHoldingCards, 0.0);
+        character.Play(CharacterVisual.Clips.IdleHoldingCardsDown, 0.0);
         character.Animator.Seek(1.0, update: true);
 
         var camera = new Camera3D

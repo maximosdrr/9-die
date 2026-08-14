@@ -32,24 +32,39 @@ public partial class PlayerCharacterIntegrationTest : Node
                 CharacterVisual.Clips.Sit,
                 CharacterVisual.Clips.IdleSit,
                 CharacterVisual.Clips.SitHoldingCards,
+                CharacterVisual.Clips.PickCards,
                 CharacterVisual.Clips.IdleSitHoldingCards,
+                CharacterVisual.Clips.IdleHoldingCardsDown,
             };
-            Check("as seis animações de produção estão importadas",
+            Check("as oito animações de produção estão importadas",
                 expected.All(visual.HasAnimation));
             Check("a escala do personagem cabe no cenário",
-                Mathf.IsEqualApprox(visual.RigRoot.Scale.X, visual.CharacterScale));
+                Mathf.IsEqualApprox(Mathf.Abs(visual.RigRoot.Scale.X), visual.CharacterScale));
             Check("o marcador de cartas acompanha o osso da mão sem herdar centímetros",
                 visual.Skeleton.FindBone("CC_Base_L_Hand") >= 0
                 && visual.CardGrip != null
                 && Mathf.IsEqualApprox(visual.CardGrip.GlobalBasis.Scale.X, 1.0f));
             Check("o modificador do pescoço está no final do esqueleto",
                 visual.NeckModifier != null && visual.NeckModifier.GetParent() == visual.Skeleton);
-            Check("Sit termina exatamente onde SitHoldingCards começa",
-                PosesMatch(visual, CharacterVisual.Clips.Sit, atEnd: true,
-                    CharacterVisual.Clips.SitHoldingCards, atSecondEnd: false));
-            Check("SitHoldingCards entrega uma pose contínua ao idle de cartas",
-                PosesMatch(visual, CharacterVisual.Clips.SitHoldingCards, atEnd: true,
-                    CharacterVisual.Clips.IdleSitHoldingCards, atSecondEnd: false));
+            Check("o jogador local instancia o corpo sem cabeça para Idle e Walk",
+                player.FirstPersonVisual?.HasAnimation(CharacterVisual.Clips.Idle) == true
+                && player.FirstPersonVisual.HasAnimation(CharacterVisual.Clips.Walk));
+            player.PlayFirstPersonSequence(
+                CharacterVisual.Clips.Sit, "", CharacterVisual.Clips.IdleSit, 0.0);
+            Check("sem um Sit_FP, a vista sentada entra diretamente no IdleSit_FP",
+                player.FirstPersonVisual?.Animator?.CurrentAnimation
+                == CharacterVisual.Clips.IdleSit);
+            player.PlayFirstPersonAnimation(CharacterVisual.Clips.Idle, 0.0);
+            var pickDuration = visual.PlayCardPickupSequence(0.10, 0.0);
+            Check("o fluxo 3P começa em PickCards",
+                pickDuration > 1.6
+                && visual.Animator.CurrentAnimation == CharacterVisual.Clips.PickCards);
+            visual._Process(pickDuration + 0.01);
+            Check("depois de pegar, o fluxo 3P entra no idle de olhar",
+                visual.Animator.CurrentAnimation == CharacterVisual.Clips.IdleSitHoldingCards);
+            visual._Process(0.11);
+            Check("depois de olhar, o fluxo 3P retorna às cartas abaixadas",
+                visual.Animator.CurrentAnimation == CharacterVisual.Clips.IdleHoldingCardsDown);
             Check("Sit entrega uma pose contínua ao idle comum do dominó",
                 PosesMatch(visual, CharacterVisual.Clips.Sit, atEnd: true,
                     CharacterVisual.Clips.IdleSit, atSecondEnd: false));
@@ -60,12 +75,25 @@ public partial class PlayerCharacterIntegrationTest : Node
         var handsScene = GD.Load<PackedScene>(
             "res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn");
         var hands = handsScene?.Instantiate<PlayerFirstPersonHands>();
-        Check("o poker usa os braços reais em primeira pessoa", hands != null);
+        Check("o poker usa o corpo sem cabeça em primeira pessoa", hands != null);
         if (hands != null)
         {
             AddChild(hands);
-            Check("a mão em primeira pessoa possui o idle de cartas",
-                hands.Animator?.HasAnimation(CharacterVisual.Clips.IdleSitHoldingCards) == true);
+            var firstPersonExpected = new[]
+            {
+                CharacterVisual.Clips.Idle,
+                CharacterVisual.Clips.Walk,
+                CharacterVisual.Clips.IdleSit,
+                CharacterVisual.Clips.PickCards,
+                CharacterVisual.Clips.IdleSitHoldingCards,
+                CharacterVisual.Clips.IdleHoldingCardsDown,
+            };
+            Check("o corpo em primeira pessoa possui todos os clipes produzidos",
+                hands.Animator != null
+                && firstPersonExpected.All(clip => hands.Animator.HasAnimation(clip)));
+            Check("o corpo em primeira pessoa preserva quatro partes e não exporta a cabeça",
+                hands.ImportedRig.FindChildren("*", "MeshInstance3D", true, false).Count == 4
+                && hands.ImportedRig.FindChild("*Head*", true, false) == null);
             Check("a mão em primeira pessoa tem o mesmo marcador normalizado",
                 hands.Skeleton?.FindBone("CC_Base_L_Hand") >= 0
                 && hands.CardGrip != null

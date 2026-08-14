@@ -23,7 +23,7 @@ public partial class PlayerFirstPersonVisualCheck : Node3D
             .Instantiate<PlayerFirstPersonHands>();
         AddChild(hands);
         hands.Transform = authoredHandPose;
-        hands.Animator.Play(CharacterVisual.Clips.IdleSitHoldingCards);
+        hands.Animator.Play(CharacterVisual.Clips.IdleHoldingCardsDown);
         hands.Animator.Seek(1.0, update: true);
         hands.UpdateCardGrip();
         AddCards(hands.CardGrip, authoredCardsPose);

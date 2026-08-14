@@ -16,7 +16,7 @@ func _run() -> void:
 	game.add_child(character)
 	character.global_transform = seat.global_transform
 	var animator := character.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	animator.play("IdleSitHoldingCards")
+	animator.play("IdleHoldingCardsDown")
 	animator.seek(1.0, true)
 	animator.advance(0.0)
 	await process_frame

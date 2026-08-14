@@ -10,7 +10,7 @@ public partial class PlayerCharacterVisualCheck : Node3D
     public override void _Ready()
     {
         BuildGround();
-        SpawnCharacter(new Vector3(-1.8f, 0.0f, 0.0f), CharacterVisual.Clips.IdleSitHoldingCards);
+        SpawnCharacter(new Vector3(-1.8f, 0.0f, 0.0f), CharacterVisual.Clips.IdleHoldingCardsDown);
         SpawnCharacter(new Vector3(0.0f, 0.0f, 0.0f), CharacterVisual.Clips.IdleSit);
         SpawnCharacter(new Vector3(1.8f, 0.0f, 0.0f), CharacterVisual.Clips.Idle);
 
@@ -70,13 +70,13 @@ public partial class PlayerCharacterVisualCheck : Node3D
         character.Position = position;
         AddChild(character);
         character.Play(clip, 0.0);
-        character.Animator.Seek(clip == CharacterVisual.Clips.IdleSitHoldingCards ? 1.0 : 0.1,
+        character.Animator.Seek(clip == CharacterVisual.Clips.IdleHoldingCardsDown ? 1.0 : 0.1,
             update: true);
 
         if (clip == CharacterVisual.Clips.IdleSit)
             character.SetCameraLook(0.75f, -0.28f);
 
-        if (clip == CharacterVisual.Clips.IdleSitHoldingCards)
+        if (clip == CharacterVisual.Clips.IdleHoldingCardsDown)
         {
             character._Process(0.0);
             AddCards(character.CardGrip);

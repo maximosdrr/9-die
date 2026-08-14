@@ -27,22 +27,29 @@ public enum PokerGesture
 /// table exists rather than clip names scattered through the states: the two are authored by
 /// different people at different times, and a gesture has to be nameable before either exists.
 ///
-/// The third-person clips are NOT authored yet. The character rig carries only "Idle" and "Walk",
-/// and both play paths use HasAnimation, so today every body gesture quietly resolves to the seated
-/// idle. When the clips arrive, they drop into this table and nothing else changes — no state, no
-/// rule, no RPC.
+/// PickCards and the two card-holding idles are authored in both views. Chip, check, fold and reveal
+/// still use their optional placeholder clips until dedicated body actions are produced.
 ///
-/// Nothing about a gesture travels over the network. Every peer already knows who did what from the
-/// turn context's last action, so each one arrives at the same table on its own.
+/// Public actions come from the turn context. The private right-button look is the one exception:
+/// its raised/lowered edge is replicated separately so other players see the same body pose.
 /// </summary>
 public static class PokerClips
 {
     // ---------------------------------------------------------------- first person
 
-    /// <summary>Holding the cards, doing nothing.</summary>
-    public const string Idle = "HandIdle";
+    /// <summary>
+    /// Auxiliary motion on the legacy HandRig. Turn-state changes may replay this clip, while the
+    /// imported full body remains exclusively controlled by the authored card-pose sequence.
+    /// </summary>
+    public const string GrossIdle = "HandIdle";
 
-    public const string PickUpCards = "HandPickUpCards";
+    /// <summary>Holding the cards low, doing nothing.</summary>
+    public const string Idle = CharacterVisual.Clips.IdleHoldingCardsDown;
+
+    /// <summary>Cards raised toward the eyes while the player is looking at them.</summary>
+    public const string LookCards = CharacterVisual.Clips.IdleSitHoldingCards;
+
+    public const string PickUpCards = CharacterVisual.Clips.PickCards;
     public const string ThrowChips = "HandThrowChips";
     public const string Knock = "HandKnock";
 
@@ -53,10 +60,12 @@ public static class PokerClips
 
     // ---------------------------------------------------------------- third person
 
-    /// <summary>Breathing loop after the arms have reached the card-holding pose.</summary>
-    public const string BodyIdle = CharacterVisual.Clips.IdleSitHoldingCards;
+    /// <summary>Breathing loop with the cards resting low.</summary>
+    public const string BodyIdle = CharacterVisual.Clips.IdleHoldingCardsDown;
 
-    public const string BodyPickUpCards = "SitPickUpCards";
+    public const string BodyLookCards = CharacterVisual.Clips.IdleSitHoldingCards;
+
+    public const string BodyPickUpCards = CharacterVisual.Clips.PickCards;
     public const string BodyThrowChips = "SitThrowChips";
     public const string BodyKnock = "SitKnock";
     public const string BodyFold = "SitFold";

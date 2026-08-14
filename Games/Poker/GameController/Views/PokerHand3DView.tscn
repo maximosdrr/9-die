@@ -184,7 +184,7 @@ HandRig = NodePath("HandRig")
 CardHandPose = NodePath("HandRig/Hand/CardHandPose")
 CardSlots = NodePath("HandRig/Hand/CardSlots")
 CardScene = ExtResource("2_pcard")
-CardHandVisualMount = NodePath("HandRig/Hand/CardHandPose/VisualMount")
+CardHandVisualMount = NodePath("HandRig/Hand/VisualMount")
 ChipHandVisualMount = NodePath("HandRig/LeftHand/VisualMount")
 Hud = NodePath("PokerHud")
 AnimationPlayer = NodePath("HandRig/AnimationPlayer")
@@ -200,7 +200,7 @@ ChalkHoverShader = ExtResource("10_chalk_hover")
 
 [node name="CardHandPose" type="Node3D" parent="HandRig/Hand"]
 
-[node name="VisualMount" type="Node3D" parent="HandRig/Hand/CardHandPose"]
+[node name="VisualMount" type="Node3D" parent="HandRig/Hand"]
 
 [node name="LeftHand" type="Node3D" parent="HandRig"]
 

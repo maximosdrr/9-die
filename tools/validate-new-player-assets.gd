@@ -10,11 +10,14 @@ func _run() -> void:
 	_validate_asset(
 		"res://Assets/Characters/Player/PlayerCharacter.glb",
 		"Character_Armature", 5,
-		["Idle", "Walk", "Sit", "IdleSit", "SitHoldingCards", "IdleSitHoldingCards"],
+		["Idle", "Walk", "Sit", "IdleSit", "SitHoldingCards", "PickCards",
+			"IdleSitHoldingCards", "IdleHoldingCardsDown"],
 		failures)
 	_validate_asset(
 		"res://Assets/Characters/Player/PlayerFirstPerson.glb",
-		"FP_Armature", 2, ["IdleSitHoldingCards"], failures)
+		"FP_Armature", 4,
+		["Idle", "Walk", "IdleSit", "PickCards", "IdleSitHoldingCards",
+			"IdleHoldingCardsDown"], failures)
 
 	var hands_scene := load(
 		"res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn") as PackedScene
@@ -31,11 +34,11 @@ func _run() -> void:
 			failures.append("cena 1P não aponta para FP_Armature")
 		if marker == null:
 			failures.append("cena 1P não encontra CardGripMarker")
-		if animator == null or not animator.has_animation("IdleSitHoldingCards"):
-			failures.append("cena 1P não contém IdleSitHoldingCards")
+		if animator == null or not animator.has_animation("IdleHoldingCardsDown"):
+			failures.append("cena 1P não contém IdleHoldingCardsDown")
 		elif skeleton != null and marker != null:
-			animator.play("IdleSitHoldingCards")
-			for time in [0.0, 1.0, 3.0, 4.0]:
+			animator.play("IdleHoldingCardsDown")
+			for time in [0.0, 0.8, 1.6, 2.5]:
 				animator.seek(time, true)
 				animator.advance(0.0)
 				var hand := skeleton.find_bone("CC_Base_L_Hand")

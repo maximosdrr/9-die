@@ -596,6 +596,12 @@ public partial class PokerSceneLoadTest : Node
         Check("a máquina só ouve entrada de quem tem autoridade",
             machine.CheckForMultiplayerAuthorityOnStateHandleInput);
 
+        Check("troca de turno preserva a pose de cartas mantida pelo botao direito",
+            view.GetNodeOrNull<PokerHandIdleState>("StateMachine/Idle")?.ClipName
+                == PokerClips.GrossIdle
+            && view.GetNodeOrNull<PokerHandLookingState>("StateMachine/Looking")?.ClipName
+                == PokerClips.GrossIdle);
+
         Check("a view tem HUD, aviso e rig de mão",
             view.Hud?.NoticeLabel != null && view.HandRig != null
             && view.Hud.NoticeLabel.HorizontalAlignment == HorizontalAlignment.Center
@@ -615,18 +621,34 @@ public partial class PokerSceneLoadTest : Node
             PokerGesture.Knock, PokerGesture.Fold, PokerGesture.Reveal,
         };
 
-        var missingClips = gestures
+        var optionalGrossClips = gestures
+            .Where(gesture => gesture != PokerGesture.PickUpCards)
             .Select(PokerClips.FirstPerson)
-            .Append(PokerClips.Idle)
             .Where(clip => view.AnimationPlayer?.HasAnimation(clip) != true)
             .ToList();
+        var productionHands = GD.Load<PackedScene>(
+                "res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn")
+            ?.Instantiate<PlayerFirstPersonHands>();
+        if (productionHands != null)
+            AddChild(productionHands);
+        var missingCoreClips = new[]
+            {
+                PokerClips.Idle, PokerClips.LookCards, PokerClips.PickUpCards,
+            }
+            .Where(clip => productionHands?.Animator?.HasAnimation(clip) != true)
+            .ToList();
 
-        Check($"a mão tem um clipe para cada gesto ({string.Join(", ", missingClips)})",
-            view.AnimationPlayer != null && missingClips.Count == 0);
+        Check($"a mão tem os clipes centrais novos e os gestos opcionais "
+              + $"({string.Join(", ", missingCoreClips.Concat(optionalGrossClips))})",
+            productionHands?.Animator != null
+            && missingCoreClips.Count == 0
+            && optionalGrossClips.Count == 0);
         Check("o gesto de fichas não é cortado pelo antigo limite de 0,35 s",
             view.PlayGesture(PokerGesture.ThrowChips) > 0.35f);
         Check("pegar as cartas acompanha o tempo completo de olhar e baixar",
-            view.PlayGesture(PokerGesture.PickUpCards) >= 2.3f);
+            (productionHands?.Play(PokerGesture.PickUpCards) ?? 0.0f)
+            + view.PickUpLookSeconds + view.PickUpSettleSeconds >= 3.0f);
+        productionHands?.QueueFree();
 
         // Chips and the table knock are left-handed, so the rig needs a second hand for them.
         Check("o rig tem uma mão esquerda para as fichas e o toque na mesa",

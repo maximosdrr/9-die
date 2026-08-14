@@ -19,7 +19,8 @@ public partial class PlayerWalking : State
 
     public override void Enter(Dictionary metadata)
     {
-        AnimationPlayer.Play("Walk");
+        AnimationPlayer.Play(CharacterVisual.Clips.Walk);
+        Player?.PlayFirstPersonAnimation(CharacterVisual.Clips.Walk);
     }
 
     public override void Process(double delta)

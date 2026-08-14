@@ -6,7 +6,9 @@
 [node name="PlayerFirstPersonHands" type="Node3D" node_paths=PackedStringArray("Animator", "ImportedRig", "Skeleton", "CardGrip", "AuthoredCardGripMarker")]
 script = ExtResource("1_hands")
 Animator = NodePath("PlayerFirstPerson/AnimationPlayer")
-IdleClip = "IdleSitHoldingCards"
+IdleClip = "IdleHoldingCardsDown"
+LookClip = "IdleSitHoldingCards"
+PickUpClip = "PickCards"
 ImportedRig = NodePath("PlayerFirstPerson")
 Skeleton = NodePath("PlayerFirstPerson/FP_Armature/Skeleton3D")
 CardGrip = NodePath("CardGrip")

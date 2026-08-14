@@ -1,54 +1,50 @@
-# Troca de assets visuais do pôquer
+# Assets visuais do pôquer
 
-O ponto único de configuração é `PokerVisualAssets.tres`. A lógica de regras, rede, layout e
-movimento não deve apontar diretamente para malhas importadas.
+O ponto único de configuração das cartas, fichas e mãos é `PokerVisualAssets.tres`. A lógica de
+regras e rede não deve apontar diretamente para uma malha importada.
 
-## Cartas
+## Cartas e fichas
 
-- A cena configurada em `CardScene` deve ter `PokerCard` na raiz.
-- Conecte os nós visuais de frente e verso nos campos `Face` e `Back`.
-- O tamanho de referência na mesa é 70 x 98 mm. Ajuste a malha dentro da própria cena, sem alterar
-  a escala dos nós de movimento.
+- `CardScene` usa `PokerCard` na raiz. As cartas medem 70 x 98 mm e mantêm profundidade normal.
+- `ChipScene` usa `PokerChipVisual` na raiz. A referência é 40 mm de diâmetro por 3,5 mm de
+  espessura.
+- As duas cartas reais distribuídas são transferidas da mesa para o `CardGrip`; não existe cópia
+  visual nem o placeholder vermelho do Blender em runtime.
 
-## Fichas
+## Corpo em primeira pessoa
 
-- A cena configurada em `ChipScene` deve ter `PokerChipVisual` na raiz.
-- Atribua a parte que recebe a cor da denominação em `TintTarget`.
-- O volume de referência é 40 mm de diâmetro por 3,5 mm de espessura. Normalize a malha dentro da
-  cena da ficha; a pilha cuida apenas da posição de cada unidade.
+- `PlayerFirstPerson.glb` contém braços, torso e pernas, sem cabeça, em quatro meshes separados.
+- O asset possui `Idle`, `Walk`, `IdleSit`, `PickCards`, `IdleSitHoldingCards` e
+  `IdleHoldingCardsDown`. Os nomes são iguais aos de terceira pessoa porque cada vista possui seu
+  próprio `AnimationPlayer`.
+- O jogador local instancia `FirstPersonCharacterVisual.tscn` na origem do corpo e espelha
+  `Idle`/`Walk`; no dominó ele também recebe `IdleSit`. Ele usa uma camada exclusiva da câmera local.
+- No pôquer, `PlayerFirstPersonHands.tscn` substitui temporariamente esse visual para usar o mesmo
+  corpo sem cabeça, o marcador de cartas específico de primeira pessoa e a transformação editável
+  no preview de `Poker.tscn`.
+- O suporte do corpo é estável. Somente as cartas seguem o `CardGrip`; inclinar as cartas não move
+  torso e pernas junto com o antigo ajuste de braços.
 
-## Mãos em primeira pessoa
+## Corpo em terceira pessoa
 
-- `CardHandScene` usa `PlayerFirstPersonHands.tscn`, exportado do mesmo rig e da mesma ação
-  `IdleSitHoldingCards` que o corpo. Somente os dois braços são renderizados pela câmera local.
-- O `CardGrip` acompanha a pose animada da mão e recebe os próprios nós `PokerCard` que foram
-  distribuídos; não existe uma segunda cópia visual nem o leque vermelho do Blender.
-- Os materiais dos braços ignoram profundidade e não escrevem no depth buffer, evitando atravessar
-  visualmente a mesa quando a câmera olha para baixo. As cartas continuam com profundidade normal.
-- Use `CardHandTransform` e `ChipHandTransform` somente para ajustes finos sem editar as animações.
-- Uma cena 3D comum já acompanha os gestos completos. Para animações de dedos, coloque
-  `PokerHandVisual` na raiz, conecte seu `AnimationPlayer` e informe os nomes dos clipes opcionais.
-- Os placeholders somem automaticamente quando uma cena de mão é configurada.
-
-## Personagem em terceira pessoa
-
-- `CharacterVisual.tscn` encapsula o GLB de produção, mantém braço esquerdo, braço direito, cabeça,
-  calça e torso como cinco malhas separadas e aplica escala de jogo `0.72`.
-- O fluxo do poker é `Sit` -> `SitHoldingCards` -> `IdleSitHoldingCards`; dominó usa
-  `Sit` -> `IdleSit`. `Idle` e `Walk` continuam sendo as ações de locomoção.
-- O `CardGrip` em terceira pessoa recebe as duas cartas públicas viradas para baixo e segue a mão
-  até fold/reveal. No próprio cliente, as cartas privadas ficam exclusivamente no grip 1P.
-- O pescoço `CC_Base_NeckTwist02` recebe yaw/pitch limitados da câmera; o dono envia essa orientação
-  a 20 Hz e os demais peers a aplicam de forma suavizada.
-- Os nomes esperados atualmente estão em `PokerClips`: `SitPickUpCards`, `SitThrowChips`,
-  `SitKnock`, `SitFold` e `SitReveal`.
-- A ausência desses cinco gestos adicionais é aceita: após qualquer ação, o corpo retorna para
-  `IdleSitHoldingCards`.
+- `PlayerCharacter.glb` mantém braço esquerdo, braço direito, cabeça, calça e torso separados.
+- O pôquer entra sentado com `Sit -> IdleHoldingCardsDown`.
+- No início de cada rodada, o fluxo central é
+  `PickCards -> IdleSitHoldingCards -> IdleHoldingCardsDown` nas duas vistas.
+- Enquanto o botão direito está pressionado, a vista local e o corpo replicado usam
+  `IdleSitHoldingCards`. Ao soltar, ambos voltam a `IdleHoldingCardsDown`.
+- As cartas públicas dos outros jogadores chegam ao `CardGrip` quando `PickCards` alcança o ponto
+  de contato. Fold e showdown devolvem as mesmas instâncias à mesa.
+- O pescoço continua recebendo yaw/pitch limitados da câmera e replicados aos demais peers.
 
 ## Fonte e reexportação
 
-- A fonte atual é `TestCharacter_Rigged.blend`, fora do projeto, na pasta `Desktop/3D Models`.
-- `tools/export-player-character.py` é a allow-list reprodutível de exportação. Ela nunca leva para
-  o jogo câmeras, luzes, meshes-fonte ou `Cards_Holding_Placeholder`.
-- O script gera `Assets/Characters/Player/PlayerCharacter.glb` e `PlayerFirstPerson.glb`; depois de
-  reexportar, abra o editor para reimportar e execute `PlayerCharacterIntegrationTest.tscn`.
+- Fonte: `Desktop/3D Models/9Die_Cardroom_MotionLab/9Die_Cardroom_MotionLab.blend`.
+- `tools/export-player-character.py` exporta somente os rigs, meshes e ações de produção. Mesa,
+  câmeras, luzes e placeholders permanecem no Blender.
+- O placeholder 3P gera o marcador 3P e `Cards_Holding_Placeholder_FP` gera o marcador FP; os dois
+  offsets não são intercambiáveis.
+- O script aceita `PLAYER_EXPORT_OUTPUT` para gerar arquivos em staging antes de substituir os GLBs
+  de produção.
+- Depois de reexportar, reimporte no editor e execute `tools/validate-new-player-assets.gd` e
+  `World/Player/Tests/PlayerCharacterIntegrationTest.tscn`.

@@ -1,6 +1,6 @@
 using Godot;
 
-/// <summary>Production first-person arms authored from the same Blender actions as the body.</summary>
+/// <summary>Production headless first-person body authored from the same Blender actions as 3P.</summary>
 [GlobalClass]
 public partial class PlayerFirstPersonHands : PokerHandVisual
 {
@@ -22,9 +22,8 @@ public partial class PlayerFirstPersonHands : PokerHandVisual
 
         if (Animator != null)
         {
-            var idle = Animator.GetAnimation(IdleClip);
-            if (idle != null)
-                idle.LoopMode = Animation.LoopModeEnum.Linear;
+            SetLoop(IdleClip);
+            SetLoop(LookClip);
         }
 
         UpdateCardGrip();
@@ -38,6 +37,13 @@ public partial class PlayerFirstPersonHands : PokerHandVisual
     public void UpdateCardGrip()
     {
         CharacterVisual.UpdateAuthoredCardGrip(Skeleton, CardGrip, AuthoredCardGripMarker);
+    }
+
+    private void SetLoop(string clip)
+    {
+        var animation = Animator?.GetAnimation(clip);
+        if (animation != null)
+            animation.LoopMode = Animation.LoopModeEnum.Linear;
     }
 
     private static void ConfigureFirstPersonRendering(Node node)

@@ -7,8 +7,8 @@
 script = ExtResource("1_pctrl")
 HandViewScene = ExtResource("2_phview")
 SeatedAnimationName = "Sit"
-SeatedPreparationAnimationName = "SitHoldingCards"
-SeatedIdleAnimationName = "IdleSitHoldingCards"
+SeatedPreparationAnimationName = ""
+SeatedIdleAnimationName = "IdleHoldingCardsDown"
 LookRig = NodePath("LookRig")
 LookPitch = NodePath("LookRig/LookPitch")
 RemoteSeat = NodePath("LookRig/LookPitch/RemoteSeat")

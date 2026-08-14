@@ -13,7 +13,7 @@ public partial class SeatAnchorMarker : Marker3D
         "res://World/Player/Components/CharacterVisual.tscn";
 
     private bool _showCharacterPreview = true;
-    private string _previewAnimation = "IdleSitHoldingCards";
+    private string _previewAnimation = "IdleHoldingCardsDown";
     private float _previewOpacity = 0.42f;
     private Node3D _preview;
 
@@ -30,7 +30,7 @@ public partial class SeatAnchorMarker : Marker3D
     }
 
     [Export(PropertyHint.Enum,
-        "IdleSitHoldingCards,IdleSit,SitHoldingCards,Sit,Idle,Walk")]
+        "IdleHoldingCardsDown,IdleSitHoldingCards,PickCards,IdleSit,SitHoldingCards,Sit,Idle,Walk")]
     public string PreviewAnimation
     {
         get => _previewAnimation;
