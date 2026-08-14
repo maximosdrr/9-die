@@ -40,6 +40,12 @@ no frame estável do assento e cada braço recebe um modo independente através 
 O retorno voluntário usa suavização para não estalar o ombro. O início de uma rodada força o lock
 imediatamente, impedindo que o movimento da câmera anterior contamine `PickCards`.
 
+`FollowCamera` limita somente o braço; a câmera permanece com todo o alcance do controlador. O
+perfil inicial da mão esquerda usa a pose autorada como limite inferior (`0°` para baixo), `20°`
+para cima, `18°` para a direita/cruzando o tronco e `28°` para a esquerda/afastando-se do corpo.
+Esses quatro valores ficam editáveis no `FirstPersonHandCameraLock` de
+`PlayerFirstPersonHands.tscn`. A aproximação usa saturação suave para não parar bruscamente.
+
 ## Corpo em terceira pessoa
 
 - `PlayerCharacter.glb` mantém braço esquerdo, braço direito, cabeça, calça e torso separados.

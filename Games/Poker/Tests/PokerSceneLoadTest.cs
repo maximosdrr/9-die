@@ -691,6 +691,32 @@ public partial class PokerSceneLoadTest : Node
             && missingCoreClips.Count == 0
             && optionalGrossClips.Count == 0);
 
+        var handLimits = productionHands?.CameraLock;
+        var leftDown = handLimits?.LimitFollowAnglesDegrees(
+            new Vector2(0.0f, -30.0f), leftHand: true) ?? new Vector2(float.NaN, float.NaN);
+        var leftUpAndOut = handLimits?.LimitFollowAnglesDegrees(
+            new Vector2(100.0f, 60.0f), leftHand: true) ?? new Vector2(float.NaN, float.NaN);
+        var leftInward = handLimits?.LimitFollowAnglesDegrees(
+            new Vector2(-100.0f, 0.0f), leftHand: true) ?? new Vector2(float.NaN, float.NaN);
+        var gentleLook = handLimits?.LimitFollowAnglesDegrees(
+            new Vector2(5.0f, 5.0f), leftHand: true) ?? new Vector2(float.NaN, float.NaN);
+        Check("o limite inferior do braco e exatamente a pose inicial sobre a mesa",
+            handLimits != null && Mathf.IsZeroApprox(leftDown.Y));
+        Check("o braco esquerdo para antes da cabeca e abre mais para fora do corpo",
+            leftUpAndOut.X is > 27.0f and <= 28.0f
+            && leftUpAndOut.Y is > 19.0f and <= 20.0f
+            && leftInward.X is >= -18.0f and < -17.0f);
+        Check("o movimento pequeno do braco continua praticamente igual ao da camera",
+            Mathf.Abs(gentleLook.X - 5.0f) < 0.15f
+            && Mathf.Abs(gentleLook.Y - 5.0f) < 0.15f);
+
+        var restingCameraBasis = new Basis(Vector3.Right, Mathf.DegToRad(-35.0f));
+        var downwardCameraBasis = new Basis(Vector3.Right, Mathf.DegToRad(-65.0f));
+        var downwardArmDelta = handLimits?.LimitedWorldCameraDelta(
+            restingCameraBasis, downwardCameraBasis, leftHand: true) ?? Basis.Identity;
+        Check("olhar abaixo da pose inicial nao empurra a mao para dentro da mesa",
+            handLimits != null && downwardArmDelta.IsEqualApprox(Basis.Identity));
+
         var liveHandCamera = new Node3D
         {
             Rotation = new Vector3(-0.12f, 0.25f, 0.0f),
@@ -768,6 +794,52 @@ public partial class PokerSceneLoadTest : Node
             (productionHands?.Play(PokerGesture.PickUpCards) ?? 0.0f)
             + view.PickUpLookSeconds + view.PickUpSettleSeconds >= 3.0f);
         productionHands?.QueueFree();
+
+        var extremeHands = GD.Load<PackedScene>(
+                "res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn")
+            ?.Instantiate<PlayerFirstPersonHands>();
+        var extremeCamera = new Node3D { Name = "ExtremeHandLimitCamera" };
+        if (extremeHands != null)
+            AddChild(extremeHands);
+        AddChild(extremeCamera);
+        var extremeLiveBasis = new Basis(Vector3.Up, Mathf.DegToRad(100.0f))
+                               * new Basis(Vector3.Right, Mathf.DegToRad(25.0f));
+        extremeCamera.GlobalBasis = extremeLiveBasis;
+        extremeHands?.ConfigureHandCameraModes(
+            new Transform3D(restingCameraBasis, Vector3.Zero),
+            extremeCamera,
+            FirstPersonHandCameraMode.FollowCamera,
+            FirstPersonHandCameraMode.Locked);
+        var extremeLeftArm = extremeHands?.Skeleton?.FindBone("CC_Base_L_Upperarm") ?? -1;
+        var extremeRightArm = extremeHands?.Skeleton?.FindBone("CC_Base_R_Upperarm") ?? -1;
+        var extremeLeftBefore = extremeLeftArm >= 0
+            ? extremeHands.Skeleton.GetBoneGlobalPose(extremeLeftArm)
+            : Transform3D.Identity;
+        var extremeRightBefore = extremeRightArm >= 0
+            ? extremeHands.Skeleton.GetBoneGlobalPose(extremeRightArm)
+            : Transform3D.Identity;
+        var expectedWorldLimit = extremeHands?.CameraLock?.LimitedWorldCameraDelta(
+            restingCameraBasis, extremeLiveBasis, leftHand: true) ?? Basis.Identity;
+        extremeHands?.CameraLock?._ProcessModificationWithDelta(1.0);
+        var extremeLeftAfter = extremeLeftArm >= 0
+            ? extremeHands.Skeleton.GetBoneGlobalPose(extremeLeftArm)
+            : Transform3D.Identity;
+        var extremeRightAfter = extremeRightArm >= 0
+            ? extremeHands.Skeleton.GetBoneGlobalPose(extremeRightArm)
+            : Transform3D.Identity;
+        var extremeSkeletonBasis = extremeHands?.Skeleton?.GlobalBasis.Orthonormalized()
+                                   ?? Basis.Identity;
+        var expectedSkeletonLimit = extremeSkeletonBasis.Inverse()
+                                    * expectedWorldLimit
+                                    * extremeSkeletonBasis;
+        var expectedLeftBasis = expectedSkeletonLimit * extremeLeftBefore.Basis;
+        Check("os limites superior e lateral chegam ao osso sem mover a outra mao",
+            extremeLeftArm >= 0
+            && extremeRightArm >= 0
+            && extremeLeftAfter.Basis.IsEqualApprox(expectedLeftBasis)
+            && extremeRightAfter.Basis.IsEqualApprox(extremeRightBefore.Basis));
+        extremeCamera.QueueFree();
+        extremeHands?.QueueFree();
 
         // Chips and the table knock are left-handed, so the rig needs a second hand for them.
         Check("o rig tem uma mão esquerda para as fichas e o toque na mesa",

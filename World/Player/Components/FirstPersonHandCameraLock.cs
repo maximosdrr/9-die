@@ -25,6 +25,36 @@ public partial class FirstPersonHandCameraLock : SkeletonModifier3D
     [Export] public string RightArmRootBone = "CC_Base_R_Upperarm";
     [Export] public float Response = 14.0f;
 
+    [ExportGroup("Left hand follow limits")]
+    /// <summary>Looking right pulls the left arm across the torso, so this is the tight side.</summary>
+    [Export(PropertyHint.Range, "0,60,0.5,or_greater")]
+    public float LeftYawTowardBodyDegrees = 18.0f;
+
+    /// <summary>Looking left moves the left arm away from the torso and allows a wider arc.</summary>
+    [Export(PropertyHint.Range, "0,60,0.5,or_greater")]
+    public float LeftYawOutwardDegrees = 28.0f;
+
+    /// <summary>The authored pose already rests at the table and is the absolute lower limit.</summary>
+    [Export(PropertyHint.Range, "0,45,0.5,or_greater")]
+    public float LeftPitchDownDegrees = 0.0f;
+
+    [Export(PropertyHint.Range, "0,60,0.5,or_greater")]
+    public float LeftPitchUpDegrees = 20.0f;
+
+    [ExportGroup("Right hand follow limits")]
+    // Mirrored defaults keep this component reusable if a future gesture follows the right hand.
+    [Export(PropertyHint.Range, "0,60,0.5,or_greater")]
+    public float RightYawOutwardDegrees = 28.0f;
+
+    [Export(PropertyHint.Range, "0,60,0.5,or_greater")]
+    public float RightYawTowardBodyDegrees = 18.0f;
+
+    [Export(PropertyHint.Range, "0,45,0.5,or_greater")]
+    public float RightPitchDownDegrees = 0.0f;
+
+    [Export(PropertyHint.Range, "0,60,0.5,or_greater")]
+    public float RightPitchUpDegrees = 20.0f;
+
     public FirstPersonHandCameraMode LeftMode { get; private set; }
         = FirstPersonHandCameraMode.Locked;
     public FirstPersonHandCameraMode RightMode { get; private set; }
@@ -97,15 +127,83 @@ public partial class FirstPersonHandCameraLock : SkeletonModifier3D
         var liveBasis = IsInstanceValid(_liveView)
             ? _liveView.GlobalBasis.Orthonormalized()
             : lockedBasis;
-        var worldCameraDelta = liveBasis * lockedBasis.Inverse();
         var skeletonBasis = skeleton.GlobalBasis.Orthonormalized();
 
         if (LeftFollowWeight > 0.0f)
             ApplyToArm(skeleton, _leftArmRoot,
-                WeightedSkeletonDelta(worldCameraDelta, skeletonBasis, LeftFollowWeight));
+                WeightedSkeletonDelta(
+                    LimitedWorldCameraDelta(lockedBasis, liveBasis, leftHand: true),
+                    skeletonBasis,
+                    LeftFollowWeight));
         if (RightFollowWeight > 0.0f)
             ApplyToArm(skeleton, _rightArmRoot,
-                WeightedSkeletonDelta(worldCameraDelta, skeletonBasis, RightFollowWeight));
+                WeightedSkeletonDelta(
+                    LimitedWorldCameraDelta(lockedBasis, liveBasis, leftHand: false),
+                    skeletonBasis,
+                    RightFollowWeight));
+    }
+
+    /// <summary>
+    /// Limits the arm in camera space without limiting the camera itself. X is yaw: negative looks
+    /// right and positive looks left. Y is pitch relative to the authored resting view.
+    /// </summary>
+    internal Vector2 LimitFollowAnglesDegrees(Vector2 rawAngles, bool leftHand)
+    {
+        var negativeYawLimit = leftHand
+            ? LeftYawTowardBodyDegrees
+            : RightYawOutwardDegrees;
+        var positiveYawLimit = leftHand
+            ? LeftYawOutwardDegrees
+            : RightYawTowardBodyDegrees;
+        var downLimit = leftHand ? LeftPitchDownDegrees : RightPitchDownDegrees;
+        var upLimit = leftHand ? LeftPitchUpDegrees : RightPitchUpDegrees;
+
+        return new Vector2(
+            SoftLimitAxis(rawAngles.X, negativeYawLimit, positiveYawLimit),
+            SoftLimitAxis(rawAngles.Y, downLimit, upLimit));
+    }
+
+    internal Basis LimitedWorldCameraDelta(
+        Basis lockedBasis, Basis liveBasis, bool leftHand)
+    {
+        lockedBasis = lockedBasis.Orthonormalized();
+        liveBasis = liveBasis.Orthonormalized();
+
+        var lockedForward = (-lockedBasis.Z).Normalized();
+        var liveForward = (-liveBasis.Z).Normalized();
+        var lockedFlat = new Vector3(lockedForward.X, 0.0f, lockedForward.Z).Normalized();
+        var liveFlat = new Vector3(liveForward.X, 0.0f, liveForward.Z).Normalized();
+
+        var yaw = lockedFlat.IsZeroApprox() || liveFlat.IsZeroApprox()
+            ? 0.0f
+            : lockedFlat.SignedAngleTo(liveFlat, Vector3.Up);
+        var pitch = Mathf.Asin(Mathf.Clamp(liveForward.Y, -1.0f, 1.0f))
+                    - Mathf.Asin(Mathf.Clamp(lockedForward.Y, -1.0f, 1.0f));
+        var limited = LimitFollowAnglesDegrees(
+            new Vector2(Mathf.RadToDeg(yaw), Mathf.RadToDeg(pitch)), leftHand);
+
+        // Seated cameras are yawed in world space and pitched in their own local space. Rebuilding
+        // in that same order avoids the axis coupling produced by decomposing a large Euler delta.
+        var limitedLive = new Basis(Vector3.Up, Mathf.DegToRad(limited.X))
+                          * lockedBasis
+                          * new Basis(Vector3.Right, Mathf.DegToRad(limited.Y));
+        return limitedLive * lockedBasis.Inverse();
+    }
+
+    private static float SoftLimitAxis(
+        float value, float negativeLimitDegrees, float positiveLimitDegrees)
+    {
+        var limit = Mathf.Max(
+            value < 0.0f ? negativeLimitDegrees : positiveLimitDegrees,
+            0.0f);
+        if (Mathf.IsZeroApprox(limit))
+            return 0.0f;
+
+        // tanh is linear around zero and progressively loses speed near the maximum. The hand
+        // therefore settles naturally instead of snapping against a hard angular wall.
+        var magnitude = Mathf.Abs(value);
+        var limitedMagnitude = limit * (float)System.Math.Tanh(magnitude / limit);
+        return value < 0.0f ? -limitedMagnitude : limitedMagnitude;
     }
 
     private void ResolveBones(Skeleton3D skeleton)
