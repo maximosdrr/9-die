@@ -131,6 +131,18 @@ public partial class PokerSceneLoadTest : Node
         var game = scene.Instantiate<PokerGame>();
         AddChild(game);
 
+        var runtimeAuthoring = game.ExperienceAuthoring;
+        var previewCameraProperty = runtimeAuthoring?.Get(
+            nameof(PokerExperienceAuthoring.PreviewCamera)) ?? default;
+        var previewHandsProperty = runtimeAuthoring?.Get(
+            nameof(PokerExperienceAuthoring.FirstPersonHandsPreview)) ?? default;
+        Check("o preview do editor libera referencias exportadas sem objetos descartados",
+            runtimeAuthoring != null
+            && runtimeAuthoring.PreviewCamera == null
+            && runtimeAuthoring.FirstPersonHandsPreview == null
+            && previewCameraProperty.VariantType == Variant.Type.Nil
+            && previewHandsProperty.VariantType == Variant.Type.Nil);
+
         Check("o jogo aponta para o controlador, a mesa e os assentos",
             game.GameControllerScene != null && game.BoardPresenter != null && game.Seats != null);
         Check("o jogo tem um resolvedor de poker ligado pelo GameModeHandler", game.Resolver != null);
@@ -317,6 +329,16 @@ public partial class PokerSceneLoadTest : Node
                 BankLaneAngleDegrees: >= 50.0f and <= 60.0f
             }
             && game.BoardPresenter.Spec.SeatBetRadius >= 0.30f);
+        var editableStackAnchors = seatPresenter != null;
+        for (var seatIndex = 0; editableStackAnchors && seatIndex < 4; seatIndex++)
+        {
+            var anchor = seatPresenter.GetNodeOrNull<Marker3D>($"ChipStackAnchor{seatIndex}");
+            editableStackAnchors &= anchor != null
+                                    && anchor.Position.IsFinite()
+                                    && anchor.Basis.IsFinite();
+        }
+        Check("cada assento expõe uma pilha arrastável e rotacionável no editor",
+            editableStackAnchors);
         Check("o turno usa um anel fino junto à borda da mesa",
             seatPresenter is
             {

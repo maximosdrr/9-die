@@ -376,11 +376,14 @@ public partial class PokerSeatPresenter : Node3D
         if (!label.Visible)
             return;
 
-        var place = StackPlace(facing, spec);
         label.Text = $"FICHAS {VisibleStackValue(playerId)}";
         _stacks.TryGetValue(playerId, out var pile);
+        var place = pile?.Position
+                    ?? (TryAuthoredStackTransform(playerId, out var authored)
+                        ? authored.Origin
+                        : DefaultStackTransform(facing, spec).Origin);
         SetFloatingLabelAnchor(label,
-            new Vector3(place.X, FloatingLabelHeight(pile), place.Y));
+            new Vector3(place.X, place.Y + FloatingLabelHeight(pile), place.Z));
     }
 
     private int VisibleStackValue(string playerId)

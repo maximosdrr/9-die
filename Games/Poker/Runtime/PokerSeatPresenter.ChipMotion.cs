@@ -326,11 +326,12 @@ public partial class PokerSeatPresenter : Node3D
 
         facing = facing.Normalized();
         basis = Basis.FromEuler(new Vector3(0.0f, PokerTableLayout.YawTowardCentre(facing), 0.0f));
-        var stack2 = StackPlace(facing, spec);
         var across = new Vector2(-facing.Y, facing.X);
         var bet2 = PokerTableLayout.SeatSpot(facing, spec.SeatBetRadius)
             - across * BetSideOffset;
-        stack = new Vector3(stack2.X, 0.0f, stack2.Y);
+        stack = TryAuthoredStackTransform(playerId, out var authoredStack)
+            ? authoredStack.Origin
+            : DefaultStackTransform(facing, spec).Origin;
         bet = new Vector3(bet2.X, 0.0f, bet2.Y);
         return true;
     }

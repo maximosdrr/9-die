@@ -418,7 +418,7 @@ public partial class PokerSeatPresenter : Node3D
     {
         if (Engine.IsEditorHint())
         {
-            SetProcess(ShowEditorPreview && EditorPreviewHeldCards);
+            SetProcess(ShowEditorPreview && (EditorPreviewHeldCards || EditorPreviewChips));
             CallDeferred(MethodName.RebuildEditorPreview);
             return;
         }
@@ -500,6 +500,7 @@ public partial class PokerSeatPresenter : Node3D
         if (Engine.IsEditorHint())
         {
             UpdateEditorPreviewHeldCards();
+            UpdateEditorPreviewChipStacks();
             return;
         }
 

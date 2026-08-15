@@ -329,16 +329,35 @@ public partial class PokerExperienceAuthoring : Node3D
 
     private void DisableEditorOnlyNodes()
     {
-        if (PreviewCamera != null)
+        // Exported C# node fields are exposed through generated property getters. Leaving one of
+        // those fields pointing at a node after QueueFree() makes the Inspector/remote debugger try
+        // to convert a disposed GodotObject into a Variant, which throws ObjectDisposedException.
+        // Cache the nodes, clear every exported reference synchronously, then schedule disposal.
+        var previewCamera = PreviewCamera;
+        var handsPreview = FirstPersonHandsPreview;
+        var validCamera = IsInstanceValid(previewCamera);
+        var validHands = IsInstanceValid(handsPreview);
+        var handsBelongToCamera = validCamera && validHands
+            && previewCamera.IsAncestorOf(handsPreview);
+
+        PreviewCamera = null;
+        FirstPersonHandsPreview = null;
+        FirstPersonCardsPose = null;
+        FirstPersonCard0Pose = null;
+        FirstPersonCard1Pose = null;
+
+        if (validHands)
         {
-            PreviewCamera.Current = false;
-            PreviewCamera.QueueFree();
+            handsPreview.Visible = false;
+            handsPreview.ProcessMode = ProcessModeEnum.Disabled;
+            if (!handsBelongToCamera)
+                handsPreview.QueueFree();
         }
-        if (FirstPersonHandsPreview != null)
+
+        if (validCamera)
         {
-            FirstPersonHandsPreview.Visible = false;
-            FirstPersonHandsPreview.ProcessMode = ProcessModeEnum.Disabled;
-            FirstPersonHandsPreview.QueueFree();
+            previewCamera.Current = false;
+            previewCamera.QueueFree();
         }
     }
 

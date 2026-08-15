@@ -14,7 +14,17 @@ public partial class PokerSeatPresenter : Node3D
         public int Index;
     }
 
+    private sealed class EditorChipStack
+    {
+        public Node3D Pile;
+        public Label3D Label;
+        public int SeatIndex;
+        public Vector2 Facing;
+        public float LabelHeight;
+    }
+
     private readonly List<EditorHeldCard> _editorHeldCards = new();
+    private readonly List<EditorChipStack> _editorChipStacks = new();
 
     private void QueueEditorPreviewRefresh()
     {
@@ -61,8 +71,9 @@ public partial class PokerSeatPresenter : Node3D
             BuildEditorSeatLabel(seatPreview, facing, seatIndex);
         }
 
-        SetProcess(EditorPreviewHeldCards);
+        SetProcess(EditorPreviewHeldCards || EditorPreviewChips);
         UpdateEditorPreviewHeldCards();
+        UpdateEditorPreviewChipStacks();
     }
 
     private PokerLayoutSpec EditorPreviewSpec()
@@ -197,9 +208,10 @@ public partial class PokerSeatPresenter : Node3D
         };
         owner.AddChild(pile);
 
-        var place = StackPlace(facing, spec);
-        pile.Transform = new Transform3D(
-            BankBasis(facing), new Vector3(place.X, 0.0f, place.Y));
+        var stackTransform = TryAuthoredStackTransform(seatIndex, out var authored)
+            ? authored
+            : DefaultStackTransform(facing, spec);
+        pile.Transform = stackTransform;
         var spacing = Mathf.Max(BankColumnSpacing, 0.044f);
         var heights = seatIndex switch
         {
@@ -258,12 +270,42 @@ public partial class PokerSeatPresenter : Node3D
             Shaded = false,
             Modulate = FloatingValueLabelColor,
             Position = new Vector3(
-                place.X,
-                Mathf.Max(FloatingValueLabelMinimumHeight,
+                stackTransform.Origin.X,
+                stackTransform.Origin.Y + Mathf.Max(FloatingValueLabelMinimumHeight,
                     heights[0] * thickness + FloatingValueLabelClearance),
-                place.Y),
+                stackTransform.Origin.Z),
         };
         owner.AddChild(value);
+
+        _editorChipStacks.Add(new EditorChipStack
+        {
+            Pile = pile,
+            Label = value,
+            SeatIndex = seatIndex,
+            Facing = facing,
+            LabelHeight = Mathf.Max(FloatingValueLabelMinimumHeight,
+                heights[0] * thickness + FloatingValueLabelClearance),
+        });
+    }
+
+    /// <summary>Keeps the visible preview attached to markers while they are dragged or rotated.</summary>
+    private void UpdateEditorPreviewChipStacks()
+    {
+        if (!Engine.IsEditorHint() || !ShowEditorPreview || !EditorPreviewChips)
+            return;
+
+        var spec = EditorPreviewSpec();
+        foreach (var preview in _editorChipStacks)
+        {
+            if (!IsInstanceValid(preview.Pile) || !IsInstanceValid(preview.Label))
+                continue;
+
+            var stackTransform = TryAuthoredStackTransform(preview.SeatIndex, out var authored)
+                ? authored
+                : DefaultStackTransform(preview.Facing, spec);
+            preview.Pile.Transform = stackTransform;
+            preview.Label.Position = stackTransform.Origin + Vector3.Up * preview.LabelHeight;
+        }
     }
 
     private void BuildEditorSeatLabel(Node3D owner, Vector2 facing, int seatIndex)
@@ -295,6 +337,7 @@ public partial class PokerSeatPresenter : Node3D
     private void ClearEditorPreview()
     {
         _editorHeldCards.Clear();
+        _editorChipStacks.Clear();
         if (Engine.IsEditorHint())
             SetProcess(false);
 

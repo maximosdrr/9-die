@@ -46,13 +46,13 @@ visible = false
 transform = Transform3D(1.0734347, 0, 0, 0, 0.9279754, 0, 0, 0, 1.0734347, 0, 0, -0.89415085)
 
 [node name="WoodenChair_007" parent="TableFixture" index="2" unique_id=2080594552]
-transform = Transform3D(0, 0, -1.0734347, 0, 0.9279754, 0, 1.0734347, 0, 0, 0.9038358, 0, -0.07656211)
+transform = Transform3D(0, 0, -1.0734347, 0, 0.9279754, 0, 1.0734347, 0, 0, 0.871, 0, 0.09109759)
 
 [node name="WoodenChair_008" parent="TableFixture" index="3" unique_id=790023071]
 transform = Transform3D(-1.0708708, 0, 0.07414831, 0, 0.92797536, 0, -0.07414831, 0, -1.0708708, -0.0017373088, 0, 0.90413916)
 
 [node name="WoodenChair_009" parent="TableFixture" index="4" unique_id=2052824362]
-transform = Transform3D(0, 0, 1.0734347, 0, 0.9279754, 0, -1.0734347, 0, 0, -0.91625583, 0, 0.09952116)
+transform = Transform3D(0, 0, 1.0734347, 0, 0.9279754, 0, -1.0734347, 0, 0, -0.87120295, 0, 0.0131699145)
 
 [node name="BoardHolder" type="Node3D" parent="." unique_id=1078020313 node_paths=PackedStringArray("PotPile", "DeckAnchor", "CommunityCardsAnchor", "TableSurfaceCollider", "TableSurfaceMesh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.718, 0)
@@ -81,6 +81,22 @@ PresentationProfileResource = SubResource("Resource_paosu")
 ChalkFont = ExtResource("16_chalk")
 KnockSound = ExtResource("11_pknock")
 ChipLandingSound = ExtResource("15_pchips")
+
+[node name="ChipStackAnchor0" type="Marker3D" parent="SeatPresenter" unique_id=432446042]
+editor_description = "PILHA DO ASSENTO 1: arraste e rotacione este marcador. O jogo, o preview, os cliques e as animacoes usam exatamente este transform."
+transform = Transform3D(-0.71675444, 0, -0.69732565, 0, 1, 0, 0.69732565, 0, -0.71675444, -0.36626935, 0, -0.33443356)
+
+[node name="ChipStackAnchor1" type="Marker3D" parent="SeatPresenter" unique_id=1968947616]
+editor_description = "PILHA DO ASSENTO 2: arraste e rotacione este marcador. O jogo, o preview, os cliques e as animacoes usam exatamente este transform."
+transform = Transform3D(-0.6051711, 0, 0.79609543, 0, 1, 0, -0.79609543, 0, -0.6051711, 0.4544982, 0, -0.29673716)
+
+[node name="ChipStackAnchor2" type="Marker3D" parent="SeatPresenter" unique_id=1869561870]
+editor_description = "PILHA DO ASSENTO 3: arraste e rotacione este marcador. O jogo, o preview, os cliques e as animacoes usam exatamente este transform."
+transform = Transform3D(0.6347089, 0, 0.77275145, 0, 1, 0, -0.77275145, 0, 0.6347089, 0.3448924, 0, 0.40632138)
+
+[node name="ChipStackAnchor3" type="Marker3D" parent="SeatPresenter" unique_id=1682703003]
+editor_description = "PILHA DO ASSENTO 4: arraste e rotacione este marcador. O jogo, o preview, os cliques e as animacoes usam exatamente este transform."
+transform = Transform3D(0.7969779, 0, -0.6040085, 0, 1, 0, 0.6040085, 0, 0.7969779, -0.3657171, 0, 0.4090618)
 
 [node name="ExperienceAuthoring" type="Node3D" parent="." unique_id=1650322614 node_paths=PackedStringArray("DeckAnchor", "CommunityCardsAnchor", "ActionGuideAnchor", "Seats", "PreviewCamera", "FirstPersonHandsPreview")]
 editor_description = "Edite o próprio FirstPersonHandsPreview para posicionar/rotacionar os braços. Em FirstPersonCardsPose, Card0Pose e Card1Pose controlam cada carta separadamente. O jogo usa exatamente esses transforms."
@@ -124,12 +140,12 @@ editor_description = "CONTROLADOR EDITÁVEL: mova e rotacione ESTE nó. A transf
 transform = Transform3D(1.0000858, 0, 0, 0, 0.83965397, -0.5433157, 0, 0.5434219, 0.8394902, 0, 0.0899539, -0.09050238)
 
 [node name="Seats" type="Node3D" parent="." unique_id=1776890389 node_paths=PackedStringArray("Chairs")]
-visible = false
 script = ExtResource("5_panch")
 Chairs = [NodePath("../TableFixture/WoodenChair_006"), NodePath("../TableFixture/WoodenChair_007"), NodePath("../TableFixture/WoodenChair_008"), NodePath("../TableFixture/WoodenChair_009")]
 
 [node name="Seat0" parent="Seats" unique_id=1088163110 instance=ExtResource("14_seat")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.13, -0.8649838)
+visible = false
 
 [node name="SeatView" parent="Seats/Seat0" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
@@ -138,7 +154,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.55)
 
 [node name="Seat1" parent="Seats" unique_id=932488307 instance=ExtResource("14_seat")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.8752154, 0.13, -0.077)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.871, 0.13, 0.0906597)
 
 [node name="SeatView" parent="Seats/Seat1" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
@@ -156,7 +172,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.55)
 
 [node name="Seat3" parent="Seats" unique_id=1647890397 instance=ExtResource("14_seat")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.8758281, 0.13, 0.1)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.8307752, 0.13, 0.013648756)
 
 [node name="SeatView" parent="Seats/Seat3" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.135)

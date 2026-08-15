@@ -11,6 +11,8 @@ using ChipBatchPhase = PokerChipAnimator.Phase;
 /// </summary>
 public partial class PokerSeatPresenter : Node3D
 {
+    private const string ChipStackAnchorPrefix = "ChipStackAnchor";
+
     /// <summary>
     /// A seat's chips: what they have pushed in, and what they still hold.
     ///
@@ -27,10 +29,9 @@ public partial class PokerSeatPresenter : Node3D
         // Denomination columns follow a player-relative diagonal, rather than the table radius.
         // Keeping the aggregate pile's own basis authoritative also lets every departing/returning
         // chip use the exact same source positions instead of an independently guessed orientation.
-        var turned = BankBasis(facing);
-        var stackPlace = StackPlace(facing, spec);
-
-        stack.Transform = new Transform3D(turned, new Vector3(stackPlace.X, 0.0f, stackPlace.Y));
+        stack.Transform = TryAuthoredStackTransform(playerId, out var authored)
+            ? authored
+            : DefaultStackTransform(facing, spec);
         stack.StackSpacing = Mathf.Max(BankColumnSpacing, stack.EffectiveDiameter + 0.004f);
         if (_bankRuns.TryGetValue(playerId, out var bank))
             stack.SetRuns(bank);
@@ -44,6 +45,40 @@ public partial class PokerSeatPresenter : Node3D
         var across = new Vector2(-direction.Y, direction.X);
         return direction * Mathf.Max(spec.SeatBetRadius + 0.08f, spec.SeatStackRadius - StackInset)
             + across * StackSideOffset;
+    }
+
+    private Transform3D DefaultStackTransform(Vector2 facing, PokerLayoutSpec spec)
+    {
+        var place = StackPlace(facing, spec);
+        return new Transform3D(BankBasis(facing), new Vector3(place.X, 0.0f, place.Y));
+    }
+
+    /// <summary>
+    /// Returns the artist-authored position and rotation for one seat's bank. Anchors are direct
+    /// children of SeatPresenter so their gizmos can be dragged over the table in the 3D editor.
+    /// Older poker scenes without anchors keep using the radial layout above.
+    /// </summary>
+    private bool TryAuthoredStackTransform(string playerId, out Transform3D transform)
+    {
+        var seatIndex = _game?.SeatIndexFor(playerId) ?? -1;
+        return TryAuthoredStackTransform(seatIndex, out transform);
+    }
+
+    private bool TryAuthoredStackTransform(int seatIndex, out Transform3D transform)
+    {
+        transform = Transform3D.Identity;
+        if (seatIndex < 0)
+            return false;
+
+        var anchor = GetNodeOrNull<Node3D>($"{ChipStackAnchorPrefix}{seatIndex}");
+        if (anchor == null)
+            return false;
+
+        // Position and rotation are authored. Scale is deliberately discarded so moving a gizmo
+        // cannot accidentally resize or shear the production chips.
+        var local = GlobalTransform.AffineInverse() * anchor.GlobalTransform;
+        transform = new Transform3D(local.Basis.Orthonormalized(), local.Origin);
+        return true;
     }
 
     private void BankAxes(Vector2 facing, out Vector2 laneAxis, out Vector2 sideAxis)
