@@ -334,6 +334,11 @@ public partial class PokerMatchTest : Node
 
         Check("o indicador de turno cobre os quatro lugares da mesa",
             game.SeatPresenter.TurnRingSegments.Count == 4);
+        var ringAnchor = game.SeatPresenter.GetNodeOrNull<Marker3D>("TurnRingAnchor");
+        var ringRoot = game.SeatPresenter.GetNodeOrNull<Node3D>("TurnRing");
+        Check("o indicador de turno usa o transform autorado no editor",
+            ringAnchor != null && ringRoot != null
+            && ringRoot.Transform.IsEqualApprox(ringAnchor.Transform));
 
         Check("a mão começa com as cartas na mesa", !view.HasPickedUpCards && !game.LocalPickedUpCards);
 

@@ -3,6 +3,9 @@ using Godot;
 /// <summary>Subtle four-part table rim: green turn, red occupied, grey empty.</summary>
 public partial class PokerSeatPresenter : Node3D
 {
+    private const string TurnRingAnchorName = "TurnRingAnchor";
+    private Node3D _turnRingRoot;
+
     private void RefreshTurnRing()
     {
         EnsureTurnRing();
@@ -26,14 +29,19 @@ public partial class PokerSeatPresenter : Node3D
         if (_turnRingSegments.Count > 0 || Seats == null)
             return;
 
+        _turnRingRoot = new Node3D
+        {
+            Name = "TurnRing",
+            Transform = TurnRingFrame(),
+        };
+        AddChild(_turnRingRoot);
+
         var count = Mathf.Min(4, Seats.GetChildCount());
         for (var seatIndex = 0; seatIndex < count; seatIndex++)
         {
             if (Seats.GetChild(seatIndex) is not Node3D seat)
                 continue;
-            var local = ToLocal(seat.GlobalPosition);
-            var direction = new Vector2(local.X, local.Z);
-            if (direction.LengthSquared() < 1e-6f)
+            if (!TryTurnRingDirection(seat, _turnRingRoot.Transform, out var direction))
                 continue;
 
             var material = BuildTurnRingMaterial();
@@ -43,10 +51,42 @@ public partial class PokerSeatPresenter : Node3D
                 Mesh = BuildTurnRingSegment(direction.Normalized(), material),
                 Position = new Vector3(0.0f, TurnRingHeight, 0.0f),
             };
-            AddChild(segment);
+            _turnRingRoot.AddChild(segment);
             _turnRingMaterials.Add(material);
             _turnRingSegments.Add(segment);
         }
+    }
+
+    /// <summary>The editable root offset for the whole ring, in SeatPresenter space.</summary>
+    private Transform3D TurnRingFrame()
+    {
+        var anchor = GetNodeOrNull<Node3D>(TurnRingAnchorName);
+        if (anchor == null)
+            return Transform3D.Identity;
+
+        var local = GlobalTransform.AffineInverse() * anchor.GlobalTransform;
+        return new Transform3D(local.Basis.Orthonormalized(), local.Origin);
+    }
+
+    /// <summary>
+    /// Resolves the seat direction inside the authored ring frame. Translation moves the centre,
+    /// while rotating the marker never detaches a coloured segment from its corresponding seat.
+    /// </summary>
+    private bool TryTurnRingDirection(
+        Node3D seat, Transform3D ringFrame, out Vector2 direction)
+    {
+        direction = Vector2.Zero;
+        if (seat == null)
+            return false;
+
+        var seatInPresenter = ToLocal(seat.GlobalPosition);
+        var seatInRing = ringFrame.AffineInverse() * seatInPresenter;
+        direction = new Vector2(seatInRing.X, seatInRing.Z);
+        if (direction.LengthSquared() < 1e-6f)
+            return false;
+
+        direction = direction.Normalized();
+        return true;
     }
 
     private StandardMaterial3D BuildTurnRingMaterial() => new()

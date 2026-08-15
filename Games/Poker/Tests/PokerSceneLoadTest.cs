@@ -170,6 +170,36 @@ public partial class PokerSceneLoadTest : Node
             game.BoardPresenter?.DeckAnchor == game.ExperienceAuthoring?.DeckAnchor
             && game.BoardPresenter?.CommunityCardsAnchor
                == game.ExperienceAuthoring?.CommunityCardsAnchor);
+        Check("PASSAR/DESISTIR e a ação central têm marcadores 3D independentes",
+            game.ExperienceAuthoring is
+            {
+                PassFoldGuideAnchor: not null,
+                WagerGuideAnchor: not null
+            }
+            && !ReferenceEquals(
+                game.ExperienceAuthoring.PassFoldGuideAnchor,
+                game.ExperienceAuthoring.WagerGuideAnchor));
+        var deckUsesReaderFrame = game.BoardPresenter != null && game.Seats != null;
+        var canonicalDeck = game.BoardPresenter?.DeckTransformFor(Vector2.Down)
+                            ?? Transform3D.Identity;
+        for (var seatIndex = 0; deckUsesReaderFrame && seatIndex < game.Seats.GetChildCount();
+             seatIndex++)
+        {
+            if (game.Seats.GetChild(seatIndex) is not Node3D seat)
+            {
+                deckUsesReaderFrame = false;
+                break;
+            }
+
+            var seatInBoard = game.BoardPresenter.ToLocal(seat.GlobalPosition);
+            var facing = new Vector2(seatInBoard.X, seatInBoard.Z).Normalized();
+            var expected = PokerTableLayout.ReaderAlignedFrame(
+                canonicalDeck, facing, Vector2.Down);
+            deckUsesReaderFrame &= game.BoardPresenter.DeckTransformFor(facing)
+                .IsEqualApprox(expected);
+        }
+        Check("todo assento enxerga o baralho no mesmo frame relativo do assento 1",
+            deckUsesReaderFrame);
         var tableSurfacePoint = Vector3.Zero;
         var tableSurfaceNormal = Vector3.Up;
         var hasLiveSurface = game.BoardPresenter != null
@@ -208,8 +238,34 @@ public partial class PokerSceneLoadTest : Node
         }
         if (game.ExperienceAuthoring != null && game.BoardPresenter != null)
         {
-            var canonical = new Vector2(0.0f,
-                -game.ExperienceAuthoring.InteractionZoneCenterRadius);
+            var passFrameBefore = game.ExperienceAuthoring.PassFoldGuideTransformFor(
+                game.BoardPresenter, Vector2.Down);
+            var wagerFrameBefore = game.ExperienceAuthoring.WagerGuideTransformFor(
+                game.BoardPresenter, Vector2.Down);
+            var passWorldBefore = game.BoardPresenter.GlobalTransform * passFrameBefore;
+            var wagerWorldBefore = game.BoardPresenter.GlobalTransform * wagerFrameBefore;
+            game.BoardPresenter.TryGetTableSurface(
+                passWorldBefore.Origin, out var passSurface, out var passNormal);
+            game.BoardPresenter.TryGetTableSurface(
+                wagerWorldBefore.Origin, out var wagerSurface, out var wagerNormal);
+            Check("os dois grupos são renderizados sobre o tampo físico da mesa",
+                Mathf.Abs((passWorldBefore.Origin - passSurface).Dot(passNormal)) < 0.0001f
+                && Mathf.Abs((wagerWorldBefore.Origin - wagerSurface).Dot(wagerNormal)) < 0.0001f);
+            var wagerMarker = game.ExperienceAuthoring.WagerGuideAnchor;
+            var wagerMarkerTransform = wagerMarker?.Transform ?? Transform3D.Identity;
+            if (wagerMarker != null)
+                wagerMarker.Position += Vector3.Right * 0.037f;
+            var passFrameAfter = game.ExperienceAuthoring.PassFoldGuideTransformFor(
+                game.BoardPresenter, Vector2.Down);
+            var wagerFrameAfter = game.ExperienceAuthoring.WagerGuideTransformFor(
+                game.BoardPresenter, Vector2.Down);
+            if (wagerMarker != null)
+                wagerMarker.Transform = wagerMarkerTransform;
+            Check("mover o marcador da ação não desloca PASSAR/DESISTIR",
+                passFrameAfter.IsEqualApprox(passFrameBefore)
+                && wagerFrameAfter.Origin.DistanceTo(wagerFrameBefore.Origin) > 0.03f);
+
+            var canonical = Vector2.Zero;
             var frame = game.ExperienceAuthoring.ActionGuideTransformFor(
                 game.BoardPresenter, Vector2.Down);
             var onBoard = frame * new Vector3(canonical.X, 0.0f, canonical.Y);
@@ -237,8 +293,7 @@ public partial class PokerSceneLoadTest : Node
             var checkCentre = new Vector3(
                 game.ExperienceAuthoring.ActionZoneRadius * 0.45f,
                 0.0f,
-                -game.ExperienceAuthoring.InteractionZoneCenterRadius
-                + game.ExperienceAuthoring.ActionZoneRadius * 0.45f);
+                -game.ExperienceAuthoring.ActionZoneRadius * 0.45f);
             var checkWorld = guidePlane.ToGlobal(checkCentre);
             var seatEye = game.Seats.GetChild(0)?.GetNodeOrNull<Node3D>("SeatView");
             aimCamera.GlobalPosition = seatEye?.GlobalPosition
@@ -258,6 +313,8 @@ public partial class PokerSceneLoadTest : Node
             aimCamera.QueueFree();
             guidePlane.QueueFree();
         }
+
+        TestRuntimeActionGuide(game);
 
         var seatPresenter = game.GetNodeOrNull<PokerSeatPresenter>("SeatPresenter");
         Check("a mesa tem o apresentador de assentos", seatPresenter != null);
@@ -347,6 +404,12 @@ public partial class PokerSceneLoadTest : Node
             }
             && seatPresenter.ActiveTurnRingColor.A <= 0.50f
             && seatPresenter.OccupiedTurnRingColor.A <= 0.32f);
+        var turnRingAnchor = seatPresenter?.GetNodeOrNull<Marker3D>("TurnRingAnchor");
+        Check("a borda dos turnos tem preview e centro editável no cenário 3D",
+            seatPresenter?.EditorPreviewTurnRing == true
+            && turnRingAnchor != null
+            && turnRingAnchor.Position.IsFinite()
+            && turnRingAnchor.Basis.IsFinite());
         Check("o disco branco do dealer foi removido da apresentação",
             typeof(PokerSeatPresenter).GetField("_dealerButton",
                 BindingFlags.Instance | BindingFlags.NonPublic) == null);
@@ -401,6 +464,83 @@ public partial class PokerSceneLoadTest : Node
         TestChairsAndSeats(game);
 
         game.QueueFree();
+    }
+
+    private void TestRuntimeActionGuide(PokerGame game)
+    {
+        const string playerId = "GuideRuntimePlayer";
+        var previousTurnOrder = new Godot.Collections.Array(game.TurnOrder);
+        game.TurnOrder = new Godot.Collections.Array { playerId };
+
+        var player = new Player { Name = playerId };
+        var camera = new GlobalCamera { Current = true };
+        AddChild(camera);
+        var runtimeSeat = game.SeatFor(playerId)
+                          ?? game.Seats?.GetChildOrNull<Marker3D>(0);
+        var seatView = runtimeSeat?.GetNodeOrNull<Node3D>("SeatView");
+        if (seatView != null)
+        {
+            camera.GlobalTransform = seatView.GlobalTransform;
+            camera.GlobalBasis *= Basis.FromEuler(new Vector3(
+                Mathf.DegToRad(game.ExperienceAuthoring?.RestPitchDeg ?? -35.0f),
+                0.0f, 0.0f));
+        }
+        camera.Fov = game.ExperienceAuthoring?.SeatFov ?? 65.0f;
+        camera.ForceUpdateTransform();
+        game.Camera = camera;
+        var hand = GD.Load<PackedScene>(
+                "res://Games/Poker/GameController/Views/PokerHand3DView.tscn")
+            ?.Instantiate<PokerHand3DView>();
+        if (hand == null)
+        {
+            Check("o guia de ações é gerado no runtime", false);
+            player.Free();
+            game.TurnOrder = previousTurnOrder;
+            return;
+        }
+
+        AddChild(hand);
+        hand.Setup(game, player);
+        game.ExperienceAuthoring?.ApplyTo(hand);
+        hand.Refresh(System.Array.Empty<int>(), new List<ActionOption>(), isYourTurn: true);
+
+        var guide = hand.GetNodeOrNull<Node3D>("LocalPokerInteractionGuide");
+        var passFold = guide?.GetNodeOrNull<Node3D>("PassFoldGuide");
+        var wager = guide?.GetNodeOrNull<Node3D>("WagerGuide");
+        var geometryCount = guide?.FindChildren(
+            "*", "GeometryInstance3D", recursive: true, owned: false).Count ?? 0;
+        Check("o guia de ações é gerado e visível no runtime",
+            guide is { Visible: true }
+            && passFold is { Visible: true }
+            && wager is { Visible: true }
+            && geometryCount >= 10);
+        Check("os dois guias do runtime ficam sobre o tampo",
+            passFold != null && wager != null
+            && passFold.GlobalPosition.Y > game.BoardPresenter.GlobalPosition.Y
+            && wager.GlobalPosition.Y > game.BoardPresenter.GlobalPosition.Y);
+        var passWorld = passFold?.ToGlobal(new Vector3(
+            0.0f, 0.004f,
+            -hand.ActionZoneRadius * 0.5f))
+            ?? Vector3.Zero;
+        var wagerWorld = wager?.ToGlobal(new Vector3(
+            0.0f, 0.004f,
+            hand.ConfirmZoneOuterRadius))
+            ?? Vector3.Zero;
+        var passCamera = camera.GlobalBasis.Inverse()
+                         * (passWorld - camera.GlobalPosition);
+        var wagerCamera = camera.GlobalBasis.Inverse()
+                          * (wagerWorld - camera.GlobalPosition);
+        var verticalHalfFov = Mathf.DegToRad(camera.Fov * 0.5f);
+        Check("os dois guias gerados ficam dentro da câmera sentada",
+            passCamera.Z < 0.0f && wagerCamera.Z < 0.0f
+            && Mathf.Abs(Mathf.Atan2(passCamera.Y, -passCamera.Z)) < verticalHalfFov
+            && Mathf.Abs(Mathf.Atan2(wagerCamera.Y, -wagerCamera.Z)) < verticalHalfFov);
+
+        hand.Free();
+        player.Free();
+        camera.Free();
+        game.Camera = null;
+        game.TurnOrder = previousTurnOrder;
     }
 
     /// <summary>

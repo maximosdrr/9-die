@@ -8,26 +8,29 @@ using Poker.Rules;
 /// </summary>
 public partial class PokerHand3DView
 {
-    private InteractionZone ZoneAt(Vector2 aim)
+    private bool ConfirmZoneAt(Vector2 aim)
     {
-        // AimPlane already returned coordinates in the guide's own visual frame.
         var facing = Vector2.Down;
         var across = Vector2.Right;
-
-        // One U-shaped control owns every wager. Its meaning comes from the physical state: CALL or
-        // AUTO with no staged chips, APOSTAR after a custom selection, and ALL-IN while held.
-        var confirmCentre = facing * ConfirmZoneCenterRadius;
+        // The marker is the centre of this group. Unlike the old shared-origin layout, moving the
+        // gizmo no longer adds a second hidden radial offset that can push the control behind the
+        // seated camera.
+        var confirmCentre = Vector2.Zero;
         var confirmOffset = aim - confirmCentre;
         var confirmOutward = confirmOffset.Dot(facing);
         var confirmLateral = confirmOffset.Dot(across);
         var confirmRadius = Mathf.Sqrt(
             confirmOutward * confirmOutward + confirmLateral * confirmLateral);
-        if (confirmOutward >= 0.0f
-            && confirmRadius >= ConfirmZoneInnerRadius
-            && confirmRadius <= ConfirmZoneOuterRadius)
-            return InteractionZone.ConfirmBet;
+        return confirmOutward >= 0.0f
+               && confirmRadius >= ConfirmZoneInnerRadius
+               && confirmRadius <= ConfirmZoneOuterRadius;
+    }
 
-        var centre = facing * InteractionZoneCenterRadius;
+    private InteractionZone PassFoldZoneAt(Vector2 aim)
+    {
+        var facing = Vector2.Down;
+        var across = Vector2.Right;
+        var centre = Vector2.Zero;
         var offset = aim - centre;
         var inward = -offset.Dot(facing);
         var lateral = offset.Dot(across);
@@ -123,8 +126,7 @@ public partial class PokerHand3DView
             return;
         }
 
-        var zone = TryActionGuideAimPoint(out var aim) ? ZoneAt(aim) : InteractionZone.None;
-        SetHoveredZone(zone);
+        SetHoveredZone(AimedInteractionZone());
     }
 
     private void SetHoveredZone(InteractionZone zone)
@@ -204,16 +206,22 @@ public partial class PokerHand3DView
         if (Game?.BoardPresenter == null || !TrySeatAxes(out var facing, out var across))
             return;
 
-        var authored = Game.ExperienceAuthoring?.ActionGuideTransformFor(
+        var passFoldAuthored = Game.ExperienceAuthoring?.PassFoldGuideTransformFor(
             Game.BoardPresenter, facing) ?? Transform3D.Identity;
-        var desiredGlobalTransform = Game.BoardPresenter.GlobalTransform * authored;
+        var wagerAuthored = Game.ExperienceAuthoring?.WagerGuideTransformFor(
+            Game.BoardPresenter, facing) ?? passFoldAuthored;
+        var passFoldGlobal = Game.BoardPresenter.GlobalTransform * passFoldAuthored;
+        var wagerGlobal = Game.BoardPresenter.GlobalTransform * wagerAuthored;
 
         if (IsInstanceValid(_interactionGuide)
+            && IsInstanceValid(_passFoldGuide)
+            && IsInstanceValid(_wagerGuide)
             && _guideFacing.DistanceSquaredTo(facing) < 1e-8f)
         {
-            // Markers and table dimensions are editor-owned. Keep the interaction plane attached
-            // even when its geometry does not need rebuilding.
-            _interactionGuide.GlobalTransform = desiredGlobalTransform;
+            // Both marker groups remain live: moving either one in the editor changes its matching
+            // visuals and hover plane without rebuilding the generated geometry.
+            _passFoldGuide.GlobalTransform = passFoldGlobal;
+            _wagerGuide.GlobalTransform = wagerGlobal;
             return;
         }
 
@@ -231,7 +239,13 @@ public partial class PokerHand3DView
             }
         }
 
-        _interactionGuide.GlobalTransform = desiredGlobalTransform;
+        _interactionGuide.GlobalTransform = Transform3D.Identity;
+        _passFoldGuide = new Node3D { Name = "PassFoldGuide" };
+        _wagerGuide = new Node3D { Name = "WagerGuide" };
+        _interactionGuide.AddChild(_passFoldGuide);
+        _interactionGuide.AddChild(_wagerGuide);
+        _passFoldGuide.GlobalTransform = passFoldGlobal;
+        _wagerGuide.GlobalTransform = wagerGlobal;
         _guideFacing = facing;
         _hoveredZone = InteractionZone.None;
         _zoneFillMaterials.Clear();
@@ -243,43 +257,43 @@ public partial class PokerHand3DView
         across = Vector2.Right;
         var yaw = PokerTableLayout.YawTowardCentre(facing);
         var labelBasis = Basis.FromEuler(new Vector3(0.0f, yaw, 0.0f));
-        var actionCentre = facing * InteractionZoneCenterRadius;
+        var actionCentre = Vector2.Zero;
         var inward = -facing;
-        var confirmCentre = facing * ConfirmZoneCenterRadius;
+        var confirmCentre = Vector2.Zero;
         var confirmOutward = facing;
         const float halfCircle = Mathf.Pi * 0.5f;
 
-        AddChalkZone(InteractionZone.Check, "CheckFill", actionCentre, inward, across,
+        AddChalkZone(_passFoldGuide, InteractionZone.Check, "CheckFill", actionCentre, inward, across,
             0.0f, ActionZoneRadius, 0.0f, halfCircle);
-        AddChalkZone(InteractionZone.Fold, "FoldFill", actionCentre, inward, across,
+        AddChalkZone(_passFoldGuide, InteractionZone.Fold, "FoldFill", actionCentre, inward, across,
             0.0f, ActionZoneRadius, -halfCircle, 0.0f);
-        AddChalkZone(InteractionZone.ConfirmBet, "ConfirmFill", confirmCentre, confirmOutward, across,
+        AddChalkZone(_wagerGuide, InteractionZone.ConfirmBet, "ConfirmFill", confirmCentre, confirmOutward, across,
             ConfirmZoneInnerRadius, ConfirmZoneOuterRadius, -halfCircle, halfCircle);
 
         var lineMaterial = NewChalkMaterial(ChalkGuideColor with { A = 0.46f }, 1.0f);
-        AddArcLine("ActionOuterArc", actionCentre, inward, across, ActionZoneRadius,
+        AddArcLine(_passFoldGuide, "ActionOuterArc", actionCentre, inward, across, ActionZoneRadius,
             -halfCircle, halfCircle, lineMaterial);
-        AddRadialLine("CentreDivider", actionCentre, inward, across, 0.0f,
+        AddRadialLine(_passFoldGuide, "CentreDivider", actionCentre, inward, across, 0.0f,
             0.0f, ActionZoneRadius, lineMaterial);
 
-        AddArcLine("ConfirmOuterArc", confirmCentre, confirmOutward, across,
+        AddArcLine(_wagerGuide, "ConfirmOuterArc", confirmCentre, confirmOutward, across,
             ConfirmZoneOuterRadius,
             -halfCircle, halfCircle, lineMaterial);
-        AddArcLine("ConfirmInnerArc", confirmCentre, confirmOutward, across,
+        AddArcLine(_wagerGuide, "ConfirmInnerArc", confirmCentre, confirmOutward, across,
             ConfirmZoneInnerRadius,
             -halfCircle, halfCircle, lineMaterial);
-        AddRadialLine("ConfirmLeftEdge", confirmCentre, confirmOutward, across, halfCircle,
+        AddRadialLine(_wagerGuide, "ConfirmLeftEdge", confirmCentre, confirmOutward, across, halfCircle,
             ConfirmZoneInnerRadius, ConfirmZoneOuterRadius, lineMaterial);
-        AddRadialLine("ConfirmRightEdge", confirmCentre, confirmOutward, across, -halfCircle,
+        AddRadialLine(_wagerGuide, "ConfirmRightEdge", confirmCentre, confirmOutward, across, -halfCircle,
             ConfirmZoneInnerRadius, ConfirmZoneOuterRadius, lineMaterial);
         var actionLabelRadius = ActionZoneRadius * 0.56f;
-        AddChalkLabel(InteractionZone.Check, "Check", "PASSAR",
+        AddChalkLabel(_passFoldGuide, InteractionZone.Check, "Check", "PASSAR",
             SemicirclePoint(actionCentre, inward, across, actionLabelRadius, Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
-        AddChalkLabel(InteractionZone.Fold, "Fold", "DESISTIR",
+        AddChalkLabel(_passFoldGuide, InteractionZone.Fold, "Fold", "DESISTIR",
             SemicirclePoint(actionCentre, inward, across, actionLabelRadius, -Mathf.Pi * 0.25f), labelBasis,
             ChalkGuideFontSize);
-        SetCurvedChalkLabel(InteractionZone.ConfirmBet, CurrentWagerButtonLabel(),
+        SetCurvedChalkLabel(_wagerGuide, InteractionZone.ConfirmBet, CurrentWagerButtonLabel(),
             confirmCentre, confirmOutward, across,
             (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
             Mathf.Pi * ConfirmLabelSpanPi, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
@@ -287,7 +301,7 @@ public partial class PokerHand3DView
     }
 
     private void AddChalkZone(
-        InteractionZone zone, string name, Vector2 centre, Vector2 inward, Vector2 across,
+        Node3D owner, InteractionZone zone, string name, Vector2 centre, Vector2 inward, Vector2 across,
         float innerRadius, float outerRadius, float startAngle, float endAngle)
     {
         var material = NewChalkMaterial(ChalkGuideColor, 0.0f);
@@ -295,32 +309,32 @@ public partial class PokerHand3DView
         material.SetShaderParameter("use_fill_progress", false);
         material.SetShaderParameter("fill_progress", 1.0f);
         _zoneFillMaterials[zone] = material;
-        AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
+        AddGuideMesh(owner, name, BuildSectorMesh(centre, inward, across,
             innerRadius, outerRadius, startAngle, endAngle, InteractionArcSteps, material), 0.0031f);
     }
 
     private void AddArcLine(
-        string name, Vector2 centre, Vector2 inward, Vector2 across, float radius,
+        Node3D owner, string name, Vector2 centre, Vector2 inward, Vector2 across, float radius,
         float startAngle, float endAngle, Material material)
     {
         var half = InteractionGuideThickness * 0.5f;
-        AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
+        AddGuideMesh(owner, name, BuildSectorMesh(centre, inward, across,
             radius - half, radius + half, startAngle, endAngle,
             InteractionArcSteps, material), 0.0033f);
     }
 
     private void AddRadialLine(
-        string name, Vector2 centre, Vector2 inward, Vector2 across, float angle,
+        Node3D owner, string name, Vector2 centre, Vector2 inward, Vector2 across, float angle,
         float innerRadius, float outerRadius, Material material)
     {
         var middle = Mathf.Max((innerRadius + outerRadius) * 0.5f, 0.01f);
         var halfAngle = InteractionGuideThickness / (middle * 2.0f);
-        AddGuideMesh(name, BuildSectorMesh(centre, inward, across,
+        AddGuideMesh(owner, name, BuildSectorMesh(centre, inward, across,
             innerRadius, outerRadius, angle - halfAngle, angle + halfAngle,
             1, material), 0.0033f);
     }
 
-    private void AddGuideMesh(string name, Mesh mesh, float height)
+    private static void AddGuideMesh(Node3D owner, string name, Mesh mesh, float height)
     {
         var instance = new MeshInstance3D
         {
@@ -328,7 +342,7 @@ public partial class PokerHand3DView
             Mesh = mesh,
             Position = Vector3.Up * height,
         };
-        _interactionGuide.AddChild(instance);
+        owner.AddChild(instance);
     }
 
     private ShaderMaterial NewChalkMaterial(Color colour, float strength)
@@ -340,7 +354,7 @@ public partial class PokerHand3DView
     }
 
     private void AddChalkLabel(
-        InteractionZone zone, string name, string text, Vector2 position,
+        Node3D owner, InteractionZone zone, string name, string text, Vector2 position,
         Basis basis, int fontSize)
     {
         var label = new Label3D
@@ -361,7 +375,7 @@ public partial class PokerHand3DView
                 basis * new Basis(Vector3.Right, -Mathf.Pi * 0.5f),
                 new Vector3(position.X, 0.004f, position.Y)),
         };
-        _interactionGuide.AddChild(label);
+        owner.AddChild(label);
         AddZoneLabel(zone, label);
     }
 
@@ -374,8 +388,8 @@ public partial class PokerHand3DView
         var across = Vector2.Right;
 
         var lengthScale = Mathf.Clamp(text.Length / (float)ConfirmBetLabelText.Length, 0.55f, 1.85f);
-        SetCurvedChalkLabel(InteractionZone.ConfirmBet, text,
-            facing * ConfirmZoneCenterRadius, facing, across,
+        SetCurvedChalkLabel(_wagerGuide, InteractionZone.ConfirmBet, text,
+            Vector2.Zero, facing, across,
             (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
             Mathf.Pi * ConfirmLabelSpanPi * lengthScale,
             Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
@@ -395,7 +409,7 @@ public partial class PokerHand3DView
     /// have different lengths, so replacing the text of one Label3D would lose the curved layout.
     /// </summary>
     private void SetCurvedChalkLabel(
-        InteractionZone zone, string text, Vector2 centre, Vector2 inward, Vector2 across,
+        Node3D owner, InteractionZone zone, string text, Vector2 centre, Vector2 inward, Vector2 across,
         float radius, float spanAngle, int fontSize)
     {
         if (string.IsNullOrEmpty(text))
@@ -425,7 +439,7 @@ public partial class PokerHand3DView
             {
                 label = NewChalkLabel($"WagerGlyph{glyph}", text[index].ToString(),
                     fontSize, transform);
-                _interactionGuide.AddChild(label);
+                owner.AddChild(label);
                 labels.Add(label);
             }
             else

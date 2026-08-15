@@ -23,8 +23,18 @@ public partial class PokerSeatPresenter : Node3D
         public float LabelHeight;
     }
 
+    private sealed class EditorTurnRingSegment
+    {
+        public MeshInstance3D Mesh;
+        public Node3D Seat;
+        public StandardMaterial3D Material;
+    }
+
     private readonly List<EditorHeldCard> _editorHeldCards = new();
     private readonly List<EditorChipStack> _editorChipStacks = new();
+    private readonly List<EditorTurnRingSegment> _editorTurnRingSegments = new();
+    private Node3D _editorTurnRing;
+    private Transform3D _editorTurnRingFrame;
 
     private void QueueEditorPreviewRefresh()
     {
@@ -71,9 +81,13 @@ public partial class PokerSeatPresenter : Node3D
             BuildEditorSeatLabel(seatPreview, facing, seatIndex);
         }
 
-        SetProcess(EditorPreviewHeldCards || EditorPreviewChips);
+        if (EditorPreviewTurnRing)
+            BuildEditorTurnRing();
+
+        SetProcess(EditorPreviewHeldCards || EditorPreviewChips || EditorPreviewTurnRing);
         UpdateEditorPreviewHeldCards();
         UpdateEditorPreviewChipStacks();
+        UpdateEditorPreviewTurnRing();
     }
 
     private PokerLayoutSpec EditorPreviewSpec()
@@ -308,6 +322,76 @@ public partial class PokerSeatPresenter : Node3D
         }
     }
 
+    private void BuildEditorTurnRing()
+    {
+        if (Seats == null || !IsInstanceValid(_editorPreview))
+            return;
+
+        _editorTurnRingFrame = TurnRingFrame();
+        _editorTurnRing = new Node3D
+        {
+            Name = "TurnRingPreview",
+            Transform = _editorTurnRingFrame,
+        };
+        _editorPreview.AddChild(_editorTurnRing);
+
+        var count = Mathf.Min(4, Seats.GetChildCount());
+        for (var seatIndex = 0; seatIndex < count; seatIndex++)
+        {
+            if (Seats.GetChild(seatIndex) is not Node3D seat
+                || !TryTurnRingDirection(seat, _editorTurnRingFrame, out var direction))
+                continue;
+
+            var colour = seatIndex == 0
+                ? ActiveTurnRingColor
+                : seatIndex < EditorPreviewOccupiedSeats
+                    ? OccupiedTurnRingColor
+                    : EmptyTurnRingColor;
+            var material = BuildTurnRingMaterial();
+            material.AlbedoColor = colour;
+            material.Emission = colour;
+            var segment = new MeshInstance3D
+            {
+                Name = $"TurnRingSeat{seatIndex}",
+                Mesh = BuildTurnRingSegment(direction, material),
+                Position = new Vector3(0.0f, TurnRingHeight, 0.0f),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            };
+            _editorTurnRing.AddChild(segment);
+            _editorTurnRingSegments.Add(new EditorTurnRingSegment
+            {
+                Mesh = segment,
+                Seat = seat,
+                Material = material,
+            });
+        }
+    }
+
+    /// <summary>Lets the preview follow the TurnRingAnchor while its gizmo is being dragged.</summary>
+    private void UpdateEditorPreviewTurnRing()
+    {
+        if (!Engine.IsEditorHint() || !EditorPreviewTurnRing
+            || !IsInstanceValid(_editorTurnRing))
+            return;
+
+        var frame = TurnRingFrame();
+        if (frame.IsEqualApprox(_editorTurnRingFrame))
+            return;
+
+        _editorTurnRingFrame = frame;
+        _editorTurnRing.Transform = frame;
+        foreach (var preview in _editorTurnRingSegments)
+        {
+            if (!IsInstanceValid(preview.Mesh) || !IsInstanceValid(preview.Seat)
+                || !TryTurnRingDirection(preview.Seat, frame, out var direction))
+                continue;
+
+            // Preserve the active/occupied/empty colour and only regenerate the inexpensive editor
+            // geometry when the centre marker moves.
+            preview.Mesh.Mesh = BuildTurnRingSegment(direction, preview.Material);
+        }
+    }
+
     private void BuildEditorSeatLabel(Node3D owner, Vector2 facing, int seatIndex)
     {
         var place = PokerTableLayout.SeatSpot(facing,
@@ -338,6 +422,9 @@ public partial class PokerSeatPresenter : Node3D
     {
         _editorHeldCards.Clear();
         _editorChipStacks.Clear();
+        _editorTurnRingSegments.Clear();
+        _editorTurnRing = null;
+        _editorTurnRingFrame = Transform3D.Identity;
         if (Engine.IsEditorHint())
             SetProcess(false);
 

@@ -96,6 +96,16 @@ public partial class PokerSeatPresenter : Node3D
         }
     }
 
+    [Export] public bool EditorPreviewTurnRing
+    {
+        get => _editorPreviewTurnRing;
+        set
+        {
+            _editorPreviewTurnRing = value;
+            QueueEditorPreviewRefresh();
+        }
+    }
+
     [Export]
     public bool RefreshEditorPreview
     {
@@ -111,6 +121,7 @@ public partial class PokerSeatPresenter : Node3D
     private int _editorPreviewOccupiedSeats = 4;
     private bool _editorPreviewHeldCards = true;
     private bool _editorPreviewChips = true;
+    private bool _editorPreviewTurnRing = true;
     private Node3D _editorPreview;
 
     [ExportGroup("Labels")]
@@ -138,14 +149,60 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public float PotValueLabelOffset = 0.068f;
 
     [ExportGroup("Turn ring")]
-    [Export] public float TurnRingRadius = 0.615f;
-    [Export] public float TurnRingWidth = 0.0045f;
-    [Export] public float TurnRingHeight = 0.003f;
-    [Export] public float TurnRingGapDegrees = 8.0f;
-    [Export] public int TurnRingArcSteps = 20;
-    [Export] public Color ActiveTurnRingColor = new(0.24f, 0.66f, 0.36f, 0.48f);
-    [Export] public Color OccupiedTurnRingColor = new(0.68f, 0.28f, 0.25f, 0.30f);
-    [Export] public Color EmptyTurnRingColor = new(0.52f, 0.54f, 0.58f, 0.20f);
+    [Export(PropertyHint.Range, "0.05,1.0,0.005")]
+    public float TurnRingRadius
+    {
+        get => _turnRingRadius;
+        set { _turnRingRadius = Mathf.Max(value, 0.05f); QueueEditorPreviewRefresh(); }
+    }
+    [Export(PropertyHint.Range, "0.002,0.05,0.0005")]
+    public float TurnRingWidth
+    {
+        get => _turnRingWidth;
+        set { _turnRingWidth = Mathf.Max(value, 0.002f); QueueEditorPreviewRefresh(); }
+    }
+    [Export(PropertyHint.Range, "-0.05,0.10,0.0005")]
+    public float TurnRingHeight
+    {
+        get => _turnRingHeight;
+        set { _turnRingHeight = value; QueueEditorPreviewRefresh(); }
+    }
+    [Export(PropertyHint.Range, "0,70,0.5")]
+    public float TurnRingGapDegrees
+    {
+        get => _turnRingGapDegrees;
+        set { _turnRingGapDegrees = Mathf.Clamp(value, 0.0f, 70.0f); QueueEditorPreviewRefresh(); }
+    }
+    [Export(PropertyHint.Range, "4,64,1")]
+    public int TurnRingArcSteps
+    {
+        get => _turnRingArcSteps;
+        set { _turnRingArcSteps = Mathf.Max(value, 4); QueueEditorPreviewRefresh(); }
+    }
+    [Export] public Color ActiveTurnRingColor
+    {
+        get => _activeTurnRingColor;
+        set { _activeTurnRingColor = value; QueueEditorPreviewRefresh(); }
+    }
+    [Export] public Color OccupiedTurnRingColor
+    {
+        get => _occupiedTurnRingColor;
+        set { _occupiedTurnRingColor = value; QueueEditorPreviewRefresh(); }
+    }
+    [Export] public Color EmptyTurnRingColor
+    {
+        get => _emptyTurnRingColor;
+        set { _emptyTurnRingColor = value; QueueEditorPreviewRefresh(); }
+    }
+
+    private float _turnRingRadius = 0.615f;
+    private float _turnRingWidth = 0.0045f;
+    private float _turnRingHeight = 0.003f;
+    private float _turnRingGapDegrees = 8.0f;
+    private int _turnRingArcSteps = 20;
+    private Color _activeTurnRingColor = new(0.24f, 0.66f, 0.36f, 0.48f);
+    private Color _occupiedTurnRingColor = new(0.68f, 0.28f, 0.25f, 0.30f);
+    private Color _emptyTurnRingColor = new(0.52f, 0.54f, 0.58f, 0.20f);
 
     private PokerGame _game;
 
@@ -418,7 +475,8 @@ public partial class PokerSeatPresenter : Node3D
     {
         if (Engine.IsEditorHint())
         {
-            SetProcess(ShowEditorPreview && (EditorPreviewHeldCards || EditorPreviewChips));
+            SetProcess(ShowEditorPreview
+                       && (EditorPreviewHeldCards || EditorPreviewChips || EditorPreviewTurnRing));
             CallDeferred(MethodName.RebuildEditorPreview);
             return;
         }
@@ -501,6 +559,7 @@ public partial class PokerSeatPresenter : Node3D
         {
             UpdateEditorPreviewHeldCards();
             UpdateEditorPreviewChipStacks();
+            UpdateEditorPreviewTurnRing();
             return;
         }
 

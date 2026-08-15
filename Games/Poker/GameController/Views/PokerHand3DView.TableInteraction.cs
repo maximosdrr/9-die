@@ -11,15 +11,18 @@ public partial class PokerHand3DView : PokerHandView
     [ExportGroup("Table interaction")]
     [Export] public AimCrosshair Crosshair;
 
-    /// <summary>Distance from the table centre to the flat side of the local semicircular panel.</summary>
+    /// <summary>
+    /// Legacy default used when authoring the PassFoldGuideAnchor. Runtime placement belongs to the
+    /// marker; the value remains serialized for older poker scenes and layout validation.
+    /// </summary>
     [Export] public float InteractionZoneCenterRadius = 0.575f;
 
     /// <summary>PASSAR and DESISTIR share this inner half-disc.</summary>
     [Export] public float ActionZoneRadius = 0.115f;
 
     /// <summary>
-    /// APOSTAR sits behind the prepared chips, independently from PASSAR/DESISTIR.
-    /// The centre matches the default betting line; the outward half-ring opens toward the pot.
+    /// Legacy default used to seed WagerGuideAnchor. The outward half-ring itself is centred on the
+    /// marker, so artists move it directly without a second invisible offset.
     /// </summary>
     [Export] public float ConfirmZoneCenterRadius = 0.320f;
     [Export] public float ConfirmZoneInnerRadius = 0.070f;
@@ -53,6 +56,8 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     private Node3D _interactionGuide;
+    private Node3D _passFoldGuide;
+    private Node3D _wagerGuide;
     private bool _interactionEnabled = true;
     private bool _wagerSubmitted;
     private bool _automaticWagerPending;
@@ -77,12 +82,21 @@ public partial class PokerHand3DView : PokerHandView
     /// Aim on the actual plane that draws PASSAR/DESISTIR/APOSTAR. The guide can sit above the
     /// board plane, so reusing the board hit creates a perspective offset after table edits.
     /// </summary>
-    private bool TryActionGuideAimPoint(out Vector2 guideLocal)
+    private InteractionZone AimedInteractionZone()
     {
-        guideLocal = Vector2.Zero;
         EnsureInteractionGuide();
-        return IsInstanceValid(_interactionGuide)
-               && AimPlane.TryAim(Game?.Camera, _interactionGuide, out guideLocal);
+        // Each independently authored group owns its own visible plane and hit plane. Wagers take
+        // priority only if the two edited regions overlap.
+        if (IsInstanceValid(_wagerGuide)
+            && AimPlane.TryAim(Game?.Camera, _wagerGuide, out var wagerAim)
+            && ConfirmZoneAt(wagerAim))
+            return InteractionZone.ConfirmBet;
+
+        if (IsInstanceValid(_passFoldGuide)
+            && AimPlane.TryAim(Game?.Camera, _passFoldGuide, out var actionAim))
+            return PassFoldZoneAt(actionAim);
+
+        return InteractionZone.None;
     }
 
     public void SetCrosshairVisible(bool visible)
@@ -114,9 +128,7 @@ public partial class PokerHand3DView : PokerHandView
         if (presenter == null || string.IsNullOrEmpty(playerId))
             return PokerGesture.None;
 
-        var aimedZone = TryActionGuideAimPoint(out var guideAim)
-            ? ZoneAt(guideAim)
-            : InteractionZone.None;
+        var aimedZone = AimedInteractionZone();
 
         // Physical chips take precedence even when their edited layout crosses a projected button.
         // In particular, staged chips sit close to the wager arc and must always remain reversible.

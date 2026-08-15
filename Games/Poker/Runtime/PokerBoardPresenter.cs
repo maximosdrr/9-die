@@ -295,14 +295,27 @@ public partial class PokerBoardPresenter : Node3D
     }
 
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
-    public Vector3 DeckPosition => DeckAnchor != null
-        ? ToLocal(DeckAnchor.GlobalPosition)
-        : ReaderBasis * DeckOffset;
-    public Basis DeckBasis => DeckAnchor != null
-        ? GlobalTransform.Basis.Inverse() * DeckAnchor.GlobalTransform.Basis
-        : ReaderBasis;
+    public Vector3 DeckPosition => DeckTransformFor(ReaderFacing).Origin;
+    public Basis DeckBasis => DeckTransformFor(ReaderFacing).Basis;
     public Basis DeckCardBasis => DeckBasis * PokerCard.Orientation(true);
     public float DeckTopHeight => Mathf.Max(1, DeckDepth) * Spec.CardThickness * 1.6f;
+
+    /// <summary>
+    /// The authored marker is the Seat0 view of the deck. Each peer rotates that complete frame to
+    /// its own reader, exactly like the community row and action guide. The deck therefore occupies
+    /// one stable screen-relative place without replicating a different transform over the network.
+    /// </summary>
+    public Transform3D DeckTransformFor(Vector2 facing)
+    {
+        if (DeckAnchor == null)
+        {
+            var reader = new Basis(Vector3.Up, PokerTableLayout.YawTowardCentre(facing));
+            return new Transform3D(reader, reader * DeckOffset);
+        }
+
+        var canonical = GlobalTransform.AffineInverse() * DeckAnchor.GlobalTransform;
+        return PokerTableLayout.ReaderAlignedFrame(canonical, facing, Vector2.Down);
+    }
 
     /// <summary>Successive collected cards land above, never through, the visible deck proxy.</summary>
     public Vector3 CollectionTarget(int slot) => DeckPosition + Vector3.Up

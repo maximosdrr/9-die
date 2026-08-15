@@ -12,6 +12,11 @@ public partial class PokerExperienceAuthoring : Node3D
     [ExportGroup("Physical markers")]
     [Export] public Node3D DeckAnchor;
     [Export] public Node3D CommunityCardsAnchor;
+    /// <summary>Canonical Seat0 marker for the PASSAR/DESISTIR group.</summary>
+    [Export] public Node3D PassFoldGuideAnchor;
+    /// <summary>Canonical Seat0 marker for CALL/AUTO/APOSTAR/ALL-IN.</summary>
+    [Export] public Node3D WagerGuideAnchor;
+    /// <summary>Legacy shared marker kept as a safe fallback for older poker scenes.</summary>
     [Export] public Node3D ActionGuideAnchor;
 
     [ExportGroup("First-person preview")]
@@ -96,10 +101,12 @@ public partial class PokerExperienceAuthoring : Node3D
     [Export] public float SeatArrivalTolerance = 0.025f;
 
     [ExportGroup("Action guide")]
+    /// <summary>Canonical initial radial placement; the PassFoldGuideAnchor is authoritative.</summary>
     [Export(PropertyHint.Range, "0.30,0.80,0.005")]
     public float InteractionZoneCenterRadius = 0.575f;
     [Export(PropertyHint.Range, "0.06,0.22,0.005")]
     public float ActionZoneRadius = 0.115f;
+    /// <summary>Canonical initial radial placement; the WagerGuideAnchor is authoritative.</summary>
     [Export(PropertyHint.Range, "0.15,0.50,0.005")]
     public float ConfirmZoneCenterRadius = 0.320f;
     [Export(PropertyHint.Range, "0.03,0.15,0.005")]
@@ -164,15 +171,45 @@ public partial class PokerExperienceAuthoring : Node3D
     }
 
     public Transform3D ActionGuideTransformFor(Node3D board, Vector2 facing)
+        => PassFoldGuideTransformFor(board, facing);
+
+    public Transform3D PassFoldGuideTransformFor(Node3D board, Vector2 facing)
+        => GuideTransformFor(PassFoldGuideAnchor ?? ActionGuideAnchor, board, facing);
+
+    public Transform3D WagerGuideTransformFor(Node3D board, Vector2 facing)
+        => GuideTransformFor(WagerGuideAnchor ?? ActionGuideAnchor, board, facing);
+
+    private static Transform3D GuideTransformFor(
+        Node3D anchor, Node3D board, Vector2 facing)
     {
-        if (ActionGuideAnchor == null || board == null)
+        if (anchor == null || board == null)
             return Transform3D.Identity;
 
-        var anchorInBoard = board.GlobalTransform.AffineInverse() * ActionGuideAnchor.GlobalTransform;
+        var anchorInBoard = board.GlobalTransform.AffineInverse() * anchor.GlobalTransform;
         // The marker is authored from Seat0. Rotate that whole authored frame to the current seat;
         // guide geometry itself stays canonical, which also makes its hit regions follow exactly.
-        return Poker.Rules.PokerTableLayout.ReaderAlignedFrame(
+        var frame = Poker.Rules.PokerTableLayout.ReaderAlignedFrame(
             anchorInBoard, facing, Vector2.Down);
+
+        // The layout marker owns horizontal placement and rotation, while the physical table owns
+        // height. This prevents the chalk from being swallowed (or floating) after an artist
+        // resizes/moves the table model without also editing every guide marker.
+        if (board is not PokerBoardPresenter presenter)
+            return frame;
+
+        var worldFrame = board.GlobalTransform * frame;
+        presenter.TryGetTableSurface(
+            worldFrame.Origin, out var surfacePoint, out var surfaceNormal);
+        var forward = -worldFrame.Basis.Z.Normalized();
+        forward -= surfaceNormal * forward.Dot(surfaceNormal);
+        if (forward.LengthSquared() < 1e-8f)
+            forward = -worldFrame.Basis.Z.Normalized();
+        else
+            forward = forward.Normalized();
+        var right = forward.Cross(surfaceNormal).Normalized();
+        worldFrame = new Transform3D(
+            new Basis(right, surfaceNormal, -forward).Orthonormalized(), surfacePoint);
+        return board.GlobalTransform.AffineInverse() * worldFrame;
     }
 
     public Vector2 ActionGuideAimPoint(Node3D board, Vector2 facing, Vector2 boardAim)

@@ -40,7 +40,7 @@ public partial class PokerExperienceAuthoring : Node3D
 
         var root = new Node3D { Name = "DeckPreview" };
         _generatedPreview.AddChild(root);
-        root.GlobalTransform = DeckAnchor.GlobalTransform;
+        root.GlobalTransform = PreviewDeckGlobalTransform();
         for (var index = 0; index < 8; index++)
         {
             var card = NewPreviewCard($"DeckCard{index}", faceDown: true);
@@ -57,13 +57,17 @@ public partial class PokerExperienceAuthoring : Node3D
 
         if (DeckAnchor != null
             && _generatedPreview.GetNodeOrNull<Node3D>("DeckPreview") is { } deck)
-            deck.GlobalTransform = DeckAnchor.GlobalTransform;
+            deck.GlobalTransform = PreviewDeckGlobalTransform();
         if (CommunityCardsAnchor != null
             && _generatedPreview.GetNodeOrNull<Node3D>("CommunityCardsPreview") is { } board)
             board.GlobalTransform = PreviewCommunityCardsGlobalTransform();
-        if (ActionGuideAnchor != null
-            && _generatedPreview.GetNodeOrNull<Node3D>("ActionGuidePreview") is { } actions)
-            actions.GlobalTransform = PreviewActionGuideGlobalTransform();
+        if (_generatedPreview.GetNodeOrNull<Node3D>("ActionGuidePreview") is { } actions)
+        {
+            if (actions.GetNodeOrNull<Node3D>("PassFoldGuidePreview") is { } passFold)
+                passFold.GlobalTransform = PreviewPassFoldGuideGlobalTransform();
+            if (actions.GetNodeOrNull<Node3D>("WagerGuidePreview") is { } wager)
+                wager.GlobalTransform = PreviewWagerGuideGlobalTransform();
+        }
     }
 
     private void BuildBoardPreview()
@@ -110,39 +114,45 @@ public partial class PokerExperienceAuthoring : Node3D
 
     private void BuildActionGuidePreview()
     {
-        if (ActionGuideAnchor == null)
+        if (PassFoldGuideAnchor == null && WagerGuideAnchor == null && ActionGuideAnchor == null)
             return;
 
-        var root = new Node3D { Name = "ActionGuidePreview" };
-        _generatedPreview.AddChild(root);
-        root.GlobalTransform = PreviewActionGuideGlobalTransform();
+        var container = new Node3D { Name = "ActionGuidePreview", TopLevel = true };
+        _generatedPreview.AddChild(container);
+        container.GlobalTransform = Transform3D.Identity;
+        var passFold = new Node3D { Name = "PassFoldGuidePreview" };
+        var wager = new Node3D { Name = "WagerGuidePreview" };
+        container.AddChild(passFold);
+        container.AddChild(wager);
+        passFold.GlobalTransform = PreviewPassFoldGuideGlobalTransform();
+        wager.GlobalTransform = PreviewWagerGuideGlobalTransform();
 
         const float halfCircle = Mathf.Pi * 0.5f;
         var line = PreviewChalkMaterial(new Color(0.95f, 0.93f, 0.86f, 0.74f));
-        AddPreviewArc(root, "Actions", new Vector2(0.0f, -InteractionZoneCenterRadius),
+        AddPreviewArc(passFold, "Actions", Vector2.Zero,
             Vector2.Up, Vector2.Right, ActionZoneRadius, -halfCircle, halfCircle, line);
-        AddPreviewArc(root, "WagerOuter", new Vector2(0.0f, -ConfirmZoneCenterRadius),
+        AddPreviewArc(wager, "WagerOuter", Vector2.Zero,
             Vector2.Down, Vector2.Right, ConfirmZoneOuterRadius, -halfCircle, halfCircle, line);
-        AddPreviewArc(root, "WagerInner", new Vector2(0.0f, -ConfirmZoneCenterRadius),
+        AddPreviewArc(wager, "WagerInner", Vector2.Zero,
             Vector2.Down, Vector2.Right, ConfirmZoneInnerRadius, -halfCircle, halfCircle, line);
-        AddPreviewLine(root, "ActionDivider",
-            new Vector2(0.0f, -InteractionZoneCenterRadius),
-            new Vector2(0.0f, -InteractionZoneCenterRadius + ActionZoneRadius), line);
-        AddPreviewLine(root, "WagerLeftEdge",
-            new Vector2(-ConfirmZoneInnerRadius, -ConfirmZoneCenterRadius),
-            new Vector2(-ConfirmZoneOuterRadius, -ConfirmZoneCenterRadius), line);
-        AddPreviewLine(root, "WagerRightEdge",
-            new Vector2(ConfirmZoneInnerRadius, -ConfirmZoneCenterRadius),
-            new Vector2(ConfirmZoneOuterRadius, -ConfirmZoneCenterRadius), line);
+        AddPreviewLine(passFold, "ActionDivider",
+            Vector2.Zero,
+            Vector2.Up * ActionZoneRadius, line);
+        AddPreviewLine(wager, "WagerLeftEdge",
+            new Vector2(-ConfirmZoneInnerRadius, 0.0f),
+            new Vector2(-ConfirmZoneOuterRadius, 0.0f), line);
+        AddPreviewLine(wager, "WagerRightEdge",
+            new Vector2(ConfirmZoneInnerRadius, 0.0f),
+            new Vector2(ConfirmZoneOuterRadius, 0.0f), line);
 
-        AddPreviewLabel(root, "PASSAR", new Vector3(
+        AddPreviewLabel(passFold, "PASSAR", new Vector3(
             ActionZoneRadius * 0.48f, 0.004f,
-            -InteractionZoneCenterRadius + ActionZoneRadius * 0.48f));
-        AddPreviewLabel(root, "DESISTIR", new Vector3(
+            -ActionZoneRadius * 0.48f));
+        AddPreviewLabel(passFold, "DESISTIR", new Vector3(
             -ActionZoneRadius * 0.48f, 0.004f,
-            -InteractionZoneCenterRadius + ActionZoneRadius * 0.48f));
-        AddPreviewCurvedLabel(root, "APOSTAR",
-            new Vector2(0.0f, -ConfirmZoneCenterRadius),
+            -ActionZoneRadius * 0.48f));
+        AddPreviewCurvedLabel(wager, "APOSTAR",
+            Vector2.Zero,
             (ConfirmZoneInnerRadius + ConfirmZoneOuterRadius) * 0.5f,
             Mathf.Pi * ConfirmLabelSpanPi, Mathf.RoundToInt(ChalkGuideFontSize * 0.82f));
     }
@@ -182,14 +192,37 @@ public partial class PokerExperienceAuthoring : Node3D
         CullMode = BaseMaterial3D.CullModeEnum.Disabled,
     };
 
-    private Transform3D PreviewActionGuideGlobalTransform()
+    private Transform3D PreviewPassFoldGuideGlobalTransform()
     {
         var board = GetParent()?.GetNodeOrNull<Node3D>("BoardHolder");
         if (board == null)
-            return ActionGuideAnchor?.GlobalTransform ?? Transform3D.Identity;
+            return (PassFoldGuideAnchor ?? ActionGuideAnchor)?.GlobalTransform
+                   ?? Transform3D.Identity;
 
         return board.GlobalTransform
-               * ActionGuideTransformFor(board, PreviewReaderFacing(board));
+               * PassFoldGuideTransformFor(board, PreviewReaderFacing(board));
+    }
+
+    private Transform3D PreviewWagerGuideGlobalTransform()
+    {
+        var board = GetParent()?.GetNodeOrNull<Node3D>("BoardHolder");
+        if (board == null)
+            return (WagerGuideAnchor ?? ActionGuideAnchor)?.GlobalTransform
+                   ?? Transform3D.Identity;
+
+        return board.GlobalTransform
+               * WagerGuideTransformFor(board, PreviewReaderFacing(board));
+    }
+
+    private Transform3D PreviewDeckGlobalTransform()
+    {
+        var board = GetParent()?.GetNodeOrNull<Node3D>("BoardHolder");
+        if (board == null || DeckAnchor == null)
+            return DeckAnchor?.GlobalTransform ?? Transform3D.Identity;
+
+        var canonical = board.GlobalTransform.AffineInverse() * DeckAnchor.GlobalTransform;
+        return board.GlobalTransform * PokerTableLayout.ReaderAlignedFrame(
+            canonical, PreviewReaderFacing(board), Vector2.Down);
     }
 
     private Transform3D PreviewCommunityCardsGlobalTransform()
