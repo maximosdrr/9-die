@@ -114,8 +114,8 @@ public partial class PokerHand3DView : PokerHandView
     private List<int> _presets = new();
     private float _messageSeconds;
     private float _peek;
-    private PokerStreet _lastStreet = PokerStreet.Preflop;
     private int _lastHand = -1;
+    private int _showdownPlayedHand = -1;
     private bool _pickedUp;
     private bool _cardsTransferred;
     private bool _lookDone;
@@ -125,6 +125,8 @@ public partial class PokerHand3DView : PokerHandView
     private bool _openingDownPoseStarted;
     private bool _openingTableRestStarted;
     private bool _voluntaryLookPose;
+    private PokerGesture _activeTableGesture = PokerGesture.None;
+    private float _activeTableGestureRemaining;
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
     private PokerHandVisual _chipHandVisual;
@@ -233,10 +235,18 @@ public partial class PokerHand3DView : PokerHandView
 
     public override void _Process(double delta)
     {
-        if (!IsMultiplayerAuthority() || Game?.Camera == null)
+        if (!IsMultiplayerAuthority() || Game == null)
+            return;
+
+        // A public reveal can wait behind the final bet without producing another network snapshot.
+        // Poll before requiring a live camera: animation/card ownership must still cross the seam
+        // during camera handoff or a temporary viewport interruption.
+        PlayShowdownOnce();
+        if (Game.Camera == null)
             return;
 
         UpdatePeek((float)delta);
+        AdvanceStandaloneGesture((float)delta);
         AdvanceCallHold((float)delta);
         AdvanceAutomaticWager();
         UpdateInteractionVisibility();
@@ -322,6 +332,9 @@ public partial class PokerHand3DView : PokerHandView
             _openingLookPoseStarted = false;
             _openingDownPoseStarted = false;
             _openingTableRestStarted = false;
+            _showdownPlayedHand = -1;
+            _activeTableGesture = PokerGesture.None;
+            _activeTableGestureRemaining = 0.0f;
             _cardTransfer = 1.0f;
             _peek = 0.0f;
 
@@ -346,18 +359,37 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     private void PlayShowdownOnce()
     {
-        var street = Game?.Street ?? PokerStreet.Preflop;
-        if (street == _lastStreet)
+        if (Game == null || Player == null || _showdownPlayedHand == Game.HandNumber)
             return;
 
-        _lastStreet = street;
-
-        if (street != PokerStreet.Showdown || Player == null)
+        var playerId = (string)Player.Name;
+        if (!Game.RevealedHoleCards.ContainsKey(playerId))
             return;
 
-        // Only the players who actually had to show turn their cards up.
-        if (Game.RevealedHoleCards.ContainsKey((string)Player.Name))
-            PlayGesture(PokerGesture.Reveal);
+        // The seat presenter starts all public Showdown gestures only after the final bet and chip
+        // movement have completed. Follow that same seam so the local hands cannot jump ahead.
+        if (Game.SeatPresenter != null
+            && !Game.SeatPresenter.HasStartedShowdownGesture(playerId))
+        {
+            return;
+        }
+
+        // A hand can reach showdown before the opening pickup (for example everyone all-in from
+        // forced bets). Move the same physical pair into the authored FP grip now so it is already
+        // in the fingers when the throw begins, instead of teleporting at the release frame.
+        if (CardSlots != null)
+        {
+            _cardsTransferred = true;
+            _cardTransfer = 1.0f;
+            AttachTransferredCards(Game.SeatPresenter?.TakeLocalCards(CardSlots));
+        }
+
+        // Membership in the reveal dictionary is the authoritative edge. Manual reveals arrive
+        // after the street changed, while all-in/timeout can add several players in one snapshot.
+        _showdownPlayedHand = Game.HandNumber;
+        _activeTableGestureRemaining = Mathf.Max(
+            PlayGesture(PokerGesture.Reveal), PokerClips.ShowdownDurationSeconds);
+        ApplyFan();
     }
 
     public override void SetInteractive(bool interactive)
@@ -394,6 +426,7 @@ public partial class PokerHand3DView : PokerHandView
         SetCrosshairVisible(false);
         SetGuideVisible(false);
         Game?.SeatPresenter?.ReleaseLocalCardsFromGrip();
+        FinishGesture(_activeTableGesture);
         _fan.Clear();
         _fanTransferFrom.Clear();
 
@@ -637,6 +670,24 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>The voluntary look, once the opening one is done. Holding the button turns them up.</summary>
     private void UpdatePeek(float delta)
     {
+        if (_activeTableGesture != PokerGesture.None)
+            return;
+
+        var playerId = Player == null ? null : (string)Player.Name;
+        var noPrivateCards = playerId != null && Game != null
+            && (Game.RevealedHoleCards.ContainsKey(playerId)
+                || Game.HasFolded(playerId)
+                || Game.HandSettled);
+        if (noPrivateCards)
+        {
+            // Once the physical pair left CardSlots, RMB must not raise empty arms or replicate a
+            // ghost IdleSitHoldingCards pose to the other players.
+            SetVoluntaryLookPose(false);
+            SetPeek(0.0f);
+            SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
+            return;
+        }
+
         if (!_lookDone)
         {
             AdvancePickUp(delta);
@@ -841,7 +892,7 @@ public partial class PokerHand3DView : PokerHandView
     {
         for (var i = 0; i < _fan.Count && i < _holeCards.Length; i++)
         {
-            if (!IsInstanceValid(_fan[i]))
+            if (!IsInstanceValid(_fan[i]) || _fan[i].GetParent() != CardSlots)
                 continue;
             var target = HeldCardPoseAt(i, _peek);
             _fan[i].Transform = _cardTransfer < 1.0f && i < _fanTransferFrom.Count
@@ -1110,12 +1161,57 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public float PlayGesture(PokerGesture gesture)
     {
+        if (gesture is PokerGesture.ThrowChips or PokerGesture.Knock or PokerGesture.Reveal)
+        {
+            SetVoluntaryLookPose(false);
+            SetHandCameraModes(
+                FirstPersonHandCameraMode.Locked,
+                FirstPersonHandCameraMode.Locked,
+                immediate: true);
+            SetPeek(gesture == PokerGesture.Reveal ? 1.0f : 0.0f);
+            SetCardAttachmentMode(gesture == PokerGesture.Reveal
+                ? PokerCardAttachmentMode.FollowHand
+                : PokerCardAttachmentMode.TableRest);
+            _activeTableGesture = gesture;
+        }
+
         var duration = PlayGrossClip(PokerClips.FirstPerson(gesture));
         var visual = gesture is PokerGesture.ThrowChips or PokerGesture.Knock
-            ? _chipHandVisual
+            ? _chipHandVisual ?? _cardHandVisual
             : _cardHandVisual;
 
-        return Mathf.Max(duration, visual?.Play(gesture) ?? 0.0f);
+        duration = Mathf.Max(duration, visual?.Play(gesture) ?? 0.0f);
+        if (gesture == PokerGesture.Reveal)
+            _activeTableGestureRemaining = Mathf.Max(duration, PokerClips.ShowdownDurationSeconds);
+
+        return duration;
+    }
+
+    /// <summary>Returns an authored one-shot to the stable, table-locked low-card pose.</summary>
+    public void FinishGesture(PokerGesture gesture)
+    {
+        if (gesture == PokerGesture.None || _activeTableGesture != gesture)
+            return;
+
+        _activeTableGesture = PokerGesture.None;
+        _activeTableGestureRemaining = 0.0f;
+        SetHandCameraModes(
+            FirstPersonHandCameraMode.Locked,
+            FirstPersonHandCameraMode.Locked,
+            immediate: true);
+        PlayCardPose(PokerClips.Idle);
+        SetPeek(0.0f);
+        SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
+    }
+
+    private void AdvanceStandaloneGesture(float delta)
+    {
+        if (_activeTableGesture != PokerGesture.Reveal)
+            return;
+
+        _activeTableGestureRemaining -= Mathf.Max(delta, 0.0f);
+        if (_activeTableGestureRemaining <= 0.0f)
+            FinishGesture(PokerGesture.Reveal);
     }
 
     private void InstallVisualAssets(PokerVisualAssets assets)

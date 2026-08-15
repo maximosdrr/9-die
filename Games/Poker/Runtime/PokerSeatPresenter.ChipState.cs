@@ -129,6 +129,7 @@ public partial class PokerSeatPresenter : Node3D
                     ChipBatchPhase.Landing, ChipBatchPhase.ToPot,
                     ChipBatchPhase.Organizing, ChipBatchPhase.ToDealer, ChipBatchPhase.ToWinner,
                     ChipBatchPhase.AtWinnerLoose, ChipBatchPhase.OrganizingWinner)
+                || _holeCards.Values.Any(hand => hand.RevealPending || hand.Returning)
                 || ((_showdownPresenter?.Active ?? false) && !(_showdownPresenter?.ReadyForPayout ?? true)));
         _showdownPresenter?.Reset();
         _presentationHand = _game.HandNumber;
@@ -141,6 +142,9 @@ public partial class PokerSeatPresenter : Node3D
         _settlementCollected = _game.HandSettled;
         _payoutSequencer?.Reset(_game.HandSettled);
         _pendingChipActions.Clear();
+        _scheduledKnocks.Clear();
+        _actionGestureRemaining = 0.0f;
+        _lastGestureToken = _game.ActionSeq;
         _observedStacks.Clear();
         _observedCommitted.Clear();
         _displayStacks.Clear();
@@ -170,6 +174,8 @@ public partial class PokerSeatPresenter : Node3D
 
         if (_game.HandSettled)
             _showdownPresenter?.Reset(authoritativeSettled: true, hand: _game.HandNumber);
+
+        SnapRevealedHandsToAuthoritativeState(spec);
 
         RememberPublicChipState();
     }

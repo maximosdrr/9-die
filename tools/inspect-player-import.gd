@@ -21,7 +21,8 @@ func _run() -> void:
 		var skeleton := instance.find_child("Skeleton3D", true, false) as Skeleton3D
 		if animator != null and skeleton != null:
 			for clip in ["Idle", "Walk", "IdleSit", "PickCards",
-				"IdleSitHoldingCards", "IdleHoldingCardsDown"]:
+				"IdleSitHoldingCards", "IdleHoldingCardsDown", "PokerPass", "PokerBet",
+				"Showdown"]:
 				if not animator.has_animation(clip):
 					print("MISSING_OPTIONAL_CLIP=", clip)
 					continue

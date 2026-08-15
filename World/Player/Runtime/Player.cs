@@ -239,20 +239,20 @@ public partial class Player : CharacterBody3D
     /// already current, so a second gesture in the same seat would never replay. This drives the
     /// character's own AnimationPlayer directly and leaves the state alone.
     ///
-    /// Silently falls back when an optional table gesture has not been authored yet. The core poker
-    /// pickup and card idles are real clips; chip/check/fold/reveal can still use the fallback.
+    /// Silently falls back when an optional table gesture has not been authored yet. Poker pickup,
+    /// bet, check, reveal and card idles are real clips; fold can still use the fallback.
     /// </summary>
-    public void PlaySeatedGesture(string animationName) =>
+    public float PlaySeatedGesture(string animationName) =>
         PlaySeatedGesture(animationName, GlobalPosition - GlobalBasis.Z);
 
     /// <summary>
     /// Plays an authored body clip, or a subtle visual-only fallback directed at the table while the
     /// current character still lacks that clip. The fallback never moves the networked player body.
     /// </summary>
-    public void PlaySeatedGesture(string animationName, Vector3 tableTarget)
+    public float PlaySeatedGesture(string animationName, Vector3 tableTarget)
     {
         if (!IsInSeatedGameMode || string.IsNullOrWhiteSpace(animationName))
-            return;
+            return 0.0f;
 
         // Exported first, so replacing the character only requires reconnecting one field. The
         // fallback keeps every existing Player scene working until that asset arrives.
@@ -261,16 +261,20 @@ public partial class Player : CharacterBody3D
                             "FirstPerson/Model3D/PlayerCharacter/AnimationPlayer");
         if (animation != null && animation.HasAnimation(animationName))
         {
+            var duration = (float)(animation.GetAnimation(animationName)?.Length ?? 0.0);
+            LockPokerPoseForGesture(animationName, duration);
             animation.Play(animationName);
             if (animationName != PokerClips.BodyIdle
                 && animation.HasAnimation(PokerClips.BodyIdle))
             {
                 animation.Queue(PokerClips.BodyIdle);
             }
-            return;
+            return duration;
         }
 
-        SeatedGestureFallback?.Play(animationName, tableTarget);
+        var fallbackDuration = SeatedGestureFallback?.Play(animationName, tableTarget) ?? 0.0f;
+        LockPokerPoseForGesture(animationName, fallbackDuration);
+        return fallbackDuration;
     }
 
 }

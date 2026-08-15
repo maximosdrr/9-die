@@ -27,8 +27,8 @@ public enum PokerGesture
 /// table exists rather than clip names scattered through the states: the two are authored by
 /// different people at different times, and a gesture has to be nameable before either exists.
 ///
-/// PickCards and the two card-holding idles are authored in both views. Chip, check, fold and reveal
-/// still use their optional placeholder clips until dedicated body actions are produced.
+/// PickCards, the card-holding idles, PokerBet, PokerPass and Showdown are authored in both views.
+/// Fold keeps its replaceable fallback until its dedicated pair is produced.
 ///
 /// Public actions come from the turn context. The private right-button look is the one exception:
 /// its raised/lowered edge is replicated separately so other players see the same body pose.
@@ -50,13 +50,13 @@ public static class PokerClips
     public const string LookCards = CharacterVisual.Clips.IdleSitHoldingCards;
 
     public const string PickUpCards = CharacterVisual.Clips.PickCards;
-    public const string ThrowChips = "HandThrowChips";
-    public const string Knock = "HandKnock";
+    public const string ThrowChips = CharacterVisual.Clips.PokerBet;
+    public const string Knock = CharacterVisual.Clips.PokerPass;
 
     /// <summary>Throwing the pair away: forward, down, open. The cards are LET GO of, not lowered.</summary>
     public const string Fold = "HandFold";
 
-    public const string RevealCards = "HandRevealCards";
+    public const string RevealCards = CharacterVisual.Clips.Showdown;
 
     // ---------------------------------------------------------------- third person
 
@@ -66,10 +66,18 @@ public static class PokerClips
     public const string BodyLookCards = CharacterVisual.Clips.IdleSitHoldingCards;
 
     public const string BodyPickUpCards = CharacterVisual.Clips.PickCards;
-    public const string BodyThrowChips = "SitThrowChips";
-    public const string BodyKnock = "SitKnock";
+    public const string BodyThrowChips = CharacterVisual.Clips.PokerBet;
+    public const string BodyKnock = CharacterVisual.Clips.PokerPass;
     public const string BodyFold = "SitFold";
-    public const string BodyReveal = "SitReveal";
+    public const string BodyReveal = CharacterVisual.Clips.Showdown;
+
+    /// <summary>Authored timings shared by visual, sound and physical-card presentation.</summary>
+    public const float PokerPassDurationSeconds = 1.20f;
+    public const float PokerPassFirstContactFraction = 0.50f;
+    public const float ShowdownDurationSeconds = 2.50f;
+    public const float ShowdownReleaseFraction = 0.60f;
+    public const float ShowdownReleaseSeconds =
+        ShowdownDurationSeconds * ShowdownReleaseFraction;
 
     /// <summary>The clip this gesture plays on the local player's own hand.</summary>
     public static string FirstPerson(PokerGesture gesture) =>
@@ -105,7 +113,6 @@ public static class PokerClips
             "fold" => PokerGesture.Fold,
             "check" => PokerGesture.Knock,
             "call" or "raise" => PokerGesture.ThrowChips,
-            "showdown" => PokerGesture.Reveal,
             _ => PokerGesture.None,
         };
 }

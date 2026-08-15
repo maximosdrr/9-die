@@ -30,6 +30,9 @@ public partial class PokerPresentationProfile : Resource
     [Export] public float DealerChangeStagger { get; set; } = 0.020f;
 
     [ExportGroup("Showdown")]
+    /// <summary>Time from Showdown starting until the authored hand releases the cards.</summary>
+    [Export] public float ShowdownReleaseDelaySeconds { get; set; }
+        = PokerClips.ShowdownReleaseSeconds;
     [Export] public float ShowdownRevealMotionSeconds { get; set; } = 0.68f;
     [Export] public float ShowdownRevealHoldSeconds { get; set; } = 2.5f;
     [Export] public float ShowdownCardSeconds { get; set; } = 0.72f;
@@ -97,7 +100,8 @@ public partial class PokerPresentationProfile : Resource
         var ranking = ShowdownCardSeconds
             + Mathf.Max(0, revealedPlayers - 1) * ShowdownRowStagger
             + 4 * ShowdownCardStagger;
-        return finalBet + collection + ShowdownRevealMotionSeconds
+        return finalBet + collection + ShowdownReleaseDelaySeconds
+            + ShowdownRevealMotionSeconds
             + ShowdownRevealHoldSeconds + ranking
             + RankedHandsReadingSeconds + payout
             + CardCleanupDurationFor(cleanupCardSlots > 0

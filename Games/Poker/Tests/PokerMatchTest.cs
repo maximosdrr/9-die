@@ -1016,6 +1016,39 @@ public partial class PokerMatchTest : Node
             game.ShowdownWaiting && game.RevealedHoleCards.Count == 1
             && !game.PendingShowdownReveals.Contains(revealOrder[0]));
 
+        Check("as cartas reveladas aguardam o frame de soltura na mão",
+            presenter.RevealedHandsAwaitingRelease == 1
+            && presenter.RevealedHandsInMotion == 1);
+
+        // The final action and its physical chips own the table first. Count the authored release
+        // from the moment Showdown actually starts, not from the earlier network snapshot.
+        var revealStartSafety = 0;
+        while (!presenter.HasStartedShowdownGesture(revealOrder[0])
+               && revealStartSafety++ < 600)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+        }
+        Check("o showdown espera a aposta e as fichas antes de iniciar",
+            presenter.HasStartedShowdownGesture(revealOrder[0]));
+        var preReleaseFrames = Mathf.Max(0,
+            Mathf.FloorToInt(presenter.ShowdownReleaseDelaySeconds * 60.0f) - 2);
+        for (var frame = 0; frame < preReleaseFrames; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+        }
+        Check("o voo não começa antes dos dedos abrirem",
+            presenter.RevealedHandsAwaitingRelease == 1);
+        for (var frame = 0; frame < 4; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+        }
+        Check("as cartas são liberadas no frame autorado e continuam em movimento",
+            presenter.RevealedHandsAwaitingRelease == 0
+            && presenter.RevealedHandsInMotion == 1);
+
         resolver.AdvanceShowdownRevealClock(9.9f);
         Check("os primeiros dez segundos não poluem a interface com contagem",
             game.ShowdownCountdown < 0);
@@ -1041,6 +1074,23 @@ public partial class PokerMatchTest : Node
         Check("as mãos reveladas permanecem na mesa antes do ranking",
             presenter.ShowdownRevealHoldElapsed > 0.0f
             && presenter.ShowdownDisplayedCardCount == 0);
+
+        var revealedSources = presenter.GetChildren().OfType<PokerCard>()
+            .Where(card => Poker.Rules.CardId.IsValid(card.CardId))
+            .ToList();
+        var revealedClearances = new List<float>();
+        var revealedCardsAreTangent = true;
+        foreach (var card in revealedSources)
+        {
+            board.TryGetTableSurface(card.GlobalPosition, out var surface, out var normal);
+            revealedCardsAreTangent &= card.GlobalBasis.Y.Normalized().Dot(normal) > 0.998f;
+            if (card.TryGetVisibleProjectionRange(normal, out var bottom, out _))
+                revealedClearances.Add(bottom - surface.Dot(normal));
+        }
+        Check("as cartas do showdown pousam sobre a superficie fisica da mesa",
+            revealedClearances.Count >= game.RevealedHoleCards.Count * PokerDeal.HoleCardCount
+            && revealedCardsAreTangent
+            && revealedClearances.All(clearance => clearance >= 0.0002f && clearance < 0.01f));
 
         var holdFrames = Mathf.Max(0, Mathf.FloorToInt(
             (presenter.ShowdownRevealHoldSeconds - presenter.ShowdownRevealHoldElapsed) * 60.0f) - 2);

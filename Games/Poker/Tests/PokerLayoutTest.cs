@@ -642,6 +642,13 @@ public partial class PokerLayoutTest : Node
         Check("um pote maior reserva mais tempo antes da proxima mao", largeFold > smallFold);
         Check("o showdown inclui leitura, ranking e entrega do pote",
             showdown > largeFold + PokerPresentationTiming.RankedHandsReadingSeconds);
+        var withoutRelease = new PokerPresentationProfile { ShowdownReleaseDelaySeconds = 0.0f };
+        var withRelease = new PokerPresentationProfile();
+        Check("o intervalo da mão reserva o gesto antes de soltar as cartas",
+            Mathf.IsEqualApprox(
+                withRelease.MinimumHandPause(true, 30, 3, 2)
+                - withoutRelease.MinimumHandPause(true, 30, 3, 2),
+                PokerPresentationTiming.ShowdownReleaseDelaySeconds));
         Check("a estimativa de atores tambem e limitada",
             PokerPresentationTiming.EstimateChipGroups(new[] { 100000, 100000 }, 16) == 16);
     }

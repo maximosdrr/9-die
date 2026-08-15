@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Poker.Rules;
 using ChipBatchPhase = PokerChipAnimator.Phase;
@@ -9,6 +10,19 @@ using ChipBatchPhase = PokerChipAnimator.Phase;
 /// </summary>
 public partial class PokerSeatPresenter : Node3D
 {
+    private const float PokerPassAudioFirstImpactSeconds = 0.095f;
+
+    private sealed class ScheduledKnock
+    {
+        public string PlayerId;
+        public int TurnToken;
+        public float Remaining;
+        public bool Confirmed;
+        public bool LocalOptimistic;
+    }
+
+    private readonly Queue<ScheduledKnock> _scheduledKnocks = new();
+
     public Label3D PotValueLabel => _potValueLabel;
 
     public Label3D StackValueLabelOf(string playerId) =>
@@ -23,8 +37,8 @@ public partial class PokerSeatPresenter : Node3D
     /// both in there — so a gesture costs NO message at all and every peer arrives at the same table
     /// on its own. The turn stamp is the change key, because it moves exactly once per action.
     ///
-    /// The body clips are not authored yet, so today this resolves to the seated idle everywhere.
-    /// The call site is the point: when they exist, they appear here and nowhere else.
+    /// Bet and pass are authored one-shots. Their semantic mapping remains centralized here so the
+    /// accepted public context drives the same body gesture on every peer.
     /// </summary>
     private void PlayActionGesture()
     {
@@ -37,13 +51,99 @@ public partial class PokerSeatPresenter : Node3D
         if (gesture == PokerGesture.None || string.IsNullOrEmpty(_game.LastPlayer))
             return;
 
+        var duration = 0.0f;
         if (PlayerRegistry.Instance is { } registry && registry.HasContainer())
-            registry.GetPlayerById(_game.LastPlayer)?.PlaySeatedGesture(
-                PokerClips.ThirdPerson(gesture), BoardPresenter.GlobalPosition);
+            duration = registry.GetPlayerById(_game.LastPlayer)?.PlaySeatedGesture(
+                PokerClips.ThirdPerson(gesture), BoardPresenter.GlobalPosition) ?? 0.0f;
+        _actionGestureRemaining = Mathf.Max(_actionGestureRemaining, duration);
 
         if (gesture == PokerGesture.Knock)
-            PlayKnock(_game.LastPlayer);
+        {
+            // A local cue keeps the FP clock but remains silent until this accepted context arrives.
+            // Remote peers have no tentative cue, so they schedule directly from the public 3P clip.
+            if (!ConfirmLocalPokerPass(_game.LastPlayer, _game.TurnToken))
+                SchedulePokerPass(_game.LastPlayer, -1, duration, confirmed: true,
+                    localOptimistic: false);
+        }
     }
+
+    /// <summary>
+    /// Starts the local contact clock with PokerPass_FP, but never makes sound until the server
+    /// accepts the action. A rejected pass can therefore be cancelled without a false table hit.
+    /// </summary>
+    public void ScheduleLocalPokerPass(string playerId, int turnToken, float gestureDuration)
+    {
+        if (string.IsNullOrEmpty(playerId))
+            return;
+
+        CancelLocalPokerPass(playerId, turnToken);
+        SchedulePokerPass(playerId, turnToken, gestureDuration, confirmed: false,
+            localOptimistic: true);
+    }
+
+    private void SchedulePokerPass(
+        string playerId, int turnToken, float gestureDuration, bool confirmed,
+        bool localOptimistic)
+    {
+        var duration = Mathf.Max(gestureDuration, PokerClips.PokerPassDurationSeconds);
+        _scheduledKnocks.Enqueue(new ScheduledKnock
+        {
+            PlayerId = playerId,
+            TurnToken = turnToken,
+            Confirmed = confirmed,
+            LocalOptimistic = localOptimistic,
+            // The synchronized WAV retains 95 ms of natural lead before its first impact.
+            Remaining = Mathf.Max(0.0f,
+                duration * PokerClips.PokerPassFirstContactFraction
+                - PokerPassAudioFirstImpactSeconds),
+        });
+    }
+
+    private void AdvanceScheduledKnocks(float delta)
+    {
+        var count = _scheduledKnocks.Count;
+        for (var index = 0; index < count; index++)
+        {
+            var cue = _scheduledKnocks.Dequeue();
+            cue.Remaining -= Mathf.Max(delta, 0.0f);
+            if (cue.Remaining <= 0.0f && cue.Confirmed)
+                PlayKnock(cue.PlayerId);
+            else
+            {
+                cue.Remaining = Mathf.Max(cue.Remaining, 0.0f);
+                _scheduledKnocks.Enqueue(cue);
+            }
+        }
+    }
+
+    internal bool ConfirmLocalPokerPass(string playerId, int turnToken)
+    {
+        foreach (var cue in _scheduledKnocks)
+        {
+            if (!cue.LocalOptimistic || cue.Confirmed
+                || cue.PlayerId != playerId || cue.TurnToken != turnToken)
+                continue;
+
+            cue.Confirmed = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    public void CancelLocalPokerPass(string playerId, int turnToken)
+    {
+        var count = _scheduledKnocks.Count;
+        for (var index = 0; index < count; index++)
+        {
+            var cue = _scheduledKnocks.Dequeue();
+            if (cue.LocalOptimistic && cue.PlayerId == playerId && cue.TurnToken == turnToken)
+                continue;
+            _scheduledKnocks.Enqueue(cue);
+        }
+    }
+
+    public int ScheduledKnockCount => _scheduledKnocks.Count;
 
     /// <summary>A knuckle on the table. Heard by everyone, positioned at the seat that made it.</summary>
     private void PlayKnock(string playerId)
@@ -109,7 +209,7 @@ public partial class PokerSeatPresenter : Node3D
             var count = 0;
             foreach (var hand in _holeCards.Values)
             {
-                if (hand.Revealed && hand.Returning)
+                if (hand.Revealed && (hand.RevealPending || hand.Returning))
                     count++;
             }
             return count;
@@ -124,12 +224,16 @@ public partial class PokerSeatPresenter : Node3D
             var count = 0;
             foreach (var entry in _holeCards)
             {
-                if (entry.Key != localId && entry.Value.Revealed && entry.Value.Returning)
+                if (entry.Key != localId && entry.Value.Revealed
+                    && (entry.Value.RevealPending || entry.Value.Returning))
                     count++;
             }
             return count;
         }
     }
+
+    public int RevealedHandsAwaitingRelease => _holeCards.Values.Count(hand =>
+        hand.Revealed && hand.RevealPending);
 
     /// <summary>Players in the same best-to-worst order currently shown on the cloth.</summary>
     public IReadOnlyList<string> ShowdownDisplayOrder =>
@@ -143,7 +247,7 @@ public partial class PokerSeatPresenter : Node3D
         var phases = new Dictionary<ChipBatchPhase, int>();
         foreach (var hand in _holeCards.Values)
         {
-            if (hand.Returning)
+            if (hand.RevealPending || hand.Returning)
                 returning++;
         }
         foreach (var batch in _chipAnimator.Batches)

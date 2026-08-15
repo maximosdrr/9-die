@@ -11,13 +11,14 @@ func _run() -> void:
 		"res://Assets/Characters/Player/PlayerCharacter.glb",
 		"Character_Armature", 5,
 		["Idle", "Walk", "Sit", "IdleSit", "SitHoldingCards", "PickCards",
-			"IdleSitHoldingCards", "IdleHoldingCardsDown"],
+			"IdleSitHoldingCards", "IdleHoldingCardsDown", "PokerPass", "PokerBet",
+			"Showdown"],
 		failures)
 	_validate_asset(
 		"res://Assets/Characters/Player/PlayerFirstPerson.glb",
 		"FP_Armature", 4,
 		["Idle", "Walk", "IdleSit", "PickCards", "IdleSitHoldingCards",
-			"IdleHoldingCardsDown"], failures)
+			"IdleHoldingCardsDown", "PokerPass", "PokerBet", "Showdown"], failures)
 
 	var hands_scene := load(
 		"res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn") as PackedScene

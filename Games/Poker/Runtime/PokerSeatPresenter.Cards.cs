@@ -31,6 +31,10 @@ public partial class PokerSeatPresenter : Node3D
             hand.OnTable = 0.0f;
             hand.PickUpAnimationSeconds = OpponentPickUpAnimationSeconds;
             hand.Revealed = false;
+            hand.RevealPending = false;
+            hand.RevealGestureStarted = false;
+            hand.RevealElapsed = 0.0f;
+            hand.RevealReleaseSeconds = 0.0f;
             hand.Folded = false;
             hand.Mucked = 0.0f;
             hand.Returning = false;
@@ -64,19 +68,12 @@ public partial class PokerSeatPresenter : Node3D
 
         if (revealed != null && !hand.Revealed)
         {
-            var wasHeld = CardsAreInGrip(hand);
-            ReleaseCardsFromGrip(hand);
-            // Both local and remote pairs travel back to the cloth. Until a third-person rig exposes
-            // a real card-release marker, remote cards start at a stable estimate in front of that
-            // player's hands. Snapping them straight to the table made every opponent reveal flick.
-            if (!wasHeld)
-            {
-                for (var i = 0; i < hand.Cards.Length; i++)
-                    hand.ReleasedFrom[i] = EstimatedHeldCardTransform(facing, i, spec);
-            }
             hand.Revealed = true;
-            hand.Returning = true;
-            hand.Returned = 0.0f;
+            hand.RevealPending = true;
+            hand.RevealGestureStarted = false;
+            hand.RevealElapsed = 0.0f;
+            hand.RevealReleaseSeconds = Mathf.Max(0.0f, ShowdownReleaseDelaySeconds);
+            hand.Returning = false;
             for (var i = 0; i < hand.Cards.Length; i++)
             {
                 hand.Dealt[i] = 1.0f;
@@ -97,6 +94,171 @@ public partial class PokerSeatPresenter : Node3D
         }
 
         PlaceHoleCards(playerId, hand, facing, spec, revealed != null);
+    }
+
+    private void StartShowdownGesture(string playerId)
+    {
+        if (PlayerRegistry.Instance is not { } registry || !registry.HasContainer())
+            return;
+
+        registry.GetPlayerById(playerId)?.PlaySeatedGesture(
+            PokerClips.BodyReveal, BoardPresenter.GlobalPosition);
+    }
+
+    /// <summary>
+    /// Detaches the same physical cards at the authored release frame. Until this seam, local cards
+    /// follow the first-person left hand and remote cards follow CharacterVisual.CardGrip.
+    /// </summary>
+    private bool AdvancePendingShowdownReveal(string playerId, SeatHand hand, float delta)
+    {
+        if (!hand.RevealPending)
+            return false;
+
+        // The final call/all-in can publish its action and all revealed hands in one snapshot.
+        // Do not let Showdown interrupt PokerBet or overtake the chips travelling to the pot.
+        if (!hand.RevealGestureStarted)
+        {
+            if (!CanStartShowdownReveal())
+                return false;
+
+            hand.RevealGestureStarted = true;
+            hand.RevealElapsed = 0.0f;
+            PrepareCardsForShowdownGesture(playerId, hand);
+            StartShowdownGesture(playerId);
+
+            // Keep the seam observable for a full process frame even after a long hitch. The local
+            // FP view runs later than the presenter and must see the started flag before release.
+            return true;
+        }
+
+        hand.RevealElapsed += Mathf.Max(delta, 0.0f);
+        if (hand.RevealElapsed < hand.RevealReleaseSeconds)
+            return true;
+
+        var seat = SeatNodeFor(playerId);
+        var toSeat = seat != null ? ToLocal(seat.GlobalPosition) : Vector3.Zero;
+        var facing = new Vector2(toSeat.X, toSeat.Z);
+        if (facing.LengthSquared() < 1e-6f)
+            facing = Vector2.Down;
+        else
+            facing = facing.Normalized();
+
+        var wasHeld = CardsAreInGrip(hand);
+        ReleaseCardsFromGrip(hand);
+        if (!wasHeld)
+        {
+            var spec = BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
+            for (var index = 0; index < hand.Cards.Length; index++)
+                hand.ReleasedFrom[index] = EstimatedHeldCardTransform(facing, index, spec);
+        }
+
+        hand.RevealPending = false;
+        hand.RevealGestureStarted = false;
+        hand.Returning = true;
+        hand.Returned = 0.0f;
+        return true;
+    }
+
+    /// <summary>
+    /// Recovery is a state reconstruction, not a replay. Any hands already public in the snapshot
+    /// are placed directly on the cloth and marked past their release seam.
+    /// </summary>
+    private void SnapRevealedHandsToAuthoritativeState(PokerLayoutSpec spec)
+    {
+        if (_game == null)
+            return;
+
+        foreach (var entry in _game.RevealedHoleCards)
+        {
+            var playerId = entry.Key;
+            var hand = EnsureHand(playerId);
+            if (hand == null)
+                continue;
+
+            ReleaseCardsFromGrip(hand);
+            hand.Hand = _game.HandNumber;
+            hand.Revealed = true;
+            hand.RevealPending = false;
+            hand.RevealGestureStarted = false;
+            hand.RevealElapsed = hand.RevealReleaseSeconds;
+            hand.Returning = false;
+            hand.Returned = 1.0f;
+            hand.Folded = false;
+            for (var index = 0; index < hand.Cards.Length; index++)
+            {
+                hand.Dealt[index] = 1.0f;
+                hand.Wait[index] = 0.0f;
+                if (index < entry.Value.Length)
+                    hand.Cards[index].Configure(entry.Value[index], spec);
+            }
+
+            var seat = SeatNodeFor(playerId);
+            var toSeat = seat != null ? ToLocal(seat.GlobalPosition) : Vector3.Zero;
+            var facing = new Vector2(toSeat.X, toSeat.Z);
+            if (facing.LengthSquared() < 1e-6f)
+                facing = Vector2.Down;
+            else
+                facing = facing.Normalized();
+            PlaceHoleCards(playerId, hand, facing, spec, shown: true);
+        }
+    }
+
+    private bool CanStartShowdownReveal() =>
+        _actionGestureRemaining <= 0.0f
+        && PresentationReadyForAction;
+
+    /// <summary>True once this player's authored throw has actually begun on this peer.</summary>
+    public bool HasStartedShowdownGesture(string playerId) =>
+        !string.IsNullOrEmpty(playerId)
+        && _holeCards.TryGetValue(playerId, out var hand)
+        && hand.Revealed
+        && hand.RevealGestureStarted;
+
+    /// <summary>
+    /// Ensures the pair is in the authored starting pose before the Showdown clock begins. Usually
+    /// it is already attached by the pickup flow; the estimate is a fallback for forced all-ins that
+    /// reach showdown before any pickup view existed.
+    /// </summary>
+    private void PrepareCardsForShowdownGesture(string playerId, SeatHand hand)
+    {
+        if (CardsAreInGrip(hand))
+            return;
+
+        var localPlayerId = _game?.Player == null ? null : (string)_game.Player.Name;
+        if (playerId != localPlayerId
+            && PlayerRegistry.Instance != null
+            && PlayerRegistry.Instance.TryGetPlayerById(playerId, out var player)
+            && player.CharacterVisual?.CardGrip is { } grip)
+        {
+            var spec = BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
+            for (var index = 0; index < hand.Cards.Length; index++)
+            {
+                var card = hand.Cards[index];
+                if (!IsInstanceValid(card))
+                    continue;
+                card.Reparent(grip, keepGlobalTransform: false);
+                card.Transform = OpponentHeldCardTransform(index, spec);
+                card.Visible = true;
+                hand.PickUpAttached[index] = true;
+            }
+            return;
+        }
+
+        var seat = SeatNodeFor(playerId);
+        var toSeat = seat != null ? ToLocal(seat.GlobalPosition) : Vector3.Zero;
+        var facing = new Vector2(toSeat.X, toSeat.Z);
+        facing = facing.LengthSquared() < 1e-6f ? Vector2.Down : facing.Normalized();
+        var layout = BoardPresenter?.Spec ?? PokerLayoutSpec.Default;
+        for (var index = 0; index < hand.Cards.Length; index++)
+        {
+            var card = hand.Cards[index];
+            if (!IsInstanceValid(card))
+                continue;
+            if (card.GetParent() != this)
+                card.Reparent(this, keepGlobalTransform: false);
+            card.Transform = EstimatedHeldCardTransform(facing, index, layout);
+            card.Visible = true;
+        }
     }
 
     internal static int DealPosition(
@@ -334,6 +496,11 @@ public partial class PokerSeatPresenter : Node3D
         var readerTurned = Basis.FromEuler(new Vector3(0.0f, readerYaw, 0.0f));
         var deck = BoardPresenter.DeckPosition;
 
+        // Showdown is now a physical release: keep the same nodes parented to the animated grip
+        // until the authored fingers open, rather than teleporting them to the cloth at snapshot time.
+        if (shown && hand.RevealPending)
+            return;
+
         if ((_showdownPresenter?.Active ?? false) && shown)
         {
             foreach (var source in hand.Cards)
@@ -371,7 +538,7 @@ public partial class PokerSeatPresenter : Node3D
             var seat = Mathf.Max(System.Array.IndexOf(_game.SeatOrder, playerId), 0);
             var motionSeed = seat * PokerDeal.HoleCardCount + i;
             var target = shown
-                ? RevealedCardTransform(facing, seat, i, spec)
+                ? RevealedCardTransform(card, facing, seat, i, spec)
                 : DealtCardTransform(facing, i, spec, readerTurned);
 
             if (_game.HandNumber <= 0 || taken)
@@ -432,7 +599,7 @@ public partial class PokerSeatPresenter : Node3D
     /// cannot z-fight even when the imported mesh face is slightly thicker than the logical card.
     /// </summary>
     private Transform3D RevealedCardTransform(
-        Vector2 facing, int seat, int index, PokerLayoutSpec spec)
+        PokerCard card, Vector2 facing, int seat, int index, PokerLayoutSpec spec)
     {
         var direction = facing.Normalized();
         var across = new Vector2(-direction.Y, direction.X);
@@ -444,15 +611,52 @@ public partial class PokerSeatPresenter : Node3D
         var radial = spec.SeatCardRadius
             + PokerChipPile.Noise(seed, 32) * Mathf.Max(0.0f, ShowdownPairPositionJitter);
         var place = direction * radial + across * lateral;
-        var height = spec.CardThickness * 0.5f
-            + index * Mathf.Max(spec.CardThickness, ShowdownPairLayerSeparation);
         var yaw = PokerTableLayout.YawTowardCentre(direction)
             + Mathf.DegToRad(PokerChipPile.Noise(seed, 33)
                 * Mathf.Max(0.0f, ShowdownPairAngleJitterDegrees));
 
-        return new Transform3D(
+        var fallback = new Transform3D(
             new Basis(Vector3.Up, yaw) * PokerCard.Orientation(false),
-            new Vector3(place.X, height, place.Y));
+            new Vector3(place.X, spec.CardThickness * 0.5f, place.Y));
+        if (BoardPresenter == null || !IsInstanceValid(card))
+            return fallback;
+
+        var nearWorld = ToGlobal(new Vector3(place.X, 0.0f, place.Y));
+        BoardPresenter.TryGetTableSurface(nearWorld, out var surfacePoint, out var surfaceNormal);
+        if (surfaceNormal.IsZeroApprox())
+            surfaceNormal = Vector3.Up;
+        else
+            surfaceNormal = surfaceNormal.Normalized();
+
+        // Preserve the seat-relative yaw while making the card plane tangent to the actual felt,
+        // including a table model that has been translated, scaled or tilted in the editor.
+        var localTurn = new Basis(Vector3.Up, yaw);
+        var worldX = GlobalBasis * localTurn.X;
+        worldX -= surfaceNormal * worldX.Dot(surfaceNormal);
+        if (worldX.IsZeroApprox())
+            worldX = surfaceNormal.Cross(Vector3.Forward);
+        if (worldX.IsZeroApprox())
+            worldX = Vector3.Right;
+        worldX = worldX.Normalized();
+        var worldZ = worldX.Cross(surfaceNormal).Normalized();
+        var worldTarget = new Transform3D(
+            new Basis(worldX, surfaceNormal, worldZ).Orthonormalized(), surfacePoint);
+
+        var inversePresenter = GlobalTransform.AffineInverse();
+        card.Transform = inversePresenter * worldTarget;
+
+        // Imported card origins and thicknesses differ. Measure the visible mesh rather than
+        // guessing from the root, then place its lowest corner just above the felt. The second card
+        // gets its own layer so overlapping faces cannot flicker.
+        if (card.TryGetVisibleProjectionRange(surfaceNormal, out var minimum, out _))
+        {
+            var clearance = 0.00035f
+                + index * Mathf.Max(spec.CardThickness, ShowdownPairLayerSeparation);
+            var requiredMinimum = surfacePoint.Dot(surfaceNormal) + clearance;
+            worldTarget.Origin += surfaceNormal * (requiredMinimum - minimum);
+        }
+
+        return inversePresenter * worldTarget;
     }
 
     /// <summary>

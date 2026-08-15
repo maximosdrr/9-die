@@ -205,7 +205,15 @@ public partial class PokerController : SeatedTableController
 
 	private void OnStampedActionRejected(int turnToken, string reason)
 	{
-		if (!IsMultiplayerAuthority() || Game == null || turnToken != Game.TurnToken)
+		if (!IsMultiplayerAuthority() || Game == null)
+			return;
+
+		// Cancel the exact tentative knock even when this refusal arrived after the turn moved. The
+		// interface below still ignores stale errors, but an unconfirmed cue must not survive until
+		// this player's next valid pass.
+		if (Game.Player != null)
+			Game.SeatPresenter?.CancelLocalPokerPass((string)Game.Player.Name, turnToken);
+		if (turnToken != Game.TurnToken)
 			return;
 
 		// A stale or refused request never owns the tentative chips. Put them back before repainting

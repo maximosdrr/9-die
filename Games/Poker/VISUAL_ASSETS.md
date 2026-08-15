@@ -14,9 +14,9 @@ regras e rede não deve apontar diretamente para uma malha importada.
 ## Corpo em primeira pessoa
 
 - `PlayerFirstPerson.glb` contém braços, torso e pernas, sem cabeça, em quatro meshes separados.
-- O asset possui `Idle`, `Walk`, `IdleSit`, `PickCards`, `IdleSitHoldingCards` e
-  `IdleHoldingCardsDown`. Os nomes são iguais aos de terceira pessoa porque cada vista possui seu
-  próprio `AnimationPlayer`.
+- O asset possui `Idle`, `Walk`, `IdleSit`, `PickCards`, `IdleSitHoldingCards`,
+  `IdleHoldingCardsDown`, `PokerPass`, `PokerBet` e `Showdown`. Os nomes são iguais aos de terceira
+  pessoa porque cada vista possui seu próprio `AnimationPlayer`.
 - O jogador local instancia `FirstPersonCharacterVisual.tscn` na origem do corpo e espelha
   `Idle`/`Walk`; no dominó ele também recebe `IdleSit`. Ele usa uma camada exclusiva da câmera local.
 - No pôquer, `PlayerFirstPersonHands.tscn` substitui temporariamente esse visual para usar o mesmo
@@ -34,6 +34,8 @@ no frame estável do assento e cada braço recebe um modo independente através 
 - `Locked`: mantém o braço no espaço da mesa, mas preserva normalmente a animação do Blender;
 - `FollowCamera`: adiciona a rotação da câmera somente ao braço escolhido;
 - `IdleHoldingCardsDown` e toda a cutscene `PickCards -> olhar -> baixar` usam `Locked/Locked`;
+- `PokerPass`, `PokerBet` e `Showdown` também usam `Locked/Locked`, então a câmera continua livre
+  sem arrastar os braços para dentro da mesa durante um gesto autorado;
 - o olhar voluntário com botão direito usa `FollowCamera/Locked`, pois o `CardGrip` pertence à mão
   esquerda.
 
@@ -56,11 +58,18 @@ Esses quatro valores ficam editáveis no `FirstPersonHandCameraLock` de
   `IdleSitHoldingCards`. Ao soltar, ambos voltam a `IdleHoldingCardsDown`.
 - As cartas públicas dos outros jogadores chegam ao `CardGrip` quando `PickCards` alcança o ponto
   de contato. Fold e showdown devolvem as mesmas instâncias à mesa.
+- `check` toca `PokerPass`; `call`, `raise`, confirmação/auto e all-in tocam `PokerBet`. O som de
+  madeira só é liberado após a confirmação do servidor e usa os dois contatos autorados em 0,60 s
+  e 1,00 s.
+- Cada entrada nova em `RevealedHoleCards` enfileira `Showdown` naquele jogador. O gesto aguarda a
+  ação anterior e as fichas terminarem; depois as cartas permanecem no `CardGrip` até 1,50 s, são
+  soltas no impulso da mão e percorrem o voo físico até o feltro. O pouso consulta a superfície real
+  da mesa e mede a própria malha, acompanhando alterações posteriores de altura, escala ou inclinação.
 - O pescoço continua recebendo yaw/pitch limitados da câmera e replicados aos demais peers.
 
 ## Fonte e reexportação
 
-- Fonte: `Desktop/3D Models/9Die_Cardroom_MotionLab/9Die_Cardroom_MotionLab.blend`.
+- Fonte: `Desktop/3D Models/bar-with-your-friends-art-source/Player/CardroomMotionLab/9Die_Cardroom_MotionLab.blend`.
 - `tools/export-player-character.py` exporta somente os rigs, meshes e ações de produção. Mesa,
   câmeras, luzes e placeholders permanecem no Blender.
 - O placeholder 3P gera o marcador 3P e `Cards_Holding_Placeholder_FP` gera o marcador FP; os dois

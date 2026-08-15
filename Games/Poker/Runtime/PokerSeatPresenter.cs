@@ -199,6 +199,10 @@ public partial class PokerSeatPresenter : Node3D
         public float OnTable;
         public float PickUpAnimationSeconds;
         public bool Revealed;
+        public bool RevealPending;
+        public bool RevealGestureStarted;
+        public float RevealElapsed;
+        public float RevealReleaseSeconds;
 
         /// <summary>Whether this pair has been thrown away.</summary>
         public bool Folded;
@@ -280,6 +284,12 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public int PrewarmedChipsPerBatch = 1;
 
     [ExportGroup("Showdown comparison")]
+    /// <summary>Delay until the authored Showdown hand opens at its release frame.</summary>
+    public float ShowdownReleaseDelaySeconds
+    {
+        get => Profile.ShowdownReleaseDelaySeconds;
+        set => Profile.ShowdownReleaseDelaySeconds = value;
+    }
     /// <summary>Time for an exposed pair to travel from the player's hands to the cloth.</summary>
     public float ShowdownRevealMotionSeconds { get => Profile.ShowdownRevealMotionSeconds; set => Profile.ShowdownRevealMotionSeconds = value; }
     /// <summary>Time left for everyone to read the exposed hole cards before ranking rearranges them.</summary>
@@ -343,6 +353,7 @@ public partial class PokerSeatPresenter : Node3D
     private readonly Dictionary<string, SeatHand> _holeCards = new();
     private bool _lastPickedUp;
     private int _lastGestureToken = -1;
+    private float _actionGestureRemaining;
     private AudioStreamPlayer3D _knock;
     private AudioStreamPlayer3D _dealerChangeAudio;
 
@@ -495,6 +506,10 @@ public partial class PokerSeatPresenter : Node3D
         if (_game == null)
             return;
 
+        AdvanceScheduledKnocks((float)delta);
+        _actionGestureRemaining = Mathf.Max(
+            0.0f, _actionGestureRemaining - Mathf.Max((float)delta, 0.0f));
+
         // Taking the cards up is a purely local gesture and emits no state signal, so nothing else
         // would ever tell this presenter to stop drawing the pair lying on the cloth.
         var moved = _game.LocalPickedUpCards != _lastPickedUp;
@@ -519,6 +534,8 @@ public partial class PokerSeatPresenter : Node3D
         {
             var hand = entry.Value;
             var landed = true;
+
+            moved |= AdvancePendingShowdownReveal(entry.Key, hand, (float)delta);
 
             if (hand.Returning && hand.Returned < 1.0f)
             {
@@ -589,7 +606,7 @@ public partial class PokerSeatPresenter : Node3D
         var showdownBlocked = _collecting || _organizing || _collectionRequested
             || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet, ChipBatchPhase.Landing,
                 ChipBatchPhase.ToPot, ChipBatchPhase.Organizing)
-            || _holeCards.Values.Any(hand => hand.Returning);
+            || _holeCards.Values.Any(hand => hand.RevealPending || hand.Returning);
         moved |= _showdownPresenter?.Advance((float)delta, showdownBlocked) ?? false;
 
         // Only when something actually changed: this presenter redraws every seat's chips and

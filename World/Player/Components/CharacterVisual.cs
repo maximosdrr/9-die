@@ -24,6 +24,9 @@ public partial class CharacterVisual : Node3D
         public const string PickCards = "PickCards";
         public const string IdleSitHoldingCards = "IdleSitHoldingCards";
         public const string IdleHoldingCardsDown = "IdleHoldingCardsDown";
+        public const string PokerPass = "PokerPass";
+        public const string PokerBet = "PokerBet";
+        public const string Showdown = "Showdown";
     }
 
     [Export] public Node3D RigRoot;

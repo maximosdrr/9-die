@@ -685,11 +685,6 @@ public partial class PokerSceneLoadTest : Node
             PokerGesture.Knock, PokerGesture.Fold, PokerGesture.Reveal,
         };
 
-        var optionalGrossClips = gestures
-            .Where(gesture => gesture != PokerGesture.PickUpCards)
-            .Select(PokerClips.FirstPerson)
-            .Where(clip => view.AnimationPlayer?.HasAnimation(clip) != true)
-            .ToList();
         var productionHands = GD.Load<PackedScene>(
                 "res://Games/Poker/Components/Hands/PlayerFirstPersonHands.tscn")
             ?.Instantiate<PlayerFirstPersonHands>();
@@ -698,15 +693,29 @@ public partial class PokerSceneLoadTest : Node
         var missingCoreClips = new[]
             {
                 PokerClips.Idle, PokerClips.LookCards, PokerClips.PickUpCards,
+                PokerClips.ThrowChips, PokerClips.Knock, PokerClips.RevealCards,
             }
             .Where(clip => productionHands?.Animator?.HasAnimation(clip) != true)
             .ToList();
 
         Check($"a mão tem os clipes centrais novos e os gestos opcionais "
-              + $"({string.Join(", ", missingCoreClips.Concat(optionalGrossClips))})",
+              + $"({string.Join(", ", missingCoreClips)})",
             productionHands?.Animator != null
-            && missingCoreClips.Count == 0
-            && optionalGrossClips.Count == 0);
+            && missingCoreClips.Count == 0);
+        Check("os gestos novos estão ligados ao corpo FP de produção",
+            productionHands?.ChipsClip == PokerClips.ThrowChips
+            && productionHands.KnockClip == PokerClips.Knock
+            && productionHands.RevealClip == PokerClips.RevealCards);
+        Check("os gestos novos preservam suas durações autoradas e não repetem",
+            productionHands?.Animator?.GetAnimation(PokerClips.ThrowChips) is { } betClip
+            && productionHands.Animator.GetAnimation(PokerClips.Knock) is { } passClip
+            && productionHands.Animator.GetAnimation(PokerClips.RevealCards) is { } revealClip
+            && Mathf.Abs((float)betClip.Length - 2.0f) < 0.02f
+            && Mathf.Abs((float)passClip.Length - PokerClips.PokerPassDurationSeconds) < 0.02f
+            && Mathf.Abs((float)revealClip.Length - PokerClips.ShowdownDurationSeconds) < 0.02f
+            && betClip.LoopMode == Animation.LoopModeEnum.None
+            && passClip.LoopMode == Animation.LoopModeEnum.None
+            && revealClip.LoopMode == Animation.LoopModeEnum.None);
 
         var handLimits = productionHands?.CameraLock;
         var leftDown = handLimits?.LimitFollowAnglesDegrees(
@@ -806,7 +815,7 @@ public partial class PokerSceneLoadTest : Node
         liveHandCamera.QueueFree();
         heldCardRoot.QueueFree();
         Check("o gesto de fichas não é cortado pelo antigo limite de 0,35 s",
-            view.PlayGesture(PokerGesture.ThrowChips) > 0.35f);
+            (productionHands?.Play(PokerGesture.ThrowChips) ?? 0.0f) > 0.35f);
         Check("pegar as cartas acompanha o tempo completo de olhar e baixar",
             (productionHands?.Play(PokerGesture.PickUpCards) ?? 0.0f)
             + view.PickUpLookSeconds + view.PickUpSettleSeconds >= 3.0f);
@@ -1352,11 +1361,8 @@ public partial class PokerSceneLoadTest : Node
 
     /// <summary>
     /// The gesture vocabulary: one name per thing a player does, resolving to a first-person clip
-    /// and a third-person one.
-    ///
-    /// The third-person clips do not exist yet, which is exactly why this is worth pinning — the
-    /// names have to be reachable and distinct NOW so the animator has somewhere to deliver them,
-    /// and so a body gesture cannot silently resolve to the same clip as another.
+    /// and a third-person one. Both imported rigs now contain the authored clips; keep their
+    /// semantic names reachable and distinct so gestures cannot silently share an animation.
     /// </summary>
     private void TestGestureVocabulary()
     {
@@ -1384,15 +1390,16 @@ public partial class PokerSceneLoadTest : Node
             PokerClips.ForAction("fold") == PokerGesture.Fold
             && PokerClips.ForAction("check") == PokerGesture.Knock
             && PokerClips.ForAction("call") == PokerGesture.ThrowChips
-            && PokerClips.ForAction("raise") == PokerGesture.ThrowChips
-            && PokerClips.ForAction("showdown") == PokerGesture.Reveal);
+            && PokerClips.ForAction("raise") == PokerGesture.ThrowChips);
 
         Check("uma ação que não é um gesto não anima nada",
             PokerClips.ForAction("deal") == PokerGesture.None
+            && PokerClips.ForAction("show") == PokerGesture.None
+            && PokerClips.ForAction("showdown") == PokerGesture.None
             && PokerClips.ForAction("") == PokerGesture.None);
 
-        // The body gesture is replayed by the seat presenter from the context, so the hook it calls
-        // has to exist on Player — it is a no-op today and must stay callable.
+        // The body gesture is replayed by the seat presenter from the accepted public context, so
+        // the production Player hook must remain callable from both semantic overloads.
         Check("o corpo sentado tem por onde receber um gesto",
             typeof(Player).GetMethod(
                 nameof(Player.PlaySeatedGesture), new[] { typeof(string) }) != null
@@ -1408,6 +1415,29 @@ public partial class PokerSceneLoadTest : Node
 
         AddChild(game);
         Check("o toque na mesa tem som", game.SeatPresenter?.KnockSound != null);
+        Check("o som duplo foi espaçado para os dois contatos de PokerPass",
+            game.SeatPresenter?.KnockSound?.GetLength() is > 0.60 and < 0.64);
+        game.SeatPresenter?.ScheduleLocalPokerPass(
+            "1", turnToken: 7, gestureDuration: PokerClips.PokerPassDurationSeconds);
+        game.SeatPresenter?._Process(0.45);
+        Check("o som de passar aguarda o primeiro contato com a madeira",
+            game.SeatPresenter?.ScheduledKnockCount == 1);
+        game.SeatPresenter?._Process(0.08);
+        Check("uma batida otimista permanece silenciosa antes da confirmacao",
+            game.SeatPresenter?.ScheduledKnockCount == 1);
+        game.SeatPresenter?.ConfirmLocalPokerPass("1", turnToken: 7);
+        game.SeatPresenter?._Process(0.001);
+        Check("o som de passar dispara no contato autorado",
+            game.SeatPresenter?.ScheduledKnockCount == 0);
+        game.SeatPresenter?.ScheduleLocalPokerPass(
+            "1", turnToken: 8, gestureDuration: PokerClips.PokerPassDurationSeconds);
+        Check("uma confirmacao de outro turno nao reaproveita a batida antiga",
+            game.SeatPresenter?.ConfirmLocalPokerPass("1", turnToken: 9) == false
+            && game.SeatPresenter.ScheduledKnockCount == 1);
+        game.SeatPresenter?.CancelLocalPokerPass("1", turnToken: 8);
+        game.SeatPresenter?._Process(1.0);
+        Check("uma acao recusada cancela a batida antes de ela tocar",
+            game.SeatPresenter?.ScheduledKnockCount == 0);
         Check("as fichas têm som próprio de impacto",
             game.SeatPresenter?.ChipLandingSound != null);
 

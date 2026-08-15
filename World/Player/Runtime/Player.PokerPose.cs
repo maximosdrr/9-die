@@ -9,6 +9,7 @@ public partial class Player : CharacterBody3D
     internal const int PokerPoseTransferChannel = 6;
     private const int PokerPoseRequestsPerSecond = 8;
     private bool _pokerCardsRaised;
+    private ulong _pokerPoseLockedUntilMilliseconds;
     private readonly PeerRequestRateLimiter _pokerPoseRequestLimiter = new(
         PokerPoseRequestsPerSecond,
         windowMilliseconds: 1_000,
@@ -78,6 +79,15 @@ public partial class Player : CharacterBody3D
 
     private bool ApplyPokerCardLook(bool raised)
     {
+        // A public table gesture owns the arms until its authored one-shot is over. Reliable pose
+        // packets use a separate channel and may arrive after the reveal/bet/check snapshot; letting
+        // one of those packets play an idle here would interrupt the gesture on remote peers.
+        if (Time.GetTicksMsec() < _pokerPoseLockedUntilMilliseconds)
+        {
+            _pokerCardsRaised = false;
+            return false;
+        }
+
         if (_pokerCardsRaised == raised)
             return false;
 
@@ -90,5 +100,24 @@ public partial class Player : CharacterBody3D
         return true;
     }
 
-    private void ClearPokerPoseRequests() => _pokerPoseRequestLimiter.Clear();
+    private void LockPokerPoseForGesture(string animationName, float duration)
+    {
+        if (animationName is not (PokerClips.BodyThrowChips
+            or PokerClips.BodyKnock or PokerClips.BodyReveal))
+        {
+            return;
+        }
+
+        _pokerCardsRaised = false;
+        var milliseconds = (ulong)Mathf.CeilToInt(Mathf.Max(duration, 0.1f) * 1000.0f);
+        var lockedUntil = Time.GetTicksMsec() + milliseconds;
+        if (lockedUntil > _pokerPoseLockedUntilMilliseconds)
+            _pokerPoseLockedUntilMilliseconds = lockedUntil;
+    }
+
+    private void ClearPokerPoseRequests()
+    {
+        _pokerPoseRequestLimiter.Clear();
+        _pokerPoseLockedUntilMilliseconds = 0;
+    }
 }

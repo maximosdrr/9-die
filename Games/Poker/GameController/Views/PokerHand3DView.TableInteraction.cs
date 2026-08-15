@@ -413,6 +413,15 @@ public partial class PokerHand3DView : PokerHandView
         if (returnSelectedChips)
             CancelPreparedWager();
 
+        // Create the tentative sound clock before the request. The listen host resolves requests
+        // synchronously, so scheduling it later from PokerPass_FP would miss the accepted context
+        // that confirms the cue and leave an orphan behind.
+        var localPlayerId = Player == null ? null : (string)Player.Name;
+        if (!string.IsNullOrEmpty(localPlayerId) && Game?.SeatPresenter != null)
+        {
+            Game.SeatPresenter.ScheduleLocalPokerPass(
+                localPlayerId, Game.TurnToken, PokerClips.PokerPassDurationSeconds);
+        }
         RequestAction(PokerActionKind.Check, TotalFor(PokerActionKind.Check));
         return PokerGesture.Knock;
     }

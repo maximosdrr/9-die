@@ -35,8 +35,11 @@ public partial class PlayerCharacterIntegrationTest : Node
                 CharacterVisual.Clips.PickCards,
                 CharacterVisual.Clips.IdleSitHoldingCards,
                 CharacterVisual.Clips.IdleHoldingCardsDown,
+                CharacterVisual.Clips.PokerPass,
+                CharacterVisual.Clips.PokerBet,
+                CharacterVisual.Clips.Showdown,
             };
-            Check("as oito animações de produção estão importadas",
+            Check("as animações de produção estão importadas",
                 expected.All(visual.HasAnimation));
             Check("a escala do personagem cabe no cenário",
                 Mathf.IsEqualApprox(Mathf.Abs(visual.RigRoot.Scale.X), visual.CharacterScale));
@@ -87,6 +90,9 @@ public partial class PlayerCharacterIntegrationTest : Node
                 CharacterVisual.Clips.PickCards,
                 CharacterVisual.Clips.IdleSitHoldingCards,
                 CharacterVisual.Clips.IdleHoldingCardsDown,
+                CharacterVisual.Clips.PokerPass,
+                CharacterVisual.Clips.PokerBet,
+                CharacterVisual.Clips.Showdown,
             };
             Check("o corpo em primeira pessoa possui todos os clipes produzidos",
                 hands.Animator != null

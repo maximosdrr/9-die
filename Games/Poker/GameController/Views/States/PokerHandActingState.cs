@@ -17,6 +17,7 @@ public partial class PokerHandActingState : State
     private PokerHand3DView View;
     private float _elapsed;
     private float _activeDuration;
+    private PokerGesture _gesture;
 
     public PokerHandActingState() => Type = StatesRef.PokerHandActing;
 
@@ -27,14 +28,14 @@ public partial class PokerHandActingState : State
         _elapsed = 0.0f;
         _activeDuration = Duration;
 
-        var gesture = metadata != null && metadata.TryGetValue("gesture", out var requested)
+        _gesture = metadata != null && metadata.TryGetValue("gesture", out var requested)
             ? (PokerGesture)requested.AsInt32()
             : PokerGesture.None;
 
         // First person only. The seated bodies replay the same gesture off the turn context, which
         // every peer already has — including this one, so the local body is covered too.
         if (View != null)
-            _activeDuration = Mathf.Max(Duration, View.PlayGesture(gesture));
+            _activeDuration = Mathf.Max(Duration, View.PlayGesture(_gesture));
     }
 
     public override void Process(double delta)
@@ -44,5 +45,11 @@ public partial class PokerHandActingState : State
             return;
 
         StateMachine.ChangeState(StatesRef.PokerHandIdle, new Dictionary());
+    }
+
+    public override void Exit(Dictionary metadata)
+    {
+        View?.FinishGesture(_gesture);
+        _gesture = PokerGesture.None;
     }
 }

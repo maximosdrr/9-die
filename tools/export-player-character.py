@@ -49,6 +49,11 @@ THIRD_PERSON_ACTIONS = {
     "PickCards": "PickCards",
     "IdleSitHoldingCards": "IdleSitHoldingCards",
     "IdleHoldingCardsDown": "IdleHoldingCardsDown",
+    "PokerPass": "PokerPass",
+    # V2 is the synchronized 1P/3P pair. Keep the artist-facing alternatives in the .blend,
+    # but publish one stable gameplay name so callers never need to know which take won.
+    "PokerBet_V2": "PokerBet",
+    "Showdown": "Showdown",
 }
 
 FIRST_PERSON_ACTIONS = {
@@ -58,6 +63,9 @@ FIRST_PERSON_ACTIONS = {
     "PickCards_FP": "PickCards",
     "IdleSitHoldingCards_FP": "IdleSitHoldingCards",
     "IdleHoldingCardsDown_FP": "IdleHoldingCardsDown",
+    "PokerPass_FP": "PokerPass",
+    "PokerBet_V2_FP": "PokerBet",
+    "Showdown_FP": "Showdown",
 }
 
 CARD_GRIP_MARKER = "CardGripMarker"
