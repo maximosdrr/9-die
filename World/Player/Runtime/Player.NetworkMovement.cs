@@ -27,6 +27,7 @@ public partial class Player : CharacterBody3D
     private PlayerMovementInputGuard _serverInput;
     private readonly List<PredictionSample> _predictionSamples = new();
     private int _nextInputSequence;
+    private int _lastAcknowledgedInputSequence;
     private double _snapshotAccumulator;
     private Vector3 _snapshotPosition;
     private Vector3 _snapshotVelocity;
@@ -48,12 +49,16 @@ public partial class Player : CharacterBody3D
     {
         Id = owningPeerId;
         _serverInput = new PlayerMovementInputGuard(Id, MaxInputPacketsPerSecond);
+        _lastAcknowledgedInputSequence = 0;
         _movementModeRequestLimiter.Clear();
     }
 
     private void InitializeNetworkMovement()
     {
         _serverInput ??= new PlayerMovementInputGuard(Id, MaxInputPacketsPerSecond);
+        _predictionSamples.Clear();
+        _predictionCorrection.Clear();
+        _lastAcknowledgedInputSequence = 0;
         _snapshotPosition = GlobalPosition;
         _snapshotYaw = GlobalRotation.Y;
         SetPhysicsProcess(true);
@@ -366,6 +371,7 @@ public partial class Player : CharacterBody3D
 
         _predictionSamples.Clear();
         _predictionCorrection.Clear();
+        _lastAcknowledgedInputSequence = 0;
         _snapshotPosition = position;
         _snapshotYaw = Mathf.Wrap(yaw, -Mathf.Pi, Mathf.Pi);
         _snapshotVelocity = Vector3.Zero;

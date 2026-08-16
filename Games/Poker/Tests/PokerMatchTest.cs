@@ -432,6 +432,7 @@ public partial class PokerMatchTest : Node
         var frames = 0;
         var leftTheCloth = -1;
         var pickUpStarted = -1;
+        var sawSmoothCardTransfer = false;
 
         for (; frames < 600 && !view.HasPickedUpCards; frames++)
         {
@@ -442,14 +443,16 @@ public partial class PokerMatchTest : Node
                 pickUpStarted = frames;
             if (leftTheCloth < 0 && game.LocalPickedUpCards)
                 leftTheCloth = frames;
+            if (view.CardTransferAmount is > 0.05f and < 0.95f)
+                sawSmoothCardTransfer = true;
         }
 
         Check($"a olhada acontece sozinha e termina ({frames} quadros)", view.HasPickedUpCards);
         Check($"as cartas saem da mesa antes de a olhada acabar ({leftTheCloth} quadros)",
             leftTheCloth >= 0 && leftTheCloth < frames);
-        Check("as cartas grudam na mao no mesmo quadro em que a animacao comeca",
-            pickUpStarted >= 0 && leftTheCloth >= pickUpStarted
-            && leftTheCloth - pickUpStarted <= 1);
+        Check("PickCards espera o contato e leva as cartas suavemente ate a mao",
+            pickUpStarted >= 0 && leftTheCloth > pickUpStarted + 1
+            && sawSmoothCardTransfer);
         Check($"e voltam abaixadas ao terminar (espiada {view.PeekAmount:F2})",
             view.PeekAmount < 0.05f);
 

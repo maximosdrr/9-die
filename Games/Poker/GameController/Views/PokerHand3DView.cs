@@ -97,6 +97,10 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>Lifting the pair off the cloth and turning it up.</summary>
     [Export] public float PickUpLiftSeconds = 0.55f;
 
+    /// <summary>Normalized point in PickCards where the fingers reach the pair on the felt.</summary>
+    [Export(PropertyHint.Range, "0.1,0.9,0.01")]
+    public float PickUpContactFraction = 0.42f;
+
     /// <summary>How long the player looks at them before lowering.</summary>
     [Export] public float PickUpLookSeconds = 1.3f;
 
@@ -158,6 +162,9 @@ public partial class PokerHand3DView : PokerHandView
 
     /// <summary>How far the cards are turned up, 0 at rest and 1 fully peeked.</summary>
     public float PeekAmount => _peek;
+
+    /// <summary>Physical interpolation from the cloth into the authored PickCards grip.</summary>
+    public float CardTransferAmount => _cardTransfer;
 
     public FirstPersonHandCameraMode LeftHandCameraMode => _leftHandCameraMode;
     public FirstPersonHandCameraMode RightHandCameraMode => _rightHandCameraMode;
@@ -662,19 +669,24 @@ public partial class PokerHand3DView : PokerHandView
                 FirstPersonHandCameraMode.Locked,
                 immediate: true);
             _pickUpAnimationSeconds = PlayGesture(PokerGesture.PickUpCards);
-
-            // The authored first frame already has the left hand touching the pair. Attach the
-            // physical cards at the same seam as the clip starts; waiting for the old contact
-            // fraction made the hand move first and then appear to swallow the cards.
-            TransferCardsToHand(attachImmediately: true);
         }
 
         var lift = Mathf.Max(PickUpLiftSeconds, Mathf.Max(_pickUpAnimationSeconds, 0.01f));
         var look = Mathf.Max(PickUpLookSeconds, 0.0f);
         var settle = Mathf.Max(PickUpSettleSeconds, 0.01f);
+        var contact = lift * Mathf.Clamp(PickUpContactFraction, 0.1f, 0.9f);
+
+        if (!_cardsTransferred && _pickUpElapsed >= contact)
+            TransferCardsToHand();
+
         if (_pickUpElapsed < lift)
         {
             var lifting = Smooth(_pickUpElapsed / lift);
+            if (_cardsTransferred)
+            {
+                _cardTransfer = Smooth(
+                    (_pickUpElapsed - contact) / Mathf.Max(lift - contact, 0.01f));
+            }
             SetPeek(lifting);
             ApplyFan();
         }
@@ -727,19 +739,18 @@ public partial class PokerHand3DView : PokerHandView
         Hud?.Refresh(_options, IsYourTurn, RaiseTotal, true);
     }
 
-    private void TransferCardsToHand(bool attachImmediately = false)
+    private void TransferCardsToHand()
     {
-        SetCardAttachmentMode(
-            PokerCardAttachmentMode.FollowHand, immediate: attachImmediately);
+        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
         _cardsTransferred = true;
         if (Game != null)
             Game.LocalPickedUpCards = true;
 
         AttachTransferredCards(Game?.SeatPresenter?.TakeLocalCards(CardSlots));
-        // Configure the real faces at the handoff seam. With immediate attachment the authored
-        // first frame is the contact pose, so no secondary card interpolation trails the skeleton.
+        // PickCards deliberately preserves the table pose at contact and eases the same physical
+        // nodes into the authored grip. Voluntary RMB looking uses the separate immediate path.
         RebuildFan();
-        _cardTransfer = attachImmediately ? 1.0f : 0.0f;
+        _cardTransfer = 0.0f;
         ApplyFan();
     }
 

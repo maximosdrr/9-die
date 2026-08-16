@@ -137,10 +137,14 @@ public partial class PlayerMovementSecurityTest : Node
         var applyCorrection = typeof(Player).GetMethod(
             "ApplyPredictionCorrection",
             BindingFlags.Instance | BindingFlags.NonPublic);
+        var rememberPrediction = typeof(Player).GetMethod(
+            "RememberPrediction",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         var scene = GD.Load<PackedScene>("res://World/Player/Player.tscn");
         var player = scene?.Instantiate<Player>();
 
-        if (player == null || reconcile == null || applyCorrection == null)
+        if (player == null || reconcile == null || applyCorrection == null
+            || rememberPrediction == null)
         {
             Check("fluxo real de reconciliação do peer está disponível", false);
             player?.Free();
@@ -157,9 +161,23 @@ public partial class PlayerMovementSecurityTest : Node
         player.GlobalPosition = Vector3.Zero;
         player.GlobalRotation = new Vector3(0.0f, 0.75f, 0.0f);
 
+        // Before the server acknowledges any input, its older spawn snapshot must not drag a
+        // client that has already begun predicting movement.
         reconcile.Invoke(player, new object[]
         {
             0,
+            new Vector3(0.4f, 0.0f, 0.0f),
+            -1.2f,
+            Vector3.Zero
+        });
+        applyCorrection.Invoke(player, new object[] { 0.05f });
+        Check("snapshot sem input confirmado não puxa a câmera para trás",
+            player.GlobalPosition.IsEqualApprox(Vector3.Zero));
+
+        rememberPrediction.Invoke(player, new object[] { 1 });
+        reconcile.Invoke(player, new object[]
+        {
+            1,
             new Vector3(0.4f, 0.0f, 0.0f),
             -1.2f,
             Vector3.Zero
@@ -172,17 +190,30 @@ public partial class PlayerMovementSecurityTest : Node
 
         // The newest snapshot is aligned and carries a different yaw. It must cancel remaining
         // positional debt and must not become another local camera input.
+        rememberPrediction.Invoke(player, new object[] { 2 });
         reconcile.Invoke(player, new object[]
         {
-            0,
+            2,
             positionAfterFirstStep,
             0.0f,
             Vector3.Zero
         });
         applyCorrection.Invoke(player, new object[] { 1.0f });
 
+        var positionAfterAlignedSnapshot = player.GlobalPosition;
+        reconcile.Invoke(player, new object[]
+        {
+            2,
+            positionAfterFirstStep - new Vector3(0.8f, 0.0f, 0.0f),
+            0.0f,
+            Vector3.Zero
+        });
+        applyCorrection.Invoke(player, new object[] { 1.0f });
+
         Check("fluxo real do peer para quando o snapshot mais novo está alinhado",
-            player.GlobalPosition.IsEqualApprox(positionAfterFirstStep));
+            player.GlobalPosition.IsEqualApprox(positionAfterAlignedSnapshot));
+        Check("ack repetido não reaplica uma posição antiga sobre a câmera local",
+            player.GlobalPosition.IsEqualApprox(positionAfterAlignedSnapshot));
         Check("fluxo real do peer não reaplica yaw remoto como input local",
             Mathf.IsEqualApprox(yawAfterOppositeSnapshot, 0.75f)
             && Mathf.IsEqualApprox(player.GlobalRotation.Y, 0.75f));
@@ -190,9 +221,10 @@ public partial class PlayerMovementSecurityTest : Node
         // Even a teleport-sized position correction preserves local mouselook. Server yaw remains
         // authoritative for its own body and for observers, not for this owner camera.
         var hardCorrectionPosition = positionAfterFirstStep + new Vector3(2.0f, 0.0f, 0.0f);
+        rememberPrediction.Invoke(player, new object[] { 3 });
         reconcile.Invoke(player, new object[]
         {
-            0,
+            3,
             hardCorrectionPosition,
             -2.0f,
             Vector3.Zero

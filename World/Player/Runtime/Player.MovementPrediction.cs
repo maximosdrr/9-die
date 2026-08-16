@@ -128,8 +128,18 @@ public partial class Player : CharacterBody3D
     private void ReconcilePrediction(int acknowledgedSequence, Vector3 serverPosition,
         float serverYaw, Vector3 serverVelocity)
     {
+        // Snapshot rate is lower than the physics/input rate, so the server legitimately sends the
+        // same acknowledgement more than once. Reprocessing it against today's predicted position
+        // mistakes ordinary network latency for an error and pulls the owning camera backwards.
+        if (acknowledgedSequence <= 0
+            || acknowledgedSequence <= _lastAcknowledgedInputSequence)
+        {
+            return;
+        }
+
         var comparedPosition = GlobalPosition;
         var removeCount = 0;
+        var matchedPrediction = false;
 
         for (var index = 0; index < _predictionSamples.Count; index++)
         {
@@ -139,11 +149,26 @@ public partial class Player : CharacterBody3D
 
             removeCount = index + 1;
             if (sample.Sequence == acknowledgedSequence)
+            {
                 comparedPosition = sample.Position;
+                matchedPrediction = true;
+            }
         }
 
         if (removeCount > 0)
             _predictionSamples.RemoveRange(0, removeCount);
+
+        _lastAcknowledgedInputSequence = acknowledgedSequence;
+
+        // A sample can age out only after a long stall. Small differences are not actionable
+        // without their matching historical pose; a teleport-sized discrepancy still fails safe.
+        if (!matchedPrediction)
+        {
+            _predictionCorrection.Clear();
+            if (GlobalPosition.DistanceTo(serverPosition) > HardCorrectionDistance)
+                SetOwningClientPose(serverPosition, serverYaw, serverVelocity);
+            return;
+        }
 
         var alignedError = serverPosition - comparedPosition;
         if (alignedError.Length() > HardCorrectionDistance)
