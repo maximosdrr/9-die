@@ -174,7 +174,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
 
     public override void _Process(double delta)
     {
-        if (!Multiplayer.IsServer())
+        // Scene teardown and the multiplayer peer do not disappear atomically. On a client
+        // disconnect, this resolver can receive one final process tick after NetworkProvider has
+        // already cleared MultiplayerPeer. MultiplayerApi.IsServer() internally asks for the
+        // unique ID and logs an engine error when no peer is assigned, so the null check must be
+        // evaluated first.
+        if (Multiplayer.MultiplayerPeer == null || !Multiplayer.IsServer())
             return;
 
         // Finishing an action may open the showdown. Do not spend the same frame's delta on the

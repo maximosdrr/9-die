@@ -128,6 +128,12 @@ public partial class TvScreenShare
         if (steamId == 0)
             return;
 
+        // WebP frame sizes vary with what is on screen. A fixed 128 KiB limit discarded most
+        // frames after a detailed frame entered Steam's reliable queue. Budget a few frames of
+        // the size currently being sent so the queue remains live without becoming unbounded.
+        if (channel == SteamP2PVideoChannel && queueLimitBytes > 0)
+            queueLimitBytes = SteamVideoQueueLimitForPayload(data.Length);
+
         if (queueLimitBytes > 0 && IsSendQueueCongested(steamId, queueLimitBytes))
             return;
 
@@ -166,7 +172,10 @@ public partial class TvScreenShare
         return state["bytes_queued_for_send"].AsInt64() > thresholdBytes;
     }
 
-    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = FrameTransferChannel)]
+    // Encoded WebP frames vary substantially in size. Godot explicitly warns that variable-size
+    // packets on UnreliableOrdered can overtake and discard one another. The pre-refactor stream
+    // used reliable delivery on its dedicated media channel and did not exhibit that starvation.
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = FrameTransferChannel)]
     private void SubmitFrame(byte[] encodedBytes)
     {
         if (!Multiplayer.IsServer())
@@ -184,7 +193,7 @@ public partial class TvScreenShare
                 RpcId(peerId, MethodName.SendFrame, encodedBytes);
     }
 
-    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = FrameTransferChannel)]
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = FrameTransferChannel)]
     private void SendFrame(byte[] encodedBytes)
     {
         if (!AcceptIncomingPayload(ServerPeerId, encodedBytes, isAudio: false))
@@ -193,7 +202,7 @@ public partial class TvScreenShare
         _playoutBuffer?.Enqueue(encodedBytes);
     }
 
-    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = AudioTransferChannel)]
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = AudioTransferChannel)]
     private void SubmitAudioChunk(byte[] monoInt16)
     {
         if (!Multiplayer.IsServer())
@@ -211,7 +220,7 @@ public partial class TvScreenShare
                 RpcId(peerId, MethodName.SendAudioChunk, monoInt16);
     }
 
-    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = AudioTransferChannel)]
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = AudioTransferChannel)]
     private void SendAudioChunk(byte[] monoInt16)
     {
         if (!AcceptIncomingPayload(ServerPeerId, monoInt16, isAudio: true))
@@ -347,15 +356,24 @@ public partial class TvScreenShare
             : senderId == ServerPeerId;
     }
 
-    private bool IsKnownSessionPeer(int peerId)
+    private bool IsKnownSessionPeer(int peerId) => IsKnownSessionPeer(
+        peerId,
+        Multiplayer.GetUniqueId(),
+        Multiplayer.GetPeers());
+
+    internal static bool IsKnownSessionPeer(
+        int peerId,
+        int localPeerId,
+        int[] connectedPeerIds)
     {
         if (peerId <= 0)
             return false;
 
-        if (peerId == ServerPeerId || peerId == Multiplayer.GetUniqueId())
+        if (peerId == ServerPeerId || peerId == localPeerId)
             return true;
 
-        return System.Array.IndexOf(Multiplayer.GetPeers(), peerId) >= 0;
+        return connectedPeerIds != null
+            && System.Array.IndexOf(connectedPeerIds, peerId) >= 0;
     }
 
     private bool AcceptIncomingPayload(int senderId, byte[] data, bool isAudio)

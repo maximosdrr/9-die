@@ -6,8 +6,8 @@ using NAudio.Wave;
 
 /// <summary>
 /// Guards the media boundary independently from capture hardware and Steam. These checks make the
-/// two security properties executable: incoming allocations are bounded, and disposable media
-/// never uses the reliable gameplay queue on ENet.
+/// media boundary executable: incoming allocations are bounded, media uses dedicated channels,
+/// and only connected peers can reserve the TV.
 /// </summary>
 public partial class TvScreenShareSecurityTest : Node
 {
@@ -155,21 +155,21 @@ public partial class TvScreenShareSecurityTest : Node
 
     private void TestMediaRpcDeliveryMode()
     {
-        CheckRpcUsesDisposableDelivery("SubmitFrame", expectedChannel: 1);
-        CheckRpcUsesDisposableDelivery("SendFrame", expectedChannel: 1);
-        CheckRpcUsesDisposableDelivery("SubmitAudioChunk", expectedChannel: 2);
-        CheckRpcUsesDisposableDelivery("SendAudioChunk", expectedChannel: 2);
+        CheckRpcUsesReliableMediaDelivery("SubmitFrame", expectedChannel: 1);
+        CheckRpcUsesReliableMediaDelivery("SendFrame", expectedChannel: 1);
+        CheckRpcUsesReliableMediaDelivery("SubmitAudioChunk", expectedChannel: 2);
+        CheckRpcUsesReliableMediaDelivery("SendAudioChunk", expectedChannel: 2);
     }
 
-    private void CheckRpcUsesDisposableDelivery(string methodName, int expectedChannel)
+    private void CheckRpcUsesReliableMediaDelivery(string methodName, int expectedChannel)
     {
         var method = typeof(TvScreenShare).GetMethod(methodName,
             BindingFlags.Instance | BindingFlags.NonPublic);
         var rpc = method?.GetCustomAttribute<RpcAttribute>();
 
-        Check($"{methodName} usa unreliable ordered no canal {expectedChannel}",
+        Check($"{methodName} usa reliable no canal dedicado {expectedChannel}",
             rpc != null
-            && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.UnreliableOrdered
+            && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.Reliable
             && rpc.TransferChannel == expectedChannel);
     }
 
@@ -190,6 +190,11 @@ public partial class TvScreenShareSecurityTest : Node
             TvScreenShare.SteamDrainPacketBudget is > 0 and <= 32);
         Check("leitura Steam tem orçamento rígido de bytes por frame",
             TvScreenShare.SteamDrainByteBudget is >= 512 * 1024 and <= 2 * 1024 * 1024);
+        Check("fila Steam comporta três frames reais sem ficar ilimitada",
+            TvScreenShare.SteamVideoQueueLimitForPayload(160 * 1024) == 480 * 1024
+            && TvScreenShare.SteamVideoQueueLimitForPayload(1) == 128 * 1024
+            && TvScreenShare.SteamVideoQueueLimitForPayload(4 * 1024 * 1024)
+                == 3L * 512 * 1024);
     }
 
     private void TestCaptureProducerQueuesAreBounded()
@@ -248,12 +253,12 @@ public partial class TvScreenShareSecurityTest : Node
 
     private void TestSharingAuthorization()
     {
-        var player = new Player { Id = 7, Name = "7" };
-        var bodies = new Godot.Collections.Array<Node3D> { player };
-        Check("servidor reconhece o jogador dentro da área da TV",
-            TvScreenShare.ContainsRequester(7, bodies));
-        Check("peer distante não pode reservar a TV",
-            !TvScreenShare.ContainsRequester(8, bodies));
+        Check("host pode reservar a TV",
+            TvScreenShare.IsKnownSessionPeer(1, localPeerId: 1, connectedPeerIds: [7]));
+        Check("peer conectado pode reservar a TV sem depender da colisão remota",
+            TvScreenShare.IsKnownSessionPeer(7, localPeerId: 1, connectedPeerIds: [7]));
+        Check("peer desconhecido não pode reservar a TV",
+            !TvScreenShare.IsKnownSessionPeer(8, localPeerId: 1, connectedPeerIds: [7]));
 
         var tv = new TvScreenShare();
         var acceptedRequests = true;
@@ -268,7 +273,6 @@ public partial class TvScreenShareSecurityTest : Node
             acceptedRequests && !tv.TryConsumeShareControlRequest(7, 700));
 
         tv.Free();
-        player.Free();
     }
 
     private void TestAudioCaptureFallback()

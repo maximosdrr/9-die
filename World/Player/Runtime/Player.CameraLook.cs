@@ -26,9 +26,15 @@ public partial class Player : CharacterBody3D
             return;
 
         var now = Time.GetTicksMsec() / 1000.0;
-        if (now < _nextCameraLookSendTime
-            && look.DistanceSquaredTo(_lastSentCameraLook)
-            < CameraLookMinimumDelta * CameraLookMinimumDelta)
+        // Mouse-motion events can arrive at the hardware polling rate (commonly 500/1000 Hz).
+        // The previous AND condition bypassed this interval whenever the cursor moved far enough,
+        // turning the advertised 20 Hz stream into one RPC per input event. Always enforce time
+        // first; the delta threshold only decides whether a due sample is worth transmitting.
+        if (!ShouldSendCameraLook(
+                look,
+                _lastSentCameraLook,
+                now,
+                _nextCameraLookSendTime))
         {
             return;
         }
@@ -106,6 +112,15 @@ public partial class Player : CharacterBody3D
 
     internal bool TryConsumeCameraLookRequest(int peerId, ulong nowMilliseconds) =>
         _cameraLookRequestLimiter.TryConsume(peerId, nowMilliseconds);
+
+    internal static bool ShouldSendCameraLook(
+        Vector2 look,
+        Vector2 previousLook,
+        double nowSeconds,
+        double nextSendSeconds) =>
+        nowSeconds >= nextSendSeconds
+        && look.DistanceSquaredTo(previousLook)
+            >= CameraLookMinimumDelta * CameraLookMinimumDelta;
 
     internal int TrackedCameraLookPeerCount => _cameraLookRequestLimiter.TrackedPeerCount;
 

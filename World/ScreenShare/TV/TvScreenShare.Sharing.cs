@@ -55,7 +55,11 @@ public partial class TvScreenShare
 
     private void TryStartShare(int requesterId)
     {
-        if (SharerId != 0 || !IsRequesterInInteractionArea(requesterId))
+        // The source picker can only be opened by the local player while their own instance says
+        // they are in range. Rechecking GetOverlappingBodies on the host rejected legitimate
+        // clients whenever their replicated collision had not entered the host's Area3D yet.
+        // Authenticate the RPC by its connected peer ID instead; rate limiting remains in place.
+        if (SharerId != 0 || !IsKnownSessionPeer(requesterId))
             return;
 
         ApplySharerChange(requesterId);
@@ -69,31 +73,6 @@ public partial class TvScreenShare
 
         ApplySharerChange(0);
         BroadcastSharerChange(0);
-    }
-
-    private bool IsRequesterInInteractionArea(int requesterId) =>
-        InteractionArea != null
-        && ContainsRequester(
-            requesterId,
-            InteractionArea.GetOverlappingBodies());
-
-    internal static bool ContainsRequester(
-        int requesterId,
-        Godot.Collections.Array<Node3D> bodies)
-    {
-        if (requesterId <= 0 || bodies == null)
-            return false;
-
-        foreach (var body in bodies)
-        {
-            if (body is Player player
-                && (player.Id == requesterId || player.Name.ToString() == requesterId.ToString()))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     internal bool TryConsumeShareControlRequest(int peerId, ulong nowMilliseconds) =>

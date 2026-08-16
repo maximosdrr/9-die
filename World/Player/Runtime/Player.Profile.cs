@@ -90,7 +90,7 @@ public partial class Player : CharacterBody3D
 
     private void BroadcastNickname()
     {
-        if (!Multiplayer.IsServer() || Multiplayer.MultiplayerPeer == null)
+        if (Multiplayer.MultiplayerPeer == null || !Multiplayer.IsServer())
             return;
 
         foreach (var peerId in Multiplayer.GetPeers())

@@ -29,6 +29,7 @@ public partial class PlayerMovementSecurityTest : Node
         TestMovementModeRateLimiter();
         TestProfileValidation();
         TestProfileRpcContract();
+        TestLocalPresentationAuthority();
         TestSceneReplicationContract();
 
         GD.Print($"=== {_passed} passaram, {_failed} falharam ===");
@@ -432,6 +433,49 @@ public partial class PlayerMovementSecurityTest : Node
         }
         Check("a tabela de rotação do pescoço permanece limitada",
             player.TrackedCameraLookPeerCount <= Player.MaximumTrackedCameraLookPeers);
+
+        var largeMouseDelta = new Vector2(1.0f, 0.5f);
+        Check("movimento grande do mouse também respeita os 20 Hz",
+            !Player.ShouldSendCameraLook(
+                largeMouseDelta,
+                Vector2.Zero,
+                nowSeconds: 10.01,
+                nextSendSeconds: 10.05));
+        Check("a amostra mais recente é enviada quando o intervalo vence",
+            Player.ShouldSendCameraLook(
+                largeMouseDelta,
+                Vector2.Zero,
+                nowSeconds: 10.05,
+                nextSendSeconds: 10.05));
+        Check("câmera parada não gera tráfego periódico inútil",
+            !Player.ShouldSendCameraLook(
+                largeMouseDelta,
+                largeMouseDelta,
+                nowSeconds: 11.0,
+                nextSendSeconds: 10.05));
+
+        var sentSamples = 0;
+        var previousSample = Vector2.Zero;
+        var nextSampleAt = 0.0;
+        for (var inputEvent = 1; inputEvent <= 1_000; inputEvent++)
+        {
+            var eventAt = inputEvent / 1_000.0;
+            var eventLook = new Vector2(inputEvent * 0.01f, 0.0f);
+            if (!Player.ShouldSendCameraLook(
+                    eventLook,
+                    previousSample,
+                    eventAt,
+                    nextSampleAt))
+            {
+                continue;
+            }
+
+            sentSamples++;
+            previousSample = eventLook;
+            nextSampleAt = eventAt + 1.0 / 20.0;
+        }
+        Check("mil eventos de mouse não excedem vinte amostras de rede por segundo",
+            sentSamples <= 20);
         player.Free();
     }
 
@@ -471,6 +515,36 @@ public partial class PlayerMovementSecurityTest : Node
             raised == CharacterVisual.Clips.IdleSitHoldingCards
             && lowered == CharacterVisual.Clips.IdleHoldingCardsDown);
         posePlayer?.QueueFree();
+    }
+
+    private void TestLocalPresentationAuthority()
+    {
+        var attach = typeof(Player).GetMethod(
+            "AttachLocalPresentation",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var playerScene = GD.Load<PackedScene>("res://World/Player/Player.tscn");
+        var player = playerScene?.Instantiate<Player>();
+
+        if (player == null || attach == null)
+        {
+            Check("a apresentação local preserva a autoridade do client", false);
+            player?.Free();
+            return;
+        }
+
+        player.SetMultiplayerAuthority(7);
+        AddChild(player);
+        player.LocalPresentationRoot = this;
+        attach.Invoke(player, null);
+
+        var presentation = player.LocalPresentation;
+        Check("a apresentação local preserva a autoridade do client",
+            presentation?.GetMultiplayerAuthority() == 7
+            && presentation.TvShareButton?.GetMultiplayerAuthority() == 7);
+
+        presentation?.Detach();
+        presentation?.Free();
+        player.Free();
     }
 
     private void TestProfileValidation()

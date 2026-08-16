@@ -41,12 +41,26 @@ public partial class TvScreenShare : Node3D
     // their own link actually sustains, always showing the freshest frame, with latency bounded
     // instead of compounding.
     //
-    // Video gates tight (~1.5 frames). Audio gates too, but at 4x that: a dropped chunk is an
+    // The fixed 128 KiB gate predates the detailed poker scene. Real 720p frames from that scene
+    // now vary between roughly 80 and 160 KiB, so a single ordinary frame could put the queue
+    // over the old limit and make the following frames look like a slide show. Keep a short,
+    // payload-relative budget instead: enough for three current frames, but still bounded so a
+    // slow viewer cannot accumulate seconds of stale video. Audio keeps its fixed gate.
+    //
+    // Audio gates too, but at 4x the old video floor: a dropped chunk is an
     // audible gap, so it only happens once the link is so far gone (queue already seconds deep)
     // that the alternative is audio drifting endlessly behind — at that point a stutter that
     // stays live beats a clean stream narrating the past.
     private const long VideoQueueLimitBytes = 128 * 1024;
+    private const int VideoQueueFrameBudget = 3;
     private const long AudioQueueLimitBytes = 512 * 1024;
+
+    internal static long SteamVideoQueueLimitForPayload(int payloadBytes)
+    {
+        var safePayloadBytes = Math.Clamp(payloadBytes, 1, MaxEncodedFrameBytes);
+        return Math.Max(VideoQueueLimitBytes,
+            (long)safePayloadBytes * VideoQueueFrameBudget);
+    }
 
     // How often video frames are *sent*, decoupled from how fast capture+encode runs locally.
     // The sharer's own TV happily displays every captured frame, but pushing 35+ fps over the

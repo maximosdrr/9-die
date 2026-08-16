@@ -103,6 +103,10 @@ public partial class Player : CharacterBody3D
 
         LocalPresentation = LocalPresentationScene.Instantiate<LocalPlayerPresentation>();
         LocalPresentation.Name = "LocalPlayerPresentation";
+        // LocalPresentationRoot is outside this replicated Player subtree. Without explicitly
+        // carrying the owner's authority across that boundary, every client-side UI defaults to
+        // peer 1 and TvShareButton disables itself for everyone except the host.
+        LocalPresentation.SetMultiplayerAuthority(GetMultiplayerAuthority(), recursive: true);
         LocalPresentationRoot.AddChild(LocalPresentation);
         LocalPresentation.Configure(this, TvScreen);
 
