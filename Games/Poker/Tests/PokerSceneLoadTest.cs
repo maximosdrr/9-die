@@ -840,6 +840,16 @@ public partial class PokerSceneLoadTest : Node
             view.CardDownAnchor != null
             && view.CardDownAnchor.GetParent() == view.HandRig
             && view.CardSlots?.TopLevel == true);
+        Check("olhar as cartas e preparar o showdown usam uma transicao suave",
+            Mathf.IsEqualApprox(view.PeekSpeed, 14.0f)
+            && view.CardAttachmentBlendSeconds >= 0.40f
+            && PokerClips.CardLookRaiseBlendSeconds >= 0.45f
+            && PokerClips.CardLookLowerBlendSeconds >= 0.30f
+            && PokerClips.CardLookPlaybackSpeed < 1.0f
+            && PokerClips.ShowdownTransitionBlendSeconds
+                >= PokerClips.CardLookRaiseBlendSeconds
+            && PokerClips.ShowdownPreparationSeconds
+                > PokerClips.ShowdownTransitionBlendSeconds);
         Check("os placeholders geométricos das mãos foram removidos",
             view.GetNodeOrNull<Node3D>("HandRig/Hand/CardHandPose/Mesh") == null
             && view.GetNodeOrNull<Node3D>("HandRig/LeftHand/Mesh") == null);

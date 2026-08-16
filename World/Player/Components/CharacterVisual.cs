@@ -201,7 +201,8 @@ public partial class CharacterVisual : Node3D
         {
             _cardSequenceStage = CardSequenceStage.ShowdownPreparing;
             _cardSequenceRemaining = preparationSeconds;
-            PlayInternal(Clips.IdleSitHoldingCards, _cardSequenceBlend, restart: true);
+            PlayInternal(Clips.IdleSitHoldingCards, _cardSequenceBlend,
+                PokerClips.CardLookPlaybackSpeed, restart: true);
             return preparationSeconds + revealSeconds;
         }
 

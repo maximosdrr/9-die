@@ -81,7 +81,7 @@ public partial class PokerHand3DView : PokerHandView
 
     [ExportGroup("Cards on table")]
     /// <summary>Short handoff between the stable felt anchor and the animated left-hand grip.</summary>
-    [Export] public float CardAttachmentBlendSeconds = 0.18f;
+    [Export] public float CardAttachmentBlendSeconds = 0.50f;
 
     /// <summary>
     /// Tiny gap between visible card geometry and the physical tabletop. The visual wooden mesh is
@@ -446,7 +446,8 @@ public partial class PokerHand3DView : PokerHandView
             FirstPersonHandCameraMode.Locked);
 
         var duration = PlayGrossClip(PokerClips.FirstPerson(PokerGesture.Reveal));
-        duration = Mathf.Max(duration, _cardHandVisual?.Play(PokerGesture.Reveal) ?? 0.0f);
+        duration = Mathf.Max(duration, _cardHandVisual?.Play(
+            PokerGesture.Reveal, PokerClips.ShowdownTransitionBlendSeconds) ?? 0.0f);
         _activeTableGestureRemaining = Mathf.Max(
             duration, PokerClips.ShowdownDurationSeconds);
         return _activeTableGestureRemaining;
@@ -847,7 +848,18 @@ public partial class PokerHand3DView : PokerHandView
         }
     }
 
-    private float PlayCardPose(string clip) => _cardHandVisual?.PlayClip(clip) ?? 0.0f;
+    private float PlayCardPose(string clip)
+    {
+        var blend = clip == PokerClips.LookCards
+            ? PokerClips.CardLookRaiseBlendSeconds
+            : clip == PokerClips.Idle
+                ? PokerClips.CardLookLowerBlendSeconds
+                : 0.18f;
+        var speed = clip == PokerClips.LookCards
+            ? PokerClips.CardLookPlaybackSpeed
+            : 1.0f;
+        return _cardHandVisual?.PlayClip(clip, blend, speed) ?? 0.0f;
+    }
 
     private static float Smooth(float t)
     {

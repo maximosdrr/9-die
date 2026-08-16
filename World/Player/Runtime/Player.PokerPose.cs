@@ -96,7 +96,10 @@ public partial class Player : CharacterBody3D
             raised
                 ? CharacterVisual.Clips.IdleSitHoldingCards
                 : CharacterVisual.Clips.IdleHoldingCardsDown,
-            0.18);
+            raised
+                ? PokerClips.CardLookRaiseBlendSeconds
+                : PokerClips.CardLookLowerBlendSeconds,
+            raised ? PokerClips.CardLookPlaybackSpeed : 1.0f);
         return true;
     }
 

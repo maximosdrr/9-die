@@ -21,7 +21,7 @@ public partial class PokerHandVisual : Node3D
     [Export] public string FoldClip = "";
     [Export] public string RevealClip = "";
 
-    public float Play(PokerGesture gesture)
+    public float Play(PokerGesture gesture, double blend = 0.18, float speed = 1.0f)
     {
         var clip = gesture switch
         {
@@ -33,15 +33,15 @@ public partial class PokerHandVisual : Node3D
             _ => IdleClip,
         };
 
-        return PlayClip(clip);
+        return PlayClip(clip, blend, speed);
     }
 
-    public float PlayClip(string clip, double blend = 0.18)
+    public float PlayClip(string clip, double blend = 0.18, float speed = 1.0f)
     {
         if (Animator == null || string.IsNullOrWhiteSpace(clip) || !Animator.HasAnimation(clip))
             return 0.0f;
 
-        Animator.Play(clip, blend);
+        Animator.Play(clip, blend, speed);
         Animator.Advance(0.0);
         return (float)(Animator.GetAnimation(clip)?.Length ?? 0.0);
     }
