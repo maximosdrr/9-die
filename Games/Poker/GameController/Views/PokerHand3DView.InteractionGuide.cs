@@ -94,7 +94,7 @@ public partial class PokerHand3DView
     {
         // Show the controls as soon as it is this player's turn. Input remains locked until the
         // opening card-look finishes, but the player can already see where the available actions are.
-        var visible = _interactionEnabled && IsYourTurn;
+        var visible = _interactionEnabled && IsYourTurn && !TableActionsLocked;
         SetCrosshairVisible(visible);
         SetGuideVisible(visible);
         if (visible)

@@ -159,7 +159,12 @@ public partial class PokerBoardPresenter : Node3D
 
     /// <summary>How many cards are drawn in the stack. Enough to read as a deck, not 52.</summary>
     [Export] public int DeckDepth = 8;
-    [Export] public float ShuffleSplitDistance = 0.034f;
+    /// <summary>
+    /// Small in-place separation used by the riffle. Both packets remain well inside one card's
+    /// footprint; the former 34 mm offset produced two 68 mm-apart piles and read as a duplicated
+    /// deck rather than one deck being shuffled.
+    /// </summary>
+    [Export] public float ShuffleSplitDistance = 0.010f;
     [Export] public float ShuffleLift = 0.014f;
     [Export(PropertyHint.Range, "0,12,0.25")] public float ShuffleHalfYawDegrees = 5.0f;
 
@@ -297,6 +302,7 @@ public partial class PokerBoardPresenter : Node3D
     /// <summary>Where the deck lies, in this presenter's space. Anything dealt starts here.</summary>
     public Vector3 DeckPosition => DeckTransformFor(ReaderFacing).Origin;
     public Basis DeckBasis => DeckTransformFor(ReaderFacing).Basis;
+    private Transform3D DeckLocalTransform => new(DeckBasis, DeckPosition);
     public Basis DeckCardBasis => DeckBasis * PokerCard.Orientation(true);
     public float DeckTopHeight => Mathf.Max(1, DeckDepth) * Spec.CardThickness * 1.6f;
 
@@ -366,6 +372,8 @@ public partial class PokerBoardPresenter : Node3D
 
         _readerPlayerId = playerId;
         PlaceDeck();
+        if (_cleaningUp)
+            _deckRest = DeckLocalTransform;
         PlaceAll();
         if (PotPile != null)
             PotPile.Transform = new Transform3D(ReaderBasis, PotPosition);
@@ -466,7 +474,7 @@ public partial class PokerBoardPresenter : Node3D
         if (_deck == null)
             return;
 
-        _deck.Transform = new Transform3D(DeckBasis, DeckPosition);
+        _deck.Transform = DeckLocalTransform;
     }
 
     /// <summary>
@@ -656,7 +664,7 @@ public partial class PokerBoardPresenter : Node3D
             + Mathf.Max(0, totalCardSlots - 1) * Mathf.Max(0.0f, stagger);
         _gatherHoldSeconds = Mathf.Max(0.0f, gatherHoldSeconds);
         _shuffleSeconds = Mathf.Max(0.0f, shuffleSeconds);
-        _deckRest = _deck?.Transform ?? Transform3D.Identity;
+        _deckRest = _deck != null ? DeckLocalTransform : Transform3D.Identity;
         for (var index = 0; index < _deckCards.Count; index++)
         {
             if (index < _deckCardRest.Count)
@@ -727,7 +735,8 @@ public partial class PokerBoardPresenter : Node3D
             return;
 
         var halfCount = Mathf.Max(1, (_deckCards.Count + 1) / 2);
-        // Separate, briefly hold, interleave, then square the deck in distinct readable phases.
+        // Loosen two overlapping packets, interleave, then square them. The packets never leave one
+        // deck footprint, so reader-relative placement cannot look like a second physical deck.
         var split = Smooth(Mathf.Clamp(shuffle / 0.27f, 0.0f, 1.0f));
         for (var index = 0; index < _deckCards.Count; index++)
         {
@@ -766,7 +775,10 @@ public partial class PokerBoardPresenter : Node3D
     {
         _cleaningUp = false;
         if (_deck != null)
+        {
+            _deckRest = DeckLocalTransform;
             _deck.Transform = _deckRest;
+        }
         for (var index = 0; index < _deckCards.Count; index++)
         {
             var halfCount = Mathf.Max(1, (_deckCards.Count + 1) / 2);

@@ -274,7 +274,10 @@ public partial class PokerShowdownPresenter : Node3D
                 var cardId = result.Cards[cardIndex];
                 var card = _cardPool[visualIndex];
                 var source = _sourceOf?.Invoke(result.PlayerId, cardId)
-                    ?? new Transform3D(PokerCard.Orientation(false), _board.DeckPosition);
+                    ?? GlobalTransform.AffineInverse() * _board.GlobalTransform
+                    * new Transform3D(
+                        _board.DeckBasis * PokerCard.Orientation(false),
+                        _board.DeckPosition);
                 var targetPosition = reader * new Vector3((cardIndex - 2.0f) * _cardSpacing,
                     spec.CardThickness * 0.5f + 0.004f + row * 0.0005f, rowZ);
                 var target = new Transform3D(reader * PokerCard.Orientation(false), targetPosition);

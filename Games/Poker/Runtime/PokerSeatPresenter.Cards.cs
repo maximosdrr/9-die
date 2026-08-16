@@ -34,6 +34,7 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealPending = false;
             hand.RevealGestureStarted = false;
             hand.RevealElapsed = 0.0f;
+            hand.RevealPreparationSeconds = 0.0f;
             hand.RevealReleaseSeconds = 0.0f;
             hand.Folded = false;
             hand.Mucked = 0.0f;
@@ -72,6 +73,7 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealPending = true;
             hand.RevealGestureStarted = false;
             hand.RevealElapsed = 0.0f;
+            hand.RevealPreparationSeconds = 0.0f;
             hand.RevealReleaseSeconds = Mathf.Max(0.0f, ShowdownReleaseDelaySeconds);
             hand.Returning = false;
             for (var i = 0; i < hand.Cards.Length; i++)
@@ -96,13 +98,15 @@ public partial class PokerSeatPresenter : Node3D
         PlaceHoleCards(playerId, hand, facing, spec, revealed != null);
     }
 
-    private void StartShowdownGesture(string playerId)
+    private float StartShowdownGesture(string playerId)
     {
         if (PlayerRegistry.Instance is not { } registry || !registry.HasContainer())
-            return;
+            return 0.0f;
 
-        registry.GetPlayerById(playerId)?.PlaySeatedGesture(
-            PokerClips.BodyReveal, BoardPresenter.GlobalPosition);
+        var player = registry.GetPlayerById(playerId);
+        return player?.PlaySeatedShowdownSequence(
+            BoardPresenter.GlobalPosition,
+            Mathf.Max(0.0f, ShowdownPreparationSeconds)) ?? 0.0f;
     }
 
     /// <summary>
@@ -124,7 +128,9 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealGestureStarted = true;
             hand.RevealElapsed = 0.0f;
             PrepareCardsForShowdownGesture(playerId, hand);
-            StartShowdownGesture(playerId);
+            hand.RevealPreparationSeconds = StartShowdownGesture(playerId);
+            hand.RevealReleaseSeconds = Mathf.Max(0.0f, ShowdownReleaseDelaySeconds)
+                                        + hand.RevealPreparationSeconds;
 
             // Keep the seam observable for a full process frame even after a long hitch. The local
             // FP view runs later than the presenter and must see the started flag before release.
@@ -181,6 +187,7 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealPending = false;
             hand.RevealGestureStarted = false;
             hand.RevealElapsed = hand.RevealReleaseSeconds;
+            hand.RevealPreparationSeconds = 0.0f;
             hand.Returning = false;
             hand.Returned = 1.0f;
             hand.Folded = false;
@@ -213,6 +220,14 @@ public partial class PokerSeatPresenter : Node3D
         && _holeCards.TryGetValue(playerId, out var hand)
         && hand.Revealed
         && hand.RevealGestureStarted;
+
+    /// <summary>The exact raised-pose lead-in chosen for this player's current reveal.</summary>
+    public float ShowdownPreparationFor(string playerId) =>
+        !string.IsNullOrEmpty(playerId)
+        && _holeCards.TryGetValue(playerId, out var hand)
+        && hand.RevealGestureStarted
+            ? Mathf.Max(0.0f, hand.RevealPreparationSeconds)
+            : 0.0f;
 
     /// <summary>
     /// Ensures the pair is in the authored starting pose before the Showdown clock begins. Usually
@@ -494,7 +509,7 @@ public partial class PokerSeatPresenter : Node3D
         // would. This is the one table visual that intentionally is not reoriented per viewer.
         var readerYaw = ReaderYaw(facing);
         var readerTurned = Basis.FromEuler(new Vector3(0.0f, readerYaw, 0.0f));
-        var deck = BoardPresenter.DeckPosition;
+        var deck = BoardPositionToPresenter(BoardPresenter.DeckPosition);
 
         // Showdown is now a physical release: keep the same nodes parented to the animated grip
         // until the authored fingers open, rather than teleporting them to the cloth at snapshot time.

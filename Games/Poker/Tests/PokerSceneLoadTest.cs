@@ -442,10 +442,10 @@ public partial class PokerSceneLoadTest : Node
             Check($"a aposta fica diante das cartas do dono sem entrar nelas ({ownCardsGap * 100.0f:F1} cm)",
                 ownCardsGap > 0.005f);
         }
-        Check("o embaralhamento divide, intercala e esquadra o maço",
+        Check("o embaralhamento intercala e esquadra um único maço",
             game.BoardPresenter is
             {
-                ShuffleSplitDistance: >= 0.025f,
+                ShuffleSplitDistance: >= 0.006f and <= 0.015f,
                 ShuffleLift: >= 0.008f, ShuffleHalfYawDegrees: >= 3.0f
             });
         Check("o futuro dealer tem pontos de extensao para animacao e som",

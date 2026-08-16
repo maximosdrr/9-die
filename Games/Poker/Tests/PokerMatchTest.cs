@@ -1036,8 +1036,13 @@ public partial class PokerMatchTest : Node
         }
         Check("o showdown espera a aposta e as fichas antes de iniciar",
             presenter.HasStartedShowdownGesture(revealOrder[0]));
+        var revealPreparation = presenter.ShowdownPreparationFor(revealOrder[0]);
+        Check("as cartas baixas recebem a preparação antes do Showdown",
+            revealPreparation <= 0.0f
+            || Mathf.Abs(revealPreparation - PokerClips.ShowdownPreparationSeconds) < 0.01f);
         var preReleaseFrames = Mathf.Max(0,
-            Mathf.FloorToInt(presenter.ShowdownReleaseDelaySeconds * 60.0f) - 2);
+            Mathf.FloorToInt((presenter.ShowdownReleaseDelaySeconds + revealPreparation)
+                             * 60.0f) - 2);
         for (var frame = 0; frame < preReleaseFrames; frame++)
         {
             presenter._Process(1.0 / 60.0);
@@ -1227,17 +1232,50 @@ public partial class PokerMatchTest : Node
             presenter.PresentationProfile.CardCleanupDuration * 60.0f) + 2;
         var sawGatherHold = false;
         var sawDetailedShuffle = false;
+        var maximumShuffleSpread = 0.0f;
+        var maximumGatherPileHeight = 0.0f;
+        var maximumGatherHorizontalGap = 0.0f;
         for (var frame = 0; frame < cleanupFrames; frame++)
         {
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
-            sawGatherHold |= board.DeckGatherHoldInProgress
-                && presenter.ReturningCardCount > 0;
+            if (board.DeckGatherHoldInProgress && presenter.ReturningCardCount > 0)
+            {
+                sawGatherHold = true;
+                var deckWorld = board.ToGlobal(board.DeckPosition);
+                var visible = board.FindChildren("*", "PokerCard", true, false)
+                    .Concat(presenter.FindChildren("*", "PokerCard", true, false))
+                    .OfType<PokerCard>()
+                    .Where(card => card.Visible)
+                    .ToList();
+                if (visible.Count > 0)
+                {
+                    var minimumY = visible.Min(card => card.GlobalPosition.Y);
+                    var maximumY = visible.Max(card => card.GlobalPosition.Y);
+                    maximumGatherPileHeight = Mathf.Max(
+                        maximumGatherPileHeight, maximumY - minimumY);
+                    maximumGatherHorizontalGap = Mathf.Max(
+                        maximumGatherHorizontalGap,
+                        visible.Max(card => new Vector2(
+                            card.GlobalPosition.X - deckWorld.X,
+                            card.GlobalPosition.Z - deckWorld.Z).Length()));
+                }
+            }
             sawDetailedShuffle |= board.DeckShuffleInProgress
                 && board.DeckCardSpread >= board.ShuffleSplitDistance;
+            if (board.DeckShuffleInProgress)
+                maximumShuffleSpread = Mathf.Max(maximumShuffleSpread, board.DeckCardSpread);
         }
         Check("as cartas repousam juntas sobre o maço antes do embaralhamento", sawGatherHold);
-        Check("o maço se divide fisicamente antes de ser intercalado", sawDetailedShuffle);
+        Check($"a coleta forma um único maço, sem uma cópia 6 cm acima "
+              + $"(altura {maximumGatherPileHeight * 100.0f:F2} cm)",
+            maximumGatherPileHeight < 0.04f);
+        Check($"todas as cartas convergem para a mesma posição horizontal do baralho "
+              + $"({maximumGatherHorizontalGap * 100.0f:F2} cm)",
+            maximumGatherHorizontalGap < 0.02f);
+        Check("o maço intercala fisicamente as cartas sem virar dois baralhos",
+            sawDetailedShuffle
+            && maximumShuffleSpread < board.Spec.CardWidth * 0.40f);
         Check("o embaralhamento termina dentro da janela reservada pelo servidor",
             !board.CardCleanupActive && presenter.ReturningCardCount == 0);
         game.CardsCleaningUp = false;

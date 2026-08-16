@@ -75,6 +75,9 @@ public static class PokerClips
     public const float PokerPassDurationSeconds = 1.20f;
     public const float PokerPassFirstContactFraction = 0.50f;
     public const float ShowdownDurationSeconds = 2.50f;
+    /// <summary>Down-to-raised settling beat before the reveal clip. Skipped if cards are raised.</summary>
+    public const float ShowdownPreparationSeconds = 0.40f;
+    public const float ShowdownTransitionBlendSeconds = 0.22f;
     public const float ShowdownReleaseFraction = 0.60f;
     public const float ShowdownReleaseSeconds =
         ShowdownDurationSeconds * ShowdownReleaseFraction;

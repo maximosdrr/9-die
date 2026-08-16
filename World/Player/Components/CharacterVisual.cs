@@ -40,12 +40,15 @@ public partial class CharacterVisual : Node3D
     private CardSequenceStage _cardSequenceStage;
     private double _cardSequenceRemaining;
     private double _cardSequenceLookSeconds;
+    private double _cardSequenceBlend = 0.18;
 
     private enum CardSequenceStage
     {
         None,
         PickingUp,
         Looking,
+        ShowdownPreparing,
+        ShowdownPlaying,
     }
 
     [ExportGroup("Visual size")]
@@ -172,6 +175,42 @@ public partial class CharacterVisual : Node3D
         return pickUp;
     }
 
+    /// <summary>
+    /// Runs the public reveal as a small authored cutscene. A player whose cards are already raised
+    /// enters Showdown directly; a player resting on the table first blends into the raised holding
+    /// pose. The explicit timer is required because IdleSitHoldingCards is a loop and therefore
+    /// cannot be followed with AnimationPlayer.Queue.
+    /// </summary>
+    public double PlayShowdownSequence(
+        bool cardsAlreadyRaised,
+        double preparationSeconds,
+        double blend = 0.22)
+    {
+        if (!HasAnimation(Clips.Showdown))
+        {
+            Play(Clips.IdleHoldingCardsDown, blend);
+            return 0.0;
+        }
+
+        _cardSequenceBlend = Mathf.Max(blend, 0.0);
+        var revealSeconds = Animator.GetAnimation(Clips.Showdown)?.Length ?? 0.0;
+        var canPrepare = !cardsAlreadyRaised
+                         && preparationSeconds > 0.0
+                         && HasAnimation(Clips.IdleSitHoldingCards);
+        if (canPrepare)
+        {
+            _cardSequenceStage = CardSequenceStage.ShowdownPreparing;
+            _cardSequenceRemaining = preparationSeconds;
+            PlayInternal(Clips.IdleSitHoldingCards, _cardSequenceBlend, restart: true);
+            return preparationSeconds + revealSeconds;
+        }
+
+        _cardSequenceStage = CardSequenceStage.ShowdownPlaying;
+        _cardSequenceRemaining = Mathf.Max(revealSeconds, 0.01);
+        PlayInternal(Clips.Showdown, _cardSequenceBlend, restart: true);
+        return revealSeconds;
+    }
+
     private void AdvanceCardSequence(double delta)
     {
         if (_cardSequenceStage == CardSequenceStage.None)
@@ -186,6 +225,22 @@ public partial class CharacterVisual : Node3D
             _cardSequenceStage = CardSequenceStage.Looking;
             _cardSequenceRemaining = Mathf.Max(_cardSequenceLookSeconds, 0.01);
             PlayInternal(Clips.IdleSitHoldingCards, restart: true);
+            return;
+        }
+
+        if (_cardSequenceStage == CardSequenceStage.ShowdownPreparing)
+        {
+            _cardSequenceStage = CardSequenceStage.ShowdownPlaying;
+            _cardSequenceRemaining = Mathf.Max(
+                Animator.GetAnimation(Clips.Showdown)?.Length ?? 0.0, 0.01);
+            PlayInternal(Clips.Showdown, _cardSequenceBlend, restart: true);
+            return;
+        }
+
+        if (_cardSequenceStage == CardSequenceStage.ShowdownPlaying)
+        {
+            _cardSequenceStage = CardSequenceStage.None;
+            PlayInternal(Clips.IdleHoldingCardsDown, _cardSequenceBlend, restart: true);
             return;
         }
 

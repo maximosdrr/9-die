@@ -127,6 +127,9 @@ public partial class PokerHand3DView : PokerHandView
     private bool _voluntaryLookPose;
     private PokerGesture _activeTableGesture = PokerGesture.None;
     private float _activeTableGestureRemaining;
+    private float _showdownPreparationElapsed;
+    private float _showdownPreparationDuration;
+    private bool _showdownClipStarted;
     private float _cardTransfer = 1.0f;
     private PokerHandVisual _cardHandVisual;
     private PokerHandVisual _chipHandVisual;
@@ -149,7 +152,9 @@ public partial class PokerHand3DView : PokerHandView
 
     public IReadOnlyList<ActionOption> Options => _options;
 
-    public bool HasAnyAction => _options.Count > 0;
+    public bool TableActionsLocked => _activeTableGesture == PokerGesture.Reveal;
+
+    public bool HasAnyAction => !TableActionsLocked && _options.Count > 0;
 
     /// <summary>Legacy preset total retained for compatibility; physical chip selection is primary.</summary>
     public int RaiseTotal { get; private set; }
@@ -335,6 +340,9 @@ public partial class PokerHand3DView : PokerHandView
             _showdownPlayedHand = -1;
             _activeTableGesture = PokerGesture.None;
             _activeTableGestureRemaining = 0.0f;
+            _showdownPreparationElapsed = 0.0f;
+            _showdownPreparationDuration = 0.0f;
+            _showdownClipStarted = false;
             _cardTransfer = 1.0f;
             _peek = 0.0f;
 
@@ -387,9 +395,61 @@ public partial class PokerHand3DView : PokerHandView
         // Membership in the reveal dictionary is the authoritative edge. Manual reveals arrive
         // after the street changed, while all-in/timeout can add several players in one snapshot.
         _showdownPlayedHand = Game.HandNumber;
-        _activeTableGestureRemaining = Mathf.Max(
-            PlayGesture(PokerGesture.Reveal), PokerClips.ShowdownDurationSeconds);
+        var preparation = Game.SeatPresenter?.ShowdownPreparationFor(playerId) ?? 0.0f;
+        BeginShowdownCutscene(preparation);
         ApplyFan();
+    }
+
+    /// <summary>
+    /// Locks table interaction while leaving the seated camera free. Low cards first blend into the
+    /// raised holding pose; cards already being inspected skip that lead-in. The cards, both hands
+    /// and the public body use the same preparation duration supplied by PokerSeatPresenter.
+    /// </summary>
+    private void BeginShowdownCutscene(float preparationSeconds)
+    {
+        _activeTableGesture = PokerGesture.Reveal;
+        _activeTableGestureRemaining = 0.0f;
+        _showdownPreparationElapsed = 0.0f;
+        _showdownPreparationDuration = Mathf.Max(0.0f, preparationSeconds);
+        _showdownClipStarted = false;
+
+        // Clear the private look flag without playing the low idle. Playing it here was the old
+        // one-frame flick: Down and Showdown were both requested during the same process frame.
+        _voluntaryLookPose = false;
+        SetHandCameraModes(
+            FirstPersonHandCameraMode.Locked,
+            FirstPersonHandCameraMode.Locked);
+        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
+        SetGuideVisible(false);
+        Hud?.SetPanelVisible(false);
+
+        if (_showdownPreparationDuration <= 0.0f)
+        {
+            StartShowdownClip();
+            return;
+        }
+
+        SetPeek(0.0f);
+        PlayCardPose(PokerClips.LookCards);
+    }
+
+    private float StartShowdownClip()
+    {
+        if (_showdownClipStarted)
+            return _activeTableGestureRemaining;
+
+        _showdownClipStarted = true;
+        SetPeek(1.0f);
+        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
+        SetHandCameraModes(
+            FirstPersonHandCameraMode.Locked,
+            FirstPersonHandCameraMode.Locked);
+
+        var duration = PlayGrossClip(PokerClips.FirstPerson(PokerGesture.Reveal));
+        duration = Mathf.Max(duration, _cardHandVisual?.Play(PokerGesture.Reveal) ?? 0.0f);
+        _activeTableGestureRemaining = Mathf.Max(
+            duration, PokerClips.ShowdownDurationSeconds);
+        return _activeTableGestureRemaining;
     }
 
     public override void SetInteractive(bool interactive)
@@ -438,6 +498,9 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>Whether this action is on offer right now.</summary>
     public bool HasAction(PokerActionKind kind)
     {
+        if (TableActionsLocked)
+            return false;
+
         foreach (var option in _options)
         {
             if (option.Kind == kind)
@@ -453,6 +516,9 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public int TotalFor(PokerActionKind kind)
     {
+        if (TableActionsLocked)
+            return 0;
+
         foreach (var option in _options)
         {
             if (option.Kind != kind)
@@ -472,6 +538,13 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public bool TryAllIn(out PokerActionKind kind, out int total)
     {
+        if (TableActionsLocked)
+        {
+            kind = PokerActionKind.None;
+            total = 0;
+            return false;
+        }
+
         foreach (var option in _options)
         {
             if (option.Kind != PokerActionKind.Raise)
@@ -498,8 +571,12 @@ public partial class PokerHand3DView : PokerHandView
     }
 
     /// <summary>Asks the controller to send this action. The server validates it again from scratch.</summary>
-    public void RequestAction(PokerActionKind kind, int total) =>
+    public void RequestAction(PokerActionKind kind, int total)
+    {
+        if (TableActionsLocked)
+            return;
         EmitSignal(SignalName.ActionRequested, (int)kind, total);
+    }
 
     /// <summary>Steps the raise to the next legal stop: minimum, half pot, pot, all-in.</summary>
     public void StepRaise(int step)
@@ -1161,17 +1238,21 @@ public partial class PokerHand3DView : PokerHandView
     /// </summary>
     public float PlayGesture(PokerGesture gesture)
     {
-        if (gesture is PokerGesture.ThrowChips or PokerGesture.Knock or PokerGesture.Reveal)
+        if (gesture == PokerGesture.Reveal)
+        {
+            BeginShowdownCutscene(0.0f);
+            return _activeTableGestureRemaining;
+        }
+
+        if (gesture is PokerGesture.ThrowChips or PokerGesture.Knock)
         {
             SetVoluntaryLookPose(false);
             SetHandCameraModes(
                 FirstPersonHandCameraMode.Locked,
                 FirstPersonHandCameraMode.Locked,
                 immediate: true);
-            SetPeek(gesture == PokerGesture.Reveal ? 1.0f : 0.0f);
-            SetCardAttachmentMode(gesture == PokerGesture.Reveal
-                ? PokerCardAttachmentMode.FollowHand
-                : PokerCardAttachmentMode.TableRest);
+            SetPeek(0.0f);
+            SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
             _activeTableGesture = gesture;
         }
 
@@ -1181,9 +1262,6 @@ public partial class PokerHand3DView : PokerHandView
             : _cardHandVisual;
 
         duration = Mathf.Max(duration, visual?.Play(gesture) ?? 0.0f);
-        if (gesture == PokerGesture.Reveal)
-            _activeTableGestureRemaining = Mathf.Max(duration, PokerClips.ShowdownDurationSeconds);
-
         return duration;
     }
 
@@ -1195,6 +1273,9 @@ public partial class PokerHand3DView : PokerHandView
 
         _activeTableGesture = PokerGesture.None;
         _activeTableGestureRemaining = 0.0f;
+        _showdownPreparationElapsed = 0.0f;
+        _showdownPreparationDuration = 0.0f;
+        _showdownClipStarted = false;
         SetHandCameraModes(
             FirstPersonHandCameraMode.Locked,
             FirstPersonHandCameraMode.Locked,
@@ -1208,6 +1289,19 @@ public partial class PokerHand3DView : PokerHandView
     {
         if (_activeTableGesture != PokerGesture.Reveal)
             return;
+
+        if (!_showdownClipStarted)
+        {
+            _showdownPreparationElapsed += Mathf.Max(delta, 0.0f);
+            var progress = _showdownPreparationDuration <= 0.0f
+                ? 1.0f
+                : Mathf.Clamp(
+                    _showdownPreparationElapsed / _showdownPreparationDuration, 0.0f, 1.0f);
+            SetPeek(Smooth(progress));
+            if (progress >= 1.0f)
+                StartShowdownClip();
+            return;
+        }
 
         _activeTableGestureRemaining -= Mathf.Max(delta, 0.0f);
         if (_activeTableGestureRemaining <= 0.0f)

@@ -285,7 +285,9 @@ public partial class PokerSeatPresenter : Node3D
         if (boardCard != null)
             return GlobalTransform.AffineInverse() * boardCard.GlobalTransform;
 
-        return new Transform3D(PokerCard.Orientation(false), BoardPresenter.DeckPosition);
+        return new Transform3D(
+            BoardBasisToPresenter(PokerCard.Orientation(false)),
+            BoardPositionToPresenter(BoardPresenter.DeckPosition));
     }
 
     private void RefreshName(string playerId, Vector2 facing)

@@ -649,6 +649,15 @@ public partial class PokerLayoutTest : Node
                 withRelease.MinimumHandPause(true, 30, 3, 2)
                 - withoutRelease.MinimumHandPause(true, 30, 3, 2),
                 PokerPresentationTiming.ShowdownReleaseDelaySeconds));
+        var withoutPreparation = new PokerPresentationProfile
+        {
+            ShowdownPreparationSeconds = 0.0f,
+        };
+        Check("o intervalo da mão também reserva a transição suave para levantar as cartas",
+            Mathf.IsEqualApprox(
+                withRelease.MinimumHandPause(true, 30, 3, 2)
+                - withoutPreparation.MinimumHandPause(true, 30, 3, 2),
+                PokerPresentationTiming.ShowdownPreparationSeconds));
         Check("a estimativa de atores tambem e limitada",
             PokerPresentationTiming.EstimateChipGroups(new[] { 100000, 100000 }, 16) == 16);
     }

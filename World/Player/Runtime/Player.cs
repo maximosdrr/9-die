@@ -277,4 +277,37 @@ public partial class Player : CharacterBody3D
         return fallbackDuration;
     }
 
+    /// <summary>
+    /// Starts the shared third-person Showdown cutscene and returns the preparation time before the
+    /// authored Showdown clip begins. The table presenter adds that exact delay to the physical-card
+    /// release seam, keeping fingers and cards synchronized on every peer.
+    /// </summary>
+    public float PlaySeatedShowdownSequence(
+        Vector3 tableTarget,
+        float preparationSeconds = PokerClips.ShowdownPreparationSeconds)
+    {
+        if (!IsInSeatedGameMode)
+            return 0.0f;
+
+        var cardsAlreadyRaised = _pokerCardsRaised;
+        _pokerCardsRaised = false;
+        var preparation = !cardsAlreadyRaised
+                          && CharacterVisual?.HasAnimation(CharacterVisual.Clips.IdleSitHoldingCards) == true
+            ? Mathf.Max(0.0f, preparationSeconds)
+            : 0.0f;
+
+        if (CharacterVisual?.HasAnimation(CharacterVisual.Clips.Showdown) == true)
+        {
+            var total = (float)CharacterVisual.PlayShowdownSequence(
+                cardsAlreadyRaised,
+                preparation,
+                PokerClips.ShowdownTransitionBlendSeconds);
+            LockPokerPoseForGesture(PokerClips.BodyReveal, total);
+            return preparation;
+        }
+
+        PlaySeatedGesture(PokerClips.BodyReveal, tableTarget);
+        return 0.0f;
+    }
+
 }

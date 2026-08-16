@@ -452,7 +452,7 @@ public partial class PokerSeatPresenter : Node3D
         };
         if (_dealerChangeAudio.GetParent() == null)
             AddChild(_dealerChangeAudio);
-        _dealerChangeAudio.Position = BoardPresenter.DeckPosition;
+        _dealerChangeAudio.Position = BoardPositionToPresenter(BoardPresenter.DeckPosition);
         _dealerChangeAudio.Stream = DealerChangeSound;
         _dealerChangeAudio.Play();
     }

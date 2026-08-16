@@ -70,7 +70,7 @@ public partial class PokerSeatPresenter : Node3D
     {
         _cardCleanupElapsed += Mathf.Max(0.0f, delta);
         var duration = Mathf.Max(0.01f, Profile.CardReturnSeconds);
-        var targetBasis = BoardPresenter.DeckCardBasis;
+        var targetBasis = BoardBasisToPresenter(BoardPresenter.DeckCardBasis);
         var moved = false;
 
         foreach (var hand in _holeCards.Values)
@@ -94,7 +94,8 @@ public partial class PokerSeatPresenter : Node3D
                     hand.CleanupFaceDown[index] = true;
                 }
 
-                var target = BoardPresenter.CollectionTarget(hand.CleanupSlot[index]);
+                var target = BoardPositionToPresenter(
+                    BoardPresenter.CollectionTarget(hand.CleanupSlot[index]));
                 var position = PokerMotion.CardThrow(hand.CleanupFrom[index].Origin, target, t,
                     0.040f, PokerChipPile.Noise(hand.CleanupSlot[index], 62) * 0.010f);
                 var basis = hand.CleanupFrom[index].InterpolateWith(

@@ -30,6 +30,9 @@ public partial class PokerPresentationProfile : Resource
     [Export] public float DealerChangeStagger { get; set; } = 0.020f;
 
     [ExportGroup("Showdown")]
+    /// <summary>Maximum low-to-raised lead-in before the authored reveal starts.</summary>
+    [Export] public float ShowdownPreparationSeconds { get; set; }
+        = PokerClips.ShowdownPreparationSeconds;
     /// <summary>Time from Showdown starting until the authored hand releases the cards.</summary>
     [Export] public float ShowdownReleaseDelaySeconds { get; set; }
         = PokerClips.ShowdownReleaseSeconds;
@@ -100,7 +103,7 @@ public partial class PokerPresentationProfile : Resource
         var ranking = ShowdownCardSeconds
             + Mathf.Max(0, revealedPlayers - 1) * ShowdownRowStagger
             + 4 * ShowdownCardStagger;
-        return finalBet + collection + ShowdownReleaseDelaySeconds
+        return finalBet + collection + ShowdownPreparationSeconds + ShowdownReleaseDelaySeconds
             + ShowdownRevealMotionSeconds
             + ShowdownRevealHoldSeconds + ranking
             + RankedHandsReadingSeconds + payout

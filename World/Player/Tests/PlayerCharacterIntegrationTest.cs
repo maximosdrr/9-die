@@ -68,6 +68,33 @@ public partial class PlayerCharacterIntegrationTest : Node
             visual._Process(0.11);
             Check("depois de olhar, o fluxo 3P retorna às cartas abaixadas",
                 visual.Animator.CurrentAnimation == CharacterVisual.Clips.IdleHoldingCardsDown);
+
+            visual.Play(CharacterVisual.Clips.IdleHoldingCardsDown, 0.0);
+            var showdownTotal = visual.PlayShowdownSequence(
+                cardsAlreadyRaised: false,
+                PokerClips.ShowdownPreparationSeconds,
+                blend: 0.0);
+            Check("o Showdown baixo prepara primeiro a pose com as cartas levantadas",
+                showdownTotal > PokerClips.ShowdownDurationSeconds
+                && visual.Animator.CurrentAnimation == CharacterVisual.Clips.IdleSitHoldingCards);
+            visual._Process(PokerClips.ShowdownPreparationSeconds - 0.01);
+            Check("a preparação não é cortada antes da hora",
+                visual.Animator.CurrentAnimation == CharacterVisual.Clips.IdleSitHoldingCards);
+            visual._Process(0.02);
+            Check("a preparação entrega suavemente ao clipe Showdown",
+                visual.Animator.CurrentAnimation == CharacterVisual.Clips.Showdown);
+            visual._Process(PokerClips.ShowdownDurationSeconds + 0.01);
+            Check("o Showdown termina novamente no idle baixo",
+                visual.Animator.CurrentAnimation == CharacterVisual.Clips.IdleHoldingCardsDown);
+
+            visual.Play(CharacterVisual.Clips.IdleSitHoldingCards, 0.0);
+            var directShowdown = visual.PlayShowdownSequence(
+                cardsAlreadyRaised: true,
+                PokerClips.ShowdownPreparationSeconds,
+                blend: 0.0);
+            Check("quem já está olhando as cartas entra diretamente no Showdown",
+                Mathf.Abs((float)directShowdown - PokerClips.ShowdownDurationSeconds) < 0.02f
+                && visual.Animator.CurrentAnimation == CharacterVisual.Clips.Showdown);
             Check("Sit entrega uma pose contínua ao idle comum do dominó",
                 PosesMatch(visual, CharacterVisual.Clips.Sit, atEnd: true,
                     CharacterVisual.Clips.IdleSit, atSecondEnd: false));

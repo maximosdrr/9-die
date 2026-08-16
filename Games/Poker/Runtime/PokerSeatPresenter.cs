@@ -259,6 +259,7 @@ public partial class PokerSeatPresenter : Node3D
         public bool RevealPending;
         public bool RevealGestureStarted;
         public float RevealElapsed;
+        public float RevealPreparationSeconds;
         public float RevealReleaseSeconds;
 
         /// <summary>Whether this pair has been thrown away.</summary>
@@ -341,6 +342,12 @@ public partial class PokerSeatPresenter : Node3D
     [Export] public int PrewarmedChipsPerBatch = 1;
 
     [ExportGroup("Showdown comparison")]
+    /// <summary>Low-to-raised preparation shared by the body, first-person hands and release seam.</summary>
+    public float ShowdownPreparationSeconds
+    {
+        get => Profile.ShowdownPreparationSeconds;
+        set => Profile.ShowdownPreparationSeconds = value;
+    }
     /// <summary>Delay until the authored Showdown hand opens at its release frame.</summary>
     public float ShowdownReleaseDelaySeconds
     {
@@ -470,6 +477,20 @@ public partial class PokerSeatPresenter : Node3D
     private Label3D _dealerLabel;
     public bool LastRecoveryDiscardedAnimation { get; private set; }
     private PokerPresentationProfile Profile => PresentationProfile ??= new PokerPresentationProfile();
+
+    /// <summary>
+    /// BoardHolder and SeatPresenter deliberately use different vertical origins. Every deck/card
+    /// handoff crosses through world space so a local coordinate from one root can never create a
+    /// second pile above or below the real deck.
+    /// </summary>
+    private Vector3 BoardPositionToPresenter(Vector3 boardLocalPosition) =>
+        ToLocal(BoardPresenter.ToGlobal(boardLocalPosition));
+
+    private Basis BoardBasisToPresenter(Basis boardLocalBasis) =>
+        GlobalBasis.Inverse() * BoardPresenter.GlobalBasis * boardLocalBasis;
+
+    private Vector3 BoardBasisToPresenter(Vector3 boardLocalDirection) =>
+        GlobalBasis.Inverse() * BoardPresenter.GlobalBasis * boardLocalDirection;
 
     public override void _Ready()
     {

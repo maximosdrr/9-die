@@ -395,7 +395,8 @@ public partial class PokerSeatPresenter : Node3D
         if (ShouldBeginPayout())
         {
             moved |= _payoutSequencer?.Begin(_game.Winners, _game.SeatOrder,
-                BoardPresenter.DeckPosition + Vector3.Up * 0.006f) ?? false;
+                BoardPositionToPresenter(BoardPresenter.DeckPosition)
+                + BoardBasisToPresenter(Vector3.Up) * 0.006f) ?? false;
         }
 
         if (!payoutWasCompleted && (_payoutSequencer?.Completed ?? false))
