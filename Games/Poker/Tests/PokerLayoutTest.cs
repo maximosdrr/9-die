@@ -95,8 +95,12 @@ public partial class PokerLayoutTest : Node
                 .ToList();
 
             var apart = cards[0].DistanceTo(cards[1]);
-            Check($"as duas cartas do assento não se sobrepõem ({apart * 1000.0f:F1} mm)",
-                apart > spec.CardWidth * 0.5f);
+            var layer = PokerTableLayout.SeatCardHeight(1, spec)
+                - PokerTableLayout.SeatCardHeight(0, spec);
+            Check($"as duas cartas do assento deixam quase toda a face visível ({apart * 1000.0f:F1} mm)",
+                apart >= spec.CardWidth * 0.79f);
+            Check($"as duas cartas do assento ocupam camadas físicas distintas ({layer * 1000.0f:F1} mm)",
+                layer >= Mathf.Max(spec.CardThickness * 2.0f, 0.0015f));
 
             var bet = PokerTableLayout.SeatSpot(facing, spec.SeatBetRadius);
             var stack = PokerTableLayout.SeatSpot(facing, spec.SeatStackRadius);

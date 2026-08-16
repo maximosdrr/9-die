@@ -105,10 +105,23 @@ public static class PokerTableLayout
     {
         var direction = facing.Normalized();
         var across = new Vector2(-direction.Y, direction.X);
-        var step = spec.CardWidth * 0.62f;
+        // Leave only a small, intentional overlap between the pair. The previous 62% step hid
+        // almost two fifths of each card and made the faces fight for the same pixels.
+        var step = spec.CardWidth * 0.80f;
 
         return direction * spec.SeatCardRadius
                + across * ((index - (PokerDeal.HoleCardCount - 1) * 0.5f) * step);
+    }
+
+    /// <summary>
+    /// Height of a dealt hole-card centre above the table frame. Each subsequent card occupies a
+    /// physical layer of its own, so the small lateral overlap reads as paper resting on paper
+    /// instead of two coplanar meshes flickering through one another.
+    /// </summary>
+    public static float SeatCardHeight(int index, PokerLayoutSpec spec)
+    {
+        var layerSeparation = Mathf.Max(spec.CardThickness * 2.0f, 0.0015f);
+        return spec.CardThickness * 0.5f + Mathf.Max(index, 0) * layerSeparation;
     }
 
     /// <summary>The yaw that turns a card to face a seat looking in along <paramref name="facing"/>.</summary>

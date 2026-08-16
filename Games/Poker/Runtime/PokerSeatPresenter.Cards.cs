@@ -638,7 +638,7 @@ public partial class PokerSeatPresenter : Node3D
     {
         var place = PokerTableLayout.SeatCardPosition(facing, index, spec);
         return new Transform3D(turned * PokerCard.Orientation(true),
-            new Vector3(place.X, spec.CardThickness * 0.5f, place.Y));
+            new Vector3(place.X, PokerTableLayout.SeatCardHeight(index, spec), place.Y));
     }
 
     /// <summary>

@@ -77,7 +77,7 @@ public partial class PokerHand3DView : PokerHandView
     [Export] public float PeekTiltDeg = -18.0f;
 
     /// <summary>How fast the cards turn over, in responses per second.</summary>
-    [Export] public float PeekSpeed = 14.0f;
+    [Export] public float PeekSpeed = 90.0f;
 
     [ExportGroup("Cards on table")]
     /// <summary>Short handoff between the stable felt anchor and the animated left-hand grip.</summary>
