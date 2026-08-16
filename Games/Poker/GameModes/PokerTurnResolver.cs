@@ -123,9 +123,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     private int _lastAmount;
     private bool _actionAdvancePending;
     private float _actionAdvanceRemaining;
+    private bool _automaticShowdownPending;
+    private float _automaticShowdownElapsed;
 
     internal bool ActionAdvancePending => _actionAdvancePending;
     internal float ActionAdvanceRemaining => _actionAdvanceRemaining;
+    internal bool AutomaticShowdownPending => _automaticShowdownPending;
 
     protected override void ResetSecretState()
     {
@@ -159,6 +162,7 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _lastAmount = 0;
         _actionSeq = 0;
         CancelPendingActionAdvance();
+        CancelAutomaticShowdown();
     }
 
     protected override void ClearSecretState()
@@ -178,6 +182,12 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         if (_actionAdvancePending)
         {
             AdvancePendingAction((float)delta);
+            return;
+        }
+
+        if (_automaticShowdownPending)
+        {
+            AdvanceAutomaticShowdown((float)delta);
             return;
         }
 

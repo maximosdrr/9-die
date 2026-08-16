@@ -106,6 +106,7 @@ public partial class PokerMatchTest : Node
         TestSecrecy(game);
         TestRejections(game, resolver);
         TestClosingCallPresentation(game, resolver);
+        TestAllInAfterFlopCompletesShowdownAndPayout(game, resolver, order);
 
         // The focused animation scenario deliberately advanced the real first hand. Restart the same
         // real session fixture so the long-running coverage keeps its original deterministic path.
@@ -1391,6 +1392,101 @@ public partial class PokerMatchTest : Node
             if (stopWhenReady && presenter.PresentationReadyForAction)
                 break;
         }
+    }
+
+    /// <summary>
+    /// Reproduces the production failure: both players see the flop, one moves all-in and the other
+    /// calls. The all-in has no muck decision, but it must still play the complete automatic showdown
+    /// before the same physical pot actors travel to the winner.
+    /// </summary>
+    private void TestAllInAfterFlopCompletesShowdownAndPayout(
+        PokerGame game, PokerTurnResolver resolver, Array order)
+    {
+        var presenter = game.SeatPresenter;
+        var board = game.BoardPresenter;
+        if (presenter == null || board == null)
+        {
+            Check("o cenário visual de all-in tem apresentadores", false);
+            return;
+        }
+
+        game.StartingStack = Stack;
+        game.SmallBlind = 5;
+        game.BigBlind = 10;
+        resolver.AutoAdvanceHands = false;
+        resolver.WaitAnimationsEndToNextTurn = true;
+        game.SetupMatch(order, "1");
+        presenter.SnapToAuthoritativeState();
+
+        void FinishAcceptedAction(PokerActionKind kind)
+        {
+            var frames = Mathf.CeilToInt(PokerClips.DurationForAction(kind) * 60.0f) + 2;
+            for (var frame = 0; frame < frames; frame++)
+            {
+                presenter._Process(1.0 / 60.0);
+                board._Process(1.0 / 60.0);
+                resolver._Process(1.0 / 60.0);
+            }
+        }
+
+        var safety = 0;
+        while (game.Street == PokerStreet.Preflop && !game.HandSettled && safety++ < 4)
+        {
+            var actor = game.TurnOwnerId;
+            var options = PokerBetting.LegalActions(
+                game.BetStateOf(actor), game.CurrentBet, game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(actor));
+            var action = options.FirstOrDefault(option => option.Kind == PokerActionKind.Call);
+            if (action.Kind == PokerActionKind.None)
+                action = options.FirstOrDefault(option => option.Kind == PokerActionKind.Check);
+            resolver.ApplyActionFor(actor, game.TurnToken, (int)action.Kind, action.MinTotal);
+            FinishAcceptedAction(action.Kind);
+            AdvancePresentation(presenter, board, 600, stopWhenReady: true);
+        }
+
+        var allInActor = game.TurnOwnerId;
+        var allIn = PokerBetting.LegalActions(
+                game.BetStateOf(allInActor), game.CurrentBet, game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(allInActor))
+            .FirstOrDefault(option => option.Kind == PokerActionKind.Raise);
+        resolver.ApplyActionFor(
+            allInActor, game.TurnToken, (int)allIn.Kind, allIn.MaxTotal);
+        FinishAcceptedAction(allIn.Kind);
+        AdvancePresentation(presenter, board, 600, stopWhenReady: true);
+
+        var caller = game.TurnOwnerId;
+        var call = PokerBetting.LegalActions(
+                game.BetStateOf(caller), game.CurrentBet, game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(caller))
+            .FirstOrDefault(option => option.Kind == PokerActionKind.Call);
+        resolver.ApplyActionFor(caller, game.TurnToken, (int)call.Kind, call.MinTotal);
+        FinishAcceptedAction(call.Kind);
+
+        var automaticShowdownPublished = game.ShowdownWaiting
+            && resolver.AutomaticShowdownPending
+            && !game.HandSettled
+            && game.RevealedHoleCards.Count == order.Count;
+        var sawShowdownGesture = false;
+        var sawPayout = false;
+        for (var frame = 0; frame < 1800 && !presenter.PayoutCompleted; frame++)
+        {
+            presenter._Process(1.0 / 60.0);
+            board._Process(1.0 / 60.0);
+            resolver._Process(1.0 / 60.0);
+            sawShowdownGesture |= game.SeatOrder.Any(presenter.HasStartedShowdownGesture);
+            sawPayout |= presenter.PayoutStarted;
+        }
+
+        Check("o all-in depois do flop anuncia o showdown antes do prêmio",
+            automaticShowdownPublished);
+        Check("o showdown automático ainda executa a animação das mãos",
+            sawShowdownGesture);
+        Check("o pote do all-in viaja fisicamente até o vencedor",
+            game.Street == PokerStreet.Showdown && game.HandSettled
+            && sawPayout && presenter.PayoutCompleted);
+        Check("o saldo visual só termina depois da entrega do pote",
+            game.Winners.Keys.All(winner =>
+                presenter.DisplayedStackOf(winner) == game.StackOf(winner)));
     }
 
     /// <summary>

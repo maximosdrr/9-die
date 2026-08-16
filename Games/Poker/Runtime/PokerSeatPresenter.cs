@@ -261,6 +261,7 @@ public partial class PokerSeatPresenter : Node3D
         public float RevealElapsed;
         public float RevealPreparationSeconds;
         public float RevealReleaseSeconds;
+        public float RevealCutsceneRemaining;
 
         /// <summary>Whether this pair has been thrown away.</summary>
         public bool Folded;
@@ -616,6 +617,13 @@ public partial class PokerSeatPresenter : Node3D
             var hand = entry.Value;
             var landed = true;
 
+            if (hand.RevealCutsceneRemaining > 0.0f)
+            {
+                hand.RevealCutsceneRemaining = Mathf.Max(
+                    0.0f, hand.RevealCutsceneRemaining - Mathf.Max((float)delta, 0.0f));
+                moved = true;
+            }
+
             moved |= AdvancePendingShowdownReveal(entry.Key, hand, (float)delta);
 
             if (hand.Returning && hand.Returned < 1.0f)
@@ -687,7 +695,8 @@ public partial class PokerSeatPresenter : Node3D
         var showdownBlocked = _collecting || _organizing || _collectionRequested
             || HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet, ChipBatchPhase.Landing,
                 ChipBatchPhase.ToPot, ChipBatchPhase.Organizing)
-            || _holeCards.Values.Any(hand => hand.RevealPending || hand.Returning);
+            || _holeCards.Values.Any(hand => hand.RevealPending || hand.Returning
+                || hand.RevealCutsceneRemaining > 0.0f);
         moved |= _showdownPresenter?.Advance((float)delta, showdownBlocked) ?? false;
 
         // Only when something actually changed: this presenter redraws every seat's chips and

@@ -36,6 +36,7 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealElapsed = 0.0f;
             hand.RevealPreparationSeconds = 0.0f;
             hand.RevealReleaseSeconds = 0.0f;
+            hand.RevealCutsceneRemaining = 0.0f;
             hand.Folded = false;
             hand.Mucked = 0.0f;
             hand.Returning = false;
@@ -75,6 +76,7 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealElapsed = 0.0f;
             hand.RevealPreparationSeconds = 0.0f;
             hand.RevealReleaseSeconds = Mathf.Max(0.0f, ShowdownReleaseDelaySeconds);
+            hand.RevealCutsceneRemaining = 0.0f;
             hand.Returning = false;
             for (var i = 0; i < hand.Cards.Length; i++)
             {
@@ -131,6 +133,8 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealPreparationSeconds = StartShowdownGesture(playerId);
             hand.RevealReleaseSeconds = Mathf.Max(0.0f, ShowdownReleaseDelaySeconds)
                                         + hand.RevealPreparationSeconds;
+            hand.RevealCutsceneRemaining = hand.RevealPreparationSeconds
+                                           + PokerClips.ShowdownDurationSeconds;
 
             // Keep the seam observable for a full process frame even after a long hitch. The local
             // FP view runs later than the presenter and must see the started flag before release.
@@ -188,6 +192,7 @@ public partial class PokerSeatPresenter : Node3D
             hand.RevealGestureStarted = false;
             hand.RevealElapsed = hand.RevealReleaseSeconds;
             hand.RevealPreparationSeconds = 0.0f;
+            hand.RevealCutsceneRemaining = 0.0f;
             hand.Returning = false;
             hand.Returned = 1.0f;
             hand.Folded = false;
@@ -213,6 +218,35 @@ public partial class PokerSeatPresenter : Node3D
     private bool CanStartShowdownReveal() =>
         _actionGestureRemaining <= 0.0f
         && PresentationReadyForAction;
+
+    /// <summary>
+    /// The all-in reveal has physically completed on this table: every shown pair has left the
+    /// authored hands, landed on the real surface, and the Showdown clips have reached their end.
+    /// The server uses this seam before it publishes awards and enables payout.
+    /// </summary>
+    public bool ShowdownCardsReadyForSettlement
+    {
+        get
+        {
+            if (_game == null || _game.RevealedHoleCards.Count == 0
+                || !(BoardPresenter?.Settled ?? true) || !PresentationReadyForAction)
+            {
+                return false;
+            }
+
+            foreach (var playerId in _game.RevealedHoleCards.Keys)
+            {
+                if (!_holeCards.TryGetValue(playerId, out var hand)
+                    || !hand.Revealed || hand.RevealPending || hand.Returning
+                    || hand.RevealCutsceneRemaining > 0.0f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
 
     /// <summary>True once this player's authored throw has actually begun on this peer.</summary>
     public bool HasStartedShowdownGesture(string playerId) =>

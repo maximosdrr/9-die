@@ -162,6 +162,7 @@ public partial class PokerTurnResolver
         _showdownRanks.Clear();
         _awards.Clear();
         _pendingShowdownReveals.Clear();
+        CancelAutomaticShowdown();
 
         foreach (var bet in _bets)
         {
@@ -177,6 +178,22 @@ public partial class PokerTurnResolver
             foreach (var playerId in _pendingShowdownReveals.ToArray())
                 RevealHand(playerId);
             _pendingShowdownReveals.Clear();
+
+            // An all-in has no strategic muck decision, but it still has a presentation phase.
+            // Publishing the exposed cards before the awards prevents the final balances from
+            // replacing the pot while the hands are only beginning their Showdown cutscene.
+            if (revealAllImmediately && WaitAnimationsEndToNextTurn)
+            {
+                _automaticShowdownPending = true;
+                _automaticShowdownElapsed = 0.0f;
+                _lastAction = "showdown_auto";
+                _lastPlayer = "";
+                _lastAmount = 0;
+                Game.CallExtendCurrentTurn(BuildContext(
+                    _lastAction, _lastPlayer, _lastAmount, advanceTurn: false));
+                return;
+            }
+
             CompleteShowdown();
             return;
         }
@@ -225,9 +242,46 @@ public partial class PokerTurnResolver
 
     private void CompleteShowdown()
     {
+        CancelAutomaticShowdown();
         _awaitingShowdownReveals = false;
         _publishedShowdownCountdown = int.MinValue;
         FinishHand(showdown: true);
+    }
+
+    /// <summary>
+    /// Waits for the server's real table presenter to finish the automatic all-in reveal before
+    /// publishing winners. Graphical peers receive the same reliable reveal context first, so their
+    /// cutscene cannot be overtaken by an already-awarded stack snapshot.
+    /// </summary>
+    private void AdvanceAutomaticShowdown(float delta)
+    {
+        if (!_automaticShowdownPending)
+            return;
+
+        _automaticShowdownElapsed += Mathf.Max(0.0f, delta);
+        var presenter = Game?.SeatPresenter;
+        if (presenter != null && GodotObject.IsInstanceValid(presenter))
+        {
+            // Editor-authored board/card timings are deliberately unconstrained. Waiting for the
+            // actual presenter, rather than a fixed timeout, keeps even a deliberately slow reveal
+            // from being cut off by settlement.
+            if (!presenter.ShowdownCardsReadyForSettlement)
+                return;
+        }
+        else if (_automaticShowdownElapsed < PokerClips.ShowdownPreparationSeconds
+                 + PokerClips.ShowdownDurationSeconds)
+        {
+            // Dedicated/headless rules still retain the authored beat when no visual table exists.
+            return;
+        }
+
+        CompleteShowdown();
+    }
+
+    private void CancelAutomaticShowdown()
+    {
+        _automaticShowdownPending = false;
+        _automaticShowdownElapsed = 0.0f;
     }
 
     // ---------------------------------------------------------------- settling up
@@ -423,6 +477,7 @@ public partial class PokerTurnResolver
     /// </summary>
     private void ClearHandResult()
     {
+        CancelAutomaticShowdown();
         _reveals.Clear();
         _showdownRanks.Clear();
         _awards.Clear();
@@ -437,6 +492,7 @@ public partial class PokerTurnResolver
     private void EndSession()
     {
         CancelPendingActionAdvance();
+        CancelAutomaticShowdown();
         _handInProgress = false;
         _actingSeat = -1;
         _awaitingShowdownReveals = false;
