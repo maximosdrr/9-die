@@ -147,7 +147,7 @@ public partial class PokerSceneLoadTest : Node
             game.GameControllerScene != null && game.BoardPresenter != null && game.Seats != null);
         Check("o jogo tem um resolvedor de poker ligado pelo GameModeHandler", game.Resolver != null);
         Check("a produção só transfere a vez depois da animação aceita",
-            game.Resolver?.DelayTurnForActionAnimations == true);
+            game.Resolver?.WaitAnimationsEndToNextTurn == true);
         Check("o showdown reserva leitura das mãos e cerca de oito segundos para o ranking",
             game.Resolver != null && game.Resolver.ShowdownSeconds >= 11.0f);
         Check("cartas e fichas podem ser trocadas em um único recurso",
@@ -1467,7 +1467,17 @@ public partial class PokerSceneLoadTest : Node
             board.VerticalRevealSpinSeconds >= 1.4f);
         board.FlipSeconds = 0.35f;
         board.VerticalRevealSpinSeconds = 0.80f;
-        board.VerticalRevealHoldSeconds = 0.60f;
+        board.VerticalRevealBeforeSpinSeconds = 0.15f;
+        board.VerticalRevealSpinSmoothness = 0.85f;
+        board.VerticalRevealAfterSpinSeconds = 0.60f;
+        var linearQuarterSpin = PokerBoardPresenter.EaseVerticalRevealSpin(0.25f, 0.0f);
+        var softQuarterSpin = PokerBoardPresenter.EaseVerticalRevealSpin(0.25f, 1.0f);
+        Check("a suavidade do Inspector altera a curva sem alterar o tempo total",
+            Mathf.Abs(linearQuarterSpin - 0.25f) < 0.0001f
+            && softQuarterSpin > 0.0f
+            && softQuarterSpin < linearQuarterSpin
+            && Mathf.Abs(PokerBoardPresenter.EaseVerticalRevealSpin(1.0f, 1.0f) - 1.0f)
+               < 0.0001f);
 
         // A hand is dealt with nothing turned over yet.
         board.Sync(new List<int>(), 0, handNumber: 1, PokerStreet.Preflop);
@@ -1492,15 +1502,32 @@ public partial class PokerSceneLoadTest : Node
         // The flop turns exactly three.
         board.Sync(new List<int> { 0, 1, 2 }, 0, 1, PokerStreet.Flop);
 
+        board._Process(
+            board.FlipSeconds + board.VerticalRevealBeforeSpinSeconds * 0.5f);
+        var waitingToSpin = board.BoardCardNodeAt(0);
+        board.TryGetTableSurface(
+            waitingToSpin.GlobalPosition, out _, out var preSpinNormal);
+        var preSpinTowardEye = camera.GlobalPosition - waitingToSpin.GlobalPosition;
+        preSpinTowardEye -= preSpinNormal * preSpinTowardEye.Dot(preSpinNormal);
+        Check("o tempo antes do giro mantém as cartas em pé e de frente",
+            (-waitingToSpin.GlobalBasis.Z.Normalized()).Dot(preSpinNormal.Normalized()) > 0.98f
+            && waitingToSpin.GlobalBasis.Y.Normalized()
+                   .Dot(preSpinTowardEye.Normalized()) > 0.95f);
+
         // At the middle of its authored full turn, the first card faces away; after completing the
         // revolution it returns to the exact shared camera-facing plane.
-        AdvanceFor(board, board.FlipSeconds + board.VerticalRevealSpinSeconds * 0.5f);
+        board._Process(
+            board.VerticalRevealBeforeSpinSeconds * 0.5f
+            + board.VerticalRevealSpinSeconds * 0.5f);
         var first = board.BoardCardNodeAt(0);
         board.TryGetTableSurface(first.GlobalPosition, out _, out var spinNormal);
         var firstTowardEye = camera.GlobalPosition - first.GlobalPosition;
         firstTowardEye -= spinNormal * firstTowardEye.Dot(spinNormal);
-        Check("a carta revelada dá uma volta real no próprio eixo",
-            first.GlobalBasis.Y.Normalized().Dot(firstTowardEye.Normalized()) < -0.95f);
+        var midSpinFacing = first.GlobalBasis.Y.Normalized()
+            .Dot(firstTowardEye.Normalized());
+        Check($"a carta revelada dá uma volta real no próprio eixo "
+              + $"({midSpinFacing:F3} no meio do giro)",
+            midSpinFacing < -0.95f);
         var synchronizedMidTurn = true;
         for (var index = 1; index < 3; index++)
         {
@@ -1512,8 +1539,10 @@ public partial class PokerSceneLoadTest : Node
         }
         Check("as três cartas do flop levantam e giram no mesmo quadro", synchronizedMidTurn);
 
-        var allFrontTime = board.FlipSeconds + board.VerticalRevealSpinSeconds + 0.04f;
-        var elapsed = board.FlipSeconds + board.VerticalRevealSpinSeconds * 0.5f;
+        var allFrontTime = board.FlipSeconds + board.VerticalRevealBeforeSpinSeconds
+                          + board.VerticalRevealSpinSeconds + 0.04f;
+        var elapsed = board.FlipSeconds + board.VerticalRevealBeforeSpinSeconds
+                     + board.VerticalRevealSpinSeconds * 0.5f;
         AdvanceFor(board, allFrontTime - elapsed);
         var upright = true;
         var facingCamera = true;

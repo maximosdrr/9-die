@@ -39,13 +39,13 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// <summary>Production advances automatically; visual harnesses may hold a result indefinitely.</summary>
     [Export] public bool AutoAdvanceHands = true;
 
-    [ExportGroup("Action presentation")]
+    [ExportGroup("Turn flow")]
     /// <summary>
     /// Keeps ownership on the accepted actor until their authored pass, bet/call or fold gesture
     /// finishes. Headless visual harnesses may disable it when they intentionally submit a whole
     /// hand without advancing frames.
     /// </summary>
-    [Export] public bool DelayTurnForActionAnimations = true;
+    [Export] public bool WaitAnimationsEndToNextTurn = true;
 
     [ExportGroup("Showdown decision")]
     /// <summary>Time to reveal voluntarily before the visible countdown starts.</summary>

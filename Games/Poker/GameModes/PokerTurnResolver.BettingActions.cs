@@ -185,7 +185,7 @@ public partial class PokerTurnResolver
     private void ScheduleAdvanceAfterAction(PokerActionKind kind)
     {
         CancelPendingActionAdvance();
-        var duration = DelayTurnForActionAnimations
+        var duration = WaitAnimationsEndToNextTurn
             ? PokerClips.DurationForAction(kind)
             : 0.0f;
         if (duration <= 0.0f)

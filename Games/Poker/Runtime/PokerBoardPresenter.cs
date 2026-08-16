@@ -184,14 +184,28 @@ public partial class PokerBoardPresenter : Node3D
     /// <summary>Gap between one card setting off and the next, so they land in order.</summary>
     [Export] public float DealStagger = 0.26f;
 
-    /// <summary>Seconds for each rotating half of the reveal: table-to-upright and upright-to-table.</summary>
-    [Export] public float FlipSeconds = 0.5f;
+    [ExportGroup("Community card reveal")]
+    /// <summary>Seconds for each rotating half: felt-to-upright and upright-to-felt.</summary>
+    [Export(PropertyHint.Range, "0,5,0.05,or_greater")] public float FlipSeconds = 0.5f;
+
+    /// <summary>Readable pause after the cards stand up but before their full turn begins.</summary>
+    [Export(PropertyHint.Range, "0,5,0.05,or_greater")]
+    public float VerticalRevealBeforeSpinSeconds = 0.0f;
 
     /// <summary>Seconds for the complete upright turn around the card's own vertical axis.</summary>
-    [Export] public float VerticalRevealSpinSeconds = 1.60f;
+    [Export(PropertyHint.Range, "0,5,0.05,or_greater")]
+    public float VerticalRevealSpinSeconds = 1.60f;
 
-    /// <summary>How long the newly revealed street remains upright and readable after the turn.</summary>
-    [Export] public float VerticalRevealHoldSeconds = 2.0f;
+    /// <summary>
+    /// Blend from constant angular speed (0) to a soft quintic start/finish (1). This changes the
+    /// feel of the turn without changing its configured duration.
+    /// </summary>
+    [Export(PropertyHint.Range, "0,1,0.05")]
+    public float VerticalRevealSpinSmoothness = 1.0f;
+
+    /// <summary>How long the revealed street remains upright and readable after the turn.</summary>
+    [Export(PropertyHint.Range, "0,10,0.05,or_greater")]
+    public float VerticalRevealAfterSpinSeconds = 2.0f;
 
     /// <summary>
     /// Clearance between the lowest visible point and the physical felt. This is deliberately tiny:
@@ -881,8 +895,9 @@ public partial class PokerBoardPresenter : Node3D
 
     private float RevealDuration() =>
         Mathf.Max(0.0f, FlipSeconds) * 2.0f
+        + Mathf.Max(0.0f, VerticalRevealBeforeSpinSeconds)
         + Mathf.Max(0.0f, VerticalRevealSpinSeconds)
-        + Mathf.Max(0.0f, VerticalRevealHoldSeconds);
+        + Mathf.Max(0.0f, VerticalRevealAfterSpinSeconds);
 
     /// <summary>
     /// Face down on the felt -> upright -> one complete vertical-axis turn -> readable hold -> face
@@ -892,9 +907,11 @@ public partial class PokerBoardPresenter : Node3D
     private Basis RevealBasis(BoardCard card, Basis faceUpBasis)
     {
         var rotateSeconds = Mathf.Max(0.0f, FlipSeconds);
+        var beforeSpinSeconds = Mathf.Max(0.0f, VerticalRevealBeforeSpinSeconds);
         var spinSeconds = Mathf.Max(0.0f, VerticalRevealSpinSeconds);
-        var holdSeconds = Mathf.Max(0.0f, VerticalRevealHoldSeconds);
-        var total = Mathf.Max(0.0001f, rotateSeconds * 2.0f + spinSeconds + holdSeconds);
+        var afterSpinSeconds = Mathf.Max(0.0f, VerticalRevealAfterSpinSeconds);
+        var total = Mathf.Max(0.0001f,
+            rotateSeconds * 2.0f + beforeSpinSeconds + spinSeconds + afterSpinSeconds);
         var elapsed = Mathf.Clamp(card.Flipped, 0.0f, 1.0f) * total;
         var faceDown = faceUpBasis * PokerCard.Orientation(true);
         var upright = faceUpBasis * new Basis(Vector3.Right, Mathf.Pi * 0.5f);
@@ -902,22 +919,30 @@ public partial class PokerBoardPresenter : Node3D
         if (rotateSeconds > 0.0f && elapsed < rotateSeconds)
             return BlendBasis(faceDown, upright, elapsed / rotateSeconds);
 
-        if (spinSeconds > 0.0f && elapsed < rotateSeconds + spinSeconds)
+        var spinStart = rotateSeconds + beforeSpinSeconds;
+        if (elapsed < spinStart)
+            return upright;
+
+        if (spinSeconds > 0.0f && elapsed < spinStart + spinSeconds)
         {
-            var spin = Smoother((elapsed - rotateSeconds) / spinSeconds) * Mathf.Tau;
+            var progress = Mathf.Clamp((elapsed - spinStart) / spinSeconds, 0.0f, 1.0f);
+            var eased = EaseVerticalRevealSpin(
+                progress, VerticalRevealSpinSmoothness);
+            var spin = eased * Mathf.Tau;
             // Upright local +Z points down into the supporting edge, so this is a true turn around
             // the card's vertical axis. A full revolution deliberately returns its face to camera.
             return upright * new Basis(Vector3.Back, spin);
         }
 
-        if (elapsed <= rotateSeconds + spinSeconds + holdSeconds)
+        var afterSpinStart = spinStart + spinSeconds;
+        if (elapsed <= afterSpinStart + afterSpinSeconds)
             return upright;
 
         if (rotateSeconds <= 0.0f)
             return faceUpBasis;
 
         return BlendBasis(upright, faceUpBasis,
-            (elapsed - rotateSeconds - spinSeconds - holdSeconds) / rotateSeconds);
+            (elapsed - afterSpinStart - afterSpinSeconds) / rotateSeconds);
     }
 
     /// <summary>
@@ -981,6 +1006,14 @@ public partial class PokerBoardPresenter : Node3D
     {
         t = Mathf.Clamp(t, 0.0f, 1.0f);
         return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    }
+
+    /// <summary>Testable meaning of the editor's spin-smoothness slider.</summary>
+    internal static float EaseVerticalRevealSpin(float progress, float smoothness)
+    {
+        progress = Mathf.Clamp(progress, 0.0f, 1.0f);
+        smoothness = Mathf.Clamp(smoothness, 0.0f, 1.0f);
+        return Mathf.Lerp(progress, Smoother(progress), smoothness);
     }
 
     private void ResetRow(bool dealing)

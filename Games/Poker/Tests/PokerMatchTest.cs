@@ -90,7 +90,7 @@ public partial class PokerMatchTest : Node
         // No clock in a headless run: zero makes each hand deal straight into the next.
         resolver.ShowdownSeconds = 0.0f;
         resolver.FoldedHandSeconds = 0.0f;
-        resolver.DelayTurnForActionAnimations = false;
+        resolver.WaitAnimationsEndToNextTurn = false;
 
         SignalUtil.ConnectGuarded(resolver, SecretHandTurnResolver.SignalName.ActionRejected,
             new Callable(this, MethodName.OnActionRejected));
@@ -123,7 +123,7 @@ public partial class PokerMatchTest : Node
         // session below keeps its original deal and action path.
         _actionsPublished.Clear();
         _lastSeqSeen = -1;
-        resolver.DelayTurnForActionAnimations = false;
+        resolver.WaitAnimationsEndToNextTurn = false;
         game.SetupMatch(order, "1");
 
         TestSessionRunsToTheEnd(game, resolver);
@@ -141,7 +141,7 @@ public partial class PokerMatchTest : Node
     private void TestTurnWaitsForActionAnimation(
         PokerGame game, PokerTurnResolver resolver)
     {
-        resolver.DelayTurnForActionAnimations = true;
+        resolver.WaitAnimationsEndToNextTurn = true;
 
         var actor = game.TurnOwnerId;
         var token = game.TurnToken;
