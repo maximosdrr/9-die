@@ -47,7 +47,6 @@ public partial class PokerVisualCheck : Node3D
         _game.BigBlind = 10;
         // This harness submits an entire hand before its first rendered frame, unlike real play. Speed
         // only the queued reveal so the final comparison is what the fixed-time screenshot captures.
-        _game.BoardPresenter.FlipStagger = 0.08f;
         _game.BoardPresenter.FlipSeconds = 0.28f;
         _game.SeatPresenter.ShowdownCardSeconds = 0.48f;
         _captureRevealHold = OS.GetEnvironment("POKER_CAPTURE_REVEAL") == "1";

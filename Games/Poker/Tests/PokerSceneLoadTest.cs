@@ -1449,6 +1449,21 @@ public partial class PokerSceneLoadTest : Node
             return;
         }
 
+        // Use a real local eye so the upright phase can prove that it faces the player, not merely
+        // an arbitrary table axis. Runtime peers each perform this same presentation locally.
+        var camera = new GlobalCamera { Current = true };
+        game.AddChild(camera);
+        var seat0Frame = board.CommunityCardsTransformFor(Vector2.Down);
+        var readerDirection = (board.GlobalBasis * seat0Frame.Basis.Z).Normalized();
+        camera.GlobalPosition = board.ToGlobal(seat0Frame.Origin)
+                                + readerDirection * 0.9f + Vector3.Up * 0.65f;
+        game.SetCamera(camera);
+        Check("o giro padrão é deliberadamente suave e não um estalo",
+            board.VerticalRevealSpinSeconds >= 1.4f);
+        board.FlipSeconds = 0.35f;
+        board.VerticalRevealSpinSeconds = 0.80f;
+        board.VerticalRevealHoldSeconds = 0.60f;
+
         // A hand is dealt with nothing turned over yet.
         board.Sync(new List<int>(), 0, handNumber: 1, PokerStreet.Preflop);
 
@@ -1459,9 +1474,70 @@ public partial class PokerSceneLoadTest : Node
         Settle(board);
         Check("depois de entrarem, a mesa assenta", board.Settled);
         Check($"e todas estão de costas ({FaceUpCards(board)} viradas)", FaceUpCards(board) == 0);
+        var flatReference = board.BoardCardNodeAt(0).GlobalBasis;
+        var flatAligned = true;
+        for (var index = 1; index < PokerDeal.BoardCount; index++)
+        {
+            var basis = board.BoardCardNodeAt(index).GlobalBasis;
+            flatAligned &= basis.X.Normalized().Dot(flatReference.X.Normalized()) > 0.9999f
+                           && basis.Z.Normalized().Dot(flatReference.Z.Normalized()) > 0.9999f;
+        }
+        Check("as cinco cartas deitadas formam uma fileira perfeitamente reta", flatAligned);
 
         // The flop turns exactly three.
         board.Sync(new List<int> { 0, 1, 2 }, 0, 1, PokerStreet.Flop);
+
+        // At the middle of its authored full turn, the first card faces away; after completing the
+        // revolution it returns to the exact shared camera-facing plane.
+        AdvanceFor(board, board.FlipSeconds + board.VerticalRevealSpinSeconds * 0.5f);
+        var first = board.BoardCardNodeAt(0);
+        board.TryGetTableSurface(first.GlobalPosition, out _, out var spinNormal);
+        var firstTowardEye = camera.GlobalPosition - first.GlobalPosition;
+        firstTowardEye -= spinNormal * firstTowardEye.Dot(spinNormal);
+        Check("a carta revelada dá uma volta real no próprio eixo",
+            first.GlobalBasis.Y.Normalized().Dot(firstTowardEye.Normalized()) < -0.95f);
+        var synchronizedMidTurn = true;
+        for (var index = 1; index < 3; index++)
+        {
+            var basis = board.BoardCardNodeAt(index).GlobalBasis;
+            synchronizedMidTurn &= basis.X.Normalized()
+                                       .Dot(first.GlobalBasis.X.Normalized()) > 0.9999f
+                                   && basis.Y.Normalized()
+                                       .Dot(first.GlobalBasis.Y.Normalized()) > 0.9999f;
+        }
+        Check("as três cartas do flop levantam e giram no mesmo quadro", synchronizedMidTurn);
+
+        var allFrontTime = board.FlipSeconds + board.VerticalRevealSpinSeconds + 0.04f;
+        var elapsed = board.FlipSeconds + board.VerticalRevealSpinSeconds * 0.5f;
+        AdvanceFor(board, allFrontTime - elapsed);
+        var upright = true;
+        var facingCamera = true;
+        var tangentToFelt = true;
+        var aligned = true;
+        var displayReference = board.BoardCardNodeAt(0).GlobalBasis;
+        for (var index = 0; index < 3; index++)
+        {
+            var card = board.BoardCardNodeAt(index);
+            board.TryGetTableSurface(card.GlobalPosition, out var surfacePoint, out var normal);
+            normal = normal.Normalized();
+            var towardEye = camera.GlobalPosition - card.GlobalPosition;
+            towardEye -= normal * towardEye.Dot(normal);
+            towardEye = towardEye.Normalized();
+            upright &= (-card.GlobalBasis.Z.Normalized()).Dot(normal) > 0.98f;
+            facingCamera &= card.GlobalBasis.Y.Normalized().Dot(towardEye) > 0.95f;
+            aligned &= card.GlobalBasis.X.Normalized()
+                           .Dot(displayReference.X.Normalized()) > 0.9999f
+                       && card.GlobalBasis.Y.Normalized()
+                           .Dot(displayReference.Y.Normalized()) > 0.9999f;
+            tangentToFelt &= card.TryGetVisibleProjectionRange(normal, out var minimum, out _)
+                             && Mathf.Abs(minimum - surfacePoint.Dot(normal)
+                                 - board.RevealSurfaceClearance) < 0.001f;
+        }
+        Check("o flop levanta as três cartas e as mantém na vertical", upright);
+        Check("as cartas em pé compartilham um único plano reto, sem formar leque", aligned);
+        Check("as cartas em pé ficam diretamente de frente para a câmera local", facingCamera);
+        Check("a borda inferior das cartas em pé permanece apoiada no feltro", tangentToFelt);
+
         Settle(board);
         Check($"o flop vira três ({FaceUpCards(board)})", FaceUpCards(board) == 3);
 
@@ -1491,6 +1567,13 @@ public partial class PokerSceneLoadTest : Node
 
         if (!board.Settled)
             GD.Print($"  ---- mesa não assentou em {frame} quadros: {board.DebugState()}");
+    }
+
+    private static void AdvanceFor(PokerBoardPresenter board, float seconds)
+    {
+        var frames = Mathf.CeilToInt(Mathf.Max(0.0f, seconds) * 60.0f);
+        for (var frame = 0; frame < frames; frame++)
+            board._Process(1.0 / 60.0);
     }
 
     private static int VisibleCards(PokerBoardPresenter board)

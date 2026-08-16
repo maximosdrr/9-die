@@ -9,10 +9,9 @@ using Poker.Rules;
 /// of the board, so a card being turned costs one int rather than a node spawn plus a transform.
 /// A card's place is fixed by its INDEX, so turning the turn and the river never slides the flop.
 ///
-/// All five are dealt face down at the start of the hand and turned over as the streets open, which
-/// is both what a dealer does and what makes the reveal legible: a card that appears and flips reads
-/// as a moment, where one that simply pops into existence face up reads as a glitch. The animation
-/// is entirely local — the server says only how many are face up, and every peer arrives at the same
+/// All five are dealt face down at the start of the hand. As a street opens, its cards rise onto
+/// their lower edge, hold upright facing the local reader, then lie face up again. The animation is
+/// entirely local — the server says only how many are face up, and every peer arrives at the same
 /// table by the same rules.
 /// </summary>
 [GlobalClass]
@@ -185,18 +184,20 @@ public partial class PokerBoardPresenter : Node3D
     /// <summary>Gap between one card setting off and the next, so they land in order.</summary>
     [Export] public float DealStagger = 0.26f;
 
-    /// <summary>Seconds for one card to turn over.</summary>
+    /// <summary>Seconds for each rotating half of the reveal: table-to-upright and upright-to-table.</summary>
     [Export] public float FlipSeconds = 0.5f;
 
-    /// <summary>
-    /// Gap between neighbouring cards flipping. Longer than the flip itself, on purpose: at 0.14
-    /// against a 0.42 flip all three flop cards were mid-turn at the same moment and read as one
-    /// simultaneous event. A dealer turns them one, then the next, then the next.
-    /// </summary>
-    [Export] public float FlipStagger = 0.55f;
+    /// <summary>Seconds for the complete upright turn around the card's own vertical axis.</summary>
+    [Export] public float VerticalRevealSpinSeconds = 1.60f;
 
-    /// <summary>How high a card rises as it turns, so it arcs instead of spinning flat.</summary>
-    [Export] public float FlipLift = 0.030f;
+    /// <summary>How long the newly revealed street remains upright and readable after the turn.</summary>
+    [Export] public float VerticalRevealHoldSeconds = 2.0f;
+
+    /// <summary>
+    /// Clearance between the lowest visible point and the physical felt. This is deliberately tiny:
+    /// the card must look supported by its edge while still avoiding depth flicker.
+    /// </summary>
+    [Export] public float RevealSurfaceClearance = 0.00035f;
 
     /// <summary>How the five cards are doing right now. Purely local presentation.</summary>
     private sealed class BoardCard
@@ -578,9 +579,9 @@ public partial class PokerBoardPresenter : Node3D
             var wantsFaceUp = index < visibleShown;
             if (wantsFaceUp && !card.WantsFaceUp)
             {
-                // Staggered from the first card of THIS street, so a flop turns over one by one and
-                // a lone turn or river does not sit waiting for a queue that is not there.
-                card.Wait = (index - _faceUpCount) * FlipStagger;
+                // A street is one presentation beat. In particular, all three flop cards receive
+                // the exact same clock: they rise, turn, hold and lie down in perfect synchrony.
+                card.Wait = 0.0f;
             }
 
             card.WantsFaceUp = wantsFaceUp;
@@ -636,9 +637,10 @@ public partial class PokerBoardPresenter : Node3D
             if (Advance(ref card.Dealt, 1.0f, DealSeconds, (float)delta))
                 moved = true;
 
-            // A card only turns over once it has arrived.
+            // A card only begins its raise/display/lay sequence once it has arrived.
             if (card.Dealt >= 1.0f
-                && Advance(ref card.Flipped, card.WantsFaceUp ? 1.0f : 0.0f, FlipSeconds, (float)delta))
+                && Advance(ref card.Flipped, card.WantsFaceUp ? 1.0f : 0.0f,
+                    RevealDuration(), (float)delta))
                 moved = true;
         }
 
@@ -834,6 +836,12 @@ public partial class PokerBoardPresenter : Node3D
         var spec = Spec;
         var reader = ReaderBasis;
         var boardFrame = CommunityCardsFrame;
+        // One shared orientation for the entire row. Computing a billboard from every card's own
+        // position made their edges converge toward the eye like a fan; the reference presentation
+        // is a single straight display plane facing the camera from the centre of the row.
+        var rowCentre = boardFrame * new Vector3(
+            0.0f, spec.CardThickness * 0.5f, spec.BoardOffset);
+        var sharedFaceUpBasis = FaceUpBasisTowardCamera(rowCentre, boardFrame.Basis);
 
         for (var index = 0; index < _cards.Count; index++)
         {
@@ -852,23 +860,128 @@ public partial class PokerBoardPresenter : Node3D
             var sideways = PokerChipPile.Noise(index, 10) * 0.009f;
             var position = PokerMotion.CardThrow(from, seated, card.Dealt, 0.032f, sideways);
 
-            // The turn is a half revolution about the card's own long axis — the sideways motion a
-            // dealer uses — lifted through the middle so it arcs rather than grinding on the cloth.
-            var turn = Mathf.Pi * (1.0f - Smooth(card.Flipped));
-            position.Y += Mathf.Sin(Smooth(card.Flipped) * Mathf.Pi) * FlipLift;
-
             // A small launch wobble decays completely before contact. It keeps five cards from looking
             // like copies following the same rail while preserving their exact final alignment.
             var airborne = 1.0f - PokerMotion.Smooth(card.Dealt);
             var dealBasis = new Basis(Vector3.Up, PokerChipPile.Noise(index, 11) * 0.18f * airborne)
                             * new Basis(Vector3.Forward, PokerChipPile.Noise(index, 12) * 0.09f * airborne);
-            card.Node.Transform = new Transform3D(
-                boardFrame.Basis * dealBasis * new Basis(Vector3.Back, turn), position);
+            var basis = card.Dealt < 1.0f
+                ? sharedFaceUpBasis * dealBasis * PokerCard.Orientation(true)
+                : RevealBasis(card, sharedFaceUpBasis);
+            card.Node.Transform = new Transform3D(basis, position);
+
+            // Once it has reached the table, use the visible mesh — not the node origin or nominal
+            // thickness — to keep the lowest corner tangent to the real felt. During the raise this
+            // makes the card naturally roll onto its lower edge; in both flat states it prevents the
+            // face from sinking into, or floating above, a resized/tilted table.
+            if (card.Dealt >= 1.0f)
+                RestVisibleGeometryOnTable(card.Node);
         }
     }
 
+    private float RevealDuration() =>
+        Mathf.Max(0.0f, FlipSeconds) * 2.0f
+        + Mathf.Max(0.0f, VerticalRevealSpinSeconds)
+        + Mathf.Max(0.0f, VerticalRevealHoldSeconds);
+
+    /// <summary>
+    /// Face down on the felt -> upright -> one complete vertical-axis turn -> readable hold -> face
+    /// up on the felt. Every card introduced by the same street shares this exact clock, so the
+    /// complete flop behaves as one straight tableau rather than three unrelated animations.
+    /// </summary>
+    private Basis RevealBasis(BoardCard card, Basis faceUpBasis)
+    {
+        var rotateSeconds = Mathf.Max(0.0f, FlipSeconds);
+        var spinSeconds = Mathf.Max(0.0f, VerticalRevealSpinSeconds);
+        var holdSeconds = Mathf.Max(0.0f, VerticalRevealHoldSeconds);
+        var total = Mathf.Max(0.0001f, rotateSeconds * 2.0f + spinSeconds + holdSeconds);
+        var elapsed = Mathf.Clamp(card.Flipped, 0.0f, 1.0f) * total;
+        var faceDown = faceUpBasis * PokerCard.Orientation(true);
+        var upright = faceUpBasis * new Basis(Vector3.Right, Mathf.Pi * 0.5f);
+
+        if (rotateSeconds > 0.0f && elapsed < rotateSeconds)
+            return BlendBasis(faceDown, upright, elapsed / rotateSeconds);
+
+        if (spinSeconds > 0.0f && elapsed < rotateSeconds + spinSeconds)
+        {
+            var spin = Smoother((elapsed - rotateSeconds) / spinSeconds) * Mathf.Tau;
+            // Upright local +Z points down into the supporting edge, so this is a true turn around
+            // the card's vertical axis. A full revolution deliberately returns its face to camera.
+            return upright * new Basis(Vector3.Back, spin);
+        }
+
+        if (elapsed <= rotateSeconds + spinSeconds + holdSeconds)
+            return upright;
+
+        if (rotateSeconds <= 0.0f)
+            return faceUpBasis;
+
+        return BlendBasis(upright, faceUpBasis,
+            (elapsed - rotateSeconds - spinSeconds - holdSeconds) / rotateSeconds);
+    }
+
+    /// <summary>
+    /// Builds a level card frame whose printed top points at this peer's camera position. Camera
+    /// pitch/roll never tilts the table card: only the horizontal direction to the eye matters.
+    /// When no runtime camera exists (headless tests/editor preview), the authored reader frame is
+    /// already the same intended direction.
+    /// </summary>
+    private Basis FaceUpBasisTowardCamera(Vector3 localCardPosition, Basis fallback)
+    {
+        var cardWorld = ToGlobal(localCardPosition);
+        TryGetTableSurface(cardWorld, out _, out var up);
+        if (up.IsZeroApprox())
+            up = Vector3.Up;
+        up = up.Normalized();
+
+        var toward = GodotObject.IsInstanceValid(_game?.Camera)
+            ? _game.Camera.GlobalPosition - cardWorld
+            : GlobalBasis * fallback.Z;
+        toward -= up * toward.Dot(up);
+        if (toward.IsZeroApprox())
+        {
+            toward = GlobalBasis * fallback.Z;
+            toward -= up * toward.Dot(up);
+        }
+        if (toward.IsZeroApprox())
+            toward = Vector3.Back;
+        toward = toward.Normalized();
+
+        var right = up.Cross(toward).Normalized();
+        if (right.IsZeroApprox())
+            right = Vector3.Right;
+        var worldBasis = new Basis(right, up, toward).Orthonormalized();
+        return (GlobalBasis.Inverse() * worldBasis).Orthonormalized();
+    }
+
+    private void RestVisibleGeometryOnTable(PokerCard card)
+    {
+        var near = card.GlobalPosition;
+        TryGetTableSurface(near, out var surfacePoint, out var surfaceNormal);
+        if (surfaceNormal.IsZeroApprox()
+            || !card.TryGetVisibleProjectionRange(surfaceNormal, out var minimum, out _))
+            return;
+
+        surfaceNormal = surfaceNormal.Normalized();
+        var desiredMinimum = surfacePoint.Dot(surfaceNormal)
+                             + Mathf.Max(0.0f, RevealSurfaceClearance);
+        card.GlobalPosition += surfaceNormal * (desiredMinimum - minimum);
+    }
+
+    private static Basis BlendBasis(Basis from, Basis to, float progress) =>
+        new Transform3D(from, Vector3.Zero)
+            .InterpolateWith(new Transform3D(to, Vector3.Zero), Smooth(progress))
+            .Basis.Orthonormalized();
+
     /// <summary>Smoothstep: the flip starts and finishes gently, which is what reads as natural.</summary>
     private static float Smooth(float t) => t * t * (3.0f - 2.0f * t);
+
+    /// <summary>Quintic ease for the long turn: zero velocity and acceleration at both ends.</summary>
+    private static float Smoother(float t)
+    {
+        t = Mathf.Clamp(t, 0.0f, 1.0f);
+        return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    }
 
     private void ResetRow(bool dealing)
     {
