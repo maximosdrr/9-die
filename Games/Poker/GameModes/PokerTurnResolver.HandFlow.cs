@@ -368,9 +368,10 @@ public partial class PokerTurnResolver
         var hasShowdown = showdown && contenders.Count > 1;
         var configuredFloor = hasShowdown ? ShowdownSeconds : FoldedHandSeconds;
         var chipGroups = Profile.EstimateChipGroups(contributions.Values);
-        var cleanupCardSlots = hasShowdown
-            ? contenders.Count * 5 + Mathf.Max(0, _seatOrder.Count - contenders.Count) * 2
-            : PokerDeal.BoardCount + _seatOrder.Count * PokerDeal.HoleCardCount;
+        // The 2D ranking does not mint five duplicate cards per contender. Cleanup returns only
+        // the five community cards and each seat's persistent physical pair.
+        var cleanupCardSlots = PokerDeal.BoardCount
+            + _seatOrder.Count * PokerDeal.HoleCardCount;
         _scheduledCardCleanupSeconds = Profile.CardCleanupDurationFor(cleanupCardSlots);
         var calculated = Profile.MinimumHandPause(
             hasShowdown, chipGroups, contenders.Count, _awards.Count, cleanupCardSlots);

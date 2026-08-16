@@ -364,6 +364,10 @@ public partial class PokerSceneLoadTest : Node
             seatPresenter?.GetNodeOrNull<PokerShowdownPresenter>("ShowdownPresenter") != null
             && seatPresenter.GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer") != null
             && seatPresenter.GetNodeOrNull<PokerChipAnimator>("ChipAnimator") != null);
+        var rankingOverlay = seatPresenter?.GetNodeOrNull<PokerShowdownRankingOverlay>(
+            "ShowdownPresenter/RankingOverlay");
+        Check("o ranking pós-showdown usa uma camada 2D acima do HUD e dos braços",
+            rankingOverlay != null && rankingOverlay.Layer > 20 && !rankingOverlay.VisibleOnScreen);
         Check("o par revelado se sobrepõe de forma controlada, sem ficar coplanar",
             seatPresenter != null
             && seatPresenter.ShowdownPairSpacing > game.BoardPresenter.Spec.CardWidth * 0.5f

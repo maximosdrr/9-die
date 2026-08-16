@@ -550,16 +550,6 @@ public partial class PokerSeatPresenter : Node3D
         if (shown && hand.RevealPending)
             return;
 
-        if ((_showdownPresenter?.Active ?? false) && shown)
-        {
-            foreach (var source in hand.Cards)
-            {
-                if (IsInstanceValid(source))
-                    source.Visible = false;
-            }
-            return;
-        }
-
         if (_game.HandNumber > 0 && hand.Folded && !shown)
         {
             PlaceMuck(playerId, hand, facing, spec, readerYaw);

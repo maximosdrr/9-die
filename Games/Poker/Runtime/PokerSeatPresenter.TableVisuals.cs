@@ -176,26 +176,6 @@ public partial class PokerSeatPresenter : Node3D
         return player;
     }
 
-    private void HideShowdownSources(IReadOnlyList<string> players)
-    {
-        for (var index = 0; index < PokerDeal.BoardCount; index++)
-        {
-            var source = BoardPresenter.BoardCardNodeAt(index);
-            if (source != null)
-                source.Visible = false;
-        }
-        foreach (var playerId in players)
-        {
-            if (!_holeCards.TryGetValue(playerId, out var hand))
-                continue;
-            foreach (var source in hand.Cards)
-            {
-                if (IsInstanceValid(source))
-                    source.Visible = false;
-            }
-        }
-    }
-
     /// <summary>Whether the ranked five-card rows have finished reaching their comparison layout.</summary>
     public bool ShowdownPresentationSettled => _showdownPresenter?.Settled ?? false;
 
@@ -236,11 +216,16 @@ public partial class PokerSeatPresenter : Node3D
     public int RevealedHandsAwaitingRelease => _holeCards.Values.Count(hand =>
         hand.Revealed && hand.RevealPending);
 
-    /// <summary>Players in the same best-to-worst order currently shown on the cloth.</summary>
+    /// <summary>Players in the same best-to-worst order currently shown in the result overlay.</summary>
     public IReadOnlyList<string> ShowdownDisplayOrder =>
         _showdownPresenter?.DisplayOrder ?? System.Array.Empty<string>();
 
     public int ShowdownDisplayedCardCount => _showdownPresenter?.DisplayedCardCount ?? 0;
+    public int ShowdownDisplayedPlayerCount => _showdownPresenter?.DisplayedPlayerCount ?? 0;
+    public int ShowdownDisplayedWinnerCount => _showdownPresenter?.DisplayedWinnerCount ?? 0;
+    public int ShowdownDisplayedCommunityCardCount =>
+        _showdownPresenter?.DisplayedCommunityCardCount ?? 0;
+    public bool ShowdownRankingOverlayVisible => _showdownPresenter?.OverlayVisible ?? false;
 
     public string DebugShowdownState()
     {
@@ -268,27 +253,6 @@ public partial class PokerSeatPresenter : Node3D
             + $"pending={_pendingChipActions.Count} collect={_collecting}/{_organizing}/{_collectionRequested} "
             + $"returning={returning} visible={_visibleStreet} requested={_requestedStreet} "
             + $"phases={string.Join(",", phases)} moving={string.Join(",", moving)}";
-    }
-
-    private Transform3D ShowdownSourceTransform(string playerId, int cardId)
-    {
-        if (_holeCards.TryGetValue(playerId, out var hand))
-        {
-            foreach (var card in hand.Cards)
-            {
-                if (IsInstanceValid(card) && card.CardId == cardId)
-                    return GlobalTransform.AffineInverse() * card.GlobalTransform;
-            }
-        }
-
-        var boardIndex = System.Array.IndexOf(_game.Board, cardId);
-        var boardCard = BoardPresenter.BoardCardNodeAt(boardIndex);
-        if (boardCard != null)
-            return GlobalTransform.AffineInverse() * boardCard.GlobalTransform;
-
-        return new Transform3D(
-            BoardBasisToPresenter(PokerCard.Orientation(false)),
-            BoardPositionToPresenter(BoardPresenter.DeckPosition));
     }
 
     private void RefreshName(string playerId, Vector2 facing)

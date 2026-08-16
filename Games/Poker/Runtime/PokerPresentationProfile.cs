@@ -100,12 +100,11 @@ public partial class PokerPresentationProfile : Resource
                     ? cleanupCardSlots : MaximumCollectionCardSlots)
                 + TransitionSafetySeconds;
 
-        var ranking = ShowdownCardSeconds
-            + Mathf.Max(0, revealedPlayers - 1) * ShowdownRowStagger
-            + 4 * ShowdownCardStagger;
+        // Ranking is screen-space now and appears immediately; there are no extra physical cards
+        // travelling into comparison rows before the reading beat.
+        const float ranking = 0.0f;
         return finalBet + collection + ShowdownPreparationSeconds + ShowdownReleaseDelaySeconds
-            + ShowdownRevealMotionSeconds
-            + ShowdownRevealHoldSeconds + ranking
+            + ShowdownRevealMotionSeconds + ranking
             + RankedHandsReadingSeconds + payout
             + CardCleanupDurationFor(cleanupCardSlots > 0
                 ? cleanupCardSlots : MaximumCollectionCardSlots)

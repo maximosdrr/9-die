@@ -1197,12 +1197,13 @@ public partial class PokerMatchTest : Node
         }
         Check("a mão remota viaja das mãos estimadas até a mesa no showdown",
             sawRemoteRevealMotion);
-        Check("as mãos reveladas permanecem na mesa antes do ranking",
+        Check("as mãos reveladas permanecem fisicamente na mesa sob o ranking 2D",
             presenter.ShowdownRevealHoldElapsed > 0.0f
-            && presenter.ShowdownDisplayedCardCount == 0);
+            && presenter.ShowdownRankingOverlayVisible);
 
+        var revealedCardIds = game.RevealedHoleCards.Values.SelectMany(cards => cards).ToHashSet();
         var revealedSources = presenter.GetChildren().OfType<PokerCard>()
-            .Where(card => Poker.Rules.CardId.IsValid(card.CardId))
+            .Where(card => revealedCardIds.Contains(card.CardId))
             .ToList();
         var revealedClearances = new List<float>();
         var revealedCardsAreTangent = true;
@@ -1213,20 +1214,12 @@ public partial class PokerMatchTest : Node
             if (card.TryGetVisibleProjectionRange(normal, out var bottom, out _))
                 revealedClearances.Add(bottom - surface.Dot(normal));
         }
-        Check("as cartas do showdown pousam sobre a superficie fisica da mesa",
+        Check($"as cartas do showdown permanecem visíveis sobre a superfície física "
+              + $"({revealedSources.Count(card => card.Visible)}/{revealedSources.Count})",
             revealedClearances.Count >= game.RevealedHoleCards.Count * PokerDeal.HoleCardCount
+            && revealedSources.All(card => card.Visible)
             && revealedCardsAreTangent
             && revealedClearances.All(clearance => clearance >= 0.0002f && clearance < 0.01f));
-
-        var holdFrames = Mathf.Max(0, Mathf.FloorToInt(
-            (presenter.ShowdownRevealHoldSeconds - presenter.ShowdownRevealHoldElapsed) * 60.0f) - 2);
-        for (var frame = 0; frame < holdFrames; frame++)
-        {
-            presenter._Process(1.0 / 60.0);
-            board._Process(1.0 / 60.0);
-        }
-        Check("o intervalo de leitura não é cortado antes do tempo configurado",
-            presenter.ShowdownDisplayedCardCount == 0);
 
         for (var frame = 0; frame < 900 && !presenter.ShowdownPresentationSettled; frame++)
         {
@@ -1234,9 +1227,14 @@ public partial class PokerMatchTest : Node
             board._Process(1.0 / 60.0);
         }
 
-        Check("o showdown monta cinco cartas para cada mão revelada",
+        Check("o showdown mostra a mesa final e as duas cartas de cada jogador na UI",
             presenter.ShowdownPresentationSettled
-            && presenter.ShowdownDisplayedCardCount == game.RevealedHoleCards.Count * 5);
+            && presenter.ShowdownRankingOverlayVisible
+            && presenter.ShowdownDisplayedCommunityCardCount == PokerDeal.BoardCount
+            && presenter.ShowdownDisplayedPlayerCount == game.RevealedHoleCards.Count
+            && presenter.ShowdownDisplayedWinnerCount == game.Winners.Count
+            && presenter.ShowdownDisplayedCardCount == PokerDeal.BoardCount
+                + game.RevealedHoleCards.Count * PokerDeal.HoleCardCount);
 
         var ordered = presenter.ShowdownDisplayOrder.ToList();
         var bestFirst = true;
@@ -1259,8 +1257,8 @@ public partial class PokerMatchTest : Node
             presenter._Process(1.0 / 60.0);
             board._Process(1.0 / 60.0);
         }
-        Check("o ranking permanece sozinho na mesa durante o tempo de leitura",
-            !presenter.PayoutStarted);
+        Check("o ranking 2D permanece aberto durante o tempo de leitura",
+            presenter.ShowdownRankingOverlayVisible && !presenter.PayoutStarted);
 
         // Force one payout topology that the current denominations cannot express. This exercises the
         // complete pot -> dealer -> exact replacement -> winners path, not only the pure planner.

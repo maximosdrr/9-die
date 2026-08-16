@@ -418,10 +418,7 @@ public partial class PokerSeatPresenter : Node3D
             _showdownPresenter = new PokerShowdownPresenter { Name = "ShowdownPresenter" };
             AddChild(_showdownPresenter);
         }
-        _showdownPresenter.Configure(_game, BoardPresenter, CardScene, Profile,
-            ShowdownSourceTransform, NameOf, HideShowdownSources,
-            ShowdownRowSpacing, ShowdownCardSpacing, ShowdownArc,
-            ShowdownWinnerColor, ShowdownOtherColor);
+        _showdownPresenter.Configure(_game, BoardPresenter, Profile, NameOf, ChalkFont);
 
         _payoutSequencer = GetNodeOrNull<PokerPayoutSequencer>("PayoutSequencer");
         if (_payoutSequencer == null)
