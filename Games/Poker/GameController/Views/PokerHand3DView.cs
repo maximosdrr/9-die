@@ -116,6 +116,7 @@ public partial class PokerHand3DView : PokerHandView
     private bool _cardsTransferred;
     private bool _lookDone;
     private float _pickUpElapsed;
+    private float _cardLoweringRemaining;
     private float _pickUpAnimationSeconds;
     private bool _openingLookPoseStarted;
     private bool _openingDownPoseStarted;
@@ -332,6 +333,7 @@ public partial class PokerHand3DView : PokerHandView
             _cardsTransferred = false;
             _lookDone = false;
             _pickUpElapsed = 0.0f;
+            _cardLoweringRemaining = 0.0f;
             _pickUpAnimationSeconds = 0.0f;
             _openingLookPoseStarted = false;
             _openingDownPoseStarted = false;
@@ -781,8 +783,13 @@ public partial class PokerHand3DView : PokerHandView
             moved = wants;
 
         SetPeek(moved);
-        if (!wantsLook && Mathf.IsZeroApprox(moved))
-            SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
+        if (!wantsLook)
+        {
+            _cardLoweringRemaining = Mathf.MoveToward(
+                _cardLoweringRemaining, 0.0f, Mathf.Max(delta, 0.0f));
+            if (_cardLoweringRemaining <= 0.0f && Mathf.IsZeroApprox(moved))
+                SetCardAttachmentMode(PokerCardAttachmentMode.TableRest);
+        }
     }
 
     private void SetPeek(float value)
@@ -802,9 +809,17 @@ public partial class PokerHand3DView : PokerHandView
         _voluntaryLookPose = raised;
         if (raised)
         {
+            _cardLoweringRemaining = 0.0f;
             // Bind before the arm starts to rise. Lowering still blends back to the stable table
             // marker, but lifting never leaves the cards trailing behind the rendered hand.
             SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand, immediate: true);
+        }
+        else
+        {
+            // The cards remain a real follower of the left-hand bone for the complete downward
+            // crossfade. Only after the hand reaches the table may CardSlots return to its stable
+            // surface marker.
+            _cardLoweringRemaining = PokerClips.CardLookLowerBlendSeconds;
         }
         // Cards are authored on the left hand. While voluntarily looking, only that arm follows
         // the camera; the supporting/right hand remains exactly on the table.
@@ -1030,6 +1045,9 @@ public partial class PokerHand3DView : PokerHandView
     private void SetCardAttachmentMode(
         PokerCardAttachmentMode mode, bool immediate = false)
     {
+        if (mode == PokerCardAttachmentMode.TableRest)
+            _cardLoweringRemaining = 0.0f;
+
         if (_cardAttachmentMode == mode && !immediate)
             return;
 

@@ -79,10 +79,10 @@ public static class PokerClips
     public const float PokerFoldDurationSeconds = 0.85f;
     public const float PokerPassFirstContactFraction = 0.50f;
     public const float ShowdownDurationSeconds = 2.50f;
-    /// <summary>Soft crossfade from the table-rest pose into the raised card-reading pose.</summary>
-    public const float CardLookRaiseBlendSeconds = 0.55f;
-    /// <summary>The reverse transition can be a little shorter without snapping onto the table.</summary>
-    public const float CardLookLowerBlendSeconds = 0.40f;
+    /// <summary>Symmetric, brisk transition between the low and raised card-reading poses.</summary>
+    public const float CardLookTransitionSeconds = 0.45f;
+    public const float CardLookRaiseBlendSeconds = CardLookTransitionSeconds;
+    public const float CardLookLowerBlendSeconds = CardLookTransitionSeconds;
     /// <summary>Slows the raised breathing/holding loop after the arm reaches the cards.</summary>
     public const float CardLookPlaybackSpeed = 0.82f;
     /// <summary>Down-to-raised settling beat before the reveal clip. Skipped if cards are raised.</summary>

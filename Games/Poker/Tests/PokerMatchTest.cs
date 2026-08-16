@@ -525,10 +525,18 @@ public partial class PokerMatchTest : Node
             && cardSlots.GlobalTransform.IsEqualApprox(
                 firstPersonHands.CardGrip.GlobalTransform);
         Input.ActionRelease(PokerInput.Peek);
-        for (var frame = 0; frame < 60; frame++)
+        for (var frame = 0; frame < 12; frame++)
+            view._Process(1.0 / 60.0);
+        var followsThroughoutLowering = firstPersonHands != null
+            && view.CardAttachmentMode == PokerCardAttachmentMode.FollowHand
+            && firstPersonHands.IsFollowingCardSlots(cardSlots);
+        for (var frame = 12; frame < 60; frame++)
             view._Process(1.0 / 60.0);
         Check("ao apertar o botao direito as cartas grudam na mao no primeiro quadro",
             attachedOnRaiseFrame);
+        Check("as cartas so desgrudam depois que a animacao de descida termina",
+            followsThroughoutLowering
+            && view.CardAttachmentMode == PokerCardAttachmentMode.TableRest);
 
         // This is the artist workflow that exposed the bug: changing the table model's height must
         // move the cards by the same amount without touching BoardHolder or hand-authored poses.

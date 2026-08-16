@@ -843,8 +843,8 @@ public partial class PokerSceneLoadTest : Node
         Check("olhar as cartas e preparar o showdown usam uma transicao suave",
             view.PeekSpeed >= 80.0f
             && view.CardAttachmentBlendSeconds >= 0.40f
-            && PokerClips.CardLookRaiseBlendSeconds >= 0.45f
-            && PokerClips.CardLookLowerBlendSeconds >= 0.30f
+            && Mathf.IsEqualApprox(PokerClips.CardLookRaiseBlendSeconds, 0.45f)
+            && Mathf.IsEqualApprox(PokerClips.CardLookLowerBlendSeconds, 0.45f)
             && PokerClips.CardLookPlaybackSpeed < 1.0f
             && PokerClips.ShowdownTransitionBlendSeconds
                 >= PokerClips.CardLookRaiseBlendSeconds
