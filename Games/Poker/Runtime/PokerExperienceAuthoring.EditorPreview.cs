@@ -11,7 +11,7 @@ public partial class PokerExperienceAuthoring : Node3D
     [Export(PropertyHint.Range, "0.05,0.2,0.005")] public float PreviewCardWidth = 0.076f;
     [Export(PropertyHint.Range, "0.07,0.26,0.005")] public float PreviewCardLength = 0.106f;
     [Export(PropertyHint.Range, "1.0,1.25,0.01")] public float PreviewCommunityCardScale = 1.20f;
-    [Export(PropertyHint.Range, "0.001,0.03,0.001")] public float PreviewCardGap = 0.020f;
+    [Export(PropertyHint.Range, "0.001,0.03,0.001")] public float PreviewCardGap = 0.024f;
 
     private const string GeneratedPreviewName = "ExperiencePreview_EditorOnly";
     private Node3D _generatedPreview;

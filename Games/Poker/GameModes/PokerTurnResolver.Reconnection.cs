@@ -42,9 +42,15 @@ public partial class PokerTurnResolver
 
         // If it was their turn, the hand has to move on without them.
         if (_actingSeat == seat)
+        {
+            CancelPendingActionAdvance();
             Advance();
+        }
         else if (PokerBetting.CountLive(_bets) <= 1)
+        {
+            CancelPendingActionAdvance();
             FinishHand(showdown: false);
+        }
     }
 
     public void ReissueStateTo(string oldPlayerId, string newPlayerId)

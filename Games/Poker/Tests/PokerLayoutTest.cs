@@ -218,9 +218,13 @@ public partial class PokerLayoutTest : Node
 
             var boardStep = spec.CardWidth + spec.CardGap;
             var boardCardWidth = game.BoardPresenter.CommunityCardSpec.CardWidth;
+            var visibleGap = boardStep - boardCardWidth;
             Check($"as comunitárias aumentadas continuam separadas "
                   + $"({boardCardWidth * 1000.0f:F0} mm em centros de {boardStep * 1000.0f:F0} mm)",
                 boardCardWidth < boardStep);
+            Check($"o espaço visual entre comunitárias é discreto e legível "
+                  + $"({visibleGap * 1000.0f:F1} mm)",
+                visibleGap is >= 0.007f and <= 0.011f);
 
             Check($"o que a cena desenha cabe na mesa dela ({PokerTableLayout.SeatReach(spec):F3} m)",
                 PokerTableLayout.SeatReach(spec) < TableRadius

@@ -1,3 +1,5 @@
+using Poker.Rules;
+
 /// <summary>Something a player does at the table that both a hand and a body can perform.</summary>
 public enum PokerGesture
 {
@@ -73,6 +75,8 @@ public static class PokerClips
 
     /// <summary>Authored timings shared by visual, sound and physical-card presentation.</summary>
     public const float PokerPassDurationSeconds = 1.20f;
+    public const float PokerBetDurationSeconds = 2.00f;
+    public const float PokerFoldDurationSeconds = 0.85f;
     public const float PokerPassFirstContactFraction = 0.50f;
     public const float ShowdownDurationSeconds = 2.50f;
     /// <summary>Down-to-raised settling beat before the reveal clip. Skipped if cards are raised.</summary>
@@ -117,5 +121,29 @@ public static class PokerClips
             "check" => PokerGesture.Knock,
             "call" or "raise" => PokerGesture.ThrowChips,
             _ => PokerGesture.None,
+        };
+
+    /// <summary>
+    /// Minimum time an accepted action owns the table. The server and every visual consumer use the
+    /// same clock, so the next turn/street cannot overtake the authored gesture.
+    /// </summary>
+    public static float DurationForGesture(PokerGesture gesture) =>
+        gesture switch
+        {
+            PokerGesture.ThrowChips => PokerBetDurationSeconds,
+            PokerGesture.Knock => PokerPassDurationSeconds,
+            PokerGesture.Fold => PokerFoldDurationSeconds,
+            PokerGesture.Reveal => ShowdownDurationSeconds,
+            _ => 0.0f,
+        };
+
+    public static float DurationForAction(PokerActionKind action) =>
+        action switch
+        {
+            PokerActionKind.Check => DurationForGesture(PokerGesture.Knock),
+            PokerActionKind.Call or PokerActionKind.Raise =>
+                DurationForGesture(PokerGesture.ThrowChips),
+            PokerActionKind.Fold => DurationForGesture(PokerGesture.Fold),
+            _ => 0.0f,
         };
 }

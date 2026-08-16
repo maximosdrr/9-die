@@ -368,6 +368,7 @@ public partial class PokerSeatPresenter : Node3D
         var visibleActionPending = _pendingChipActions.TryPeek(out var queued)
             && queued.Street <= _visibleStreet;
         if (_collectionRequested && !_collecting && !visibleActionPending
+            && _actionGestureRemaining <= 0.0f
             && !HasPhase(ChipBatchPhase.ToBet, ChipBatchPhase.PushingBet,
                 ChipBatchPhase.Landing))
         {

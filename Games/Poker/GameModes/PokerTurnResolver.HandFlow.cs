@@ -436,6 +436,7 @@ public partial class PokerTurnResolver
 
     private void EndSession()
     {
+        CancelPendingActionAdvance();
         _handInProgress = false;
         _actingSeat = -1;
         _awaitingShowdownReveals = false;

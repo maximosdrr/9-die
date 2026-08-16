@@ -39,6 +39,14 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     /// <summary>Production advances automatically; visual harnesses may hold a result indefinitely.</summary>
     [Export] public bool AutoAdvanceHands = true;
 
+    [ExportGroup("Action presentation")]
+    /// <summary>
+    /// Keeps ownership on the accepted actor until their authored pass, bet/call or fold gesture
+    /// finishes. Headless visual harnesses may disable it when they intentionally submit a whole
+    /// hand without advancing frames.
+    /// </summary>
+    [Export] public bool DelayTurnForActionAnimations = true;
+
     [ExportGroup("Showdown decision")]
     /// <summary>Time to reveal voluntarily before the visible countdown starts.</summary>
     [Export] public float ShowdownRevealGraceSeconds = 10.0f;
@@ -113,6 +121,11 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
     private string _lastAction = "";
     private string _lastPlayer = "";
     private int _lastAmount;
+    private bool _actionAdvancePending;
+    private float _actionAdvanceRemaining;
+
+    internal bool ActionAdvancePending => _actionAdvancePending;
+    internal float ActionAdvanceRemaining => _actionAdvanceRemaining;
 
     protected override void ResetSecretState()
     {
@@ -145,17 +158,30 @@ public partial class PokerTurnResolver : SecretHandTurnResolver
         _lastPlayer = "";
         _lastAmount = 0;
         _actionSeq = 0;
+        CancelPendingActionAdvance();
     }
 
     protected override void ClearSecretState()
     {
         _board.Clear();
         ResetPreparedWagerState();
+        CancelPendingActionAdvance();
     }
 
     public override void _Process(double delta)
     {
-        if (Multiplayer.IsServer() && _awaitingShowdownReveals)
+        if (!Multiplayer.IsServer())
+            return;
+
+        // Finishing an action may open the showdown. Do not spend the same frame's delta on the
+        // reveal countdown too; the animation owns this complete interval.
+        if (_actionAdvancePending)
+        {
+            AdvancePendingAction((float)delta);
+            return;
+        }
+
+        if (_awaitingShowdownReveals)
             AdvanceShowdownRevealClock((float)delta);
     }
 

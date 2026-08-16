@@ -81,6 +81,12 @@ public partial class PokerTurnResolver
             return;
         }
 
+        if (_actionAdvancePending)
+        {
+            RejectAction(requesterId, turnToken, "action_animation_in_progress");
+            return;
+        }
+
         if (actionKind < (int)PokerActionKind.Fold || actionKind > (int)PokerActionKind.Raise)
         {
             RejectAction(requesterId, turnToken, "invalid_action");
@@ -173,7 +179,43 @@ public partial class PokerTurnResolver
         // as a reversible wager.
         ClearPreparedWagerPreview(keepRevision: true);
 
+        ScheduleAdvanceAfterAction(kind);
+    }
+
+    private void ScheduleAdvanceAfterAction(PokerActionKind kind)
+    {
+        CancelPendingActionAdvance();
+        var duration = DelayTurnForActionAnimations
+            ? PokerClips.DurationForAction(kind)
+            : 0.0f;
+        if (duration <= 0.0f)
+        {
+            Advance();
+            return;
+        }
+
+        _actionAdvancePending = true;
+        _actionAdvanceRemaining = duration;
+    }
+
+    private void AdvancePendingAction(float delta)
+    {
+        if (!_actionAdvancePending)
+            return;
+
+        _actionAdvanceRemaining = Mathf.Max(
+            0.0f, _actionAdvanceRemaining - Mathf.Max(delta, 0.0f));
+        if (_actionAdvanceRemaining > 0.0f)
+            return;
+
+        CancelPendingActionAdvance();
         Advance();
+    }
+
+    private void CancelPendingActionAdvance()
+    {
+        _actionAdvancePending = false;
+        _actionAdvanceRemaining = 0.0f;
     }
 
     private void RejectAction(int requesterId, int turnToken, string reason)

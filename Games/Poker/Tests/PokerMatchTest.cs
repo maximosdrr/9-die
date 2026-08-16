@@ -90,6 +90,7 @@ public partial class PokerMatchTest : Node
         // No clock in a headless run: zero makes each hand deal straight into the next.
         resolver.ShowdownSeconds = 0.0f;
         resolver.FoldedHandSeconds = 0.0f;
+        resolver.DelayTurnForActionAnimations = false;
 
         SignalUtil.ConnectGuarded(resolver, SecretHandTurnResolver.SignalName.ActionRejected,
             new Callable(this, MethodName.OnActionRejected));
@@ -116,6 +117,15 @@ public partial class PokerMatchTest : Node
         resolver.ShowdownSeconds = 0.0f;
         game.SetupMatch(order, "1");
 
+        TestTurnWaitsForActionAnimation(game, resolver);
+
+        // The timing check consumed one real action. Restart once more so the long deterministic
+        // session below keeps its original deal and action path.
+        _actionsPublished.Clear();
+        _lastSeqSeen = -1;
+        resolver.DelayTurnForActionAnimations = false;
+        game.SetupMatch(order, "1");
+
         TestSessionRunsToTheEnd(game, resolver);
         TestEveryActionIsPublished();
         TestSecondSessionIsPlayable(game, resolver, order);
@@ -126,6 +136,81 @@ public partial class PokerMatchTest : Node
         TestReclaimedControllerWaitsForPlayerSpawn(game);
 
         Finish();
+    }
+
+    private void TestTurnWaitsForActionAnimation(
+        PokerGame game, PokerTurnResolver resolver)
+    {
+        resolver.DelayTurnForActionAnimations = true;
+
+        var actor = game.TurnOwnerId;
+        var token = game.TurnToken;
+        var street = game.Street;
+        var sequence = game.ActionSeq;
+        var options = PokerBetting.LegalActions(
+            game.BetStateOf(actor), game.CurrentBet, game.MinRaiseIncrement,
+            game.HasOpponentWhoCanAct(actor));
+        var action = options.FirstOrDefault(option => option.Kind == PokerActionKind.Call);
+        if (action.Kind == PokerActionKind.None)
+            action = options.FirstOrDefault(option => option.Kind == PokerActionKind.Check);
+
+        var duration = PokerClips.DurationForAction(action.Kind);
+        _lastRejection = null;
+        resolver.ApplyActionFor(actor, token, (int)action.Kind, action.MinTotal);
+
+        Check("a ação aceita começa sua animação antes de transferir a vez",
+            action.Kind != PokerActionKind.None
+            && duration > 0.0f
+            && resolver.ActionAdvancePending
+            && game.ActionSeq == sequence + 1
+            && game.TurnOwnerId == actor
+            && game.TurnToken == token
+            && game.Street == street);
+
+        resolver._Process(duration * 0.5f);
+        Check("na metade da animação o mesmo jogador ainda possui a vez",
+            resolver.ActionAdvancePending
+            && game.TurnOwnerId == actor
+            && game.TurnToken == token
+            && game.Street == street);
+
+        // The public owner/token intentionally remain stable while the gesture runs. The private
+        // pending gate is what prevents a duplicated click from spending or acting twice.
+        resolver.ApplyActionFor(actor, token, (int)action.Kind, action.MinTotal);
+        Check("uma segunda ação é recusada enquanto a primeira anima",
+            _lastRejection == "action_animation_in_progress"
+            && game.ActionSeq == sequence + 1);
+
+        _lastRejection = null;
+        resolver._Process(duration * 0.5f + 0.01f);
+        Check("a vez só é liberada quando a animação termina",
+            !resolver.ActionAdvancePending
+            && game.TurnToken != token
+            && game.TurnOwnerId != actor);
+
+        // The big blind's option closes the pre-flop. This is the exact regression the player saw:
+        // the flop used to be published immediately and begin turning while PokerPass was still
+        // knocking on the wood.
+        var checker = game.TurnOwnerId;
+        var checkToken = game.TurnToken;
+        var checkStreet = game.Street;
+        var check = PokerBetting.LegalActions(
+                game.BetStateOf(checker), game.CurrentBet, game.MinRaiseIncrement,
+                game.HasOpponentWhoCanAct(checker))
+            .FirstOrDefault(option => option.Kind == PokerActionKind.Check);
+        resolver.ApplyActionFor(checker, checkToken, (int)check.Kind, check.MinTotal);
+        resolver._Process(PokerClips.PokerPassDurationSeconds - 0.01f);
+        Check("passar não abre a próxima carta antes da última batida",
+            check.Kind == PokerActionKind.Check
+            && resolver.ActionAdvancePending
+            && game.Street == checkStreet
+            && game.TurnToken == checkToken);
+
+        resolver._Process(0.02f);
+        Check("a nova rua é publicada logo depois de PokerPass terminar",
+            !resolver.ActionAdvancePending
+            && game.Street == PokerStreet.Flop
+            && game.TurnToken != checkToken);
     }
 
     private void TestPreparedWagerIsServerAuthoritative(

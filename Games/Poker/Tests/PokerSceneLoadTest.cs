@@ -146,6 +146,8 @@ public partial class PokerSceneLoadTest : Node
         Check("o jogo aponta para o controlador, a mesa e os assentos",
             game.GameControllerScene != null && game.BoardPresenter != null && game.Seats != null);
         Check("o jogo tem um resolvedor de poker ligado pelo GameModeHandler", game.Resolver != null);
+        Check("a produção só transfere a vez depois da animação aceita",
+            game.Resolver?.DelayTurnForActionAnimations == true);
         Check("o showdown reserva leitura das mãos e cerca de oito segundos para o ranking",
             game.Resolver != null && game.Resolver.ShowdownSeconds >= 11.0f);
         Check("cartas e fichas podem ser trocadas em um único recurso",
@@ -418,16 +420,19 @@ public partial class PokerSceneLoadTest : Node
                 BindingFlags.Instance | BindingFlags.NonPublic) == null);
         if (seatPresenter != null && game.BoardPresenter != null)
         {
-            var spec = game.BoardPresenter.CommunityCardSpec;
+            var spec = game.BoardPresenter.Spec;
+            var visualCard = game.BoardPresenter.CommunityCardSpec;
             var edgeCard = PokerTableLayout.BoardPosition(PokerDeal.BoardCount - 1, spec);
             var sideSeatBet = new Vector2(spec.SeatBetRadius, -seatPresenter.BetSideOffset);
             var gap = new Vector2(
-                Mathf.Max(0.0f, Mathf.Abs(sideSeatBet.X - edgeCard.X) - spec.CardWidth * 0.5f),
-                Mathf.Max(0.0f, Mathf.Abs(sideSeatBet.Y - edgeCard.Y) - spec.CardLength * 0.5f));
+                Mathf.Max(0.0f,
+                    Mathf.Abs(sideSeatBet.X - edgeCard.X) - visualCard.CardWidth * 0.5f),
+                Mathf.Max(0.0f,
+                    Mathf.Abs(sideSeatBet.Y - edgeCard.Y) - visualCard.CardLength * 0.5f));
             Check($"até a aposta mais crítica deixa as comunitárias livres ({gap.Length() * 100.0f:F1} cm)",
                 gap.Length() > 0.05f);
 
-            var baseSpec = game.BoardPresenter.Spec;
+            var baseSpec = spec;
             var chipRadius = 0.020f;
             var cardRadius = new Vector2(
                 baseSpec.CardWidth * 0.5f, baseSpec.CardLength * 0.5f).Length();
@@ -1636,6 +1641,16 @@ public partial class PokerSceneLoadTest : Node
             && PokerClips.ForAction("check") == PokerGesture.Knock
             && PokerClips.ForAction("call") == PokerGesture.ThrowChips
             && PokerClips.ForAction("raise") == PokerGesture.ThrowChips);
+
+        Check("passar, apostar e desistir reservam toda a duração de seus gestos",
+            Mathf.Abs(PokerClips.DurationForAction(PokerActionKind.Check)
+                      - PokerClips.PokerPassDurationSeconds) < 0.001f
+            && Mathf.Abs(PokerClips.DurationForAction(PokerActionKind.Call)
+                         - PokerClips.PokerBetDurationSeconds) < 0.001f
+            && Mathf.Abs(PokerClips.DurationForAction(PokerActionKind.Raise)
+                         - PokerClips.PokerBetDurationSeconds) < 0.001f
+            && Mathf.Abs(PokerClips.DurationForAction(PokerActionKind.Fold)
+                         - PokerClips.PokerFoldDurationSeconds) < 0.001f);
 
         Check("uma ação que não é um gesto não anima nada",
             PokerClips.ForAction("deal") == PokerGesture.None

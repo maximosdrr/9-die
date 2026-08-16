@@ -226,7 +226,8 @@ public partial class PokerSeatPresenter : Node3D
 
     /// <summary>True when a newly offered action will not overtake an unfinished table animation.</summary>
     public bool PresentationReadyForAction =>
-        _pendingChipActions.Count == 0
+        _actionGestureRemaining <= 0.0f
+        && _pendingChipActions.Count == 0
         && !_collecting
         && !_organizing
         && !_collectionRequested

@@ -69,6 +69,7 @@ public partial class PokerVisualCheck : Node3D
         var resolver = _game.Resolver;
         resolver.AutoAdvanceHands = false;
         resolver.FoldedHandSeconds = 0.0f;
+        resolver.DelayTurnForActionAnimations = false;
 
         _game.SetupMatch(order, "1");
 

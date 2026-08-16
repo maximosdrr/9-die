@@ -39,7 +39,7 @@ public partial class PokerBoardPresenter : Node3D
     [Export] public float CardWidth = 0.076f;
     [Export] public float CardLength = 0.106f;
     [Export] public float CardThickness = 0.0006f;
-    [Export] public float CardGap = 0.020f;
+    [Export] public float CardGap = 0.024f;
     [Export] public float BoardOffset = 0.0f;
     [Export] public float PotRadius = 0.16f;
     [Export] public float SeatCardRadius = 0.40f;

@@ -67,6 +67,13 @@ public partial class PokerTurnResolver
             return false;
         }
 
+        if (_actionAdvancePending)
+        {
+            RejectPreparedWager(
+                requesterId, turnToken, revision, "action_animation_in_progress");
+            return false;
+        }
+
         var seat = _seatOrder.IndexOf(playerId);
         if (seat < 0 || seat != _actingSeat)
         {

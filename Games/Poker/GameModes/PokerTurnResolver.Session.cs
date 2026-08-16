@@ -48,6 +48,8 @@ public partial class PokerTurnResolver
         if (!Multiplayer.IsServer() || Game == null || !MatchRunning)
             return;
 
+        CancelPendingActionAdvance();
+
         DropBustedPlayers();
 
         if (_seatOrder.Count <= 1)

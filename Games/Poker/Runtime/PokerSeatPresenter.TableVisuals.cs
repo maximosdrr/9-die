@@ -55,6 +55,7 @@ public partial class PokerSeatPresenter : Node3D
         if (PlayerRegistry.Instance is { } registry && registry.HasContainer())
             duration = registry.GetPlayerById(_game.LastPlayer)?.PlaySeatedGesture(
                 PokerClips.ThirdPerson(gesture), BoardPresenter.GlobalPosition) ?? 0.0f;
+        duration = Mathf.Max(duration, PokerClips.DurationForGesture(gesture));
         _actionGestureRemaining = Mathf.Max(_actionGestureRemaining, duration);
 
         if (gesture == PokerGesture.Knock)
