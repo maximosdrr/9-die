@@ -97,10 +97,6 @@ public partial class PokerHand3DView : PokerHandView
     /// <summary>Lifting the pair off the cloth and turning it up.</summary>
     [Export] public float PickUpLiftSeconds = 0.55f;
 
-    /// <summary>Normalized point in PickCards where the fingers reach the pair on the felt.</summary>
-    [Export(PropertyHint.Range, "0.1,0.9,0.01")]
-    public float PickUpContactFraction = 0.42f;
-
     /// <summary>How long the player looks at them before lowering.</summary>
     [Export] public float PickUpLookSeconds = 1.3f;
 
@@ -165,6 +161,9 @@ public partial class PokerHand3DView : PokerHandView
     public FirstPersonHandCameraMode LeftHandCameraMode => _leftHandCameraMode;
     public FirstPersonHandCameraMode RightHandCameraMode => _rightHandCameraMode;
     public PokerCardAttachmentMode CardAttachmentMode => _cardAttachmentMode;
+
+    /// <summary>True from the exact frame in which the opening card animation starts.</summary>
+    public bool HasStartedPickUp => _pickedUp;
 
     /// <summary>
     /// Whether the opening look is over and this player may act.
@@ -419,7 +418,7 @@ public partial class PokerHand3DView : PokerHandView
         SetHandCameraModes(
             FirstPersonHandCameraMode.Locked,
             FirstPersonHandCameraMode.Locked);
-        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
+        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand, immediate: true);
         SetGuideVisible(false);
         Hud?.SetPanelVisible(false);
 
@@ -661,24 +660,19 @@ public partial class PokerHand3DView : PokerHandView
                 FirstPersonHandCameraMode.Locked,
                 immediate: true);
             _pickUpAnimationSeconds = PlayGesture(PokerGesture.PickUpCards);
+
+            // The authored first frame already has the left hand touching the pair. Attach the
+            // physical cards at the same seam as the clip starts; waiting for the old contact
+            // fraction made the hand move first and then appear to swallow the cards.
+            TransferCardsToHand(attachImmediately: true);
         }
 
         var lift = Mathf.Max(PickUpLiftSeconds, Mathf.Max(_pickUpAnimationSeconds, 0.01f));
         var look = Mathf.Max(PickUpLookSeconds, 0.0f);
         var settle = Mathf.Max(PickUpSettleSeconds, 0.01f);
-        var contact = lift * Mathf.Clamp(PickUpContactFraction, 0.1f, 0.9f);
-
-        if (!_cardsTransferred && _pickUpElapsed >= contact)
-            TransferCardsToHand();
-
         if (_pickUpElapsed < lift)
         {
             var lifting = Smooth(_pickUpElapsed / lift);
-            if (_cardsTransferred)
-            {
-                _cardTransfer = Smooth(
-                    (_pickUpElapsed - contact) / Mathf.Max(lift - contact, 0.01f));
-            }
             SetPeek(lifting);
             ApplyFan();
         }
@@ -731,18 +725,20 @@ public partial class PokerHand3DView : PokerHandView
         Hud?.Refresh(_options, IsYourTurn, RaiseTotal, true);
     }
 
-    private void TransferCardsToHand()
+    private void TransferCardsToHand(bool attachImmediately = false)
     {
-        SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
+        SetCardAttachmentMode(
+            PokerCardAttachmentMode.FollowHand, immediate: attachImmediately);
         _cardsTransferred = true;
         if (Game != null)
             Game.LocalPickedUpCards = true;
 
         AttachTransferredCards(Game?.SeatPresenter?.TakeLocalCards(CardSlots));
-        // Configure the real faces at the exact handoff seam. Before contact the same physical nodes
-        // remain face down on the cloth; afterwards they interpolate into the authored grip.
+        // Configure the real faces at the handoff seam. With immediate attachment the authored
+        // first frame is the contact pose, so no secondary card interpolation trails the skeleton.
         RebuildFan();
-        _cardTransfer = 0.0f;
+        _cardTransfer = attachImmediately ? 1.0f : 0.0f;
+        ApplyFan();
     }
 
     /// <summary>The voluntary look, once the opening one is done. Holding the button turns them up.</summary>
@@ -805,7 +801,11 @@ public partial class PokerHand3DView : PokerHandView
 
         _voluntaryLookPose = raised;
         if (raised)
-            SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand);
+        {
+            // Bind before the arm starts to rise. Lowering still blends back to the stable table
+            // marker, but lifting never leaves the cards trailing behind the rendered hand.
+            SetCardAttachmentMode(PokerCardAttachmentMode.FollowHand, immediate: true);
+        }
         // Cards are authored on the left hand. While voluntarily looking, only that arm follows
         // the camera; the supporting/right hand remains exactly on the table.
         SetHandCameraModes(
@@ -1027,18 +1027,42 @@ public partial class PokerHand3DView : PokerHandView
     /// left-hand grip; the lowered idle uses a stable marker in the chair frame, so breathing can
     /// move over the cards without making the cards slide across the felt.
     /// </summary>
-    private void SetCardAttachmentMode(PokerCardAttachmentMode mode)
+    private void SetCardAttachmentMode(
+        PokerCardAttachmentMode mode, bool immediate = false)
     {
-        if (_cardAttachmentMode == mode)
+        if (_cardAttachmentMode == mode && !immediate)
             return;
 
         _cardAttachmentMode = mode;
         if (_cardHandVisual is not PlayerFirstPersonHands hands || CardSlots == null)
+        {
+            if (immediate)
+                _cardAttachmentBlend = 1.0f;
             return;
+        }
 
         _cardAttachmentBlendFrom = CardSlots.GlobalTransform;
-        _cardAttachmentBlend = 0.0f;
         hands.UnbindCardSlots(CardSlots);
+
+        if (immediate)
+        {
+            _cardAttachmentBlend = 1.0f;
+            if (mode == PokerCardAttachmentMode.FollowHand)
+            {
+                hands.UpdateCardGrip();
+                CardSlots.GlobalTransform = hands.CardGrip.GlobalTransform;
+                hands.BindCardSlots(CardSlots);
+                ApplyFan();
+            }
+            else
+            {
+                ApplyFan();
+                PlaceCardsAtTableRest(hands, 0.0f);
+            }
+            return;
+        }
+
+        _cardAttachmentBlend = 0.0f;
         if (mode == PokerCardAttachmentMode.TableRest)
         {
             ApplyFan();

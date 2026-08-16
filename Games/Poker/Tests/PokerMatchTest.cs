@@ -431,12 +431,15 @@ public partial class PokerMatchTest : Node
         // No input whatsoever: the look is a cutscene, not a gesture.
         var frames = 0;
         var leftTheCloth = -1;
+        var pickUpStarted = -1;
 
         for (; frames < 600 && !view.HasPickedUpCards; frames++)
         {
             game.SeatPresenter._Process(1.0 / 60.0);
             view._Process(1.0 / 60.0);
 
+            if (pickUpStarted < 0 && view.HasStartedPickUp)
+                pickUpStarted = frames;
             if (leftTheCloth < 0 && game.LocalPickedUpCards)
                 leftTheCloth = frames;
         }
@@ -444,6 +447,9 @@ public partial class PokerMatchTest : Node
         Check($"a olhada acontece sozinha e termina ({frames} quadros)", view.HasPickedUpCards);
         Check($"as cartas saem da mesa antes de a olhada acabar ({leftTheCloth} quadros)",
             leftTheCloth >= 0 && leftTheCloth < frames);
+        Check("as cartas grudam na mao no mesmo quadro em que a animacao comeca",
+            pickUpStarted >= 0 && leftTheCloth >= pickUpStarted
+            && leftTheCloth - pickUpStarted <= 1);
         Check($"e voltam abaixadas ao terminar (espiada {view.PeekAmount:F2})",
             view.PeekAmount < 0.05f);
 
@@ -510,6 +516,19 @@ public partial class PokerMatchTest : Node
             wasDetachedAtRest
             && stableCardsAfterBreath.IsEqualApprox(stableCardsBefore)
             && view.CardDownAnchor.GlobalTransform.IsEqualApprox(stableCardsBefore));
+
+        Input.ActionPress(PokerInput.Peek);
+        view._Process(1.0 / 60.0);
+        var attachedOnRaiseFrame = firstPersonHands != null
+            && view.CardAttachmentMode == PokerCardAttachmentMode.FollowHand
+            && firstPersonHands.IsFollowingCardSlots(cardSlots)
+            && cardSlots.GlobalTransform.IsEqualApprox(
+                firstPersonHands.CardGrip.GlobalTransform);
+        Input.ActionRelease(PokerInput.Peek);
+        for (var frame = 0; frame < 60; frame++)
+            view._Process(1.0 / 60.0);
+        Check("ao apertar o botao direito as cartas grudam na mao no primeiro quadro",
+            attachedOnRaiseFrame);
 
         // This is the artist workflow that exposed the bug: changing the table model's height must
         // move the cards by the same amount without touching BoardHolder or hand-authored poses.
