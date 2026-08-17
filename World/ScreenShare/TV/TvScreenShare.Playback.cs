@@ -44,6 +44,8 @@ public partial class TvScreenShare
         {
             _texture.Update(image);
         }
+
+        _displayedFramesInWindow++;
     }
 
     private void ClearScreen()
@@ -76,7 +78,15 @@ public partial class TvScreenShare
             return;
 
         if (_audioPlayback.CanPushBuffer(frames.Length))
+        {
             _audioPlayback.PushBuffer(frames);
+            _audioPacketsPlayedInWindow++;
+        }
+        else
+        {
+            // Do not retain a late packet; the next 10 ms unit resumes live playback.
+            _audioPlaybackDropsInWindow++;
+        }
     }
 
     private void EnsureAudioPlayback()

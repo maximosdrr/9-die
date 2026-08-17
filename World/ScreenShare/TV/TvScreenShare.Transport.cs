@@ -79,6 +79,11 @@ public partial class TvScreenShare
             if (!AcceptIncomingPayload(senderId, data, isAudio))
                 continue;
 
+            if (isAudio)
+                _audioPacketsReceivedInWindow++;
+            else
+                RecordIncomingVideo(data);
+
             if (Multiplayer.IsServer())
             {
                 if (isAudio)
@@ -91,7 +96,7 @@ public partial class TvScreenShare
                 // queue to everyone else.
                 foreach (var peerId in Multiplayer.GetPeers())
                     if (peerId != senderId)
-                        SendSteamPacket(channel, peerId, data, isAudio ? AudioQueueLimitBytes : VideoQueueLimitBytes);
+                        SendSteamPacket(channel, peerId, data, isAudio ? 0 : VideoQueueLimitBytes);
             }
             else
             {
@@ -135,9 +140,40 @@ public partial class TvScreenShare
             queueLimitBytes = SteamVideoQueueLimitForPayload(data.Length);
 
         if (queueLimitBytes > 0 && IsSendQueueCongested(steamId, queueLimitBytes))
+        {
+            if (channel == SteamP2PVideoChannel)
+                _congestionDropsInWindow++;
+            return;
+        }
+
+        // Video exceeds the MTU and needs reliable fragmentation. Audio is a fixed 10 ms,
+        // 960-byte unit, so it can be sent immediately and discarded if late instead of waiting
+        // in the reliable queue and playing old sound.
+        var sendMode = channel == SteamP2PAudioChannel
+            ? _p2pSendUnreliableNoDelay
+            : _p2pSendReliableWithBuffering;
+        var sent = _steam.Call(
+            "sendP2PPacket",
+            steamId,
+            data,
+            sendMode,
+            channel).AsBool();
+        if (channel == SteamP2PAudioChannel)
+        {
+            if (sent)
+                _audioPacketsSentInWindow++;
+            else
+                _sendFailuresInWindow++;
+            return;
+        }
+
+        if (channel != SteamP2PVideoChannel)
             return;
 
-        _steam.Call("sendP2PPacket", steamId, data, _p2pSendReliableWithBuffering, channel);
+        if (sent)
+            _steamVideoPacketsInWindow++;
+        else
+            _sendFailuresInWindow++;
     }
 
     private bool IsSendQueueCongested(ulong steamId, long thresholdBytes)
@@ -169,7 +205,7 @@ public partial class TvScreenShare
             GD.Print("[TvScreenShare] Controle de congestionamento ativo (bytes_queued_for_send disponível).");
         }
 
-        return state["bytes_queued_for_send"].AsInt64() > thresholdBytes;
+        return state["bytes_queued_for_send"].AsInt64() >= thresholdBytes;
     }
 
     // Encoded WebP frames vary substantially in size. Godot explicitly warns that variable-size
@@ -187,6 +223,7 @@ public partial class TvScreenShare
             return;
 
         _playoutBuffer?.Enqueue(encodedBytes);
+        RecordIncomingVideo(encodedBytes);
 
         foreach (var peerId in Multiplayer.GetPeers())
             if (peerId != senderId)
@@ -200,9 +237,10 @@ public partial class TvScreenShare
             return;
 
         _playoutBuffer?.Enqueue(encodedBytes);
+        RecordIncomingVideo(encodedBytes);
     }
 
-    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = AudioTransferChannel)]
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = AudioTransferChannel)]
     private void SubmitAudioChunk(byte[] monoInt16)
     {
         if (!Multiplayer.IsServer())
@@ -213,6 +251,7 @@ public partial class TvScreenShare
             || !AcceptIncomingPayload(senderId, monoInt16, isAudio: true))
             return;
 
+        _audioPacketsReceivedInWindow++;
         PlayAudioChunk(monoInt16);
 
         foreach (var peerId in Multiplayer.GetPeers())
@@ -220,12 +259,13 @@ public partial class TvScreenShare
                 RpcId(peerId, MethodName.SendAudioChunk, monoInt16);
     }
 
-    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable, TransferChannel = AudioTransferChannel)]
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered, TransferChannel = AudioTransferChannel)]
     private void SendAudioChunk(byte[] monoInt16)
     {
         if (!AcceptIncomingPayload(ServerPeerId, monoInt16, isAudio: true))
             return;
 
+        _audioPacketsReceivedInWindow++;
         PlayAudioChunk(monoInt16);
     }
 
@@ -235,7 +275,7 @@ public partial class TvScreenShare
             return false;
 
         if (isAudio)
-            return data.Length <= MaxAudioChunkBytes && data.Length % sizeof(short) == 0;
+            return data.Length <= AudioPacketBytes && data.Length % sizeof(short) == 0;
 
         return data.Length <= MaxEncodedFrameBytes;
     }
@@ -403,5 +443,12 @@ public partial class TvScreenShare
 
         window.VideoPackets++;
         return true;
+    }
+
+    private void RecordIncomingVideo(byte[] encodedBytes)
+    {
+        _receivedFramesInWindow++;
+        _videoBytesInWindow += encodedBytes.Length;
+        _videoSamplesInWindow++;
     }
 }

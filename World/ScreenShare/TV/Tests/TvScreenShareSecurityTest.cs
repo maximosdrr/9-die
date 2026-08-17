@@ -27,6 +27,7 @@ public partial class TvScreenShareSecurityTest : Node
         TestCaptureProducerQueuesAreBounded();
         TestAudioCaptureFallback();
         TestSteamDrainBudget();
+        TestCaptureRateDoesNotWasteEncoderWork();
         TestSharingAuthorization();
         await TestTvSceneLifecycle();
 
@@ -68,12 +69,12 @@ public partial class TvScreenShareSecurityTest : Node
         Check("frame acima de 512 KiB é rejeitado",
             !TvScreenShare.IsValidMediaPayload(new byte[512 * 1024 + 1], isAudio: false));
 
-        Check("áudio PCM16 no limite de um segundo é aceito",
-            TvScreenShare.IsValidMediaPayload(new byte[48_000 * sizeof(short)], isAudio: true));
+        Check("pacote de áudio PCM16 de 10 ms é aceito",
+            TvScreenShare.IsValidMediaPayload(new byte[48_000 * sizeof(short) / 100], isAudio: true));
         Check("áudio com amostra truncada é rejeitado",
             !TvScreenShare.IsValidMediaPayload(new byte[3], isAudio: true));
-        Check("áudio acima de um segundo é rejeitado",
-            !TvScreenShare.IsValidMediaPayload(new byte[48_000 * sizeof(short) + 2], isAudio: true));
+        Check("áudio acima de 10 ms é rejeitado para não acumular atraso",
+            !TvScreenShare.IsValidMediaPayload(new byte[48_000 * sizeof(short) / 100 + 2], isAudio: true));
     }
 
     private void TestWebpHeaderPreflight()
@@ -157,8 +158,8 @@ public partial class TvScreenShareSecurityTest : Node
     {
         CheckRpcUsesReliableMediaDelivery("SubmitFrame", expectedChannel: 1);
         CheckRpcUsesReliableMediaDelivery("SendFrame", expectedChannel: 1);
-        CheckRpcUsesReliableMediaDelivery("SubmitAudioChunk", expectedChannel: 2);
-        CheckRpcUsesReliableMediaDelivery("SendAudioChunk", expectedChannel: 2);
+        CheckRpcUsesDisposableAudioDelivery("SubmitAudioChunk", expectedChannel: 2);
+        CheckRpcUsesDisposableAudioDelivery("SendAudioChunk", expectedChannel: 2);
     }
 
     private void CheckRpcUsesReliableMediaDelivery(string methodName, int expectedChannel)
@@ -173,13 +174,25 @@ public partial class TvScreenShareSecurityTest : Node
             && rpc.TransferChannel == expectedChannel);
     }
 
+    private void CheckRpcUsesDisposableAudioDelivery(string methodName, int expectedChannel)
+    {
+        var method = typeof(TvScreenShare).GetMethod(methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var rpc = method?.GetCustomAttribute<RpcAttribute>();
+
+        Check($"{methodName} usa unreliable ordered no canal de áudio {expectedChannel}",
+            rpc != null
+            && rpc.TransferMode == MultiplayerPeer.TransferModeEnum.UnreliableOrdered
+            && rpc.TransferChannel == expectedChannel);
+    }
+
     private void TestPlayoutQueueIsBounded()
     {
         var buffer = new VideoPlayoutBuffer();
         for (var i = 0; i < 100; i++)
             buffer.Enqueue([(byte)i]);
 
-        Check("fila de vídeo mantém no máximo oito frames", buffer.BufferedFrameCount == 8);
+        Check("fila de vídeo mantém no máximo quatro frames", buffer.BufferedFrameCount == 4);
         buffer.Clear();
         Check("fila de vídeo pode ser liberada no lifecycle", buffer.BufferedFrameCount == 0);
     }
@@ -190,11 +203,23 @@ public partial class TvScreenShareSecurityTest : Node
             TvScreenShare.SteamDrainPacketBudget is > 0 and <= 32);
         Check("leitura Steam tem orçamento rígido de bytes por frame",
             TvScreenShare.SteamDrainByteBudget is >= 512 * 1024 and <= 2 * 1024 * 1024);
-        Check("fila Steam comporta três frames reais sem ficar ilimitada",
-            TvScreenShare.SteamVideoQueueLimitForPayload(160 * 1024) == 480 * 1024
+        Check("fila Steam mantém no máximo um frame completo",
+            TvScreenShare.SteamVideoQueueLimitForPayload(160 * 1024) == 160 * 1024
             && TvScreenShare.SteamVideoQueueLimitForPayload(1) == 128 * 1024
             && TvScreenShare.SteamVideoQueueLimitForPayload(4 * 1024 * 1024)
-                == 3L * 512 * 1024);
+                == 512 * 1024);
+    }
+
+    private void TestCaptureRateDoesNotWasteEncoderWork()
+    {
+        Check("captura mantém apenas a margem necessária sobre os 20 fps de rede",
+            TvScreenShare.NetworkTargetFps == 20.0
+            && TvScreenShare.CaptureTargetFps >= TvScreenShare.NetworkTargetFps
+            && TvScreenShare.CaptureTargetFps <= TvScreenShare.NetworkTargetFps * 1.5);
+        Check("cadência de vídeo se adapta ao peso do frame sem exceder o teto",
+            TvScreenShare.NetworkFrameIntervalForPayload(20 * 1024) == 50
+            && TvScreenShare.NetworkFrameIntervalForPayload(160 * 1024) == 157
+            && TvScreenShare.NetworkFrameIntervalForPayload(512 * 1024) == 500);
     }
 
     private void TestCaptureProducerQueuesAreBounded()

@@ -6,10 +6,18 @@ public partial class TvScreenShare : Node3D
 {
     private const int CaptureWidth = 1280;
     private const int CaptureHeight = 720;
-    private const double TargetFps = 60.0;
+    // Capture only needs modest headroom over the 20 fps network cadence. Capturing and WebP-
+    // encoding 60 frames merely spent CPU on frames LatestFrameSlot would replace before they
+    // could ever be sent, which could starve the main thread in visually heavy scenes.
+    private const double TargetFps = 30.0;
     private const int FrameTransferChannel = 1;
     private const int AudioTransferChannel = 2;
     private const int AudioMixRate = 48000;
+    private const int AudioPacketDurationMs = 10;
+    private const int AudioPacketBytes = AudioMixRate * sizeof(short) * AudioPacketDurationMs / 1000;
+    private const int AudioPacketsPerSecond = 1000 / AudioPacketDurationMs;
+    private const int MaxPendingAudioPackets = 12;
+    private const int MaxAudioPacketsPerFrame = 8;
     private const int MaxEncodedFrameBytes = 512 * 1024;
     private const int MaxAudioChunkBytes = AudioMixRate * sizeof(short);
     private const int MaxVideoPacketsPerSecond = 24;
@@ -52,8 +60,7 @@ public partial class TvScreenShare : Node3D
     // that the alternative is audio drifting endlessly behind — at that point a stutter that
     // stays live beats a clean stream narrating the past.
     private const long VideoQueueLimitBytes = 128 * 1024;
-    private const int VideoQueueFrameBudget = 3;
-    private const long AudioQueueLimitBytes = 512 * 1024;
+    private const int VideoQueueFrameBudget = 1;
 
     internal static long SteamVideoQueueLimitForPayload(int payloadBytes)
     {
@@ -66,8 +73,20 @@ public partial class TvScreenShare : Node3D
     // The sharer's own TV happily displays every captured frame, but pushing 35+ fps over the
     // network triples bandwidth for a gain nobody can perceive on an in-game TV; 20 fps is the
     // ceiling, and congestion gating above takes each peer below that as needed.
-    private const ulong NetworkFrameIntervalMs = 50;
+    private const ulong MinimumNetworkFrameIntervalMs = 50;
+    private const long TargetVideoBytesPerSecond = 1024 * 1024;
     private ulong _lastVideoSendMs;
+
+    internal static double CaptureTargetFps => TargetFps;
+    internal static double NetworkTargetFps => 1000.0 / MinimumNetworkFrameIntervalMs;
+
+    internal static ulong NetworkFrameIntervalForPayload(int payloadBytes)
+    {
+        var safePayloadBytes = Math.Clamp(payloadBytes, 1, MaxEncodedFrameBytes);
+        var bitrateIntervalMs = (ulong)Math.Ceiling(
+            safePayloadBytes * 1000.0 / TargetVideoBytesPerSecond);
+        return Math.Max(MinimumNetworkFrameIntervalMs, bitrateIntervalMs);
+    }
 
     [Signal]
     public delegate void SharerChangedEventHandler(int sharerId);
@@ -93,6 +112,8 @@ public partial class TvScreenShare : Node3D
     private AudioStreamPlayer3D _audioPlayer;
     private AudioStreamGeneratorPlayback _audioPlayback;
     private IAudioCaptureSource _audioCapture;
+    private readonly System.Collections.Generic.Queue<byte[]> _pendingAudioPackets = new();
+    private double _audioPacketSendBudget;
     private bool _audioFallbackWarningIssued;
     private ScreenCaptureWorker _videoCapture;
     private IntPtr _pendingCaptureWindow;
@@ -101,8 +122,27 @@ public partial class TvScreenShare : Node3D
     private SteamNetworkProvider _steamProvider;
     private GodotObject _steam;
     private long _p2pSendReliableWithBuffering;
+    private long _p2pSendUnreliableNoDelay;
     private readonly System.Collections.Generic.Dictionary<int, MediaRateWindow> _mediaRateByPeer = new();
     private bool _sendQueueTelemetryVerified;
+
+    // Once-per-second diagnostics. These counters deliberately live on the main thread: besides
+    // being safe for Godot's logger, they report what actually crossed each stage rather than the
+    // theoretical capture target. This is kept cheap enough to remain enabled in exported builds.
+    private ulong _fpsWindowStartedAtMs;
+    private int _capturedFramesInWindow;
+    private int _networkFramesInWindow;
+    private int _receivedFramesInWindow;
+    private int _displayedFramesInWindow;
+    private int _steamVideoPacketsInWindow;
+    private int _congestionDropsInWindow;
+    private int _sendFailuresInWindow;
+    private int _audioPacketsSentInWindow;
+    private int _audioPacketsReceivedInWindow;
+    private int _audioPacketsPlayedInWindow;
+    private int _audioPlaybackDropsInWindow;
+    private long _videoBytesInWindow;
+    private int _videoSamplesInWindow;
 
     public override void _ExitTree()
     {
@@ -141,7 +181,8 @@ public partial class TvScreenShare : Node3D
         var generator = new AudioStreamGenerator
         {
             MixRate = AudioMixRate,
-            BufferLength = 0.5f,
+            // Absorbs normal scheduling jitter without creating a second audio delay.
+            BufferLength = 0.15f,
         };
         _audioPlayer.Stream = generator;
 
@@ -165,6 +206,7 @@ public partial class TvScreenShare : Node3D
         {
             _steam = Engine.GetSingleton("Steam");
             _p2pSendReliableWithBuffering = _steam.Get("P2P_SEND_RELIABLE_WITH_BUFFERING").AsInt64();
+            _p2pSendUnreliableNoDelay = _steam.Get("P2P_SEND_UNRELIABLE_NO_DELAY").AsInt64();
             SignalUtil.ConnectGuarded(_steam, "p2p_session_request", new Callable(this, MethodName.OnP2PSessionRequest));
             _steam.Call("allowP2PPacketRelay", true);
         }
@@ -245,6 +287,59 @@ public partial class TvScreenShare : Node3D
         ProcessSteamIncoming();
         ProcessVideoCapture();
         ProcessPlayout();
-        ProcessAudioCapture();
+        ProcessAudioCapture(delta);
+        ReportScreenShareFps();
+    }
+
+    private void ResetScreenShareFps()
+    {
+        _fpsWindowStartedAtMs = Time.GetTicksMsec();
+        _capturedFramesInWindow = 0;
+        _networkFramesInWindow = 0;
+        _receivedFramesInWindow = 0;
+        _displayedFramesInWindow = 0;
+        _steamVideoPacketsInWindow = 0;
+        _congestionDropsInWindow = 0;
+        _sendFailuresInWindow = 0;
+        _audioPacketsSentInWindow = 0;
+        _audioPacketsReceivedInWindow = 0;
+        _audioPacketsPlayedInWindow = 0;
+        _audioPlaybackDropsInWindow = 0;
+        _videoBytesInWindow = 0;
+        _videoSamplesInWindow = 0;
+    }
+
+    private void ReportScreenShareFps()
+    {
+        if (SharerId == 0)
+            return;
+
+        var nowMs = Time.GetTicksMsec();
+        if (_fpsWindowStartedAtMs == 0)
+            _fpsWindowStartedAtMs = nowMs;
+
+        var elapsedMs = nowMs - _fpsWindowStartedAtMs;
+        if (elapsedMs < 1_000)
+            return;
+
+        var seconds = elapsedMs / 1000.0;
+        var role = SharerId == Multiplayer.GetUniqueId() ? "origem" : "viewer";
+        var averageKiB = _videoSamplesInWindow > 0
+            ? _videoBytesInWindow / (double)_videoSamplesInWindow / 1024.0
+            : 0.0;
+        var bufferedFrames = _playoutBuffer?.BufferedFrameCount ?? 0;
+
+        GD.Print(
+            $"[TvScreenShare/FPS] {role} | captura {_capturedFramesInWindow / seconds:F1} | "
+            + $"envio {_networkFramesInWindow / seconds:F1} | "
+            + $"recebimento {_receivedFramesInWindow / seconds:F1} | "
+            + $"exibição {_displayedFramesInWindow / seconds:F1} | "
+            + $"frame {averageKiB:F0} KiB | buffer {bufferedFrames} | "
+            + $"Steam enviados {_steamVideoPacketsInWindow}, congestionados {_congestionDropsInWindow}, "
+            + $"falhas {_sendFailuresInWindow} | áudio env {_audioPacketsSentInWindow}, "
+            + $"rec {_audioPacketsReceivedInWindow}, play {_audioPacketsPlayedInWindow}, "
+            + $"drop {_audioPlaybackDropsInWindow}");
+
+        ResetScreenShareFps();
     }
 }

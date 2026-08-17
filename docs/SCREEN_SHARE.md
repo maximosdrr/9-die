@@ -35,30 +35,38 @@ mídia somente desse peer. Clientes aceitam mídia somente do servidor.
 ## Captura e reprodução
 
 - resolução de captura: 1280 x 720;
-- captura alvo: 60 FPS;
-- envio de vídeo: no máximo um frame novo a cada 50 ms, aproximadamente 20 FPS;
-- WebP lossy com qualidade 0,90;
+- captura alvo: 30 FPS (margem sobre os 20 FPS enviados, sem codificar quadros descartáveis);
+- envio de vídeo: teto de 20 FPS, adaptado ao tamanho do frame para cerca de 1 MiB/s por link;
+- WebP lossy com qualidade 0,82;
 - frame codificado: máximo de 512 KiB;
 - receptor: máximo de 24 pacotes de vídeo por segundo;
-- áudio: PCM mono, 48 kHz, com limites de chunk e de bytes por segundo;
-- playout: alvo de 200 ms, atraso máximo de 600 ms e no máximo 8 frames.
+- áudio: PCM mono, 48 kHz, em pacotes descartáveis de 10 ms e janela local máxima de 120 ms;
+- playout: alvo de 50 ms, atraso máximo de 150 ms e no máximo 4 frames.
 
 O worker mantém apenas o frame codificado mais recente em `LatestFrameSlot`. Se captura ou encoding
 produzir mais rápido que a rede, quadros antigos são substituídos em vez de formar uma fila. O
 playout também é limitado e descarta atraso excessivo. Não substitua esses limites por filas sem
 capacidade.
 
+Enquanto uma transmissão está ativa, cada instância imprime uma linha por segundo iniciada por
+`[TvScreenShare/FPS]`. Ela mostra FPS de captura, envio, recebimento e exibição, tamanho médio do
+frame, ocupação do playout e, no Steam, pacotes enviados, descartados por congestionamento e falhas.
+O worker também imprime `[TvScreenCapture]` com tempo médio de captura e encoding. Compare os dois
+logs para localizar o estágio lento sem aumentar filas às cegas.
+
 ## Transporte ENet
 
-ENet usa RPCs confiáveis em canais dedicados:
+ENet usa canais dedicados:
 
 - canal 1: vídeo;
 - canal 2: áudio.
 
 Os pacotes WebP variam de tamanho. Eles devem permanecer `Reliable` nesses canais dedicados.
 `UnreliableOrdered` já provocou starvation: um fragmento perdido invalidava quadros posteriores e a
-TV virava uma sequência de slides. Ao alterar canais, confira também `network/max_channels` em
-`project.godot` e lembre que outros sistemas do jogo utilizam canais próprios.
+TV virava uma sequência de slides. Áudio, por outro lado, usa unidades PCM fixas de 960 bytes,
+menores que o MTU, em `UnreliableOrdered`: um pacote atrasado é descartado em vez de acumular som
+antigo. Ao alterar canais, confira também `network/max_channels` em `project.godot` e lembre que
+outros sistemas do jogo utilizam canais próprios.
 
 ## Transporte Steam
 
@@ -68,7 +76,8 @@ ignora `MultiplayerApi` e usa P2P bruto do GodotSteam:
 
 - canal P2P 10: vídeo;
 - canal P2P 11: áudio;
-- envio: `P2P_SEND_RELIABLE_WITH_BUFFERING`;
+- vídeo: `P2P_SEND_RELIABLE_WITH_BUFFERING` (necessário para fragmentar WebP);
+- áudio: `P2P_SEND_UNRELIABLE_NO_DELAY` em pacotes de 10 ms;
 - topologia: cliente -> host -> demais clientes, igual ao relay do ENet;
 - leitura por frame: até 16 pacotes e 1 MiB por canal.
 
@@ -77,9 +86,21 @@ no `SteamMultiplayerPeer`; vídeo e áudio usam os canais P2P brutos para não b
 Sessões P2P só são aceitas para Steam IDs reconhecidos pelo provider.
 
 O congestionamento é medido por peer com `bytes_queued_for_send`. Para vídeo, o limite é o maior
-valor entre 128 KiB e três vezes o tamanho do frame atual. Esse cálculo acompanha o payload: um
+valor entre 128 KiB e uma vez o tamanho do frame atual. Esse cálculo acompanha o payload: um
 limite fixo de 128 KiB descartava frames normais de 80–160 KiB e recriava o efeito de slides. Se a
 versão do GodotSteam não expuser a telemetria, o jogo avisa que o controle está inativo.
+
+Além disso, a cadência usa o tamanho real do WebP para limitar cada link a aproximadamente 1 MiB/s.
+Um frame pesado reduz a frequência seguinte em vez de entrar numa fila confiável que seria exibida
+segundos depois. Essa regra prioriza tempo real: sob falta de banda, cai FPS, nunca sincronização.
+
+Áudio `UNRELIABLE_NO_DELAY` não consulta `bytes_queued_for_send` por pacote. Essa telemetria é da
+sessão P2P inteira, não do canal, e consultá-la 100 vezes por segundo criava trabalho na thread
+principal e reduzia o FPS do vídeo. Como esses pacotes de áudio nunca entram na fila confiável,
+eles são limitados pela janela de captura de 120 ms e descartados naturalmente pelo transporte.
+As rajadas do WASAPI são ainda distribuídas por um orçamento temporal de pacotes: no máximo oito
+podem sair em um frame, e somente na velocidade acumulada de 100 pacotes por segundo. Assim uma
+callback grande de áudio não pausa o envio ou a apresentação do próximo frame de vídeo.
 
 ## Autoridade e ciclo de vida
 
@@ -127,7 +148,7 @@ de assistir ao passado cada vez mais atrasado.
 
 ## Invariantes que não devem ser quebradas
 
-1. ENet mantém vídeo/áudio confiáveis nos canais dedicados 1/2.
+1. ENet mantém vídeo confiável e áudio descartável nos canais dedicados 1/2.
 2. Steam mantém mídia fora de `SteamMultiplayerPeer`, nos canais P2P brutos 10/11.
 3. Filas de captura, envio e playout permanecem limitadas.
 4. O limite Steam de vídeo considera o tamanho real do payload, nunca apenas um valor fixo menor que

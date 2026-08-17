@@ -17,7 +17,9 @@ public interface IAudioCaptureSource : IDisposable
 
 public sealed class SystemAudioCapture : IAudioCaptureSource
 {
-    private const double MaxBufferedDurationSeconds = 0.5;
+    // Audio is live media: after a hitch, playing half a second of old sound is worse than
+    // dropping it and resuming near the present. Keep only a short recovery window.
+    private const double MaxBufferedDurationSeconds = 0.12;
 
     private readonly WasapiLoopbackCapture _capture;
     private readonly BoundedAudioChunkQueue _pcmChunks;

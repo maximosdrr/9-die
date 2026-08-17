@@ -10,9 +10,9 @@ using Godot;
 /// </summary>
 public sealed class VideoPlayoutBuffer
 {
-    private const ulong TargetLatencyMs = 200;
+    private const ulong TargetLatencyMs = 50;
     private const ulong MaxLatencyMs = TargetLatencyMs * 3;
-    private const int MaxBufferedFrames = 8;
+    private const int MaxBufferedFrames = 4;
 
     private readonly Queue<(ulong ArrivalMs, byte[] Bytes)> _frames = new();
 

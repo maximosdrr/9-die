@@ -64,6 +64,8 @@ public partial class TvScreenShare
         _videoCapture = null;
 
         StopAudioCapture(GD.PushWarning);
+        _pendingAudioPackets.Clear();
+        _audioPacketSendBudget = 0.0;
     }
 
     internal void StopAudioCapture(Action<string> warningSink)
@@ -138,20 +140,25 @@ public partial class TvScreenShare
         if (!_videoCapture.TryDequeueLatestFrame(out var encodedBytes))
             return;
 
-        DisplayFrame(encodedBytes);
+        _capturedFramesInWindow++;
 
         var nowMs = Time.GetTicksMsec();
-        if (nowMs - _lastVideoSendMs < NetworkFrameIntervalMs)
+        var sendIntervalMs = NetworkFrameIntervalForPayload(encodedBytes.Length);
+        if (nowMs - _lastVideoSendMs < sendIntervalMs)
             return;
         _lastVideoSendMs = nowMs;
+        _networkFramesInWindow++;
+        _videoBytesInWindow += encodedBytes.Length;
+        _videoSamplesInWindow++;
 
+        // Queue the frame before doing the local WebP decode/mipmap work. Previously every
+        // captured frame was decoded before this cadence check, so expensive local preview work
+        // could make peers receive only a handful of frames even while capture itself was fast.
         if (_steamProvider != null)
         {
             BroadcastSteamPacket(SteamP2PVideoChannel, encodedBytes, VideoQueueLimitBytes);
-            return;
         }
-
-        if (Multiplayer.IsServer())
+        else if (Multiplayer.IsServer())
         {
             foreach (var peerId in Multiplayer.GetPeers())
                 RpcId(peerId, MethodName.SendFrame, encodedBytes);
@@ -160,9 +167,13 @@ public partial class TvScreenShare
         {
             RpcId(1, MethodName.SubmitFrame, encodedBytes);
         }
+
+        // The sharer's TV follows the same 20 fps cadence as viewers. Decoding up to 60 local
+        // preview frames offered no network benefit and could starve both networking and gameplay.
+        DisplayFrame(encodedBytes);
     }
 
-    private void ProcessAudioCapture()
+    private void ProcessAudioCapture(double delta)
     {
         if (_audioCapture == null)
             return;
@@ -175,22 +186,82 @@ public partial class TvScreenShare
             any = true;
         }
 
-        if (!any)
-            return;
+        if (any)
+        {
+            var monoInt16 = ConvertFloatToMonoInt16(
+                stream.ToArray(),
+                _audioCapture.WaveFormat.Channels,
+                _audioCapture.WaveFormat.SampleRate);
+            QueueCapturedAudio(monoInt16);
+        }
 
-        var monoInt16 = ConvertFloatToMonoInt16(stream.ToArray(), _audioCapture.WaveFormat.Channels, _audioCapture.WaveFormat.SampleRate);
-        if (monoInt16.Length == 0)
-            return;
+        FlushCapturedAudio(delta);
+    }
 
+    private void QueueCapturedAudio(byte[] monoInt16)
+    {
+        // Fixed 10 ms packets stay below a typical network MTU and fit the receiver's short
+        // AudioStreamGenerator buffer. The queue keeps only the latest 120 ms.
+        for (var offset = 0; offset < monoInt16.Length; offset += AudioPacketBytes)
+        {
+            var packetLength = Math.Min(AudioPacketBytes, monoInt16.Length - offset);
+            packetLength -= packetLength % sizeof(short);
+            if (packetLength <= 0)
+                break;
+
+            var packet = new byte[packetLength];
+            Buffer.BlockCopy(monoInt16, offset, packet, 0, packetLength);
+
+            while (_pendingAudioPackets.Count >= MaxPendingAudioPackets)
+                _pendingAudioPackets.Dequeue();
+            _pendingAudioPackets.Enqueue(packet);
+        }
+    }
+
+    private void FlushCapturedAudio(double delta)
+    {
+        // WASAPI callbacks arrive in bursts. Sending an entire burst in one _Process caused a
+        // periodic main-thread spike and starved video. A small token budget spreads the same
+        // live packets across frames without ever allowing an unbounded backlog.
+        if (_pendingAudioPackets.Count == 0)
+        {
+            // Do not bank credits during silence; otherwise the next callback would still flush
+            // a full burst in one frame and recreate the hitch this pacing is meant to remove.
+            _audioPacketSendBudget = 0.0;
+            return;
+        }
+
+        _audioPacketSendBudget = Math.Min(
+            MaxAudioPacketsPerFrame,
+            _audioPacketSendBudget + Math.Max(0.0, delta) * AudioPacketsPerSecond);
+
+        var packetsThisFrame = Math.Min(
+            MaxAudioPacketsPerFrame,
+            (int)_audioPacketSendBudget);
+        while (packetsThisFrame-- > 0 && _pendingAudioPackets.Count > 0)
+        {
+            SendCapturedAudioPacket(_pendingAudioPackets.Dequeue());
+            _audioPacketSendBudget -= 1.0;
+        }
+
+        if (_pendingAudioPackets.Count == 0)
+            _audioPacketSendBudget = 0.0;
+    }
+
+    private void SendCapturedAudioPacket(byte[] monoInt16)
+    {
         // Deliberately not calling PlayAudioChunk here: the sharer already hears this audio
         // directly from their own system output, so looping it back through the TV speaker
         // would double it up as an echo. Only relay it to everyone else.
         if (_steamProvider != null)
         {
-            BroadcastSteamPacket(SteamP2PAudioChannel, monoInt16, AudioQueueLimitBytes);
+            // Unreliable-no-delay audio never enters Steam's reliable queue, so querying the
+            // aggregate session queue for every 10 ms packet is both meaningless and expensive.
+            BroadcastSteamPacket(SteamP2PAudioChannel, monoInt16);
             return;
         }
 
+        _audioPacketsSentInWindow++;
         if (Multiplayer.IsServer())
         {
             foreach (var peerId in Multiplayer.GetPeers())

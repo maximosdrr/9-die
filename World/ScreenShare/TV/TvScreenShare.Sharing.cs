@@ -94,6 +94,7 @@ public partial class TvScreenShare
     {
         SharerId = sharerId;
         _mediaRateByPeer.Clear();
+        ResetScreenShareFps();
 
         if (sharerId == 0)
         {

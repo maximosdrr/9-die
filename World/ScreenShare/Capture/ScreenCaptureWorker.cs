@@ -25,7 +25,10 @@ public sealed class ScreenCaptureWorker : IDisposable
     // bottleneck capping the achieved frame rate far below TargetFps regardless of CPU power —
     // the earlier "cartoon" quality complaints turned out to be caused by the GDI stretch mode
     // and material bloom, both already fixed independently, so this should still look sharp.
-    private const float WebpQuality = 0.9f;
+    // 0.82 keeps text and game UI readable while substantially reducing the payload sent over
+    // the network. At 0.90, detailed 720p game scenes regularly produced 150+ KiB frames and a
+    // nominal 20 fps stream could exceed ordinary upload bandwidth, creating reliable-queue lag.
+    private const float WebpQuality = 0.82f;
 
     private readonly int _width;
     private readonly int _height;
