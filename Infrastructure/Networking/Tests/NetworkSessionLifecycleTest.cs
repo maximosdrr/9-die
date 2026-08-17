@@ -150,6 +150,23 @@ public partial class NetworkSessionLifecycleTest : Node
             NetworkManager.GetConfiguredHostAddress() == "127.0.0.1");
         Check("identidade de lobby e estavel", NetworkProvider.GameId == "9die");
         Check("versao do protocolo e publicada", NetworkProvider.ProtocolVersion == "2");
+        Check("Steam aceita salas da versao atual",
+            SteamNetworkProvider.IsCompatibleLobbyMetadata("9die", "2"));
+        Check("Steam mantem salas legadas do mesmo jogo descobríveis",
+            SteamNetworkProvider.IsCompatibleLobbyMetadata("9die", ""));
+        Check("Steam rejeita sala de outro jogo",
+            !SteamNetworkProvider.IsCompatibleLobbyMetadata("outro-jogo", "2"));
+        Check("Steam rejeita protocolo explicitamente incompatível",
+            !SteamNetworkProvider.IsCompatibleLobbyMetadata("9die", "999"));
+        var friendGame = new Godot.Collections.Dictionary { ["lobby"] = 123UL };
+        Check("Steam extrai a sala real anunciada por um amigo",
+            SteamNetworkProvider.ExtractFriendLobbyId(friendGame) == 123UL);
+        Check("Steam ignora amigo que nao esta em uma sala",
+            SteamNetworkProvider.ExtractFriendLobbyId(new Godot.Collections.Dictionary()) == 0UL);
+        Check("host Steam vincula o peer ao lobby pesquisavel",
+            SteamNetworkProvider.HostWithLobbyMethod == "host_with_lobby");
+        Check("cliente Steam conecta pelo mesmo lobby pesquisavel",
+            SteamNetworkProvider.ConnectToLobbyMethod == "connect_to_lobby");
         Check("capacidade da sessão não excede os quatro spawns únicos",
             NetworkProvider.MaxPlayers == 4);
         Check("ENet reserva uma das quatro vagas para o host",
