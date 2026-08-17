@@ -22,6 +22,14 @@ public partial class PokerShowdownRankingOverlay : CanvasLayer
     private static readonly Color Ink = new("17100c");
     private static readonly Color RedSuit = new("b8272f");
 
+    // The ranking is a brief hand recap, not a game-over screen. Keep the world clearly visible
+    // behind it while retaining enough contrast for cards and results at every supported scale.
+    private const float VeilAlpha = 0.34f;
+    private const float PanelAlpha = 0.84f;
+    private const float CommunityFrameAlpha = 0.64f;
+    private const float WinnerRowAlpha = 0.82f;
+    private const float OtherRowAlpha = 0.72f;
+
     private Control _root;
     private MarginContainer _safeMargin;
     private VBoxContainer _communityCards;
@@ -140,7 +148,7 @@ public partial class PokerShowdownRankingOverlay : CanvasLayer
         var veil = new ColorRect
         {
             Name = "Veil",
-            Color = new Color(0.035f, 0.022f, 0.016f, 0.78f),
+            Color = new Color(0.035f, 0.022f, 0.016f, VeilAlpha),
             MouseFilter = Control.MouseFilterEnum.Stop,
         };
         _root.AddChild(veil);
@@ -165,7 +173,7 @@ public partial class PokerShowdownRankingOverlay : CanvasLayer
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
         panel.AddThemeStyleboxOverride("panel", PanelStyle(
-            new Color(0.085f, 0.047f, 0.026f, 0.97f), Gold, 3, 18));
+            new Color(0.085f, 0.047f, 0.026f, PanelAlpha), Gold, 3, 18));
         centre.AddChild(panel);
 
         var padding = new MarginContainer();
@@ -186,7 +194,7 @@ public partial class PokerShowdownRankingOverlay : CanvasLayer
 
         var boardFrame = new PanelContainer { Name = "CommunityFrame" };
         boardFrame.AddThemeStyleboxOverride("panel", PanelStyle(
-            new Color(0.11f, 0.065f, 0.038f, 0.82f), Gold, 2, 10));
+            new Color(0.11f, 0.065f, 0.038f, CommunityFrameAlpha), Gold, 2, 10));
         content.AddChild(boardFrame);
         var boardPadding = new MarginContainer();
         boardPadding.AddThemeConstantOverride("margin_left", 14);
@@ -222,8 +230,8 @@ public partial class PokerShowdownRankingOverlay : CanvasLayer
         var row = new PanelContainer { Name = $"Player_{entry.PlayerId}" };
         row.CustomMinimumSize = new Vector2(0.0f, 92.0f);
         row.AddThemeStyleboxOverride("panel", PanelStyle(
-            entry.Won ? new Color(0.25f, 0.145f, 0.050f, 0.94f)
-                : new Color(0.075f, 0.046f, 0.032f, 0.90f),
+            entry.Won ? new Color(0.25f, 0.145f, 0.050f, WinnerRowAlpha)
+                : new Color(0.075f, 0.046f, 0.032f, OtherRowAlpha),
             entry.Won ? BrightGold : new Color(0.46f, 0.36f, 0.25f, 0.8f),
             entry.Won ? 4 : 1, 9));
 

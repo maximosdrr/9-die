@@ -94,6 +94,10 @@ ilimitado.
 
 ### Compartilhamento de tela
 
+Arquitetura, invariantes, regressões já resolvidas e matriz de validação estão documentadas em
+[`SCREEN_SHARE.md`](SCREEN_SHARE.md). A leitura desse documento é obrigatória antes de modificar
+captura, TV, áudio ou transporte de mídia.
+
 - somente um jogador dentro da área da TV pode reservar o compartilhamento;
 - somente o sharer registrado pode enviar ao servidor;
 - clientes aceitam mídia somente do servidor;

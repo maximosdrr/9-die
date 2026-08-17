@@ -103,11 +103,15 @@ Uma cena automatizada deve:
 
 ## Recursos e exportação
 
-O preset de distribuição exporta a cena principal e suas dependências. Recursos carregados em C#
-por string ou UID não são descobertos automaticamente: cada novo carregamento dinâmico de produção
-deve ser adicionado a `Shared/Resources/RuntimeResourceManifest.tres`. Não volte a `all_resources`:
-isso inclui testes e cenas experimentais no pacote. Assets não referenciados podem continuar no
-repositório enquanto estiverem em avaliação, mas não devem aumentar a build final.
+O preset exporta todos os recursos do projeto durante o desenvolvimento. Isso torna a build maior,
+mas impede que scripts C# usados por herança, texturas externas de GLBs, extensões nativas ou assets
+carregados dinamicamente desapareçam do pacote. Protótipos, testes e assets descartados devem ser
+removidos do projeto antes da distribuição final, quando o tamanho passar a ser otimizado.
+
+`Shared/Resources/RuntimeResourceManifest.tres` continua documentando os recursos carregados
+dinamicamente, mas não é a única fonte de inclusão do preset atual. Sempre execute o smoke a partir
+da própria pasta de exportação; usar o diretório do projeto como working directory pode mascarar um
+recurso ausente usando o arquivo-fonte local.
 
 O CI instala o template oficial, gera uma exportação Release real e executa a cena principal a
 partir do pacote. A saída local padrão fica em `outputs/`, que não é versionada.

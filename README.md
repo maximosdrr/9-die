@@ -57,5 +57,5 @@ As regras que não podem ser violadas estão documentadas em:
 4. Regra determinística não depende de cena, animação ou transporte. Apresentação nunca decide o
    resultado da partida.
 5. Toda correção de bug recebe uma regressão executável na suíte.
-6. Uma build de distribuição parte da cena principal e suas dependências. Todo carregamento
-   dinâmico de produção entra no `RuntimeResourceManifest`; testes e cenas órfãs ficam fora.
+6. Durante o desenvolvimento, a build exporta todos os recursos para impedir dependências ausentes.
+   Protótipos e testes devem ser removidos do projeto antes de preparar a distribuição final.

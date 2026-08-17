@@ -58,7 +58,7 @@ baseline antes de mudar estrutura.
 | testes encerravam antes de drenar `QueueFree`/áudio | falsos leaks | teardown determinístico |
 | build Release gerava DLL Debug | artefato errado | mappings corrigidos e Release validada |
 | DLLs temporárias do editor rastreadas | 24 MB de lixo versionado | removidas e ignoradas |
-| exportava testes/cenas órfãs | build inflada | cena principal + manifesto serializado de recursos dinâmicos |
+| exportava testes/cenas órfãs | build inflada | o filtro seletivo foi testado, mas o desenvolvimento voltou deliberadamente a exportar tudo para evitar dependências ausentes |
 | runner não encerrava cena travada e CI não exportava | pipeline preso/regressão só no pacote | timeout por cena, export Release e smoke do executável |
 
 ## Comparação com práticas consolidadas

@@ -175,7 +175,7 @@ peek_cards={
 
 [network]
 
-transport="enet"
+transport="steam"
 max_players=4
 max_channels=6
 port=7777

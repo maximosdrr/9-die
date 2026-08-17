@@ -31,8 +31,9 @@ conceito, o conceito recebe um contrato pequeno em `Shared`.
 `App/Main.tscn` instancia o nível protótipo, câmera global e menu. O nível contém o spawner de
 jogadores, as mesas, o ranking e a TV. A raiz também referencia
 `Shared/Resources/RuntimeResourceManifest.tres`: ele é a lista serializada dos assets que o código
-carrega dinamicamente e, portanto, a fronteira verificável do pacote de produção. Os autoloads têm
-escopo de processo:
+carrega dinamicamente. O preset de desenvolvimento atualmente exporta todos os recursos; o
+manifesto permanece como inventário explícito desses carregamentos. Os autoloads têm escopo de
+processo:
 
 | Serviço | Responsabilidade |
 | --- | --- |
